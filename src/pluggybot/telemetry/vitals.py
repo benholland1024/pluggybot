@@ -32,12 +32,11 @@ SAMPLE_S = 60.0
 #: +20 back to back (3518953, 2026-09-25), which a 30 would clear by only
 #: 1.3x. 50 sits ~2x from each.
 RUNAWAY_MB_PER_MIN = 50.0
-#: Three, not two: each of a robot's cameras builds its renderer at its first
-#: use, ~210 MiB under osmesa, and a robot's first walk after a charge built
-#: its two a minute apart (2026-11-14 17:32-17:33 UTC: +207, +239, then
-#: flat), which two read as a runaway. Three renderers in three minutes in a
-#: row would still read as one; none came so in the nine processes of the
-#: saved logs of 11-12, 11-14 and 11-15.
+#: Three, not two: while each of a robot's cameras built a renderer of its
+#: own at its first use, two built a minute apart read as a runaway
+#: (2026-11-14). Since #713 only the first camera's first use is a step (285
+#: MiB, each other's 0-10: MEASURED, the served pair under osmesa), and two
+#: again is Ben's call (#713; Webserver.md, "Three samples, not two").
 RUNAWAY_MINUTES = 3
 #: Calm samples in a row that end an episode.
 CALM_MINUTES = 2

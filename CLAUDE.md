@@ -1921,7 +1921,8 @@ save a filmstrip PNG named after the script.
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
   `vitals: rss` line every wall minute; at a RUNAWAY (`RUNAWAY_MB_PER_MIN` 50
   for THREE samples, after a warm-up of five that NO PAUSED SAMPLE counts:
-  a camera's renderer, ~210 MiB at its first use, is a step) every thread's
+  the cameras' one renderer, 285 MiB at the first camera's first use, is a
+  step, and two again is Ben's call, #713) every thread's
   stack, then the largest
   allocations `TRACE_S` later; every end Python sees prints `vitals: exiting
   -- <why>`, so a process with no such line was killed. `RunawayRule` is pure
@@ -2323,7 +2324,18 @@ save a filmstrip PNG named after the script.
   so more cores do not move it. ⚠ THE TAG CAMERA RENDERS
   WITHOUT SHADOWS: under osmesa a 1280×720 home frame cost 1113 ms with its
   sixteen shadow-casting lights and 32 ms without
-  (`tests/test_render_context.py`).
+  (`tests/test_render_context.py`). ⚠ A MODEL'S TAG CAMERAS DRAW THROUGH
+  ONE RENDERER (#713; `tags._renderer_for`, `tests/test_shared_renderer.py`):
+  a renderer each, ~210 MiB under osmesa, the pair held four; every picture
+  is the same bit for bit through the one, in any order, a draw under its
+  lock. ⚠ IT IS CLOSED WITH ITS LAST USER (`TagDetector.close`; one
+  collected unclosed at the next draw, build or close, never inside the
+  collection): kept, the tests' bodies of many models would each hold one
+  in a worker. ⚠ AND WITH ITS OWN GL CONTEXT CURRENT (`tags._close`):
+  MuJoCo 3.10's close sends its deletes to whatever context is current, and
+  under osmesa another renderer's next picture came out wrong in 626,450 of
+  921,600 pixels. ⚠ Its key carries the process: a forked child builds its
+  own.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step

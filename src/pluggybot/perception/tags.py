@@ -26,6 +26,8 @@ read from across the lab; a rack's are read from the working pose.
 import io
 import os
 import threading
+import warnings
+import weakref
 from pathlib import Path
 
 import numpy as np
@@ -262,6 +264,103 @@ def kept_detector(**params):
   return Kept(**params)
 
 
+#: The renderers the detectors draw through, ONE per model and picture size
+#: (#713): {(pid, id(model), height, width): [renderer, users]}. Each is ~210
+#: MiB under osmesa (its GL context, MuJoCo's and Mesa's buffers), and a
+#: pair's four cameras of one model drew one at a time on the physics thread
+#: through four. ⚠ CLOSED WHEN ITS LAST USER IS (`TagDetector.close`, or one
+#: collected unclosed): kept, the tests' many bodies of many models each held
+#: one alive in a worker. The renderer holds its model, so the id is that
+#: model's while the entry is here; ⚠ the pid, so a forked child builds its
+#: own (no GL context survives a fork; what it inherited is as it was before
+#: #713). One still kept at exit goes with this module, as an unclosed
+#: detector's own renderer did.
+_RENDERERS: dict[tuple[int, int, int, int], list] = {}
+_getpid = os.getpid
+#: Held across a draw (one scene and one context serve every camera of a
+#: model) and every change here. Re-entrant: a detector collected unclosed
+#: releases its use from inside whatever allocation set the cycle collector
+#: off, a draw's included.
+_RENDERERS_LOCK = threading.RLock()
+#: Renderers whose last user was collected unclosed: closed at the next draw,
+#: build or close (`_close_pending`), never inside the collection, which runs
+#: at any allocation and on any thread -- between another renderer's
+#: context made current and its draw included, which a close there would
+#: leave with no context. Every tag draw here is on one thread (the physics
+#: thread; a test's).
+_PENDING: list = []
+#: A renderer whose close failed: kept, as one never closed was before #713,
+#: so that its own `__del__` never closes it with another's context current.
+_UNCLOSED: list = []
+
+
+def _renderer_for(model, height: int, width: int):
+  """The renderer every camera of `model` draws a `height` x `width` picture
+  through, built at the first one's need, and its key. One picture is the
+  same bit for bit drawn through it after any other camera's or through a
+  renderer of its own (#713, on osmesa; `test_shared_renderer.py`): a draw
+  is `update_scene` and `render` back to back under the lock, and the scene
+  keeps nothing of the last camera's."""
+  import mujoco
+  key = (_getpid(), id(model), int(height), int(width))
+  with _RENDERERS_LOCK:
+    _close_pending()
+    entry = _RENDERERS.get(key)
+    if entry is None:
+      renderer = mujoco.Renderer(model, height, width)
+      # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296): under osmesa
+      # a home frame cost 1113 ms with its sixteen shadow-casting lights and
+      # 32 ms without, and a tag decode needs neither (SimNotes, "The tag
+      # camera spent 97 % of its render on shadows"). `update_scene` keeps
+      # the flags; the viewer and the filmstrips keep their shadows.
+      for flag in (mujoco.mjtRndFlag.mjRND_SHADOW, mujoco.mjtRndFlag.mjRND_REFLECTION):
+        renderer.scene.flags[flag] = 0
+      entry = _RENDERERS[key] = [renderer, 0]
+    entry[1] += 1
+    return key, entry[0]
+
+
+def _release_renderer(key, collected: bool = False) -> None:
+  """One user of the renderer at `key` gone; the last closes it, at once
+  where its detector was closed and at the next draw, build or close where
+  it was `collected` unclosed (`_PENDING`)."""
+  with _RENDERERS_LOCK:
+    entry = _RENDERERS.get(key)
+    if entry is not None:
+      entry[1] -= 1
+      if entry[1] <= 0:
+        del _RENDERERS[key]
+        _PENDING.append(entry[0])
+    if not collected:
+      _close_pending()
+
+
+def _close_pending() -> None:
+  """Close the pending renderers. One whose close fails is kept and said:
+  it never fails a draw."""
+  with _RENDERERS_LOCK:
+    while _PENDING:
+      renderer = _PENDING.pop()
+      try:
+        _close(renderer)
+      except Exception as exc:  # noqa: BLE001
+        _UNCLOSED.append(renderer)
+        warnings.warn(f"a tag camera's renderer was not closed: {exc!r}",
+                      RuntimeWarning, stacklevel=2)
+
+
+def _close(renderer) -> None:
+  """`renderer.close()` with its own GL context current. ⚠ MuJoCo 3.10's
+  frees the context first and then the `MjrContext`, whose deletes go to
+  whatever context is current: under osmesa, another renderer's, whose next
+  picture then came out wrong in 626,450 of its 921,600 pixels (#713; on
+  the GTX's EGL it came out the same). Leaves no context current, and every
+  draw makes its own current first."""
+  if renderer._gl_context:
+    renderer._gl_context.make_current()
+  renderer.close()
+
+
 class TagDetector:
   """Renders one camera and decodes the AprilTags in it.
 
@@ -271,20 +370,11 @@ class TagDetector:
 
   def __init__(self, model, camera_name: str, width: int = PICTURE_W,
                height: int = PICTURE_H, tag_size: float = SMALL_TAG_SIZE) -> None:
-    import mujoco
-    self.renderer = mujoco.Renderer(model, height, width)
-    # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296). MEASURED on
-    # the deploy box (MUJOCO_GL=osmesa, llvmpipe, home world, 2026-09-19):
-    # this frame costs 1113 ms with shadows and 32 ms without -- sixteen
-    # lights each casting into a 4096^2 shadow map is sixteen 16-Mpixel
-    # depth passes per look, on a software rasteriser, ~97 % of the render.
-    # At 3-4 looks a sim-second per robot the served pair spent ~80 % of
-    # all its CPU here and ran at 0.23x real time. A tag decode thresholds
-    # gray levels and a real camera sees no shadow PASS; nothing hardware
-    # has is lost. The viewer and the filmstrips keep their shadows: this
-    # is the detector's scene alone, and `update_scene` keeps the flags.
-    for flag in (mujoco.mjtRndFlag.mjRND_SHADOW, mujoco.mjtRndFlag.mjRND_REFLECTION):
-      self.renderer.scene.flags[flag] = 0
+    self._key, self.renderer = _renderer_for(model, height, width)
+    # its use released once: at `close`, or when it is collected unclosed
+    # (not at exit: the module's renderers go with it)
+    self._collected = weakref.finalize(self, _release_renderer, self._key, True)
+    self._collected.atexit = False
     self.camera_name = camera_name
     self.width, self.height = width, height
     self.tag_size = tag_size
@@ -352,8 +442,16 @@ class TagDetector:
 
   def frame(self, data) -> np.ndarray:
     """The camera's colour frame, (height, width, 3) uint8: what it decodes."""
-    self.renderer.update_scene(data, camera=self.camera_name)
-    return self.renderer.render()
+    if self.renderer is None:
+      raise RuntimeError(f"{self.camera_name}'s tag detector is closed")
+    with _RENDERERS_LOCK:
+      _close_pending()
+      self.renderer.update_scene(data, camera=self.camera_name)
+      return self.renderer.render()
 
   def close(self) -> None:
-    self.renderer.close()
+    """Its use of the shared renderer released (the last user's closes it);
+    a second close does nothing."""
+    if self._collected.detach() is not None:
+      _release_renderer(self._key)
+    self.renderer = None
