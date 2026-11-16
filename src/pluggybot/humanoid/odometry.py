@@ -225,12 +225,15 @@ class StanceOdometry:
 
   def kept_state(self) -> dict:
     """Its reckoning for a restart (#345; served since #559): the pelvis it
-    believes, the planted foot it counts from (`foot`, `last`), and its
-    heading's hold."""
+    believes, the planted foot it counts from (`foot`, `last`), its
+    heading's hold, and what corrections have moved it by (#717)."""
     return {"x": self.x, "y": self.y, "z": self.z, "offset": self.offset,
             "foot": self.foot, "last": kept_value(self.last),
             "hold": self.hold.kept_state(),
-            "headingAt": None if self._heading_at is None else list(self._heading_at)}
+            "headingAt": None if self._heading_at is None else list(self._heading_at),
+            # ...and what corrections have moved it by: what its knees' memory
+            # is carried by the legs alone off (#717, `KneeMemory`)
+            "corrected": [float(v) for v in self.corrected]}
 
   def restore_kept(self, state: dict) -> None:
     self.x, self.y, self.offset = state["x"], state["y"], state["offset"]
@@ -241,4 +244,6 @@ class StanceOdometry:
       self.hold.restore_kept(state["hold"])
     at = state.get("headingAt")
     self._heading_at = None if at is None else (float(at[0]), float(at[1]))
+    # ...a save from before #717 kept no knees' memory either
+    self.corrected = np.array(state.get("corrected", (0.0, 0.0, 0.0)), dtype=float)
 

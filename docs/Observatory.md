@@ -10,6 +10,112 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294
+characters, 17 sections, from `ff0e67df…`'s 67,340 at `loop-staging`
+68b78ea; none of these passages moved in that merge, and on `0f1df27e…`'s
+67,157 they read `bec4dffd…`, 68,111; the session host's hello moves, sha1
+`39c0692a…` from `b796e75d…`):
+- `step`'s text, after the sentence that ends "Either reads false and says
+  so.", gains: "It keeps off walls and furniture too: it stops before it
+  would bring your LIDAR within 0.3 m of anything that reads at your head's
+  height (1.05 m over the floor and up) -- a wall, a fence, a tall shelf --
+  or your middle within 0.2 m of what your depth camera has seen in front of
+  you at your knees' height (0.6 m over the floor and lower) -- a counter's
+  face, a chair -- each ahead in the way you step; standing that near
+  already, a walk goes along it but no nearer. That too reads false and says
+  so. A walk your LIDAR's scans of the room say went under 0.5 of what your
+  legs count, these 4 cm or more, reads false: pressed on something, a
+  stride can come down where it began while your legs count it; `step.*`
+  then says what your scans do." Before, nothing of either.
+- `spot`'s text, after "...and stand up again; ok when you see it.", gains:
+  "A bow goes no deeper than leaves your head 5 cm short of what your LIDAR
+  reads at your head's height in front of you, and none where your head is
+  nearer than that already; a look that did not see its tag says so."
+- New words a step reads false with: "your step stopped short of something
+  your LIDAR reads at your head's height: a step keeps it 0.30 m from your
+  LIDAR in the way you step (0.28 m now)"; "your step stopped short of
+  something your depth camera saw in front of you at your knees' height: a
+  step keeps it 0.20 m from your middle in the way you step (0.19 m now)";
+  and `pressed`: "your legs counted 8 cm along the way you stepped, but your
+  scans of the room put you only 1 cm on: something held your body back".
+  A `spot` that did not see its tag and had its last bow held adds "; your
+  LIDAR reads something 0.12 m in front of your head, so you bowed only 14
+  degrees of the 26 you would have" (or "too near for you to bow at all").
+- ⚠ A step used as a statement ends its run where it reads false, as "too
+  short" did (#649): 49 of the wake of 11-15's 145 runs used one so (most of
+  them Luca's). Flown again at their live draws, the 121 of them that held
+  a door, a chest, a drawer or a cube read `pressed` nowhere, and 2 ended
+  earlier, each on a step that read `blocked`: one at its 69th verb for its
+  89th, failing the same, and one at its 16th, where 41e574b fell in `spot`
+  at its 32nd.
+
+**The change** (`HumanoidBody._Room`, `step_routine`, `gaze_routine`,
+`bow_room`, `head_front`; `HumanoidMission.knee`, `KneeMemory`;
+`Lidar.band`'s `over_*`; `steps._pressed`, `_bow_said`; SimNotes, "A step
+into a wall, and the look's bow there"). A step kept off nothing but the
+other robot (#670). Its walk now stops before its stride's carry would bring
+its LIDAR within 0.30 m of what that reads at its head's height (1.05 m and
+up), off every scan the step took -- one taken as it sets off where it took
+none -- or its pelvis within 0.20 m of what its depth camera has seen at its
+knees' height (0.08-0.6 m), remembered 60 s within 1.5 m where its matched
+belief placed it, every frame replacing what it sees afresh (up close the
+camera sees none of a counter's face);
+begun nearer, it goes along but no nearer. A step its matched belief says
+went under half of what its legs count reads `pressed` (never judged across a
+correction of its belief past 3 cm). A gaze's bow (spot's, the charge's low
+look, the chest's reference's) goes no deeper than leaves the head's front 5
+cm short of what the LIDAR reads at its head's height, or another robot's
+body, in front of it. The scans a step or a look takes for itself draw their
+noise from a stream of their own and set nothing but what the step and the
+bow read (`look_scan`): a flight no new rule stops is the flight it was, bit
+for bit.
+
+**Why.** Three of Rowan's falls of 11-15 came in `spot` after its own steps
+had walked it into the research center lobby's wall and the storeroom's
+corner, every step "stepped": the bow put the head on the wall, the wall
+threw the trunk back, and the get-up ran the robot into the far wall (one a
+stuck death). At the counter's face the same loops pressed the thighs on it
+at 150-400 N, and those steps read "stepped" 7-9 cm where the body went
+1-3: the procedures took `step.dx` off where a tag was.
+
+**Measured** (one Vast pod, a Xeon E5-2698 v4, against 41e574b; the
+candidate the branch's `src/` laid on 41e574b, #712 left out; the loop of
+11-16/17, P2; SimNotes has the sizing). The lobby's nine starts that fell
+in `spot` (9 of 9 on 41e574b, one a stuck death, the head on the wall in
+each) and the storeroom's corner (2 of 2) fall in none: every step stops
+0.27-0.34 m off the wall and every deep bow is held at 0.15-0.40 rad, the
+head touching nothing. `drawer_final`'s 17 sweeps that pressed (21 false
+"stepped" on 41e574b, a thigh on the counter at 272-458 N in every one)
+press nowhere: the knees' memory stops those steps 0.18-0.21 m off the
+counter's face. Ben's bar, 736 flights: 587 passes and 11 falls on
+41e574b, 591 and 10 on the candidate. The hands checks (0-31 and held out
+32-127) are the same flights to the byte, no rule touching any; the tour
+goes from 134 passes (2 falls) to 138 (1), its cube from 25 (2) to 28 (1),
+the cube's reference's last step stopped by the knees' memory in 22 of its
+32 flights. The station: 39 of 39 approaches docked and unplugged and 20
+of 20 lost near docked, none slower, and the 140 seats the base's flights
+exactly; the pair's recorded day is the committed one, line for line. The
+wake of 11-15's 121 door, chest, drawer and cube runs, flown again at
+their live draws: 14 passed and 9 fell on 41e574b, 15 and 9 on the
+candidate. On the candidate none fell in `spot` (one did on 41e574b), no
+thigh met the counter at 150 N (two did), and the knees' memory stopped
+159 of their steps. Two falls are new: a door run whose steps it stopped
+reached the lever where 41e574b's reach was out of reach, and a later
+reach fell with a jaw on the door's boss; and a cube run's `move_hand`,
+after seven 5 cm steps kept off, fell with its jaws on the mat. M12's 38
+sweep flights that fell (#710's family): 32 fell on 41e574b and 16 on the
+candidate, none of them new; the 16 gone are 12 drawer reaches after steps
+that pressed the counter and 4 `spot`s in the storeroom's corner.
+
+**What to read on the live rows.** A step that reads false with "your step
+stopped short of something your LIDAR reads at your head's height" or "...
+your depth camera saw in front of you at your knees' height", where it read
+`stepped`; a `pressed` step; a `spot` that says its bow was held -- and no
+fall in a `spot` after steps (three on 11-15). A step used as a statement now
+ends its run where it reads false.
+
 ### A `done` beside a run that never began is not graded (#706, P9, `loop-done`) — opens when this PR is deployed
 
 **What changed is when a `done` is graded, and the rule that says so**

@@ -40,8 +40,9 @@ from pluggybot.evaluation import hands_check as hc
 from pluggybot.humanoid import body as hb
 from pluggybot.humanoid import mission as hmis
 from pluggybot.humanoid import odometry as od
-from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid.mission import HumanoidMission, KneeMemory
 from pluggybot.navigator import GRID_M, Navigator
+from pluggybot.perception import lidar
 from pluggybot.perception.lidar import LIDAR_PERIOD
 from pluggybot.procedure import steps as st
 
@@ -121,8 +122,12 @@ class Walk:
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
                fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),
-               seen=None):
+               seen=None, over_wall=None):
     self.others, self.seen, self.peer_returns = list(others), seen, None
+    #: what its LIDAR reads at its head's height and what it saw at its
+    #: knees (#717): none, unless a test says -- `over_wall` a wall across
+    #: the world at that x, read at every scan
+    self.over_returns, self.knee, self.over_wall = None, KneeMemory(), over_wall
     self.pose, self.falls, self.legs, self.t = (0.0, 0.0, 0.0), 0, "stand", 0.0
     self.coast_s, self.wall, self.v, self.asked = coast_s, wall, (0.0, 0.0), []
     #: how far a turn's shuffle walks the BELIEF a command, m
@@ -177,7 +182,8 @@ class Walk:
     self.asked.append((vx, vy, w))
     if self.fall_at is not None and len(self.asked) == self.fall_at:
       self.falls += 1
-    if self.correct_at is not None and len(self.asked) == self.correct_at:
+    if self.correct_at is not None and len(self.asked) in (
+        self.correct_at if isinstance(self.correct_at, (set, tuple)) else (self.correct_at,)):
       # a correction from outside the legs' reckoning: the belief moves, the body not
       x, y, yaw = self.pose
       d = self.correction
@@ -203,6 +209,8 @@ class Walk:
     self.t += DT
     if self.seen is not None and round(self.t / DT) % round(LIDAR_PERIOD / DT) == 0:
       self.peer_returns = (self.t, *(np.array(v, dtype=float) for v in self.seen))
+    if round(self.t / DT) % round(LIDAR_PERIOD / DT) == 0:
+      self._over_scan()
     yield hb.STILL
 
   def to_stand_routine(self):
@@ -210,9 +218,22 @@ class Walk:
       x, y, yaw = self.pose
       self.pose = (x + self.settle_m, y, yaw)
     self._carry()
+    self._over_scan()
     self.legs = "stand"
     return
     yield
+
+  def look_scan(self):
+    """A scan taken now (`_Room`'s, where a step has none, #717)."""
+    self.scans_taken = getattr(self, "scans_taken", 0) + 1
+    self._over_scan()
+
+  def _over_scan(self):
+    """Its LIDAR's scan at its head's height, where `over_wall` stands."""
+    if self.over_wall is not None:
+      x, y, yaw = self.pose
+      a = np.radians(np.arange(-80.0, 81.0))
+      self.over_returns = (self.t, a, (self.over_wall - x) / np.cos(a + yaw), (0.0, 0.0))
 
 
 DT = 0.002
@@ -635,6 +656,176 @@ def test_a_step_kept_off_another_robot_reads_false_saying_how():
     assert ran["locals"]["d"] == pytest.approx(0.04)
   # ...and a walk that got nowhere says what it always did
   assert st.STEP_WHY["blocked"] == "your step got nowhere: something stands in your way"
+
+
+def test_a_step_stops_short_of_a_wall_its_lidar_reads_at_its_heads_height():
+  """#717 (Ben's option 1): Rowan's step loops walked into the lobby's wall
+  to 0.12 m and the storeroom's corner to 0.01 m, every step "stepped", and
+  the look's bow there felled it. A step keeps its LIDAR `STEP_WALL_M` off
+  what that reads at its head's height ahead along its way, its stride's
+  carry counted, and says so -- stood that near already, it goes along the
+  wall but no nearer."""
+  walk = Walk(coast_s=hb.STEP_STOP_S, over_wall=0.6)
+  rep = _step(_walker(walk), 0.5)
+  assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "wall", rep
+  assert rep["keptOff"]["keepM"] == hb.STEP_WALL_M
+  assert 0.6 - walk.pose[0] == pytest.approx(hb.STEP_WALL_M, abs=0.02), "its carry took it in"
+  assert rep["keptOff"]["m"] == pytest.approx(0.6 - walk.pose[0], abs=0.005)
+  # ...a sidestep along it, stood 0.25 m off it, goes on; a step nearer does not
+  walk = Walk(coast_s=hb.STEP_STOP_S, over_wall=0.25)
+  assert _step(_walker(walk), 0.0, 0.2)["why"] == "stepped"
+  walk = Walk(coast_s=hb.STEP_STOP_S, over_wall=0.25)
+  rep = _step(_walker(walk), 0.2)
+  assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "wall"
+  # ...stopped within its first strides off a scan taken as it set off: its
+  # walk's own first scan comes a tenth of a second in
+  assert walk.scans_taken == 1 and walk.t < LIDAR_PERIOD, walk.t
+  # ...and a wall behind it keeps no step ahead
+  walk = Walk(coast_s=hb.STEP_STOP_S, over_wall=-0.2)
+  assert _step(_walker(walk), 0.3)["why"] == "stepped"
+
+
+def test_a_step_keeps_off_what_it_saw_at_its_knees_where_its_belief_has_it():
+  """#717: up close the depth camera sees none of a counter's face (its
+  picture's bottom), and pressed there a thigh met it at 150-400 N. What it
+  saw at its knees' height is kept where its belief placed it -- a correction
+  the matcher makes is the body's truer place, a jump past `KNEE_JUMP_M` a
+  belief that no longer knows where it saw it -- and a step keeps its middle
+  `STEP_LOW_M` off it."""
+  face = np.array([[0.45, y, 0.3] for y in np.linspace(-0.3, 0.3, 31)])
+  for correction, short in (((0.0, 0.0, 0.0), 0.0), ((0.05, 0.0, 0.0), 0.05)):
+    walk = Walk(coast_s=hb.STEP_STOP_S)
+    walk.knee.fold(face, 0.0, walk.pose, walk.odo.corrected)
+    walk.correct_at, walk.correction = 40, correction
+    rep = _step(_walker(walk), 0.4)
+    went = walk.pose[0] - walk.odo.corrected[0]
+    assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "low", (correction, rep)
+    assert 0.45 - went == pytest.approx(hb.STEP_LOW_M + short, abs=0.02), (correction, went)
+    assert rep["keptOff"]["m"] == pytest.approx(0.45 - walk.pose[0], abs=0.02)
+  # ...a belief that jumped knows no longer where it saw it
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  walk.knee.fold(face, 0.0, walk.pose, walk.odo.corrected)
+  walk.correct_at, walk.correction = 40, (hmis.KNEE_JUMP_M + 0.05, 0.0, 0.0)
+  assert _step(_walker(walk), 0.4)["why"] == "stepped"
+  # ...and what stands higher than its knees -- a table's top -- is no part of it
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  walk.knee.fold(face + [0.0, 0.0, hmis.KNEE_Z], 0.0, walk.pose, walk.odo.corrected)
+  assert _step(_walker(walk), 0.4)["why"] == "stepped"
+
+
+def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be():
+  """What it saw stays where its belief placed it: a walk ahead brings it
+  nearer, a turn swings it round; a frame that sees a place afresh replaces
+  what was kept there (never nearer than the camera holds the knees' whole
+  height); a jump of the belief, and a get-up, which no leg counts, forget it
+  (#717)."""
+  k = hmis.KneeMemory()
+  k.fold(np.array([[1.0, 0.0, 0.3], [0.4, 0.2, 0.3]]), 0.0, (0.0, 0.0, 0.0), np.zeros(3))
+  assert np.allclose(sorted(map(tuple, k.near((0.3, 0.0, 0.0), np.zeros(3)))),
+                     [(0.1, 0.2), (0.7, 0.0)])
+  assert np.allclose(sorted(map(tuple, k.near((0.0, 0.0, math.pi / 2), np.zeros(3)))),
+                     [(0.0, -1.0), (0.2, -0.4)])
+  # ...a frame that sees nothing past the far one keeps it (another robot, a
+  # carried piece or its own body may hide it); one that sees the floor past
+  # it takes it out; the near one, under the camera's whole view of the knees'
+  # height, it keeps
+  k.fold(np.zeros((0, 3)), 1.0, (0.0, 0.0, 0.0), np.zeros(3))
+  assert len(k.near((0.0, 0.0, 0.0), np.zeros(3))) == 2
+  k.fold(np.array([[1.3, 0.0, 0.0]]), 1.0, (0.0, 0.0, 0.0), np.zeros(3))
+  assert np.allclose(k.near((0.0, 0.0, 0.0), np.zeros(3)), [(0.4, 0.2)])
+  state, arrays = k.kept_state()
+  back = hmis.KneeMemory()
+  back.restore_kept(state, arrays)
+  assert np.array_equal(back.pts, k.pts) and np.array_equal(back.seen, k.seen)
+  assert not len(k.near((0.0, 0.0, 0.0), np.array([0.0, 0.0, hmis.KNEE_JUMP_RAD + 0.01]))), \
+    "a heading's jump kept what it saw"
+  k.fold(np.array([[0.4, 0.0, 0.3]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
+  mission = NS(falls=0, legs="stand", knee=k, getup=NS(begin=lambda: None))
+  HumanoidMission._fell(mission)
+  assert not len(k.pts), "a fall kept what it saw"
+
+
+def test_a_steps_own_scan_draws_noise_of_its_own():
+  """The scan a step takes as it sets off, and a look's (`look_scan`), draw
+  their noise from a stream of their own (#717): every other scan the LIDAR
+  takes draws as it did, so a flight no new rule stops is the flight it was.
+  Drawn from the LIDAR's, the tour's table lays parted from today's at their
+  first step and fell in a withdraw three times."""
+  body = _floor_body()
+  try:
+    mi = body.mission
+    lidar = (mi.lidar.rng.bit_generator.state, mi.lidar.peer_rng.bit_generator.state)
+    look = mi._look_rngs[0].bit_generator.state
+    seen = (mi.peer_returns, mi.scanned_t, dict(mi.seen_t))
+    mi.look_scan()
+    assert (mi.lidar.rng.bit_generator.state, mi.lidar.peer_rng.bit_generator.state) == lidar
+    # ...nor whom it saw, nor the front stop's reading: with another robot by,
+    # those move the pair's flight (#717's review)
+    assert (mi.peer_returns, mi.scanned_t, dict(mi.seen_t)) == seen
+    assert mi._look_rngs[0].bit_generator.state != look
+    assert mi.over_returns is not None and mi.over_returns[0] == float(body._d.time)
+    state, _ = mi.kept_state()
+    assert state["lookRng"][0] == mi._look_rngs[0].bit_generator.state
+  finally:
+    body.close()
+
+
+def test_a_pressed_step_reads_false_and_says_what_its_scans_do():
+  """#718: pressed on a counter, a stride lands where it began and the legs
+  count 7-9 cm a step where the body went 1-3; Rowan's procedures took
+  `step.dx` off where a tag was, 32 cm that never happened in four steps. A
+  step its scans of the room say went under `STEP_PRESSED_SHARE` of what its
+  legs count reads false, saying both, and `step.*` says the scans'."""
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  # ...its matcher taking back what the legs count, 2 cm a scan
+  walk.correct_at, walk.correction = (20, 40, 60, 80), (-0.02, 0.0, 0.0)
+  rep = _step(_walker(walk), 0.12)
+  assert rep["why"] == "stepped" and rep["mdx"] == pytest.approx(rep["dx"] - 0.08, abs=0.002)
+  assert rep["jump"] == pytest.approx(0.02, abs=1e-6)
+  out = st._pressed(rep, 0.12, 0.0)
+  assert out["why"] == "pressed" and out["dx"] == pytest.approx(rep["mdx"])
+  said = st.STEP_PRESSED.format(**out)
+  assert said == (f"your legs counted {100 * rep['dx']:.0f} cm along the way you stepped, but "
+                  f"your scans of the room put you only {100 * rep['mdx']:.0f} cm on: "
+                  "something held your body back")
+  # ...never a step its scans keep up with, nor one under STEP_PRESSED_M, nor
+  # one its belief jumped across (a relocation, a doubt's take, a fix)
+  for mdx, dx, jump in ((0.06, 0.1, 0.0), (0.0, hb.STEP_PRESSED_M - 0.005, 0.0),
+                        (0.01, 0.1, hb.STEP_JUMP_M + 0.01)):
+    rep = {"why": "stepped", "dx": dx, "dy": 0.0, "turn": 0.0, "mdx": mdx, "mdy": 0.0,
+           "jump": jump}
+    assert st._pressed(rep, 0.12, 0.0)["why"] == "stepped", (mdx, dx, jump)
+  # ...and a step that turned first is judged along the way it walked after
+  rep = {"why": "stepped", "dx": 0.002, "dy": 0.09, "turn": math.pi / 2, "mdx": 0.0, "mdy": 0.01}
+  assert st._pressed(rep, 0.12, 0.0)["why"] == "pressed"
+  rep = {**rep, "mdy": 0.08}
+  assert st._pressed(rep, 0.12, 0.0)["why"] == "stepped"
+  body = StubBody(*_bare())
+  body.step_routine = lambda *a, **kw: tick.result(
+    {"why": "stepped", "seconds": 1.0, "dx": 0.08, "dy": 0.0, "turn": 0.0, "mdx": 0.01, "mdy": 0.0})
+  ran = _fly('def a():\n    if not step(0.12):\n        d = read("step.dx")\n', body)
+  step = ran["steps"][0]
+  assert not step["ok"] and step["why"] == "pressed" and step["reason"].startswith("your legs")
+  assert ran["locals"]["d"] == pytest.approx(0.01)
+
+
+def test_the_steps_text_says_what_it_keeps_off_and_a_pressed_step_off_its_constants():
+  """#717, #718: the numbers the text says are the constants the checks
+  read."""
+  doc = st.HANDS_VERBS["step"].doc
+  said = re.search(r"within ([0-9.]+) m of anything that reads at your head's height "
+                   r"\(([0-9.]+) m over the floor and up\).*your middle within ([0-9.]+) m of what "
+                   r"your depth camera has seen in front of you at your knees' height \(([0-9.]+) m "
+                   r"over the floor and lower\)", doc)
+  assert said, doc
+  assert [float(v) for v in said.groups()] == pytest.approx(
+    [hb.STEP_WALL_M, lidar.OVER_Z, hb.STEP_LOW_M, hmis.KNEE_Z], abs=1e-9)
+  assert "a walk goes along it but no nearer" in doc
+  said = re.search(r"went under ([0-9.]+) of what your legs count, these ([0-9]+) cm or more", doc)
+  assert said and float(said.group(1)) == hb.STEP_PRESSED_SHARE
+  assert float(said.group(2)) == pytest.approx(100 * hb.STEP_PRESSED_M)
+  for by, kept in (("wall", {"m": 0.28, "keepM": 0.3}), ("low", {"m": 0.19, "keepM": 0.2})):
+    assert f"{kept['keepM']:.2f} m" in st.STEP_KEPT_OFF[by].format(**kept)
 
 
 def test_a_small_turn_is_closed_on_the_stance_not_the_pelvis():

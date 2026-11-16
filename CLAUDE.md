@@ -1239,9 +1239,28 @@ save a filmstrip PNG named after the script.
   robot ALONE (at the chest's and the drawer's work spots the props read
   0.35-0.38 m ahead, inside its 0.40), from the scans the step takes
   (standing still, it takes none): `blocked`, `keptOff` saying how; an
-  arm's ways keep off it as a reach's do (#678, above); ⚠ a
+  arm's ways keep off it as a reach's do (#678, above); ⚠ AND WALLS AND
+  WHAT STANDS AT ITS KNEES (#717; `_Room`, `KneeMemory`, `Scan.over_*`;
+  SimNotes, "A step into a wall, and the look's bow there": stepping blind
+  into a wall, the look's bow there felled Rowan three times): its LIDAR
+  `STEP_WALL_M` (0.30) off what it reads at its head's height (`OVER_Z`,
+  1.05 m up: the band's nearest at a counter is its top, 0.38-0.5 m ahead
+  whatever its face), its pelvis `STEP_LOW_M` (0.20) off what its depth
+  camera has seen at its knees (`KNEE_Z`, 0.6 m down: a table's top on legs,
+  which the lay stands 0.17 m from, is none of it), remembered where its
+  matched belief placed it -- by the legs alone it drifted 14-18 cm in 10 s
+  -- what a frame sees afresh replacing it (up close the camera sees none of
+  a counter's face), each ahead
+  along its way; begun nearer, along but no nearer; ⚠ THE SCANS A STEP OR A
+  LOOK TAKES FOR ITSELF DRAW NOISE OF THEIR OWN (`look_scan`: off the LIDAR's,
+  the tour's table lays parted at their first step); ⚠ ONE ITS SCANS SAY WENT
+  UNDER HALF OF WHAT ITS LEGS COUNT (4 cm or more) READS `pressed` (#718;
+  `steps._pressed`): pressed on a counter, the legs counted 7-9 cm a stride
+  where the pelvis went 1-3, and the robot's soles are that count; ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
-  hand 43 cm up). A verb test and the maths are in every hands
+  hand 43 cm up), ⚠ and a look's bow goes no deeper than leaves its head's
+  front `BOW_CLEAR_M` (5 cm) short of what its LIDAR reads at its head's
+  height (#717; `bow_room`, `head_front`, the statue's), and `spot` says so. A verb test and the maths are in every hands
   world (`hand_facts`), the served humanoids' included (`served_hand_facts`,
   #559). ⚠ `pull` READS FALSE ONLY WHERE ITS TEXT SAYS (#650;
   `tests/test_hands.py`): an argument refused, a hand not out, a way all 0,

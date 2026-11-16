@@ -65,12 +65,13 @@ class Noise:
     return f"watch:{self.handle.prefix if self.key is None else self.name}"
 
   def seed(self, stream: str) -> int:
-    """`stream`'s seed -- `lidar` or one of `SERVED_SEEDS`'s: as served for
-    the robot's own key, else off the key."""
+    """`stream`'s seed -- `lidar`, `lookscan` or one of `SERVED_SEEDS`'s:
+    as served for the robot's own key, else off the key."""
     if self.key is not None:
       return seed_for(f"{stream}:{self.name}")
-    if stream == "lidar":
-      return seed_for(f"lidar:{self.handle.root}")
+    if stream in ("lidar", "lookscan"):
+      # ...the LIDAR's, and the scans a step or a look takes for itself (#717)
+      return seed_for(f"{stream}:{self.handle.root}")
     return SERVED_SEEDS[stream]
 
 #: The drivers whose noise is one block of the robot's stream, a read at a
