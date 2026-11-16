@@ -149,6 +149,13 @@ TRIM_RATE, TRIM_MAX = 1.0, (0.05, 0.15)
 #: (0.59 rad/s) read 492 N at the hand for 0.2 s and stopped 6 cm short of
 #: it; begun under 0.05, 62 N for an instant, and it held there (#520).
 POSTURE_TOL, TRUNK_STILL_RATE, POSTURE_WAIT_S = (0.025, 0.06, 0.02), 0.05, 4.0
+#: A posture a reach, a carry or a pull asks (#719) whose trunk's pitch or
+#: waist's yaw is further than this, rad, from the posture the body is in as
+#: its senses have it (`posture_now`) is taken in STAGES no bigger, all
+#: three of its numbers walked evenly, each held (`POSTURE_TOL`,
+#: `TRUNK_STILL_RATE`) -- or given this long, s -- before the next is asked
+#: (`staged`). STAGE_TBD
+STAGE_PITCH, STAGE_WAIST, STAGE_WAIT_S = 0.15, 0.27, 2.0
 #: The waist turns to its posture's angle no faster than this, rad/s: the
 #: trunk's pitch's ramp (`policy.PITCH_RATE`) -- and is set going and stopped
 #: at this, rad/s^2 (`turned`), as training's scripted waist turns it
@@ -1116,7 +1123,7 @@ class Reach:
       self.kept[side]["back"] = True
       return False
     self.slack[side], self.outs[side] = slack, outs
-    self.hold_posture(*posture)
+    self.take_posture(*posture)
     self._off[side] = self._tip[side] = 0.0
     self.speed[side] = HAND_SPEED
     self.goal[side] = goal
@@ -1172,7 +1179,7 @@ class Reach:
     before its first reading."""
     if np.isnan(self.sensed).any():
       return None
-    return Lean.read(self.self_model, self.posture, self._planner_model())
+    return Lean.read(self.self_model, self.asked(), self._planner_model())
 
   def _arms(self, but: str | None = None) -> dict:
     """The arms where they are commanded, by joint name -- all but `but`'s."""
@@ -1431,8 +1438,8 @@ class Reach:
                            "moved": 0.0, "seconds": 0.0}
       return False
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
-    moved_posture = tuple(posture) != tuple(float(v) for v in self.posture)
-    self.hold_posture(*posture)
+    moved_posture = tuple(posture) != tuple(float(v) for v in self.posture) or bool(self.stages)
+    self.take_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     self.goal[side] = HandGoal(ways[0] if ways else end, rots[0].copy(), k)
     self.speed[side], self._off[side] = float(speed), 0.0
@@ -1478,10 +1485,11 @@ class Reach:
     gripped = self.grippers[side].held()
     posture = (None if not gripped and self._pressed(self.force[side], force)
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
-    moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
+    moved = posture is not None and (tuple(posture) != tuple(float(v) for v in self.posture)
+                                     or bool(self.stages))
     began = self._standing_in() if moved else None
     if moved:
-      self.hold_posture(*posture)
+      self.take_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), PULL_STIFFNESS)
     self.goal[side] = HandGoal(h.copy(), r.copy(), PULL_STIFFNESS)
     self.speed[side], self._off[side] = float(speed), 0.0
@@ -1544,7 +1552,7 @@ class Reach:
     if chosen is None or chosen == here:
       return True
     self.left[side].append(here)
-    self.hold_posture(*chosen)
+    self.take_posture(*chosen)
     return False
 
   def _reaching(self, side: str, pos: np.ndarray, rot) -> np.ndarray | None:
@@ -1556,10 +1564,54 @@ class Reach:
   def hold_posture(self, height: float, pitch: float, waist: float = 0.0) -> None:
     """The posture to stand in, its legs' held by their own loop
     (`TRIM_RATE`), the waist turned to `waist`, rad, to the left positive --
-    in place of a stand an arm's way home was keeping (`stand_home`)."""
+    in place of a stand an arm's way home was keeping (`stand_home`), and
+    of any stages still to come (`take_posture`)."""
     self.stand_home = False
     self.posture = np.array([height, pitch, waist], dtype=float)
+    self.stages, self.stage_s = [], 0.0
     self.stand.ask(*(self.posture[:2] + self.trim))
+
+  def take_posture(self, height: float, pitch: float, waist: float = 0.0) -> None:
+    """A posture a reach, a carry or a pull asks (#719): held as
+    `hold_posture` holds one -- but further than a stage from the posture
+    the body is in as its senses have it (`STAGE_PITCH`), taken in stages,
+    the first asked now (`_stage_on`)."""
+    self.hold_posture(height, pitch, waist)
+    stages = self._stages_to(self.posture)
+    if stages:
+      self.stages, self.stage_s = stages, 0.0
+      self.stand.ask(*(self.asked()[:2] + self.trim))
+
+  def _stages_to(self, goal: np.ndarray) -> list[np.ndarray]:
+    """The stages the body walks to `goal` in (`STAGE_PITCH`, `STAGE_WAIST`),
+    from the posture it is in by its senses -- each of the three numbers an
+    even share of the way -- `goal` itself not among them: none where its
+    pitch and its waist are each within a stage."""
+    if np.isnan(self.sensed).any():
+      return []
+    now = self.posture_now()
+    d = goal - now
+    n = max(math.ceil(abs(float(d[1])) / STAGE_PITCH - 1e-9),
+            *(math.ceil(abs(float(w)) / STAGE_WAIST - 1e-9) for w in d[2:]), 1)
+    return [now + d * (k / n) for k in range(1, n)]
+
+  def asked(self) -> np.ndarray:
+    """The posture the body is asked now: the first stage still to come
+    (`stages`, #719), else the plan's."""
+    return self.stages[0] if self.stages else self.posture
+
+  def _stage_on(self, dt: float) -> None:
+    """Once a tick: the stage asked held (`POSTURE_TOL`, `TRUNK_STILL_RATE`)
+    or given `STAGE_WAIT_S`, the next asked -- the plan's after the last."""
+    if not self.stages:
+      return
+    self.stage_s += dt
+    near = (np.abs(self.posture_now() - self.stages[0]) <= POSTURE_TOL).all()
+    still = float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE
+    if (near and still and self.stand.settled) or self.stage_s >= STAGE_WAIT_S:
+      self.stages.pop(0)
+      self.stage_s = 0.0
+      self.stand.ask(*(self.asked()[:2] + self.trim))
 
   def turn_waist(self, waist: float) -> None:
     """The posture's waist alone turned to `waist`, rad (its command walks
@@ -1582,6 +1634,7 @@ class Reach:
     read -- no model of itself is posed while it tumbles."""
     if self.steps % self.every == 0:
       self.posture[2:] = 0.0
+      self.stages = []
       self._turn_waist(self.every * self.m.opt.timestep, np.zeros(len(hm.WAIST)))
     self.steps += 1
 
@@ -1589,7 +1642,7 @@ class Reach:
     """The waist's command one step toward the posture's angle (`turned`),
     sent."""
     self.waist_cmd, self.waist_speed = turned(self.waist_cmd, self.waist_speed,
-                                              self.posture[2:], dt)
+                                              self.asked()[2:], dt)
     self.waist.command(self.waist_cmd, feed)
 
   def held_pitch(self) -> float:
@@ -1602,7 +1655,7 @@ class Reach:
     2.3 deg tipped, not 1.5. Exactly 0 at the stand. The fall watch reads
     a tip off it (`getup.FallWatch`, #520)."""
     shown = self.stand.goal if self.stand.settled else self.stand.posture
-    plan = float(self.posture[1])
+    plan = float(self.asked()[1])
     carried = min(max(plan + float(self.trim[1]), PITCH_RANGE[0]), PITCH_RANGE[1]) - plan
     return float(shown[1]) - carried
 
@@ -1959,6 +2012,10 @@ class Reach:
   def _posture_there(self, dt: float) -> bool:
     """Whether the body has reached its plan's posture (`POSTURE_TOL`) and
     stopped there (`TRUNK_STILL_RATE`), or has been given `POSTURE_WAIT_S` to."""
+    if self.stages:
+      # ...never while stages are still to come (#719): its wait begins at the last
+      self._posture_wait = 0.0
+      return False
     self._posture_wait += dt
     near = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
     still = float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE
@@ -1968,12 +2025,17 @@ class Reach:
     return False
 
   _posture_wait = 0.0
+  #: The stages of the posture still to be asked before it, the first asked
+  #: now (`take_posture`, #719), and how long that one has been asked, s.
+  stages: list = ()
+  stage_s = 0.0
 
   def _posture_held(self) -> bool:
     """Whether the body stands still in the posture it holds (`POSTURE_TOL`,
-    `TRUNK_STILL_RATE`)."""
+    `TRUNK_STILL_RATE`) -- never with stages of it still to come (#719)."""
     near = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
-    return bool(near and float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE)
+    return bool(not self.stages and near
+                and float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE)
 
   def _line(self, side: str, dt: float) -> bool:
     """The command one step along its line to the goal; True once there."""
@@ -2019,7 +2081,7 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking", "carry_q", "stand_home")
+          "allowed", "left", "looks", "looking", "carry_q", "stand_home", "stages", "stage_s")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -2068,12 +2130,13 @@ class Reach:
     measured on it as it is."""
     have = self.posture_now()[:2]
     if self.stand.settled:
-      trim = np.clip(self.trim + TRIM_RATE * (self.posture[:2] - have) * dt,
+      want = self.asked()[:2]
+      trim = np.clip(self.trim + TRIM_RATE * (want - have) * dt,
                      -np.array(TRIM_MAX), TRIM_MAX)
-      asked = self.posture[:2] + trim
+      asked = want + trim
       inside = (asked >= [HEIGHT_RANGE[0], PITCH_RANGE[0]]) & (asked <= [HEIGHT_RANGE[1], PITCH_RANGE[1]])
       self.trim = np.where(inside, trim, self.trim)
-      self.stand.ask(*(self.posture[:2] + self.trim))
+      self.stand.ask(*(want + self.trim))
 
   # ---- a hand that is out, carried (#493) ----
 
@@ -2120,6 +2183,9 @@ class Reach:
     starts the next where its solve cannot quite put it."""
     st = self.pulls[side]
     st["t"] += dt
+    if self.stages and st.get("postured") is not None:
+      # ...stage by stage (#719): its time to come counts from the last
+      st["postured"] = st["t"]
     # ⚠ A HAND HOLDS STILL WHILE ITS BODY TAKES A NEW POSTURE: carried on
     # meanwhile, a lid was jerked down at 1.7-2.3 rad/s and up to 81 deg
     settling = (st.get("postured") is not None and not self._posture_held()
@@ -2134,7 +2200,7 @@ class Reach:
       st["planned"] = st["t"]
       posture = self.posture_for(side, c.pos, rot=c.rot)
       if posture is not None and tuple(posture) != tuple(self.posture):
-        self.hold_posture(*posture)
+        self.take_posture(*posture)
         st["postured"] = st["t"]
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
@@ -2170,6 +2236,9 @@ class Reach:
     pv = st["pull"]
     c, sm = self.cmd[side], self.self_model
     st["t"] += dt
+    if self.stages and st.get("postured") is not None:
+      # ...stage by stage (#719): its time to come counts from the last
+      st["postured"] = st["t"]
     w, limit = pv["way"], pv["force"]
     if pv["gripped"] and not self.grippers[side].held():
       # A GRIP LOST ENDS THE PULL where the hand is: else it pulls on through
@@ -2301,7 +2370,7 @@ class Reach:
         if posture is not None and tuple(posture) != tuple(self.posture):
           left_.append(tuple(float(v) for v in self.posture))
           st.setdefault("began", self._standing_in())
-          self.hold_posture(*posture)
+          self.take_posture(*posture)
           st["postured"] = st["t"]
     self.goal[side].pos, self.goal[side].rot = c.pos.copy(), c.rot
     # held fast: the hand stays put while it pushes with its whole force, or
@@ -2373,6 +2442,7 @@ class Reach:
     seen = {s: sm.grip_pose(s) for s in hm.SIDES}
     self.sensed_grip = {s: seen[s][0].copy() for s in hm.SIDES}
     have = {s: seen[s] for s in hm.SIDES if self.phase[s] == "carry"}
+    self._stage_on(dt)
     self._trim(dt)
     self._pose(self.q_cmd)
     for s in hm.SIDES:
