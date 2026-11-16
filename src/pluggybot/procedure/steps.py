@@ -59,14 +59,16 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pluggybot.humanoid.body import (STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M, STEP_FRONT_HALF_M,
-                                     STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M, STEP_LEAST_M,
-                                     STEP_SHORT_M, WALK_KEEP_M)
+from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M,
+                                     STEP_FRONT_HALF_M, STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M,
+                                     STEP_LEAST_M, STEP_LOW_M, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
+from pluggybot.humanoid.mission import KNEE_Z
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
                                       TOP_SHARE as MEASURE_TOP_SHARE)
 from pluggybot.perception.depth import MAX_Z as MEASURE_REACH_M
+from pluggybot.perception.lidar import OVER_Z
 from pluggybot.perception.tags import BLOCK_TAG_SIZE, PICTURE_H, PICTURE_W
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.tick import Routine
@@ -620,10 +622,10 @@ def _spot(life, args: dict) -> Routine:
   if float(tag) != int(tag):
     forget_readings(life, "spot")
     return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
-  got, bowed, seen = None, False, None
+  got, bowed, seen, held = None, False, None, None
   for down in SPOT_GAZES:
     if down:
-      yield from life.body.gaze_routine(down)
+      held = (yield from life.body.gaze_routine(down)) or held
       bowed = True
     yield from life.body.hold_routine(SPOT_STILL_S)
     got = life.body.spot(int(tag))
@@ -639,14 +641,29 @@ def _spot(life, args: dict) -> Routine:
     forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660), and short:
     # History's line says each false test's reason inside its 400 characters
-    return {"ok": False, "tag": int(tag),
-            "reason": (f"tag {int(tag)} is not in your colour camera's picture from where you "
-                       "stand, or too near or too far to read: it shows nothing higher than "
-                       f"{SPOT_TOP_DEG:.0f} degrees below level")}
+    reason = (f"tag {int(tag)} is not in your colour camera's picture from where you "
+              "stand, or too near or too far to read: it shows nothing higher than "
+              f"{SPOT_TOP_DEG:.0f} degrees below level")
+    if held:
+      # ...and a bow its head's room held (#717): what kept it, and how far
+      reason += "; " + _bow_said(held)
+    return {"ok": False, "tag": int(tag), "reason": reason}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in (x, y, z)]}
+
+
+def _bow_said(held: dict) -> str:
+  """How a look's bow was held (`Body.gaze_routine`, #717), as the robot
+  reads it."""
+  m = max(0.0, float(held["m"]))
+  if held["bow"] <= 0.0:
+    return (f"something your LIDAR reads at your head's height stands {m:.2f} m in front of "
+            "your head, too near for you to bow at all")
+  return (f"something your LIDAR reads at your head's height stands {m:.2f} m in front of "
+          f"your head, so you bowed only {math.degrees(held['bow']):.0f} degrees of the "
+          f"{math.degrees(held['asked']):.0f} you would have")
 
 
 #: `watch` waits this long at most for its first reading, s, looking every
@@ -1293,7 +1310,13 @@ STEP_KEPT_OFF = {
   "keep": "your step stopped short of another robot: a step keeps your middle {keepM:.2f} m "
           "from its middle, and within that goes only further from it ({m:.2f} m now)",
   "body": "your step stopped short of another robot: its body was {m:.2f} m from your "
-          "middle in the way you were stepping"}
+          "middle in the way you were stepping",
+  # ...and of a wall or furniture (#717; `HumanoidBody._Room`)
+  "wall": "your step stopped short of something your LIDAR reads at your head's height: a "
+          "step keeps it {keepM:.2f} m from your LIDAR in the way you step ({m:.2f} m now)",
+  "low": "your step stopped short of something your depth camera saw in front of you at your "
+         "knees' height: a step keeps it {keepM:.2f} m from your middle in the way you step "
+         "({m:.2f} m now)"}
 
 
 def _step(life, args: dict) -> Routine:
@@ -1486,7 +1509,10 @@ HANDS_VERBS: dict[str, Verb] = {
                   "`object.near_taller` (`far`, `left`, `right`) reads 1"),
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
                "stand still and look for this tag in your colour camera -- as you stand, then "
-               "bowing lower until you see it -- and stand up again; ok when you see it. "
+               "bowing lower until you see it -- and stand up again; ok when you see it. A bow "
+               f"goes no deeper than leaves your head {100 * BOW_CLEAR_M:.0f} cm short of what "
+               "your LIDAR reads at your head's height in front of you, and none where your "
+               "head is nearer than that already; a look that did not see its tag says so. "
                "That camera looks down, lower than your navigation camera: its picture "
                f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level, "
                f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where your head faces "
@@ -1580,7 +1606,14 @@ HANDS_VERBS: dict[str, Verb] = {
                "already, a step whose walk would take you nearer neither turns nor walks -- "
                f"and once that robot's body is within {STEP_FRONT_M:g} m of your middle in "
                f"the way you step and {STEP_FRONT_HALF_M:g} m either side of it. Either "
-               "reads false and says so. "
+               "reads false and says so. It keeps off walls and furniture too: it stops before "
+               f"it would bring your LIDAR within {STEP_WALL_M:g} m of anything that reads at "
+               f"your head's height ({OVER_Z:g} m over the floor and up) -- a wall, a door, a "
+               f"tall shelf -- or your middle within {STEP_LOW_M:g} m of what your depth camera "
+               f"has seen in front of you at your knees' height ({KNEE_Z:g} m over the floor and "
+               "lower) -- a counter's face, a chair -- each ahead in the way you step; standing "
+               "that near already, a walk goes along it but no nearer. "
+               "That too reads false and says so. "
                "A turn lands within a degree or two of what you asked -- one that does not "
                "get there reads false and says so -- and shuffles your feet a few cm that "
                f"`step.*` does not count. `step.dy` counts a sidestep "

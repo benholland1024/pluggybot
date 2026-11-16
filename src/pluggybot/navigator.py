@@ -446,6 +446,10 @@ class Navigator:
     #: own corridor; only a scan taken since its walk began, so nothing a
     #: restart drops is ever read.
     self.peer_returns: tuple[float, np.ndarray, np.ndarray] | None = None
+    #: ...and its returns off the room at the head's height (#717,
+    #: `Scan.over_*`), and where the sensor was (`Scan.origin`): what a step
+    #: keeps off and a look's bow is judged against.
+    self.over_returns: tuple[float, np.ndarray, np.ndarray, tuple | None] | None = None
     #: WHO THE LIDAR SAW (#675): when its newest scan was taken, sim s, and
     #: by each other robot's root the newest that returned points off it
     #: (`Scan.peer_roots`) -- what `seen_at` answers.
@@ -635,8 +639,11 @@ class Navigator:
     """What a scan saw of the other robots, kept: its returns off them, for
     the front stop's and a step's (`peer_returns`, #316, #670), and whom
     they came off, by root (`seen_t`, #675) -- every scan's, and a look's
-    (`HumanoidMission.look_round`, #678)."""
+    (`HumanoidMission.look_round`, #678); and the room's at the head's
+    height (`over_returns`, #717)."""
     self.peer_returns = (t, scan.peer_angles, scan.peer_ranges)
+    if scan.over_angles is not None:
+      self.over_returns = (t, scan.over_angles, scan.over_ranges, scan.origin)
     self.scanned_t = t
     for root in scan.peer_roots:
       self.seen_t[root] = t

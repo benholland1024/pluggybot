@@ -40,7 +40,7 @@ from pluggybot.evaluation import hands_check as hc
 from pluggybot.humanoid import body as hb
 from pluggybot.humanoid import mission as hmis
 from pluggybot.humanoid import odometry as od
-from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid.mission import HumanoidMission, KneeMemory
 from pluggybot.navigator import GRID_M, Navigator
 from pluggybot.perception.lidar import LIDAR_PERIOD
 from pluggybot.procedure import steps as st
@@ -123,6 +123,9 @@ class Walk:
                fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),
                seen=None):
     self.others, self.seen, self.peer_returns = list(others), seen, None
+    #: what its LIDAR reads at its head's height and what it saw at its
+    #: knees (#717): none, unless a test says
+    self.over_returns, self.knee = None, KneeMemory()
     self.pose, self.falls, self.legs, self.t = (0.0, 0.0, 0.0), 0, "stand", 0.0
     self.coast_s, self.wall, self.v, self.asked = coast_s, wall, (0.0, 0.0), []
     #: how far a turn's shuffle walks the BELIEF a command, m

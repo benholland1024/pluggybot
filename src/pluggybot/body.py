@@ -626,7 +626,10 @@ class Body(abc.ABC):
     """Its head's cameras turned `down` rad below their gaze standing --
     0 back to it -- as the body can: the humanoid, its head fixed on its
     trunk, bows (#493: a knob at the bottom of its colour camera's view
-    from a step nearer). Returns once still there."""
+    from a step nearer), no deeper than leaves its head clear of what stands
+    in front of it (#717). Returns once still there: None where it turned as
+    asked, else how it was held -- the turn `asked` and the one taken
+    (`bow`, rad), and how far in front of its head that thing stands (`m`)."""
 
   @abc.abstractmethod
   def depth_cloud(self, width: int, height: int, min_z: float, frames: int = 1,
@@ -957,8 +960,10 @@ class StubBody(Body):
     self.turned: list[tuple] = []
     self.carried_paths: list[tuple] = []
     self.pulled: list[tuple] = []
-    #: ...and each step asked (#525), (ahead, left, turn)
+    #: ...and each step asked (#525), (ahead, left, turn), and how a bow
+    #: is held, as `gaze_routine` says it (#717; a test sets it)
     self.stepped: list[tuple] = []
+    self.bow_held: dict | None = None
     #: ...and each tag it was asked to watch (#554), None a stop, and what
     #: a test says its newest reading is (`sighting`'s shape)
     self.watched: list = []
@@ -1260,8 +1265,9 @@ class StubBody(Body):
     return side not in self.out_of_reach and (rot is None or side not in self.unturned)
 
   def gaze_routine(self, down):
-    """No head to turn: at once."""
-    return
+    """No head to turn: at once -- held as a test says (`bow_held`) where
+    it bows."""
+    return self.bow_held if down > 0.0 else None
     yield
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):

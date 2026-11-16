@@ -101,6 +101,16 @@ LOW_MIN_Z, LOW_MAX_Z, FLOOR_Z = 0.08, 1.35, 0.03
 LOW_RANGE_M, LOW_WALL_CELLS = 1.8, 3
 LOW_HIT, LOW_MISS, LOW_CLAMP, LOW_OCC = 0.9, 0.4, 4.0, 2.5
 LOW_BURN = OCC_THRESH + 2.0
+#: WHAT STANDS AT ITS KNEES, REMEMBERED (#717; `KneeMemory`, what a step
+#: keeps off low down, `HumanoidBody._Room`): its depth camera's points from
+#: `LOW_MIN_Z` up to this, m -- a counter's face, a chair; never a table's
+#: top on legs (0.71-0.75 m), whose edge the table's lay stands its pelvis
+#: 0.17 m from -- kept this long, s, and within this, m. ⚠ REMEMBERED AND
+#: CARRIED AS ITS LEGS COUNT ITS WALKS: the camera's picture ends 69 deg
+#: below level, 1.26 m up, so it loses a counter's face below 0.6 m from
+#: 0.33 m out (its pelvis's) and the top's edge from 0.21-0.25 m -- nearer
+#: than a thigh pressed on it (0.15-0.17 m), so what it saw is all it has.
+KNEE_Z, KNEE_S, KNEE_M = 0.6, 60.0, 1.5
 #: THE SELF-FILTER (#682; Ben, 2026-11-12): a return within this of a grip
 #: whose gripper says it holds something, m -- placed off the robot's model of
 #: itself, as its LIDAR's band and its depth camera's layer are -- is the
@@ -215,6 +225,81 @@ class HumanoidStepper:
     return tick.run(self, routine, name)
 
 
+class KneeMemory:
+  """What its depth camera has seen at its knees' height (`KNEE_Z`) in the
+  last `KNEE_S`, within `KNEE_M`: points on the floor plan from its pelvis,
+  x along its heading, one a 2 cm cell, carried as its legs count its walk
+  (`carry`) -- never by a correction from outside them, its odometry's
+  `corrected` taken off: a correction moves the belief, never the body --
+  and forgotten where no leg counts how the body moved (a get-up, a warp).
+  """
+
+  def __init__(self) -> None:
+    self.pts = np.zeros((0, 2))
+    self.t = np.zeros(0)
+    #: where its legs had it as the points were last carried: (x, y,
+    #: heading) less the corrections, and its believed heading
+    self.at: tuple[float, float, float, float] | None = None
+
+  def forget(self) -> None:
+    self.pts, self.t, self.at = np.zeros((0, 2)), np.zeros(0), None
+
+  def carry(self, pose, corrected) -> None:
+    """The points moved as its legs went since they were last carried."""
+    x, y, yaw = (float(v) for v in pose)
+    cx, cy, cyaw = (float(v) for v in corrected)
+    at = (x - cx, y - cy, yaw - cyaw, yaw)
+    if self.at is not None and len(self.pts):
+      dx, dy = at[0] - self.at[0], at[1] - self.at[1]
+      c, s = math.cos(self.at[3]), math.sin(self.at[3])
+      lx, ly = c * dx + s * dy, c * dy - s * dx
+      turn = at[2] - self.at[2]
+      ct, st = math.cos(turn), math.sin(turn)
+      px, py = self.pts[:, 0] - lx, self.pts[:, 1] - ly
+      self.pts = np.stack([ct * px + st * py, ct * py - st * px], axis=1)
+    self.at = at
+
+  def fold(self, points: np.ndarray, t: float, pose, corrected, drop=None) -> None:
+    """A levelled frame's points (from the pelvis, z over the floor) at time
+    `t`: those at its knees' height within reach kept, less what a hand holds
+    (`drop`, `HumanoidMission._held_drop`); what is older or further gone."""
+    self.carry(pose, corrected)
+    p = points
+    keep = ((p[:, 2] >= LOW_MIN_Z) & (p[:, 2] <= KNEE_Z)
+            & (np.hypot(p[:, 0], p[:, 1]) <= KNEE_M)) if len(p) else np.zeros(0, dtype=bool)
+    p = p[keep]
+    if drop is not None and len(p):
+      c, r = drop
+      p = p[~(((p[:, None, :] - c[None, :, :]) ** 2).sum(axis=2) <= r * r).any(axis=1)]
+    old = (t - self.t <= KNEE_S) & (np.hypot(self.pts[:, 0], self.pts[:, 1]) <= KNEE_M)
+    pts = np.concatenate((p[:, :2], self.pts[old]))
+    ts = np.concatenate((np.full(len(p), float(t)), self.t[old]))
+    if not len(pts):
+      self.pts, self.t = pts.reshape(0, 2), ts
+      return
+    # ...one a cell, the newest sight of it
+    cells = np.round(pts / 0.02).astype(np.int64)
+    _, first = np.unique(cells, axis=0, return_index=True)
+    self.pts, self.t = cells[first] * 0.02, ts[first]
+
+  def near(self, pose, corrected) -> np.ndarray:
+    """The points from where its legs have it now."""
+    self.carry(pose, corrected)
+    return self.pts
+
+  def kept_state(self) -> tuple[dict, dict]:
+    return ({"at": None if self.at is None else list(self.at)},
+            {"kneePts": self.pts, "kneeT": self.t})
+
+  def restore_kept(self, state: dict | None, arrays: dict) -> None:
+    if state is None or "kneePts" not in arrays:
+      self.forget()
+      return
+    self.pts = np.asarray(arrays["kneePts"], dtype=float).reshape(-1, 2)
+    self.t = np.asarray(arrays["kneeT"], dtype=float)
+    self.at = None if state["at"] is None else tuple(float(v) for v in state["at"])
+
+
 class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
   """The Navigator over a humanoid (module docstring), making way for the
   other robot as it rests (`humanoid.way`, #559), and finding the places a
@@ -314,6 +399,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._frame_level = False
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
+    #: ...and what it saw at its knees' height, kept for its steps (#717)
+    self.knee = KneeMemory()
     self._init_way()
     # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
     # looks through the head's navigation camera
@@ -833,6 +920,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
               "forceRange": np.array(m.actuator_forcerange[acts], dtype=float)}
     if self._walls_mask is not None:
       arrays["walls"] = self._walls_mask
+    knee, knee_arrays = self.knee.kept_state()
+    arrays.update(knee_arrays)
+    over = None
+    if self.over_returns is not None:
+      t, a, r, origin = self.over_returns
+      over = {"t": t, "origin": None if origin is None else list(origin)}
+      arrays.update(overA=a, overR=r)
     frame = None
     if self._frame is not None:
       f = self._frame
@@ -863,6 +957,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "drivers": drivers, "torqued": torqued,
              "reach": self.reach.kept_state(),
              "frame": frame,
+             # ...and what a step keeps off: what it saw at its knees and its
+             # newest scan at its head's height (#717)
+             "knee": knee, "over": over,
              "memo": None if memo is None else
              [list(memo[0]), memo[1], list(memo[2]),
               None if memo[3] is None else [list(p) for p in memo[3]],
@@ -939,6 +1036,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                                peer_geoms=np.asarray(arrays["framePeerGeoms"], dtype=np.int32))
       self._frame_t, self._frame_used_t = float(frame["t"]), float(frame["used"])
       self._frame_level = bool(frame["level"])
+    # ...a save from before #717 saw nothing at its knees, nor at its head
+    self.knee.restore_kept(state.get("knee"), arrays)
+    over = state.get("over")
+    self.over_returns = (None if over is None or "overA" not in arrays else
+                         (float(over["t"]), np.asarray(arrays["overA"], dtype=float),
+                          np.asarray(arrays["overR"], dtype=float),
+                          None if over["origin"] is None else tuple(over["origin"])))
     memo = state.get("memo")
     # ...and what kept its stand-in off the goal (#700): none in a save from before
     kept_by = memo[5] if memo is not None and len(memo) > 5 else None
@@ -996,6 +1100,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
     self._moved_t = self.went_t = float(self.data.time)
+    self.knee.forget()
 
   def waist_read(self) -> dict:
     """The waist's angle as its driver last read it, bare name -> rad: the
@@ -1084,7 +1189,11 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     -- and none is taken otherwise but for the loop's near field
     (`latest_depth`): bowed for a reach, it renders nothing. And the walking
     look for places (`HumanoidPlaces._place_step`, #559)."""
-    if self.legs == "getup" or not self.level():
+    if self.legs == "getup":
+      # ...no leg counts how a fall moves the body: what it saw is gone (#717)
+      self.knee.forget()
+      return
+    if not self.level():
       return
     self._place_step()
     frame = self.latest_depth()
@@ -1092,6 +1201,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       return
     self._frame_used_t = self._frame_t
     self._fold_low(frame.points)
+    self.knee.fold(frame.points, self._frame_t, self.pose, self.odo.corrected, self._held_drop())
 
   def latest_depth(self) -> DepthFrame | None:
     """The newest depth frame, levelled, taken now if the last is a period
