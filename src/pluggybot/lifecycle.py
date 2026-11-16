@@ -250,9 +250,7 @@ DEATH_ENDED = "interrupted by a death"
 #: What a stand-up's History line says it cost (#572).
 MAP_GONE = "the map I had and the places I had found are gone"
 #: Why a `done` beside a run that never began is not graded (#706, Ben's
-#: call of 11-16), in its History line's words: on 11-14, 6 of 22 refused
-#: defines carried a `done`, and 4 jobs were graded 4-10 s later on a prop
-#: nothing had worked.
+#: call of 11-16), in its History line's words (Observatory.md, its period).
 NEVER_BEGAN = ("the run I said it beside never began -- I still hold it, "
                "and its time runs on")
 
@@ -862,9 +860,10 @@ class HubLifecycle:
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
     #: ...and said beside a procedure whose run has not begun yet (#706):
-    #: set by the `done`, cleared once that run is validated, and a grade
-    #: still waiting when the queue is empty is not made (`NEVER_BEGAN`).
-    self._grade_waits = False
+    #: True from the `done`, then the errand built for that run, False once
+    #: THAT errand's run is validated; a grade still waiting when the queue
+    #: is empty is not made (`NEVER_BEGAN`).
+    self._grade_waits: object = False
     #: ON A CHARGE TRIP NOW (#602): set only while one runs. ⚠ Never read
     #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
     #: was run out on the seam mid-hold and banked twice.
@@ -3107,7 +3106,8 @@ class HubLifecycle:
               "error": f"refused: {e}"}
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
-    self._grade_waits = False             # ...the run a `done` waited on began (#706)
+    if self._grade_waits is errand:
+      self._grade_waits = False           # ...the run a `done` waited on began (#706)
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -4375,7 +4375,7 @@ class HubLifecycle:
     pending, and is True where the answer grades it before its action
     (#689): every answer but one that runs a procedure, whose run is the
     work and is graded from the day loop once the errand queue is empty,
-    unless that run never began (#706: `_grade_routine`) -- and a dead
+    unless that run never began (#706: `_never_began`) -- and a dead
     robot's, graded there after its stand-up as before. A `done`
     that names nothing this robot holds is dropped, like a `respond_to` for
     a message already dealt with, and History says why (#648)."""
@@ -4408,9 +4408,16 @@ class HubLifecycle:
       self._say(f"DONE {decision.done}: not a challenge you hold -- {why}")
       self._remember(f"said done on {named}: not graded, because {why}")
       return False
+    ran = decision.action.startswith(PROCEDURE_PREFIX)
+    if ran and not self._builds_run(decision):
+      # ...beside a run that cannot begin, known at the word (#706): the
+      # action below builds nothing either
+      self._never_began(task)
+      return False
     self._grade_pending = task.id
-    # ...beside a procedure, waiting on its run to begin (#706)
-    self._grade_waits = decision.action.startswith(PROCEDURE_PREFIX)
+    # ...beside a procedure, waiting on its run to begin (#706): on the
+    # errand built for it, whose validation ends the wait
+    self._grade_waits = ran
     # ...never inside a dead robot's answer, which its stand-up closes, a
     # grade mid-hold and all: the loop's pass after it grades, as before.
     # (No other stand-up lands in an answer: an admin's reaches a robot
@@ -4439,15 +4446,35 @@ class HubLifecycle:
       self._say(f"GRADE {task_id}: a fall ended it -- graded as its hold ends", doing=True)
       return
     if waited:
-      # ...a `done` beside a run that never began (#706, Ben's call): no
-      # errand was built for it, or its run was refused before its first
-      # verb. The job stays held, its time running on; said again, graded.
-      self._say(f"GRADE {task_id}: not graded -- the run it was said beside never began",
-                doing=True)
-      self._remember(f"said done on {_job_named(task.id, task)}: not graded, "
-                     f"because {NEVER_BEGAN}")
+      # ...the errand built for its run was never validated: refused
+      # before its first verb, too dear to start, or dropped by a restart
+      self._never_began(task)
       return
     yield from self._grade_hands_routine(task)
+
+  def _builds_run(self, decision) -> bool:
+    """Whether a `procedure:` answer's action will build a run, as its
+    branch finds (#706): `procedure:new` runs what the same answer's define
+    wrote (`_define` runs first), and `errand_from` refuses a name that is
+    not runnable or whose def takes arguments."""
+    name = (getattr(self, "_defined_now", None) if decision.action == PROCEDURE_NEW
+            else decision.action[len(PROCEDURE_PREFIX):])
+    return bool(name) and errand_from(
+      dataclasses.replace(decision, action=PROCEDURE_PREFIX + name),
+      library=getattr(self.overseer, "library", None)) is not None
+
+  def _never_began(self, task) -> None:
+    """A `done` beside a run that never began, not graded (#706, Ben's
+    call): one History line, and the job stays held, its time running on --
+    or, that time already up, it runs out here as any held job does
+    (#602), and that line says so."""
+    if task.out_of_time(float(self.data.time)):
+      self._run_out(task)
+      return
+    self._say(f"DONE {task.id}: not graded -- the run it was said beside never began",
+              doing=True)
+    self._remember(f"said done on {_job_named(task.id, task)}: not graded, "
+                   f"because {NEVER_BEGAN}")
 
   def _watch_job(self, task_id: str):
     """A hand job's watch from its claim (#559): its check's grader reading
@@ -6256,6 +6283,8 @@ class HubLifecycle:
     # arbitration the preset queue does: errands before decisions, and a
     # stand-up or a death ending it where it stands.
     self.errands.append(errand)
+    if self._grade_waits is True:
+      self._grade_waits = errand          # ...the run this answer's `done` waits on (#706)
     return ""
 
   # ---- a restart is a continuation (issue #345) ----------------------------
@@ -6300,8 +6329,9 @@ class HubLifecycle:
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
       "gradePending": self._grade_pending,
-      # ...and whether it waits on a run not begun yet (#706)
-      "gradeWaits": self._grade_waits,
+      # ...and whether it waits on a run not begun yet (#706): a restart
+      # drops the errand it waits on, so it never begins
+      "gradeWaits": bool(self._grade_waits),
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()

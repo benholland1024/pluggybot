@@ -858,8 +858,7 @@ def _drained(life):
 
 
 def _not_graded(life, task) -> list:
-  return [ln for ln in life.thoughts.texts[HISTORY].splitlines()
-          if f"said done on {task.id} (open_drawer): not graded" in ln]
+  return [ln for ln in _history(life) if f"said done on {task.id} (open_drawer): not graded" in ln]
 
 
 @pytest.mark.parametrize("never", ["refused", "arguments", "undefined"])
@@ -904,6 +903,40 @@ def test_a_done_beside_a_run_refused_before_its_first_verb_is_not_graded(tmp_pat
   assert len(_not_graded(life, task)) == 1
 
 
+def test_a_done_waits_on_its_own_run_never_another(tmp_path, monkeypatch):
+  """...the run it waits on is the one its answer built: another errand's
+  run validated ahead of it -- a preset's after a restart, say -- does not
+  end the wait."""
+  from pluggybot.lifecycle import errand_from
+  from pluggybot.procedure import lang
+  life, task = _minded(tmp_path)
+  life.overseer.library.define("other", "def other():\n  wait(1)\n", t=0.0)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_RUNS)))
+  life.errands.insert(0, errand_from(ov.Decision(action=ov.PROCEDURE_PREFIX + "other"),
+                                     library=life.overseer.library))
+  validate = lang.validate
+  monkeypatch.setattr(lang, "validate", lambda proc, facts: (
+    ["refused as it began"] if proc.name == "pace" else validate(proc, facts)))
+  _drained(life)
+  assert [r["procedure"]["completed"] for r in life.errand_results] == [1, 0]
+  assert life.grades == [] and life.tasks.get(task.id).state == "active"
+  assert len(_not_graded(life, task)) == 1
+
+
+def test_a_done_beside_a_run_that_never_began_with_its_time_up_runs_it_out(tmp_path):
+  """...and one whose time is already up is not told it still holds the
+  job: it runs out there, its line the run-out's (#602)."""
+  life, task = _minded(tmp_path)
+  held = life.tasks.get(task.id)
+  life.data.time = held.claimed_t + held.limit_s + 1.0
+  _answered(life, action=ov.PROCEDURE_NEW, done=task.id, define=_REFUSED)
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed" and len(life.grades) == 1
+  assert ended.verdict["reason"].startswith(f"not graded within the {held.limit_s:.0f} s")
+  assert _not_graded(life, task) == []
+
+
 def test_a_done_not_graded_leaves_its_job_held_and_its_time_running(tmp_path):
   """...the job stays the robot's, and its time runs on (#602): past it, it
   is failed as any held job is."""
@@ -945,12 +978,13 @@ def test_a_done_beside_a_run_that_began_is_graded_once_it_is_over(tmp_path):
 
 
 def test_a_done_waiting_on_a_run_that_never_began_is_kept_across_a_restart(tmp_path):
-  """...and a restart in its answer's hold keeps it waiting (`gradeWaits`):
-  read back without it, the grade was made on the bare prop."""
+  """...and a restart before its run began keeps it waiting (`gradeWaits`):
+  the restart drops the errand, so that run never begins -- read back
+  without it, the grade was made on the bare prop."""
   life, task = _minded(tmp_path)
   life.body.run(life._after_decision_routine(ov.Decision(
-    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_REFUSED)))
-  assert life._grade_pending == task.id
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_RUNS)))
+  assert life._grade_pending == task.id and len(life.errands) == 1
   state, arrays = life.kept_state()
   again = _life(tmp_path)
   again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=True)

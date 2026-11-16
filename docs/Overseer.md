@@ -399,18 +399,18 @@ offer. History says the `done` and names the job (`said done on t_0027
 another's). A `done` on a job the robot does not hold is dropped and says
 why (`said done on t_0137 (open_chest): not graded, because nobody has
 taken it`; #648). A `done` beside a run that never began is not graded
-either (#706, Ben's call of 11-16): a `procedure:new` whose define was
-refused or left out, or whose def takes arguments, a `procedure:<name>`
-that could not be built, or a run its own validation refused before its
-first verb -- on 11-14, 6 of 22 refused defines carried a `done`, and 4
-jobs were graded 4-10 s later on a prop nothing had worked. The grade a
-procedure's answer leaves waits on its run to begin (`_grade_waits`, kept
-across a restart), and one still waiting once the queue is empty is not
-made: History says so (`said done on t_0301 (open_drawer): not graded,
-because the run I said it beside never began -- I still hold it, and its
-time runs on`), the job stays held, its time running on, and a `done` said
-again is graded. A run that began -- validated, whatever ended it after,
-a death before its first verb included -- is graded as before. A fall while the robot holds one ends it there, graded as
+either (#706, Ben's call of 11-16; why, in its Observatory period): a
+`procedure:new` whose define was refused or left out, or whose def takes
+arguments, or a `procedure:<name>` that builds nothing, is known at the
+word (`_builds_run`); a run its own validation refused before its first
+verb, or one too dear to start, is known once the queue is empty (the
+grade waits on the errand built for it, `_grade_waits`, kept across a
+restart, which drops that errand). History says so (`said done on t_0301
+(open_drawer): not graded, because the run I said it beside never began --
+I still hold it, and its time runs on`; a job whose time is already up
+runs out there instead), the job stays held, and a `done` said again is
+graded. A run that began -- validated, whatever ended it after, a death
+before its first verb included -- is graded as before. A fall while the robot holds one ends it there, graded as
 if `done` were said as it fell (`fell holding t_0239 (open_door): a fall
 fails the try, so the job ends here …`, then the grade's line; #701). A job
 held past the time its description gives is failed by the
