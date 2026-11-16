@@ -475,6 +475,9 @@ def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
       a._define(Decision(action="idle", reason="r", define={"name": name, "source": src}))
     a.body.run(a._after_decision_routine(Decision(action="procedure:beat_rowan_to_it",
                                                   reason="r")))
+    # ...run as the errand `procedure`, its name none of the robot's
+    # (`STOOD UP mid-errand` names its errand: `BY_NAME`)
+    assert [e.name for e in a.errands] == ["procedure"]
     while a.errands:
       a.body.run(a.run_errand_routine(a.errands.pop(0)))
   shown = [d for marked, _, d in views if marked]
@@ -487,30 +490,32 @@ def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
 #: and read false.
 OF_A_RUN = {"count", "line", "verb", "step.verb", "i + 1", "len(steps)",
             "run['completed']", "run['total']", "read"}
-#: ...and what holds a name the robot gave a procedure or a def, which no
-#: line of any kind shows (nor a program's, `program.name`): `at.text()`
-#: names the def and the library's procedure that holds it, `callee` the
-#: def a call named, a decision's action `procedure:<name>`. An errand's
-#: name is none the robot gave: a procedure runs as the errand `procedure`
-#: (`errand_from`), and a house program's errand is the house's
-#: `program:<name>`.
-NAMED_BY = re.compile(r"\b(proc|program)\.name\b|\bat\.text\(\)|\bcallee\b"
-                      r"|\bdecision\.(action|summary)\b")
+#: ...and what may hold a name the robot gave a procedure or a def (or a
+#: program's), which no line of any kind shows: whatever the code calls a
+#: name, a program, a callee, an errand, a decision's action
+#: (`procedure:<name>`) or what a press says it was doing, and `at.text()`,
+#: which names the def and the library's procedure that holds it.
+NAMED_BY = re.compile(r"name|program|callee|errand|action|summary|doing|at\.text")
+#: ...but for the errand a stand-up ended, by its name: a procedure runs as
+#: the errand `procedure` (`errand_from`, read in the test above), a house
+#: program as the house's `program:<name>`.
+BY_NAME = {"STOOD UP ": "errand.name"}
 
 
 def test_no_call_shows_a_runs_line_with_anything_but_its_step():
   """Every call, as it is written: what a run's shown line interpolates is
-  a count, a line or a verb, and no shown line of any kind interpolates a
-  name the robot gave the procedure or a def -- as a new line would that
-  copied its said form."""
+  a count, a line or a verb, and no shown line of any kind interpolates
+  what may hold a name the robot gave the procedure or a def -- as a new
+  line would that copied its said form."""
   named = set()
   for site in _all_sites():
     for msg, doing in _variants(site):
       shown = msg if doing is True else doing or ""
       for part in shown.split("<<")[1:]:
         marker = part.split(">>")[0]
-        if NAMED_BY.search(marker) or (shown.startswith("PROCEDURE ")
-                                       and marker not in OF_A_RUN):
+        by_name = NAMED_BY.search(marker) and not any(
+          shown.startswith(kind) and marker == held for kind, held in BY_NAME.items())
+        if by_name or (shown.startswith("PROCEDURE ") and marker not in OF_A_RUN):
           named.add((site.where, marker))
   assert not named, sorted(named)
 
