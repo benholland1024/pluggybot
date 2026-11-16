@@ -89,10 +89,10 @@ These rules hold for every change:
   [docs/Observatory.md](docs/Observatory.md), because it changes what the
   live world's records mean.
 
-The commands (the README says why Python 3.12):
+The commands:
 
 ```bash
-uv sync --python 3.12
+uv sync
 uv run pytest -q -m "not slow"           # while you work: the fast tests
 uv run pytest -q                         # before a change is done: the whole suite
 uv run pytest -q --endurance-changed -m endurance   # and the flights it touches

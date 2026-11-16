@@ -44,13 +44,13 @@ packages take about 600 MB.
 ```bash
 git clone https://github.com/benholland1024/pluggybot.git
 cd pluggybot
-uv sync --python 3.12
+uv sync
 uv run python scripts/humanoid_spike.py --view walk
 ```
 
-Python 3.12 is what the live world runs, and every package installs
-ready-built on it. On Python 3.14, which uv may pick on its own, one
-package has to be compiled, and that needs a C compiler.
+The repo asks for Python 3.12, the version the live world runs, and uv
+installs it if your machine doesn't have it. Every package installs
+ready-built on it.
 
 A window opens on the house. The humanoid walks from the living room to the
 kitchen and back, and it finds its way with its own sensors. Close the
