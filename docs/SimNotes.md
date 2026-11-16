@@ -8134,7 +8134,7 @@ osmesa, each draw its own noise; rows in
   one pod, an AMD EPYC 7763, osmesa, each draw its own noise, dev draws from
   3000 up; the tree carried #693's hand-over and #699's rule):
   - **The fork's falls come out of a bow its one pull-back took.** On 40 dev
-    places the reference as it stood laid 20 and fell twice, and on 60 fork
+    places the reference as it stood laid 20 and fell twice, and on 64 fork
     legs alone from the tour it fell 4 times: every fall in the fork's pull
     back off the pass, as were all of round 3's reading's. A pull of 0.24 m
     or more (the grip 0.45 m out or further) fell in 6 of 21, a shorter one
@@ -8143,13 +8143,13 @@ osmesa, each draw its own noise; rows in
     0-10 N, and the pelvis came 0.26-0.33 m toward the pass as the robot
     went over. Brought back in two pulls, the first stopping at 0.33 m
     (`PASS_FORK_MID`), each half's posture reaches both its ends standing:
-    on the fork leg alone, one fall in 62 -- none of the 19 gripped 0.45 m
+    on the fork leg alone, one fall in 64 -- none of the 19 gripped 0.45 m
     out or further; the one, a second pull of 0.11 m whose feet moved --
-    where one pull fell 4 times in 60, and 34 forks laid (the one pull's
-    35). What the rest lose is the walk's: a fork slipping in the jaws at
-    its hand-over, tilted about 25 deg (10 and 7), and a walk walled in by
-    the fork it carries, "no route" 4.4-4.8 m short (11 and 7; the
-    self-filter, Ben's call 5, above).
+    where one pull fell 4 times in 64. It laid no more forks for it: 36,
+    the one pull's 39, what the rest lose being the walk's -- a fork
+    slipping in the jaws at its hand-over, tilted about 25 deg (10 and 7),
+    and a walk walled in by the fork it carries, "no route" 4.4-4.8 m
+    short (11 and 7; the self-filter, Ben's call 5, above).
   - **#699's rule A does nothing for them** (a gripping hand also giving up a
     posture that comes while it reads past 40 N; flown as a reading on a
     scratch tree, the gate's two lines): 39 of the 40 places were the
@@ -8159,7 +8159,7 @@ osmesa, each draw its own noise; rows in
   - **Not the fork's levers:** brought back by `move_hand` it fell once
     where the base fell twice, but 8 of 27 forks slipped in the jaws at the
     hand-over (the base's 1); stood 3 cm nearer (its tag 0.41 m ahead), no
-    pull-back bowed, but the hand-over swept 16 of 42 forks off.
+    pull-back bowed, but the hand-over swept 19 of 50 forks off.
   - **The cup's pick, tried again.** A descent held back on the lid lost the
     pick in every one of round 3's 26 (the hover 0.8 cm or more off the
     cup's middle). Held back, the hand now goes straight back up to its
@@ -8179,8 +8179,8 @@ osmesa, each draw its own noise; rows in
     robot, right with toward): read again at the hover with the arm out,
     the card moved every hand 0.8-3.0 cm further left and 1.0-2.1 cm away,
     flight by flight -- a bias `PASS_CUP_AT` already takes off -- and left
-    the spread as it was (14 paired cup legs: left sd 1.0 cm with the look,
-    0.9 without). Not taken.
+    the spread as it was (on 32 cup legs each, within 2.5 cm 23 of 27 with
+    the look and 23 of 26 without; left sd 1.1 and 1.3 cm). Not taken.
 
 ## The arms keep off the other robot (issue #678)
 
