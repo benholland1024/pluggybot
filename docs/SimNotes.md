@@ -591,14 +591,13 @@ with its own GL context current (`tags._close`): MuJoCo 3.10's
 deletes go to whatever context is current, and under osmesa a renderer
 closed while another's was current left that other's next picture wrong in
 626,450 of its 921,600 pixels (the GTX's EGL drew it unchanged). ⚠ One
-collected unclosed is closed at once only on the thread that built it with
-nothing drawing: a collection runs at any allocation and on any thread,
-between a renderer's context made current and its draw included, and a
-context closed off its thread is still current on its own; else at that
-thread's next draw, build or close. ⚠ A forked child forgets its parent's
-renderers (`os.register_at_fork`): it inherits the model object, id and
-all, but no GL context survives a fork -- and forked from a process
-holding one, the GTX's EGL took the parent down at its next close.
+whose last user was collected unclosed is closed at the next draw, build or
+close, never inside the collection: a collection runs at any allocation,
+between another renderer's context made current and its draw included, and
+a close there leaves that draw with no context. ⚠ The key carries the
+process: a forked child inherits the model object, id and all, and builds
+its own renderer, as no GL context survives a fork (forked from a process
+holding one, the GTX's EGL took the parent down at its next close).
 
 ## The physics thread was four-fifths bookkeeping (rooftop-media-2026 #296, the profile)
 

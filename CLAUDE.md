@@ -2326,14 +2326,14 @@ save a filmstrip PNG named after the script.
   ONE RENDERER (#713; `tags._renderer_for`, `tests/test_shared_renderer.py`):
   a renderer each, ~210 MiB under osmesa, the pair held four; every picture
   is the same bit for bit through the one, in any order, a draw under its
-  lock. ⚠ IT IS CLOSED WITH ITS LAST USER (`TagDetector.close`, or one
-  collected unclosed: mid-draw or off its thread, at that thread's next
-  draw): kept, the tests' bodies of many models would each hold one in a
-  worker. ⚠ AND WITH ITS OWN GL CONTEXT CURRENT (`tags._close`): MuJoCo
-  3.10's close sends its deletes to whatever context is current, and under
-  osmesa another renderer's next picture came out wrong in 626,450 of
-  921,600 pixels. ⚠ A forked child forgets its parent's (no GL context
-  survives a fork).
+  lock. ⚠ IT IS CLOSED WITH ITS LAST USER (`TagDetector.close`; one
+  collected unclosed at the next draw, build or close, never inside the
+  collection): kept, the tests' bodies of many models would each hold one
+  in a worker. ⚠ AND WITH ITS OWN GL CONTEXT CURRENT (`tags._close`):
+  MuJoCo 3.10's close sends its deletes to whatever context is current, and
+  under osmesa another renderer's next picture came out wrong in 626,450 of
+  921,600 pixels. ⚠ Its key carries the process: a forked child builds its
+  own.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step
