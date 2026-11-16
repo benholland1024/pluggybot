@@ -277,6 +277,12 @@ _RENDERERS: dict[tuple[int, int, int, int], list] = {}
 #: Re-entrant: a detector collected unclosed releases its use from inside
 #: whatever allocation set the cycle collector off, building one included.
 _RENDERERS_LOCK = threading.RLock()
+#: Renderers whose last user was collected unclosed, closed at the next draw,
+#: build or close (`_close_pending`) on the thread drawing: ⚠ a collection
+#: runs at any allocation and on any thread, between another renderer's
+#: context made current and its draw included, and closed there a renderer
+#: left that draw with no context.
+_PENDING: list = []
 
 
 def _renderer_for(model, height: int, width: int):
@@ -289,6 +295,7 @@ def _renderer_for(model, height: int, width: int):
   import mujoco
   key = (os.getpid(), id(model), int(height), int(width))
   with _RENDERERS_LOCK:
+    _close_pending()
     entry = _RENDERERS.get(key)
     if entry is None:
       renderer = mujoco.Renderer(model, height, width)
@@ -304,19 +311,25 @@ def _renderer_for(model, height: int, width: int):
     return key, entry[0]
 
 
-def _release_renderer(key) -> None:
-  """One user of the renderer at `key` gone; the last closes it -- on the
-  thread that collected its detector where that is how it went, as
-  `mujoco.Renderer`'s own `__del__` closed an unclosed detector's before;
-  every served body is closed on the physics thread."""
+def _release_renderer(key, collected: bool = False) -> None:
+  """One user of the renderer at `key` gone; the last closes it, at once
+  where its detector was closed and at the next draw, build or close where
+  it was `collected` unclosed (`_PENDING`)."""
   with _RENDERERS_LOCK:
     entry = _RENDERERS.get(key)
-    if entry is None:
-      return
-    entry[1] -= 1
-    if entry[1] <= 0:
-      del _RENDERERS[key]
-      _close(entry[0])
+    if entry is not None:
+      entry[1] -= 1
+      if entry[1] <= 0:
+        del _RENDERERS[key]
+        _PENDING.append(entry[0])
+    if not collected:
+      _close_pending()
+
+
+def _close_pending() -> None:
+  with _RENDERERS_LOCK:
+    while _PENDING:
+      _close(_PENDING.pop())
 
 
 def _close(renderer) -> None:
@@ -340,11 +353,11 @@ class TagDetector:
 
   def __init__(self, model, camera_name: str, width: int = PICTURE_W,
                height: int = PICTURE_H, tag_size: float = SMALL_TAG_SIZE) -> None:
-    key, self.renderer = _renderer_for(model, height, width)
-    # its use released once, at `close` or when it is collected unclosed;
-    # not at exit (the module's renderers go with it)
-    self._release = weakref.finalize(self, _release_renderer, key)
-    self._release.atexit = False
+    self._key, self.renderer = _renderer_for(model, height, width)
+    # its use released once: at `close`, or when it is collected unclosed
+    # (not at exit: the module's renderers go with it)
+    self._collected = weakref.finalize(self, _release_renderer, self._key, True)
+    self._collected.atexit = False
     self.camera_name = camera_name
     self.width, self.height = width, height
     self.tag_size = tag_size
@@ -412,11 +425,13 @@ class TagDetector:
 
   def frame(self, data) -> np.ndarray:
     """The camera's colour frame, (height, width, 3) uint8: what it decodes."""
+    _close_pending()
     self.renderer.update_scene(data, camera=self.camera_name)
     return self.renderer.render()
 
   def close(self) -> None:
     """Its use of the shared renderer released (the last user's closes it);
     a second close does nothing."""
-    self._release()
+    if self._collected.detach() is not None:
+      _release_renderer(self._key)
     self.renderer = None

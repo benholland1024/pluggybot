@@ -14,7 +14,8 @@ world of two robots:
      one body's close while another body draws through it, and nothing is
      kept once the last user is closed -- or collected unclosed;
   3. a renderer is closed with its own GL context current, so another's
-     pictures are as they were (under osmesa they were not);
+     pictures are as they were (under osmesa they were not), and one
+     collected unclosed at the next draw, never where it was collected;
   4. a forked child builds its own.
 """
 
@@ -139,6 +140,7 @@ def test_a_renderer_is_closed_with_its_last_user_and_nothing_is_kept():
   dropped = weakref.ref(eye.renderer)
   del eye
   gc.collect()
+  tags.TagDetector(model, FIRST.el("nav_eye")).close()      # the next build
   assert dropped() is None and not _renderers_of(bare), \
     "a renderer kept for a detector collected unclosed"
 
@@ -180,6 +182,28 @@ def test_a_renderer_is_closed_with_its_own_context_current_and_the_others_draw_o
       "another renderer's picture changed when one was closed"
   finally:
     kept.close()
+
+
+def test_a_renderer_collected_unclosed_is_closed_at_the_next_draw():
+  """A cycle collection runs at any allocation and on any thread -- between
+  another renderer's context made current and its draw (`np.empty` in
+  `Renderer.render`) included -- and a renderer closed there leaves that
+  draw with no context. One whose last user was collected unclosed waits
+  for the next draw, build or close, on the thread drawing."""
+  model, _data = _pair()
+  other, other_data = _pair()
+  drawing = tags.TagDetector(other, FIRST.el("nav_eye"))
+  try:
+    eye = tags.TagDetector(model, FIRST.el("nav_eye"))
+    left = weakref.ref(eye.renderer)
+    del eye
+    gc.collect()
+    assert left() is not None and left()._mjr_context is not None, \
+      "closed where its detector was collected"
+    drawing.frame(other_data)
+    assert left() is None, "kept past the next draw"
+  finally:
+    drawing.close()
 
 
 def test_a_forked_child_never_draws_through_its_parents_renderer(monkeypatch):
