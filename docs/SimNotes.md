@@ -10030,7 +10030,13 @@ flights, every step's readings recorded as it walked: P2's `steprec`):
   69 deg below level from 1.26 m, loses the face below 0.6 m from 0.33 m out
   (the pelvis's) and the top's edge from 0.21-0.25 m -- further out than a
   thigh pressed on it at 0.15-0.17. What it saw there is all it has, so it
-  is remembered and carried as the legs count the walk (`KneeMemory`).
+  is remembered (`KneeMemory`). ⚠ Carried by the legs' reckoning alone, it
+  read the storeroom counter's face 5-21 cm nearer than it stood at the
+  tour's work spots -- points 14-18 cm in front of the face, seen 8-13 s
+  before (a step's legs count a fifth short, and a turn's shuffle 2-6 cm
+  uncounted) -- and the keep-off stopped 12 of 50 references' last steps
+  short: it is placed where the matched belief placed it, and what a frame
+  sees afresh replaces it.
 - The head's front, off the robot's model of itself (the statue of each
   bow, `body.head_front`), is 7 cm past its LIDAR upright, 22 at `spot`'s
   0.25 rad and 33 at its 0.45; the lobby's head met the wall bowing 0.25

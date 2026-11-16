@@ -137,7 +137,7 @@ STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMiss
 #: before its stride's carry would bring its LIDAR within `STEP_WALL_M` of
 #: what it reads at its head's height (`lidar.OVER_Z` and up), m -- or its
 #: pelvis within `STEP_LOW_M` of what its depth camera has seen at its
-#: knees' height, remembered as its legs count its walks (`mission.KNEE_Z`,
+#: knees' height, remembered where its belief placed it (`mission.KNEE_Z`,
 #: `KneeMemory`: up close the camera sees none of a counter's face, and a
 #: thigh pressed on it at 0.15-0.17 m). ⚠ ONLY WHAT
 #: LIES AHEAD ALONG ITS WAY, AND BEGUN NEARER, IT MAY GO BUT NO NEARER THAN
@@ -260,8 +260,8 @@ class _Room:
   since `since` (`Navigator.over_returns`, from the sensor), moved on by
   what its legs have walked since it was taken (none before the walk began,
   at `walk_t`); and what its depth camera
-  has seen at its knees' height, remembered and carried as its legs count
-  its walks (`HumanoidMission.knee`), from its pelvis. Its way (`ux`, `uy`)
+  has seen at its knees' height, remembered where its belief placed it
+  (`HumanoidMission.knee`), from its pelvis. Its way (`ux`, `uy`)
   in the trunk's frame as the walk began."""
 
   def __init__(self, mission, ux: float, uy: float, since: float, walk_t: float) -> None:

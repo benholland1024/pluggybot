@@ -10,6 +10,70 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `a9685974…`, 68,110
+characters, 17 sections, from `0f1df27e…`'s 67,157; the session host's
+hello moves, sha1 `361f10cd…` from `b796e75d…`):
+- `step`'s text, after the sentence that ends "Either reads false and says
+  so.", gains: "It keeps off walls and furniture too: it stops before it
+  would bring your LIDAR within 0.3 m of anything that reads at your head's
+  height (1.05 m over the floor and up) -- a wall, a door, a tall shelf --
+  or your middle within 0.2 m of what your depth camera has seen in front of
+  you at your knees' height (0.6 m over the floor and lower) -- a counter's
+  face, a chair -- each ahead in the way you step; standing that near
+  already, a walk goes along it but no nearer. That too reads false and says
+  so. A walk your LIDAR's scans of the room say went under 0.5 of what your
+  legs count, these 4 cm or more, reads false: pressed on something, a
+  stride can come down where it began while your legs count it; `step.*`
+  then says what your scans do." Before, nothing of either.
+- `spot`'s text, after "...and stand up again; ok when you see it.", gains:
+  "A bow goes no deeper than leaves your head 5 cm short of what your LIDAR
+  reads at your head's height in front of you, and none where your head is
+  nearer than that already; a look that did not see its tag says so."
+- New words a step reads false with: "your step stopped short of something
+  your LIDAR reads at your head's height: a step keeps it 0.30 m from your
+  LIDAR in the way you step (0.28 m now)"; "your step stopped short of
+  something your depth camera saw in front of you at your knees' height: a
+  step keeps it 0.20 m from your middle in the way you step (0.19 m now)";
+  and `pressed`: "your legs counted 8 cm along the way you stepped, but your
+  scans of the room put you only 1 cm on: something held your body back".
+  A `spot` that did not see its tag and had a bow held adds "; something
+  your LIDAR reads at your head's height stands 0.12 m in front of your
+  head, so you bowed only 14 degrees of the 26 you would have" (or "too
+  near for you to bow at all").
+- ⚠ A step used as a statement ends its run where it reads false, as "too
+  short" did (#649): 49 of the wake of 11-15's 145 runs used one so (most of
+  them Luca's); «WAKE».
+
+**The change** (`HumanoidBody._Room`, `step_routine`, `gaze_routine`,
+`bow_room`, `head_front`; `HumanoidMission.knee`, `KneeMemory`;
+`Lidar.band`'s `over_*`; `steps._pressed`, `_bow_said`; SimNotes, "A step
+into a wall, and the look's bow there"). A step kept off nothing but the
+other robot (#670). Its walk now stops before its stride's carry would bring
+its LIDAR within 0.30 m of what that reads at its head's height (1.05 m and
+up), off every scan the step took -- one taken as it sets off where it took
+none -- or its pelvis within 0.20 m of what its depth camera has seen at its
+knees' height (0.08-0.6 m), remembered 60 s within 1.5 m where its matched
+belief placed it, every frame replacing what it sees afresh (up close the
+camera sees none of a counter's face);
+begun nearer, it goes along but no nearer. A step its matched belief says
+went under half of what its legs count reads `pressed`. A gaze's bow (spot's,
+the charge's low look, the chest's reference's) goes no deeper than leaves
+the head's front 5 cm short of what the LIDAR reads at its head's height.
+
+**Why.** Three of Rowan's falls of 11-15 came in `spot` after its own steps
+had walked it into the research center lobby's wall and the storeroom's
+corner, every step "stepped": the bow put the head on the wall, the wall
+threw the trunk back, and the get-up ran the robot into the far wall (one a
+stuck death). At the counter's face the same loops pressed the thighs on it
+at 150-400 N, and those steps read "stepped" 7-9 cm where the body went
+1-3: the procedures took `step.dx` off where a tag was.
+
+**Measured** («BAR»).
+
+**What to read on the live rows.** «READ».
+
 ### A hand on its way out that would tip the body over stops there, and our door's and lid's references try their grip turned toward the middle before they tilt (#708, K13, M3 and P1, `loop-708b`) — opens when this PR is deployed
 
 **What a deployed robot's `reach` does changes; what it says and reads does

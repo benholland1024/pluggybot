@@ -1234,8 +1234,10 @@ save a filmstrip PNG named after the script.
   1.05 m up: the band's nearest at a counter is its top, 0.38-0.5 m ahead
   whatever its face), its pelvis `STEP_LOW_M` (0.20) off what its depth
   camera has seen at its knees (`KNEE_Z`, 0.6 m down: a table's top on legs,
-  which the lay stands 0.17 m from, is none of it), remembered and carried by
-  the legs (up close the camera sees none of a counter's face), each ahead
+  which the lay stands 0.17 m from, is none of it), remembered where its
+  matched belief placed it -- by the legs alone it drifted 14-18 cm in 10 s
+  -- what a frame sees afresh replacing it (up close the camera sees none of
+  a counter's face), each ahead
   along its way; begun nearer, along but no nearer; ⚠ ONE ITS SCANS SAY WENT
   UNDER HALF OF WHAT ITS LEGS COUNT (4 cm or more) READS `pressed` (#718;
   `steps._pressed`): pressed on a counter, the legs counted 7-9 cm a stride
