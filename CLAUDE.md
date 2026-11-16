@@ -2327,7 +2327,10 @@ save a filmstrip PNG named after the script.
   a renderer each, ~210 MiB under osmesa, the pair held four; every picture
   is the same bit for bit through the one, in any order. ⚠ IT IS CLOSED
   WITH ITS LAST USER (`TagDetector.close`, or one collected unclosed): kept,
-  the tests' bodies of many models would each hold one in a worker.
+  the tests' bodies of many models would each hold one in a worker. ⚠ AND
+  WITH ITS OWN GL CONTEXT CURRENT (`tags._close`): MuJoCo 3.10's close sends
+  its deletes to whatever context is current, and under osmesa another
+  renderer's next picture came out wrong in 626,450 of 921,600 pixels.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step

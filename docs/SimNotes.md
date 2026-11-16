@@ -585,7 +585,14 @@ of the pair, and so did every decode (2026-11-16). Measured there, the
 pair's four cameras cost 306 MiB over the built pair where they cost 946:
 the first camera 285 (the renderer, the AprilTag detector and the process's
 first GL context), each other camera 0-10 at its first picture where each
-had cost 215-224, and a picture the same 21-27 ms.
+had cost 215-224, and a picture the same 21-27 ms. ⚠ A renderer is closed
+with its own GL context current (`tags._close`): MuJoCo 3.10's
+`Renderer.close` frees the context and then the `MjrContext`, whose
+deletes go to whatever context is current, and under osmesa a renderer
+closed while another's was current left that other's next picture wrong in
+626,450 of its 921,600 pixels (the GTX's EGL drew it unchanged). And the
+key carries the process: a forked child inherits the model object, id and
+all, but no GL context survives a fork.
 
 ## The physics thread was four-fifths bookkeeping (rooftop-media-2026 #296, the profile)
 
