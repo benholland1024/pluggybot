@@ -25,7 +25,9 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 #: added to every cell and clipped), each plan's inflation transform and
 #: lattice weights (32 of a 3 m hop's 42 ms at 4x), the explore's frontier
 #: leg (A* in pure Python), the wire's image and the save; what does not is
-#: the scan matcher's field (a 15 m window) or the height map (4 m). ⚠ The
+#: the scan matcher's field (a 15 m window) or the height map (4 m); since
+#: #712's rule (`GRAZE_M`) a scan's update takes about 1.4 ms more on the
+#: dev box on today's 856,800 cells, the slant 0.5 of it. ⚠ The
 #: humanoid pays two of them oftener -- its camera's walls are its whole
 #: grid dilated every depth frame, and its arrival replans every step (2.5
 #: to 11 plans a second where the quadruped makes 0.5), each plan 43 ms at
@@ -34,20 +36,19 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 MAX_CELLS = 1_876_800
 
 #: A ray that ends on a surface frees a cell the map holds a wall in, over
-#: its last `GRAZE_M` / tan(slant) metres -- where it runs alongside that
-#: surface within this far of it, m -- only at `sin(slant) ** GRAZE_POWER`
-#: of `L_FREE` (`update`'s `graze_m`, #712): the alley's rays, laid 7-10 cm
-#: off the research center's 4 cm south wall the robot had laid sure from
-#: inside, erased it in 8.5 s -- none of those clears at the true pose.
-#: SimNotes, "A thin wall met at a graze".
+#: its last `GRAZE_M` / tan(slant) metres -- where it runs within this times
+#: cos(slant) of that surface, m, this far at a graze -- only at
+#: `sin(slant) ** GRAZE_POWER` of `L_FREE` (`update`'s `graze_m`, #712): the
+#: alley's rays, laid 7-10 cm off the research center's 4 cm south wall the
+#: robot had laid sure from inside, erased it in 8.5 s -- none of those
+#: clears at the true pose. SimNotes, "A thin wall met at a graze".
 GRAZE_M = 0.15
-#: ...the weight's power: 16 deg off a wall (the alley's median) a clear
-#: weighs 0.006 of one, 45 deg 0.25, 60 deg 0.56. A veto (M1's rule,
-#: `loop-712`) kept every copy of a wall a belief a few cm off had laid, and
-#: held the research center's belief to it. Replayed closed-loop on eight
-#: flights' scans, every power from 2 to 8 kept the map's walk from the mall
-#: at 43 m on all four of its flights, and 4 laid the fewest walls twice (48
-#: cells, 75 at 3, 338 at 2).
+#: ...the weight's power, never a veto: vetoed, every copy of a wall that a
+#: belief a few cm off had laid was kept, and the belief held to it. 16 deg
+#: off a wall (the alley's median) a clear weighs 0.006 of one, 45 deg 0.25,
+#: 60 deg 0.56. Replayed closed-loop on eight flights' scans, every power
+#: from 2 to 8 kept the map's walk from the mall at 43 m on all four of its
+#: flights, and 4 laid the fewest walls twice (48 cells, 75 at 3, 338 at 2).
 GRAZE_POWER = 4.0
 #: ...over its last this many metres at most.
 GRAZE_MOST_M = 2.0
@@ -105,7 +106,7 @@ class OccupancyGrid:
 
     `graze_m` (None: off), m: a ray that ends on a surface frees a cell the
     map holds a wall in, over its last `graze_m` / tan(slant) metres --
-    where it runs alongside that surface within `graze_m` of it -- only at
+    where it runs within `graze_m` cos(slant) of that surface -- only at
     `sin(slant) ** GRAZE_POWER` of `L_FREE` (`GRAZE_M`): square on, nothing
     more than the one cell short of its end -- the slant read off the
     scan's own endpoints either side (`_slant`).
@@ -154,31 +155,33 @@ class OccupancyGrid:
     hys = ((ey - self.y_min) / self.resolution).astype(np.int32)
     hin = hit & (hxs.view(np.uint32) < cols) & (hys.view(np.uint32) < rows)
 
-    # One weighted bincount accumulates all the evidence in a single pass
-    held = None
-    if free_from is not None:
-      # ...nearer than its `free_from`, a ray frees no cell the map holds
-      # any wall's evidence in (read before this scan)
-      held = near = keep & (ts < np.asarray(free_from, dtype=float)[:, None])
+    # One weighted bincount accumulates all the evidence in a single pass:
+    # a clear of a cell the map holds a wall in (read before this scan) by a
+    # sample `held` weighs its ray's `w_ray` of one (none without a graze)
+    held = w_ray = None
     if graze_m is not None:
-      # ...and over its last graze_m / tan(slant) metres, where it runs
-      # alongside the surface it ends on within `graze_m` of it, frees one
-      # only at its weight
+      # ...over a ray's last graze_m / tan(slant) metres, where it runs
+      # alongside the surface it ends on, sin(slant) ** GRAZE_POWER
       sin_in = _slant(a, ex, ey, hit, cos_a, sin_a)
       along = graze_m * np.sqrt(1.0 - sin_in ** 2) / np.maximum(sin_in, 1e-9)
       stretch = np.minimum(np.minimum(along, GRAZE_MOST_M), ranges)
-      grazed = keep & hit[:, None] & (ts > (ranges - stretch)[:, None])
-      held = grazed if held is None else held | grazed
+      held = keep & (ts > (ranges - stretch)[:, None])
+      w_ray = sin_in ** GRAZE_POWER
+    if free_from is not None:
+      # ...and nearer than its `free_from`, nothing
+      near = keep & (ts < np.asarray(free_from, dtype=float)[:, None])
+      held = near if held is None else held | near
     if held is not None and held.any():
       held_cells = cells[held]
       walled = self.grid.reshape(-1)[held_cells] > 0.0
-      weight = (sin_in ** GRAZE_POWER)[np.nonzero(held)[0]] if graze_m is not None else 0.0
-      if free_from is not None and graze_m is not None:
-        weight = np.where(near[held], 0.0, weight)
-      weighed = walled & (weight > 0.0) if graze_m is not None else np.zeros_like(walled)
+      w = (np.zeros(held_cells.size) if w_ray is None
+           else np.broadcast_to(w_ray[:, None], held.shape)[held])
+      if free_from is not None and w_ray is not None:
+        w[near[held]] = 0.0
+      weighed = walled & (w > 0.0)
       free_cells = np.concatenate([cells[keep & ~held], held_cells[~walled], held_cells[weighed]])
       free_weights = np.concatenate([np.full(free_cells.size - int(weighed.sum()), L_FREE),
-                                     L_FREE * np.broadcast_to(weight, walled.shape)[weighed]])
+                                     L_FREE * w[weighed]])
     else:
       free_cells = cells[keep]
       free_weights = np.full(free_cells.size, L_FREE)

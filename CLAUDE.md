@@ -777,8 +777,9 @@ save a filmstrip PNG named after the script.
   the wall beyond), NOR ANY TILTED PAST `CLEARS_TILT_RAD` (30 deg: bowed,
   the steepest rings turn past straight down onto the bearings behind, and
   a low box 2 m behind was cleared on 8 bearings of 9). ⚠ A RAY RUNNING
-  ALONGSIDE THE SURFACE IT ENDS ON, WITHIN `GRAZE_M` (0.15 m) OF IT, CLEARS
-  A WALL ONLY AT `sin(slant) ** GRAZE_POWER` (4) OF A CLEAR (#712;
+  ALONGSIDE THE SURFACE IT ENDS ON, WITHIN `GRAZE_M` (0.15 m) TIMES
+  cos(slant) OF IT, CLEARS A WALL ONLY AT `sin(slant) ** GRAZE_POWER` (4)
+  OF A CLEAR (#712;
   `OccupancyGrid.update`'s `graze_m`; SimNotes, "A thin wall met at a
   graze"): laid 7-10 cm off, the alley's grazing rays erased the research
   center's 4 cm south wall, and the map's walk from the mall read 26 m for

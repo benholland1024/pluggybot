@@ -15,9 +15,10 @@ observatory is NOT a result: it reports into the issue it informs.
 **What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
 sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
 and no wire format moved; nothing the robots read changes):
-- **A LIDAR ray that runs alongside the surface it ends on, within 0.15 m of
-  it, frees a cell the map holds a wall in only at sin(slant)^4 of a
-  clear** (`OccupancyGrid.update`'s `graze_m`, `GRAZE_M`, `GRAZE_POWER`):
+- **A LIDAR ray that runs alongside the surface it ends on, within 0.15 m
+  times cos(slant) of it, frees a cell the map holds a wall in only at
+  sin(slant)^4 of a clear** (`OccupancyGrid.update`'s `graze_m`, `GRAZE_M`,
+  `GRAZE_POWER`):
   16 deg off a wall a clear weighs 0.006 of one, 45 deg 0.25, square on
   the whole of it. The slant is read off a neighbouring ray's end at least
   0.15 m away, the larger sine where both neighbours read one (`_slant`). A
@@ -42,6 +43,11 @@ veto (M1, `loop-712`), kept the wall but kept every copy of a wall a belief
 a few cm off had laid too, and held the research center's belief 10 cm off
 the truth at the median in the drift spike's flights, where the base left
 it 6 cm off; it was not deployed.
+
+**No `MAP_EPOCH` of its own** (Ben's): the deployed save is epoch 4, and its
+maps are dropped at the next wake anyway (`MAP_EPOCH` 5, below). A map laid
+under the base's rule before this ships keeps the wall it erased until the
+robot sees it again from inside, square on.
 
 **What the period is for.** The robots' maps on the wire (`grid`) after a
 walk past the alley's mouth: the research center's south wall held along

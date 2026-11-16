@@ -9672,8 +9672,9 @@ apart, and its clears run between them.
 
 **The rule** (`OccupancyGrid.update`'s `graze_m`, on in
 `Navigator._scan_step` at `GRAZE_M`, 0.15 m): over a hit ray's last
-`graze_m` / tan(slant) metres -- where it runs alongside the surface it ends
-on within 0.15 m of it, at most `GRAZE_MOST_M` (2 m) -- a cell the map holds
+`graze_m` / tan(slant) metres -- where it runs within 0.15 m times
+cos(slant) of the surface it ends on, 0.15 m at a graze and 0.11 at 45 deg,
+at most `GRAZE_MOST_M` (2 m) -- a cell the map holds
 a wall in is freed at `sin(slant) ** GRAZE_POWER` (4) of `L_FREE`: 16 deg
 off a wall, the alley's median, a clear weighs 0.006 of one, 45 deg 0.25,
 60 deg 0.56, and square on the rule is the base's. The slant (`_slant`) is
@@ -9743,7 +9744,24 @@ table reads; one way allowed, 0.20 with sin^4 read as 0.15 does.
 
 **What it costs.** A scan's update takes 1.3-1.5 ms more than the
 base's (7.6-8.2 ms against 6.1-6.8 on the dev box, interleaved: the slant
-0.53 of it), about 14 ms a sim second a robot.
+0.53 of it), about 14 ms a sim second a robot; computing the slant only for
+rays with a walled cell in their last 2 m would save part of it, unbuilt.
+
+**What it still reads wrong** (its review, none of it seen in the replays'
+maps, where the whole map's walls laid two or more cells off a true wall
+numbered 1,806 under the rule against 3,870 under the base's): a ray on an
+object narrower than about 0.3 m in front of a farther surface finds its
+0.15 m chord only across the depth jump, both ways, and reads a graze (a
+12 cm pole 2 m out read sines of 0.07-0.10, and a wall cell left 0.5 m in
+front of it was kept through 30 scans from where it stood); within about
+0.72 m (0.15 m over 12 bearings) a surface seen square on finds no chord
+along itself, and beside an edge reads the jump (masked in the served scan
+by its `free_from`, about 1 m); and one stray hit by a surface seen only at
+a graze is a walled cell that wears away at the graze's weight. A neighbour
+whose own next end turns off the chord's line -- a jump -- read as no
+reading would answer the first two, unbuilt; reading the wall's normal off
+the matcher's field instead of the scan's ends would answer them in one
+mechanism.
 
 **`find`'s rate with the wall kept** (#698's `GUESS_WALK_S_M`, 10 s a
 metre; M1's flights of the veto): of the 123 first walks of two batches
