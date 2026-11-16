@@ -552,13 +552,54 @@ sixteen `castshadow` lights at MuJoCo's default 4096 `shadowsize`, sixteen
 16-megapixel depth passes a look. A wrong turn worth keeping: timing inside
 the container found "fast" and "slow" GL contexts, and the fast ones were
 contexts whose shadow framebuffer had failed to create; MuJoCo then renders
-without shadows and says nothing. **What is true now:** `TagDetector` clears
-`mjRND_SHADOW` and `mjRND_REFLECTION` on its own scene, and `update_scene`
-keeps the flags (`tests/test_render_context.py`). A tag decode thresholds
-gray levels and a real camera has no shadow pass, so nothing hardware has is
-lost; the viewer and the filmstrips keep their shadows. The site's clock
+without shadows and says nothing. **What is true now:** the detectors'
+renderer (one a model since #713, "One renderer for the robots' cameras")
+has `mjRND_SHADOW` and `mjRND_REFLECTION` cleared on its scene, and
+`update_scene` keeps the flags (`tests/test_render_context.py`). A tag
+decode thresholds gray levels and a real camera has no shadow pass, so
+nothing hardware has is lost; the viewer and the filmstrips keep their
+shadows. The site's clock
 follows the stream's measured pace, so a world that cannot hold real time
 plays smoothly slow rather than stop-and-go.
+
+## One renderer for the robots' cameras (#713)
+
+A humanoid decodes tags off two cameras, each through a `TagDetector`: the
+colour imager (`spot`, `watch`, the charge's looks) and the navigation
+camera (the walking look, `find`, the lost search). Each detector built a
+`mujoco.Renderer` of its own at its first use -- a GL context, MuJoCo's
+`MjrContext`, the offscreen buffers -- about 210 MiB under osmesa, so the
+served pair held four renderers of one model at one size, drawn one at a
+time on the physics thread. **What is true now:** every detector of one
+model and picture size draws through one renderer (`tags._renderer_for`),
+kept beside a count of its users and closed with the last
+(`TagDetector.close`; a detector collected unclosed releases its use
+through a finalizer). Kept without the count, the tests' bodies of many
+models would each hold a renderer alive in a worker
+(`tests/test_shared_renderer.py`). A draw is `update_scene` and `render`
+back to back under one lock, and nothing of one camera's picture carries
+into the next: on the served pair under osmesa, each of the four cameras'
+pictures came out the same bit for bit through the one renderer as through
+a renderer of its own, in the order built, reversed and interleaved, at
+three placings of the pair, and so did every decode; the pair's committed
+recording flew line for line the same, and `determinism_spike.py --pair`
+traced the same day (2026-11-16). Measured there, the
+pair's four cameras cost 306 MiB over the built pair where they cost 946:
+the first camera 285 (the renderer, the AprilTag detector and the process's
+first GL context), each other camera 0-10 at its first picture where each
+had cost 215-224, and a picture the same 21-27 ms. ⚠ A renderer is closed
+with its own GL context current (`tags._close`): MuJoCo 3.10's
+`Renderer.close` frees the context and then the `MjrContext`, whose
+deletes go to whatever context is current, and under osmesa a renderer
+closed while another's was current left that other's next picture wrong in
+626,450 of its 921,600 pixels (the GTX's EGL drew it unchanged). ⚠ One
+whose last user was collected unclosed is closed at the next draw, build or
+close, never inside the collection: a collection runs at any allocation,
+between another renderer's context made current and its draw included, and
+a close there leaves that draw with no context. ⚠ The key carries the
+process: a forked child inherits the model object, id and all, and builds
+its own renderer, as no GL context survives a fork (forked from a process
+holding one, the GTX's EGL took the parent down at its next close).
 
 ## The physics thread was four-fifths bookkeeping (rooftop-media-2026 #296, the profile)
 

@@ -10,6 +10,33 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### One renderer for the robots' cameras (#713, M4, `loop-713`) — opens when this PR is deployed
+
+**Nothing the robots read or do moved.** A robot's two tag cameras (the
+colour imager and the navigation camera) draw through one renderer the
+pair's four share, where each built its own (`tags._renderer_for`;
+SimNotes, "One renderer for the robots' cameras"). Every camera's picture
+is the same bit for bit (the served pair under osmesa, three placings,
+every order of the four; every decode the same); the pair's committed
+recording flew line for line the same, 11,705 lines, and
+`determinism_spike.py --pair` traced one day on both sides (543 state
+samples, 137 looks, 5,135 scans, a fall, a death and a stand-up), both
+under osmesa; `prompt_sha` `0f1df27e…` (67,157 characters, 17 sections)
+and the session host's hello (sha1 `b796e75d…`) are unmoved; no geometry
+and no wire field moved, so no fixture was flown again.
+
+**What moved is the served process's memory** (`vitals: rss`). Measured
+off the box, the pair's four cameras cost 306 MiB where they cost 946, so a
+process's steady state should read about 640 MiB under the 1.4-1.56 GB of
+11-14 and 11-15, and its first minutes awake show one step at the first
+camera's first use (285 MiB) where they showed four of 215-285. The
+alarm's rule is unchanged: three samples, and whether two is Ben's call
+(#713).
+
+**What the period is for.** The `vitals: rss` steady state about 0.6 GB
+lower than the period before; a step of about 200 MiB in a process's log
+after its first camera's would be a fault of this change.
+
 ### The other robot is shown what a robot's body is doing, never what its mind does (#709, M2, `loop-709`) — opens when this PR is deployed
 
 **What changed is what each robot reads of the other** (`others[].doing`;
