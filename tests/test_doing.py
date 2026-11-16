@@ -358,15 +358,15 @@ def test_an_acts_claim_is_never_shown_to_the_robot_it_names():
 #: refusing them, a test's words, a stop's.
 HANDED = {
   "a verb's values": ('wait(seconds=read("battery.frac"))', "0.7319",
-                      "PROCEDURE p step 1 (line 2): wait"),
+                      "PROCEDURE step 1 (line 2): wait"),
   "a check's words": ('wait(seconds=read("battery.frac") * 1000)', "731.9",
-                      "PROCEDURE p failed at step 1 (line 2, wait)"),
+                      "PROCEDURE failed at step 1 (line 2, wait)"),
   "a test's words": ('if not wait(seconds=sqrt(0 - read("battery.frac") * 1000)):\n'
                      '    wait(seconds=1)', "731.9",
-                     "PROCEDURE p step 1 (line 2, wait) did not do what it said, as its "
+                     "PROCEDURE step 1 (line 2, wait) did not do what it said, as its "
                      "test read"),
   "a stop's words": ('x = sqrt(0 - read("battery.frac") * 1000)\n  wait(seconds=1)', "731.9",
-                     "PROCEDURE p stopped"),
+                     "PROCEDURE stopped"),
 }
 
 
@@ -392,6 +392,112 @@ def test_a_procedure_is_shown_as_its_verbs_never_what_it_handed_them(what):
   assert not [msg for msg, seen, _ in views if value in seen]
 
 
+#: What a robot named a procedure and its defs (#709's follow-up, Ben,
+#: 2026-11-16): the procedure it runs, a def of that one's source, another
+#: of its library's procedures it calls -- and a house program's (#58).
+NAMES = ("beat_rowan_to_it", "sneak_past_rowan", "hide_from_rowan", "grab_first")
+
+#: Every form a run's line takes, each from the smallest run that says it:
+#: the source run as `procedure:beat_rowan_to_it`, `hide_from_rowan` in its
+#: library (None: a house program, `grab_first`, its walk failing), and the
+#: lines the other robot is shown, in order.
+RUNS = {
+  "a step, in a def": (
+    "def beat_rowan_to_it():\n  sneak_past_rowan()\ndef sneak_past_rowan():\n  wait(1)\n",
+    ["PROCEDURE step 1 (line 4): wait", "PROCEDURE complete: 1/1 steps"]),
+  "a step, in another of its library's procedures": (
+    "def beat_rowan_to_it():\n  hide_from_rowan()\n",
+    ["PROCEDURE step 1 (line 2): wait", "PROCEDURE complete: 1/1 steps"]),
+  "a step a test read false, in a def": (
+    "def beat_rowan_to_it():\n  sneak_past_rowan()\n"
+    "def sneak_past_rowan(s=-1):\n  if not wait(sqrt(s)):\n    wait(1)\n",
+    ["PROCEDURE step 1 (line 4): wait",
+     "PROCEDURE step 1 (line 4, wait) did not do what it said, as its test read",
+     "PROCEDURE step 2 (line 5): wait", "PROCEDURE complete: 2/2 steps, 1 test read false"]),
+  "a step failed, in a def": (
+    "def beat_rowan_to_it():\n  sneak_past_rowan()\ndef sneak_past_rowan(s=100):\n  wait(s)\n",
+    ["PROCEDURE step 1 (line 4): wait", "PROCEDURE failed at step 1 (line 4, wait)",
+     "PROCEDURE cut short: 0/1 steps"]),
+  # ...a call a test reads, false where its argument cannot be computed (the
+  # line names the def where a step names its verb) or its arithmetic fails
+  "a call a test read false, at its argument": (
+    "def beat_rowan_to_it():\n  if not sneak_past_rowan(sqrt(0 - 1)):\n    wait(1)\n"
+    "def sneak_past_rowan(s):\n  wait(s)\n",
+    ["PROCEDURE line 2 did not do what it said, as its test read",
+     "PROCEDURE step 1 (line 3): wait", "PROCEDURE complete: 1/1 steps, 1 test read false"]),
+  "a call a test read false, in its arithmetic": (
+    "def beat_rowan_to_it():\n  if sneak_past_rowan(0):\n    wait(9)\n  wait(3)\n"
+    "def sneak_past_rowan(s):\n  wait(1)\n  x = 1 / s\n",
+    ["PROCEDURE step 1 (line 6): wait",
+     "PROCEDURE line 7 did not do what it said, as its test read",
+     "PROCEDURE step 2 (line 4): wait", "PROCEDURE complete: 2/2 steps, 1 test read false"]),
+  "a stop, in a def": (
+    "def beat_rowan_to_it():\n  sneak_past_rowan()\n"
+    "def sneak_past_rowan(s=-1):\n  x = sqrt(s)\n  wait(1)\n",
+    ["PROCEDURE stopped", "PROCEDURE cut short: 0/1 steps"]),
+  "a house program's steps": (
+    None, ["PROCEDURE 1/2: wait", "PROCEDURE 2/2: drive_to", "PROCEDURE failed at 2/2 drive_to",
+           "PROCEDURE cut short: 1/2 steps"]),
+}
+
+
+@pytest.mark.parametrize("what", sorted(RUNS))
+def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
+  """A procedure's name is the robot's own words, and so is each def's: they
+  may carry its reasons, and a robot that would share its plans has `tell`
+  (#709's follow-up, Ben, 2026-11-16). A robot runs `procedure:<name>`
+  through the lifecycle's own doors, and the other robot is shown each line
+  of the run as its step alone -- a step, one a test read false, one that
+  failed, a call a test read false, a stop, how the run ended -- its whole
+  context read at every line the run says; a house program's too."""
+  from pluggybot import tick
+  from pluggybot.mind.overseer import Decision
+  from pluggybot.mission.errand import programmed_errand
+  from pluggybot.procedure.steps import Program, Step
+  source, forms = RUNS[what]
+  a, b = stub_pair()
+  views = []
+  a.say_hooks.append(lambda t, msg: views.append(
+    (json.dumps(overseer_context(b)), others_context(b)[0]["doing"])))
+  if source is None:
+    a.body.go_to_routine = lambda *args, **kw: tick.result(False)
+    a.body.run(a.run_errand_routine(programmed_errand(Program.single(
+      "grab_first", [Step("wait", {"seconds": 1.0}), Step("drive_to", {"x": 1.0, "y": 1.0})]))))
+  else:
+    for name, src in (("hide_from_rowan", "def hide_from_rowan():\n  wait(1)\n"),
+                      ("beat_rowan_to_it", source)):
+      a._define(Decision(action="idle", reason="r", define={"name": name, "source": src}))
+    a.body.run(a._after_decision_routine(Decision(action="procedure:beat_rowan_to_it",
+                                                  reason="r")))
+    while a.errands:
+      a.body.run(a.run_errand_routine(a.errands.pop(0)))
+  shown = [k for k, _ in itertools.groupby(d for _, d in views if d.startswith("PROCEDURE"))]
+  assert shown == forms, shown
+  assert not [n for seen, _ in views for n in NAMES if n in seen]
+
+
+#: What a run's line may show of it (#709's follow-up): the step's count,
+#: its line and its verb, and how many ran and read false.
+OF_A_RUN = {"count", "line", "verb", "step.verb", "i + 1", "len(steps)",
+            "run['completed']", "run['total']", "read"}
+
+
+def test_no_call_shows_a_runs_line_with_anything_but_its_step():
+  """Every call that narrates a run's line, as its call is written: what its
+  shown form interpolates is a count, a line or a verb -- never a name the
+  robot gave the procedure or a def, as a new line would that copied its
+  said form (`at.text()` names the def and the library's procedure that
+  holds it)."""
+  named = set()
+  for site in _all_sites():
+    for msg, doing in _variants(site):
+      shown = msg if doing is True else doing or ""
+      if shown.startswith("PROCEDURE "):
+        named.update((site.where, part.split(">>")[0]) for part in shown.split("<<")[1:]
+                     if part.split(">>")[0] not in OF_A_RUN)
+  assert not named, sorted(named)
+
+
 def test_a_dead_robot_is_shown_dead_until_it_stands_up():
   """A dead body does nothing: what the other robot reads of it is its death
   (`DEAD (cause)`, never why), whatever it says while it lies there -- a run
@@ -404,7 +510,7 @@ def test_a_dead_robot_is_shown_dead_until_it_stands_up():
   a._say("EXPLORE: heading for the kitchen", doing=True)
   a._die("flat", "the pack ran flat by the sofa")
   assert others_context(b)[0]["doing"] == "DEAD (flat)"
-  a._say("PROCEDURE p stopped: my death ended it at line 4", doing="PROCEDURE p stopped")
+  a._say("PROCEDURE p stopped: my death ended it at line 4", doing="PROCEDURE stopped")
   a._say("TASK t_0412 failed: open the drawer", doing=True)
   a._say("DONE t_0412: open the drawer", doing=True)
   assert others_context(b)[0]["doing"] == "DEAD (flat)"
