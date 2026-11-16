@@ -2411,12 +2411,12 @@ class HubLifecycle:
 
     ⚠ `doing`: what the OTHER robot is shown of the line, as this robot's
     `doing` (`others_context`, issue #709) -- True, the line as said; a
-    string, the line in that form, with a battery level, points or hearts
-    taken out; False, nothing. PRIVATE BY DEFAULT, and shown only where it
-    begins as `DOING_KINDS` says a line may: a new kind of line is the
-    robot's own until someone lists it (Overseer.md §2c), and a marked one
-    the list does not begin is dropped (`tests/test_doing.py` narrates every
-    call and fails on one).
+    string, the line in that form, with a battery level, points, hearts or
+    a name the robot gave a procedure or a def taken out; False, nothing.
+    PRIVATE BY DEFAULT, and shown only where it begins as `DOING_KINDS`
+    says a line may: a new kind of line is the robot's own until someone
+    lists it (Overseer.md §2c), and a marked one the list does not begin is
+    dropped (`tests/test_doing.py` narrates every call and fails on one).
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -3141,7 +3141,12 @@ class HubLifecycle:
               f"{run['completed']}/{run['total']} steps"
               + (f", {read} test{'' if read == 1 else 's'} read false" if read else ""),
               detail="; ".join(s["trace"] for s in run["steps"]
-                               if s.get("ok") and s.get("trace")), doing=True)
+                               if s.get("ok") and s.get("trace")),
+              # ...the other robot shown how it ended, never its name (#709's
+              # follow-up)
+              doing=f"PROCEDURE {'complete' if run.get('ok') else 'cut short'}: "
+                    f"{run['completed']}/{run['total']} steps"
+                    + (f", {read} test{'' if read == 1 else 's'} read false" if read else ""))
     # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
     # #227, #264): its locals are its readout, and where it stopped and why
     # is the only way it can fix one. A house program's outcome is its
@@ -7340,7 +7345,8 @@ def others_context(life) -> list[dict]:
   their battery, points, hearts, goals, thoughts, their mind's reasons or
   secrets: those are theirs, and a robot that could read them would not
   need to infer them. (A walk's own words -- why it stopped short -- are
-  the body's, and are shown; a procedure's are its verbs alone.)"""
+  the body's, and are shown; a procedure's are its steps alone, never a
+  name the robot gave it or a def.)"""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()

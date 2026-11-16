@@ -2283,7 +2283,8 @@ save a filmstrip PNG named after the script.
   `Decision.shown`; Overseer.md §2c has the table; `tests/test_doing.py`
   lists every kind, so a new one fails until classed): never a battery
   level, points, hearts, the mind's reasons or what a procedure handed a
-  verb. ⚠ `status` IS
+  verb, ⚠ nor a name the robot gave a procedure or a def (Ben,
+  2026-11-16). ⚠ `status` IS
   UNTOUCHED: the wire's, a recording's only narration and the site's line
   under a portrait are every narrated line, the board's among them.
 - **Acts between robots are measured, and none is refused for its cost**
