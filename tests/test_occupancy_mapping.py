@@ -155,3 +155,63 @@ def test_a_wall_that_moved_is_still_cleared_by_rays_that_pass_it_by():
     g.update((0.0, 0.0, 0.0), bearings, room, 8.0, origin=(0.0, 0.0), graze_m=GRAZE_M)
   assert logodds_at(g, 2.0, 0.0) < -0.5
   assert logodds_at(g, 5.0, 0.0) > 0.5
+
+
+def test_a_ray_beside_an_edge_reads_the_surface_it_ends_on_not_the_jump():
+  # #712's revision (its review's finding 1): a ray's slant off the line to
+  # its neighbour's end read the depth jump at an occluding edge as a
+  # graze, and kept up to 2 m of walled cells along every ray beside an
+  # edge. Read where both neighbours agree -- the larger sine -- a wall
+  # that went (a cell laid sure 0.5 m short of the edge) is cleared by the
+  # rays either side of it, as it is with no rule at all.
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
+  g = OccupancyGrid(x_min=-1, y_min=-3, x_max=6, y_max=3, resolution=0.05)
+  ix, iy = g.world_to_cell(2.5, 0.02)
+  g.grid[iy, ix] = 5.0
+  bearings = np.radians(np.arange(-20.0, 21.0, 1.0))
+  ranges = np.where(bearings <= 0, 3.0, 3.5) / np.cos(bearings)  # a near wall's edge on a far one
+  for _ in range(20):
+    g.update((0.0, 0.0, 0.0), bearings, ranges, 8.0, origin=(0.0, 0.0), graze_m=GRAZE_M)
+  assert logodds_at(g, 2.5, 0.02) < -0.5
+
+
+def test_a_near_wall_seen_square_on_through_the_range_noise_is_no_graze():
+  # #712's revision (its review's finding 2): off the next bearing's end, a
+  # chord 1.7 cm across a metre out, a 2 cm sigma of range noise read a wall
+  # seen square on as met at a graze (a sine of 0.16). Off a neighbour's end
+  # SLANT_CHORD_M or more away, it reads square on. A 2 m room round the
+  # robot, every ray within 20 deg of its wall's normal.
+  from pluggybot.mapping.occupancy_grid import _slant
+  rng = np.random.default_rng(0)
+  bearings = np.radians(np.arange(0.0, 360.0, 1.0))
+  cos_b, sin_b = np.cos(bearings), np.sin(bearings)
+  truth = np.minimum(1.0 / np.maximum(np.abs(cos_b), 1e-9), 1.0 / np.maximum(np.abs(sin_b), 1e-9))
+  square = np.abs(np.remainder(np.degrees(bearings) + 45.0, 90.0) - 45.0) <= 20.0
+  least = 1.0
+  for _ in range(20):
+    ranges = truth + rng.normal(0.0, 0.02, bearings.size)
+    sine = _slant(bearings, ranges * cos_b, ranges * sin_b, np.ones(bearings.size, dtype=bool),
+                  cos_b, sin_b)
+    least = min(least, float(sine[square].min()))
+  assert least > 0.8, f"a wall seen square on read at a sine of {least:.2f}"
+
+
+def test_a_copy_of_a_wall_a_few_cm_in_front_of_it_wears_away_under_rays_that_run_alongside():
+  # #712's revision (its review's finding 5): a veto kept every wall cell a
+  # ray ran alongside within GRAZE_M of its end -- the alley's wall, and as
+  # surely a copy of a corridor's wall laid 6 cm off it by a belief that
+  # was, which held the research center's belief to it. Weighted by the
+  # slant instead (a clear at 30-48 deg weighs 0.06-0.30 of one), rays laid
+  # where they truly were wear a sure copy away in three walks along it.
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
+  g = OccupancyGrid(x_min=-1, y_min=-3, x_max=8, y_max=3, resolution=0.05)
+  row = g.world_to_cell(0.0, 0.94)[1]
+  c0, c1 = g.world_to_cell(2.0, 0.94)[0], g.world_to_cell(4.0, 0.94)[0]
+  g.grid[row, c0:c1] = 5.0                       # the copy, 6 cm in front of the wall at y = 1
+  bearings = np.radians(np.arange(30.0, 49.0, 1.0))
+  for _ in range(3):
+    for x in np.arange(0.0, 4.0, 0.05):          # walked along it, the wall's truth each scan
+      g.update((float(x), 0.0, 0.0), bearings, 1.0 / np.sin(bearings), 8.0, origin=(0.0, 0.0),
+               graze_m=GRAZE_M)
+  kept = int((g.grid[row, c0:c1] > 0.5).sum())
+  assert kept == 0, f"{kept} of {c1 - c0} cells of the copy kept"
