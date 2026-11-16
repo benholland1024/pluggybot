@@ -517,6 +517,14 @@ EXPLORE_ENDS = {
 }
 
 
+def belief_off(pose: dict, believed: dict) -> dict:
+  """The belief less the truth, off two wire poses (`navigator.wire_pose`):
+  `errorM` and `headingDeg`, as a `drift` row and a `fall` row (#707) each
+  carry them."""
+  return {"errorM": round(math.hypot(believed["x"] - pose["x"], believed["y"] - pose["y"]), 3),
+          "headingDeg": round((believed["yawDeg"] - pose["yawDeg"] + 180.0) % 360.0 - 180.0, 1)}
+
+
 def explore_outcome(zone: str, ended: str, seconds: float,
                     walk_why: str | None = None) -> str:
   """A decided explore's History line (issue #424): whether the walk to its
@@ -1689,9 +1697,7 @@ class HubLifecycle:
     the event's own fields -- `before`, `fixture`, `dropped`..."""
     t, b = rec["truth"], rec["after"]
     return {"type": "drift", "robot": self.root, "t": rec["t"], "why": rec["why"],
-            "pose": t, "believed": b,
-            "errorM": round(math.hypot(b["x"] - t["x"], b["y"] - t["y"]), 3),
-            "headingDeg": round((b["yawDeg"] - t["yawDeg"] + 180.0) % 360.0 - 180.0, 1),
+            "pose": t, "believed": b, **belief_off(t, b),
             **{k: v for k, v in rec.items() if k not in ("seq", "t", "why", "truth", "after")}}
 
   def _tell_belief(self, rec: dict) -> None:
@@ -2017,7 +2023,8 @@ class HubLifecycle:
     who = deepest[1].robot_name or deepest[1].root
     whose = self._whose_start(pose)
     at = self.body.pose_xy()
-    self._close_fall("reset")             # ...a get-up carried on, which the warp ends (#707)
+    self._fall_read()                     # ...a get-up carried on, which the warp ends (#707)
+    self._close_fall("reset")
     self.body.start_at(*pose)
     mujoco.mj_forward(self.model, self.data)
     clip = {"who": who, "deepM": round(-deepest[0], 2),
@@ -4653,9 +4660,7 @@ class HubLifecycle:
            "after": {"pose": pose, "believed": believed},
            "movedM": round(math.hypot(x1 - x0, y1 - y0), 3), "turnedDeg": deg(a1 - a0),
            "beliefMovedM": round(math.hypot(belief[0] - u0, belief[1] - v0), 3),
-           "beliefTurnedDeg": deg(belief[2] - b0),
-           "errorM": round(math.hypot(believed["x"] - pose["x"], believed["y"] - pose["y"]), 3),
-           "headingDeg": round((believed["yawDeg"] - pose["yawDeg"] + 180.0) % 360.0 - 180.0, 1),
+           "beliefTurnedDeg": deg(belief[2] - b0), **belief_off(pose, believed),
            **({"cause": self.dead["cause"]} if ended == "died" else {})}
     self.fall_rows.append(row)
     self._emit(row)

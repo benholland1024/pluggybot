@@ -344,18 +344,22 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
     continuation.start_over(lives, start_over_t)
   aborted = False
   try:
-    tick.run_many([(life.body.stepper, day) for life, day in zip(lives, days)],
-                  name="pair",
-                  waits=[(lambda life=life: life.body.hold_routine(WAIT_FOR_WORK_S))
-                         for life in lives])
-  except MissionAborted:
-    aborted = True
+    try:
+      tick.run_many([(life.body.stepper, day) for life, day in zip(lives, days)],
+                    name="pair",
+                    waits=[(lambda life=life: life.body.hold_routine(WAIT_FOR_WORK_S))
+                           for life in lives])
+    except MissionAborted:
+      aborted = True
+    finally:
+      for life in lives:
+        life.body.close()
+    # ...before the recorder closes: a run's end sends a get-up it cut short
+    # (`fall`, #707)
+    return [life.end(aborted) for life in lives]
   finally:
-    for life in lives:
-      life.body.close()
     if recorder is not None:
       recorder.close()
-  return [life.end(aborted) for life in lives]
 
 
 def run_demo_pair(world: str = HUMANOID_HOME, max_sim_time: float = 300.0,

@@ -430,3 +430,39 @@ def test_a_get_up_carried_on_that_a_restore_moves_clear_ends_with_no_line(tmp_pa
   assert continuation.restore(back, snap)["unclipped"] == [back[1].root]
   back[1].body.run(back[1].body.hold_routine(0.01))
   assert rows == [] and _fell_lines(back[1]) == []
+
+
+def test_a_pairs_recording_takes_the_row_its_runs_end_sends(tmp_path, monkeypatch):
+  """A pair's recorder closes after both runs' ends (`run_pair`): one ended
+  mid get-up sends its row there, which a recorder closed first lost
+  (#707's third review)."""
+  from pluggybot import pair
+  from test_two_minds import stub_pair
+  lives = stub_pair(tmp_path / "t", str(tmp_path / "ledger.json"))
+  got: list = []
+
+  class Recorder:
+    closed = False
+
+    def emit(self, message):
+      got.append((self.closed, message))
+
+    def close(self):
+      self.closed = True
+
+  rec = Recorder()
+
+  def recording(ls, path):
+    for life in ls:
+      life.on_event.append(rec.emit)
+    return rec
+  monkeypatch.setattr(pair, "record_pair", recording)
+  a = lives[0]
+
+  def falls_at_one_s():
+    if not a.body.falls and float(a.data.time) >= 1.0:
+      _fall(a)
+  a.body.step_hooks.insert(0, falls_at_one_s)
+  pair.run_pair(lives, max_sim_time=3.0, explore_budget=0.0, record="pair.jsonl.gz")
+  assert [(closed, m["ended"]) for closed, m in got if m.get("type") == "fall"] == [
+    (False, "unfinished")]
