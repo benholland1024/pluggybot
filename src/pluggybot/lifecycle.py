@@ -253,6 +253,8 @@ MAP_GONE = "the map I had and the places I had found are gone"
 #: call of 11-16), in its History line's words (Observatory.md, its period).
 NEVER_BEGAN = ("the run I said it beside never began -- I still hold it, "
                "and its time runs on")
+#: A grade waiting on a run no errand has been built for yet (#706).
+NO_RUN_YET = object()
 
 #: What a charge fills the pack to, as a fraction. The reserve is absolute
 #: energy, never a fraction of the pack -- the milestone-7 lesson: the cost
@@ -860,10 +862,10 @@ class HubLifecycle:
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
     #: ...and said beside a procedure whose run has not begun yet (#706):
-    #: True from the `done`, then the errand built for that run, False once
-    #: THAT errand's run is validated; a grade still waiting when the queue
-    #: is empty is not made (`NEVER_BEGAN`).
-    self._grade_waits: object = False
+    #: `NO_RUN_YET` from the `done`, then the errand built for that run, and
+    #: None once THAT errand's run is validated; a grade still waiting when
+    #: the queue is empty is not made (`NEVER_BEGAN`).
+    self._grade_waits: object = None
     #: ON A CHARGE TRIP NOW (#602): set only while one runs. ⚠ Never read
     #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
     #: was run out on the seam mid-hold and banked twice.
@@ -1901,7 +1903,7 @@ class HubLifecycle:
       if KINDS[task.kind].discharge == "procedure":
         self._fail_held(task, "the robot that took it ran out of lives")
     self._grade_pending = ""
-    self._grade_waits = False
+    self._grade_waits = None
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -3107,7 +3109,10 @@ class HubLifecycle:
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
     if self._grade_waits is errand:
-      self._grade_waits = False           # ...the run a `done` waited on began (#706)
+      # ...the run a `done` waited on began (#706): said now, so a run
+      # that never begins is never promised a grade
+      self._grade_waits = None
+      self._done_said(self._grade_pending, "graded once everything queued has run")
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -4409,35 +4414,37 @@ class HubLifecycle:
       self._remember(f"said done on {named}: not graded, because {why}")
       return False
     ran = decision.action.startswith(PROCEDURE_PREFIX)
-    if ran and not self._builds_run(decision):
-      # ...beside a run that cannot begin, known at the word (#706): the
-      # action below builds nothing either
-      self._never_began(task)
-      return False
     self._grade_pending = task.id
     # ...beside a procedure, waiting on its run to begin (#706): on the
-    # errand built for it, whose validation ends the wait
-    self._grade_waits = ran
+    # errand its action builds, whose validation ends the wait and says the
+    # `done` in History
+    self._grade_waits = NO_RUN_YET if ran else None
     # ...never inside a dead robot's answer, which its stand-up closes, a
     # grade mid-hold and all: the loop's pass after it grades, as before.
     # (No other stand-up lands in an answer: an admin's reaches a robot
     # only between errands, and the timer's 300 s after a death.)
-    now = self.dead is None and not decision.action.startswith(PROCEDURE_PREFIX)
+    now = self.dead is None and not ran
     when = (f"graded now, before this answer's {decision.action}" if now
             else "graded once everything queued has run")
     self._say(f"DONE {task.id}: {when} -- {task.description}",
               doing=f"DONE {task.id}: {task.description}")
     # ...and History says it (#629): said to the log alone, a grade that came
-    # 37 s after its job's take read as another job's
-    self._remember(f"said done on {_job_named(task.id, task)}: {when}")
+    # 37 s after its job's take read as another job's -- beside a run, once
+    # that run begins (#706)
+    if not ran:
+      self._done_said(task.id, when)
     return now
+
+  def _done_said(self, task_id: str, when: str) -> None:
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    self._remember(f"said done on {_job_named(task_id, task)}: {when}")
 
   def _grade_routine(self) -> Routine:
     """Grade the job the robot said it finished (issues #207, #559): its own
     criteria, run on the seam (`_grade_hands_routine`) -- never the robot's
     account of what it did."""
     task_id, self._grade_pending = self._grade_pending, ""
-    waited, self._grade_waits = self._grade_waits, False
+    waited, self._grade_waits = self._grade_waits is not None, None
     task = self.tasks.get(task_id) if self.tasks is not None else None
     if task is None or task.state != "active":
       self._say(f"GRADE {task_id}: no longer held", doing=True)
@@ -4452,26 +4459,15 @@ class HubLifecycle:
       return
     yield from self._grade_hands_routine(task)
 
-  def _builds_run(self, decision) -> bool:
-    """Whether a `procedure:` answer's action will build a run, as its
-    branch finds (#706): `procedure:new` runs what the same answer's define
-    wrote (`_define` runs first), and `errand_from` refuses a name that is
-    not runnable or whose def takes arguments."""
-    name = (getattr(self, "_defined_now", None) if decision.action == PROCEDURE_NEW
-            else decision.action[len(PROCEDURE_PREFIX):])
-    return bool(name) and errand_from(
-      dataclasses.replace(decision, action=PROCEDURE_PREFIX + name),
-      library=getattr(self.overseer, "library", None)) is not None
-
   def _never_began(self, task) -> None:
     """A `done` beside a run that never began, not graded (#706, Ben's
-    call): one History line, and the job stays held, its time running on --
-    or, that time already up, it runs out here as any held job does
-    (#602), and that line says so."""
-    if task.out_of_time(float(self.data.time)):
+    call), at the holder's pass of the day loop: one History line, and the
+    job stays held, its time running on -- or, that time already up, it
+    runs out here as any held job does (#602), and that line says so."""
+    if self._out_of_time(task):
       self._run_out(task)
       return
-    self._say(f"DONE {task.id}: not graded -- the run it was said beside never began",
+    self._say(f"GRADE {task.id}: not graded -- the run it was said beside never began",
               doing=True)
     self._remember(f"said done on {_job_named(task.id, task)}: not graded, "
                    f"because {NEVER_BEGAN}")
@@ -6283,7 +6279,7 @@ class HubLifecycle:
     # arbitration the preset queue does: errands before decisions, and a
     # stand-up or a death ending it where it stands.
     self.errands.append(errand)
-    if self._grade_waits is True:
+    if self._grade_waits is NO_RUN_YET:
       self._grade_waits = errand          # ...the run this answer's `done` waits on (#706)
     return ""
 
@@ -6331,7 +6327,7 @@ class HubLifecycle:
       "gradePending": self._grade_pending,
       # ...and whether it waits on a run not begun yet (#706): a restart
       # drops the errand it waits on, so it never begins
-      "gradeWaits": bool(self._grade_waits),
+      "gradeWaits": self._grade_waits is not None,
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()
@@ -6422,7 +6418,8 @@ class HubLifecycle:
     self._next_near_field = float(clocks.get("nearField", 0.0))
     self._deferrals = {str(k): int(v) for k, v in (state.get("deferrals") or {}).items()}
     self._grade_pending = str(state.get("gradePending") or "")
-    self._grade_waits = bool(self._grade_pending and state.get("gradeWaits"))
+    self._grade_waits = (NO_RUN_YET if self._grade_pending and state.get("gradeWaits")
+                         else None)
     if state.get("eventClock"):
       self.event_clock.restore_kept(state["eventClock"])
     # ...only a row of the list in force: one it no longer has (left out at

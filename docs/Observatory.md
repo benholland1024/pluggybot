@@ -17,20 +17,24 @@ observatory is NOT a result: it reports into the issue it informs.
 sections: one sentence added to `CHALLENGE_RULE`, after #689's words, which
 stand as they were; the session host's hello unmoved, sha1 `b796e75d…`; no
 geometry and no wire field moved, and no committed recording carries a
-job). A `done` said on an answer whose run never begins is not graded: a
+job). A `done` said on an answer that runs a procedure waits on the errand
+that answer builds (`HubLifecycle._grade_waits`, kept across a restart as
+`gradeWaits`; a restart drops the errand). Where none is built -- a
 `procedure:new` whose define was refused or left out, or whose def takes
-arguments, or a `procedure:<name>` that builds nothing (the same answer's
-`undefine`, a callee gone), is known at the word (`_builds_run`); a run its
-own validation refused before its first verb, or one too dear to start, is
-known once the queue is empty, the grade having waited on the errand built
-for it (`HubLifecycle._grade_waits`, kept across a restart as
-`gradeWaits`). History says `said done on t_0301 (open_drawer): not graded,
+arguments; a `procedure:<name>` that builds nothing (the same answer's
+`undefine`, a callee gone); a run too dear to start -- or its run is
+refused by its own validation before its first verb, the grade is not made
+at the loop's pass once the queue is empty (a dead robot's, after its
+stand-up): History says `said done on t_0301 (open_drawer): not graded,
 because the run I said it beside never began -- I still hold it, and its
-time runs on` (narrated `DONE t_0301: not graded -- the run it was said
+time runs on` (narrated `GRADE t_0301: not graded -- the run it was said
 beside never began`); the job stays held and runs out at its time as any
 held job does (#602), at once where that time is already up; and a `done`
-said again is graded as any is. A run that began is graded once it is over,
-as before (#689), whatever ended it. The rule now says: "A `done`
+said again is graded as any is. Beside a run, the `done`'s own line (`said
+done on …: graded once everything queued has run`) is now written as that
+run begins, not at the word, so a run that never begins is never promised
+a grade. A run that began is graded once it is over, as before (#689),
+whatever ended it. The rule now says: "A `done`
 beside a run that never begins -- a `procedure:new` whose define was
 refused, say -- is not graded: the job stays yours, its time runs on, and a
 `done` said again is graded."

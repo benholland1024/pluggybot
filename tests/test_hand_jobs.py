@@ -808,8 +808,13 @@ def test_a_done_beside_a_procedure_is_graded_once_the_run_is_over(tmp_path):
     define={"name": "pace", "source": "def pace():\n  wait(1)\n"})))
   assert life.grades == [] and life._grade_pending == task.id
   assert len(life.errands) == 1, "the run is queued"
-  assert any(ln.endswith(f"said done on {task.id} (open_drawer): graded once everything "
-                         "queued has run") for ln in life.thoughts.texts[HISTORY].splitlines())
+  # ...and History says the `done` once that run begins (#706): one that
+  # never begins is not graded, and never promised a grade
+  said = f"said done on {task.id} (open_drawer): graded once everything queued has run"
+  assert not any(ln.endswith(said) for ln in _history(life))
+  life.body.run(life.run_errand_routine(life.errands.pop(0)))
+  assert life.grades == [] and life._grade_pending == task.id
+  assert sum(ln.endswith(said) for ln in _history(life)) == 1
 
 
 def test_a_dead_robots_done_is_left_to_the_loops_pass(tmp_path):
@@ -883,7 +888,7 @@ def test_a_done_beside_a_run_that_never_began_is_not_graded(tmp_path, never):
   assert life.tasks.get(task.id).state == "active", "still held"
   assert life._grade_pending == "" and not life._grade_waits
   from pluggybot.lifecycle import NEVER_BEGAN
-  [line] = _not_graded(life, task)
+  [line] = [ln for ln in _history(life) if f"said done on {task.id}" in ln]
   assert line.endswith(f"said done on {task.id} (open_drawer): not graded, because {NEVER_BEGAN}")
 
 
@@ -989,9 +994,24 @@ def test_a_done_waiting_on_a_run_that_never_began_is_kept_across_a_restart(tmp_p
   again = _life(tmp_path)
   again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=True)
   again._resume_jobs(None)
+  assert again.errands == [], "a restart drops an answer's queued run"
   again.body.run(again._grade_routine())
   assert again.grades == [] and again.tasks.get(task.id).state == "active"
   assert len(_not_graded(again, task)) == 1
+
+
+def test_a_dead_robots_done_beside_a_run_that_never_began_is_not_graded(tmp_path):
+  """...and the answer of a robot that died while it thought, its run never
+  begun, is not graded at the loop's pass after its stand-up either."""
+  life, task = _minded(tmp_path)
+  life.dead = {"t": float(life.data.time), "cause": "flat"}
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_REFUSED)))
+  assert life.grades == [] and life._grade_pending == task.id
+  life.dead = None
+  _drained(life)
+  assert life.grades == [] and life.tasks.get(task.id).state == "active"
+  assert len(_not_graded(life, task)) == 1
 
 
 def test_the_rule_says_a_done_beside_a_run_that_never_began_is_not_graded():
