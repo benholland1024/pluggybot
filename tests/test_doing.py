@@ -451,16 +451,20 @@ def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
   through the lifecycle's own doors, and the other robot is shown each line
   of the run as its step alone -- a step, one a test read false, one that
   failed, a call a test read false, a stop, how the run ended -- its whole
-  context read at every line the run says; a house program's too."""
+  context read at every line the run says, and what each line its call
+  marks shows; a house program's too."""
   from pluggybot import tick
   from pluggybot.mind.overseer import Decision
   from pluggybot.mission.errand import programmed_errand
   from pluggybot.procedure.steps import Program, Step
   source, forms = RUNS[what]
   a, b = stub_pair()
-  views = []
-  a.say_hooks.append(lambda t, msg: views.append(
-    (json.dumps(overseer_context(b)), others_context(b)[0]["doing"])))
+  views, say = [], a._say
+
+  def said(msg, detail="", doing=False):
+    say(msg, detail, doing=doing)
+    views.append((bool(doing), json.dumps(overseer_context(b)), others_context(b)[0]["doing"]))
+  a._say = said
   if source is None:
     a.body.go_to_routine = lambda *args, **kw: tick.result(False)
     a.body.run(a.run_errand_routine(programmed_errand(Program.single(
@@ -473,9 +477,9 @@ def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
                                                   reason="r")))
     while a.errands:
       a.body.run(a.run_errand_routine(a.errands.pop(0)))
-  shown = [k for k, _ in itertools.groupby(d for _, d in views if d.startswith("PROCEDURE"))]
+  shown = [d for marked, _, d in views if marked]
   assert shown == forms, shown
-  assert not [n for seen, _ in views for n in NAMES if n in seen]
+  assert not [n for _, seen, _ in views for n in NAMES if n in seen]
 
 
 #: What a run's line may show of it (#709's follow-up): the step's count,
@@ -483,12 +487,15 @@ def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
 #: and read false.
 OF_A_RUN = {"count", "line", "verb", "step.verb", "i + 1", "len(steps)",
             "run['completed']", "run['total']", "read"}
-#: ...and what holds a name the robot gave a procedure or a def, or a
-#: house program's, which no line of any kind shows: `at.text()` names the
-#: def and the library's procedure that holds it, `callee` the def a call
-#: named (an errand's name is none: a procedure runs as the errand
-#: `procedure`, `errand_from`).
-NAMED_BY = re.compile(r"\b(proc|program)\.name\b|\bat\.text\(\)|\bcallee\b")
+#: ...and what holds a name the robot gave a procedure or a def, which no
+#: line of any kind shows (nor a program's, `program.name`): `at.text()`
+#: names the def and the library's procedure that holds it, `callee` the
+#: def a call named, a decision's action `procedure:<name>`. An errand's
+#: name is none the robot gave: a procedure runs as the errand `procedure`
+#: (`errand_from`), and a house program's errand is the house's
+#: `program:<name>`.
+NAMED_BY = re.compile(r"\b(proc|program)\.name\b|\bat\.text\(\)|\bcallee\b"
+                      r"|\bdecision\.(action|summary)\b")
 
 
 def test_no_call_shows_a_runs_line_with_anything_but_its_step():
