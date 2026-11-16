@@ -12,9 +12,11 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
-**What the robots read moves** (`prompt_sha` `bec4dffd…`, 68,111
-characters, 17 sections, from `0f1df27e…`'s 67,157; the session host's
-hello moves, sha1 `39c0692a…` from `b796e75d…`):
+**What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294
+characters, 17 sections, from `ff0e67df…`'s 67,340 at `loop-staging`
+68b78ea; none of these passages moved in that merge, and on `0f1df27e…`'s
+67,157 they read `bec4dffd…`, 68,111; the session host's hello moves, sha1
+`39c0692a…` from `b796e75d…`):
 - `step`'s text, after the sentence that ends "Either reads false and says
   so.", gains: "It keeps off walls and furniture too: it stops before it
   would bring your LIDAR within 0.3 m of anything that reads at your head's
