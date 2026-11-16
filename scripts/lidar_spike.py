@@ -282,7 +282,7 @@ def lay(variant: str, model, data, lidar, bounds, step: float = 1.0, seed: int =
   """A map laid by the robot's own rules (`OccupancyGrid.update`) from an
   even explore: one scan a `step` m over every zone, each at a heading
   drawn, from the true pose -- the best map its sensor lays."""
-  from pluggybot.mapping.occupancy_grid import OccupancyGrid
+  from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
   g = OccupancyGrid(x_min=bounds[0], y_min=bounds[1], x_max=bounds[2], y_max=bounds[3],
                     resolution=0.05)
   rng = np.random.default_rng(seed)
@@ -291,7 +291,8 @@ def lay(variant: str, model, data, lidar, bounds, step: float = 1.0, seed: int =
       th = float(rng.uniform(-math.pi, math.pi))
       stand_at(model, data, x, y, th)
       a, r, free_from = _scan(variant, model, data, lidar)
-      g.update((x, y, th), a, r, lidar.max_range, origin=(0.0, 0.0), free_from=free_from)
+      g.update((x, y, th), a, r, lidar.max_range, origin=(0.0, 0.0), free_from=free_from,
+               graze_m=GRAZE_M)
   return g
 
 

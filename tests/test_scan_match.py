@@ -729,6 +729,21 @@ def test_each_scan_is_laid_through_the_pose_its_match_found(house):
   body.close()
 
 
+def test_the_map_keeps_a_wall_its_rays_meet_at_a_graze(house):
+  # #712: the scan's own seam lays it with the grazing rule on, at
+  # `GRAZE_M` -- the rule is pinned in test_occupancy_mapping.py, and this
+  # is its one line of wiring.
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
+  body = _humanoid(house)
+  m = body.mission
+  asked = []
+  real = m.grid.update
+  m.grid.update = lambda *a, **kw: (asked.append(kw.get("graze_m")), real(*a, **kw))
+  m._scan_step()
+  assert asked == [GRAZE_M]
+  body.close()
+
+
 def test_the_served_body_set_down_far_from_its_belief_finds_itself(house):
   # The served body's own LIDAR in its house, through the scan's own seam
   # (issue #422): the living room mapped by a scan standing, the belief then

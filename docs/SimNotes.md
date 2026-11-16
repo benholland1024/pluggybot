@@ -1046,7 +1046,7 @@ for its whole 300 s (108.7 m), because the house's north wall is 4 cm thick,
 thinner than a cell, and the robot walking along it carves it out of its own
 map with grazing rays -- the map had it free from x = -3 to 6 m -- and the
 planner routes through where it was (#401: a choice of sensor model, filed,
-not made here).
+not made here; #712 made it, "A thin wall met at a graze").
 
 **Why this price.** A known detour is taken while it is under twice the
 unknown shortcut (`UNKNOWN_COST` 2). It is a choice, not a fit: swept to 1.25 and 4
@@ -1234,7 +1234,8 @@ M ON 60 FLIGHTS OF THE 80: the research center's south wall, 4 cm thick, is
 carved out of the map along the alley by the robot's own grazing rays
 (#401's), free from x 19 to 23.25 at the cube's draw 17, and the planner's
 route runs through it -- over floor the robot has seen, so a walk measured
-over that floor alone reads the same. Every walk took the 43 m way, most
+over that floor alone reads the same (#712 keeps it on most flights, "A
+thin wall met at a graze"). Every walk took the 43 m way, most
 in 96-158 s; at 6 s a metre, the charge's (`CHARGE_WALK_S_M`), two of 59
 ran out at 162 s, both where the map's walk read 27 m -- draws 17 and 33,
 which at 10 s a metre arrived in 205 and 228 s of their 270. At 10 no
@@ -9993,6 +9994,179 @@ past the line with its contacts and the true grip's travel,
   counter it had pressed at 61-81 N, crossed the line for a tick or two
   while the body still took its posture; and it passes the cube's 195 at
   192-255, which the stop alone lost.
+
+## A thin wall met at a graze, kept against rays laid a few cm off it (issue #712)
+
+**What happened.** From the mall's station the map's walk to the storeroom's
+counter read 26-27 m on 60 of #698's 80 flights, where the way is 43 m: the
+research center's south wall (y = -6, 4 cm thick, x 16-28, no door) was free
+floor in the robot's own map from x 19 to 23.25, and every walk planned
+through it found it again on the way. #401 had found the same of the house's
+north wall in October and was closed until a walk needed a thin wall kept.
+
+**What erased it.** The cube's draw 17 from the mall flown to its claim
+(`~/pluggybot-training/loop-1115/m1-712/m1_diag.py`, on a6e6f0e), every
+fused scan's clears and hits on the wall's true cells recorded with the ray
+that laid them, and each laid again at the true pose. The robot laid the
+stretch x 19-23.5 sure from inside, from the lobby and the storeroom (9,826
+hits, every column held). Then, walking south along the middle street's
+east sidewalk past the alley's mouth at x 15.55, it erased all 4.5 m of it
+in 8.5 s: 86 scans, 7,610 clears and 26 hits. Its belief there stood 7-10
+cm north of the truth -- along a sidewalk, the direction its walls do not
+fix -- and its rays met the wall's south face at 1-35 deg (16 at the
+median), 5-8 m out. Laid 9 cm north, each ran along the wall's true rows
+for 9 cm / tan(16 deg) = 0.3 m or more before the face it ended on. Laid at
+the true pose, NONE of those 7,610 clears happens. A scan laid a few cm off
+a wall seen square on lays the wall again where it puts it (its hits are as
+dense as its clears); met at a graze its hits are one a ray, 0.3-0.5 m
+apart, and its clears run between them.
+
+**The rule** (`OccupancyGrid.update`'s `graze_m`, on in
+`Navigator._scan_step` at `GRAZE_M`, 0.15 m): over a hit ray's last
+`graze_m` / tan(slant) metres -- where it runs within 0.15 m times
+cos(slant) of the surface it ends on, 0.15 m at a graze and 0.11 at 45 deg,
+at most `GRAZE_MOST_M` (2 m) -- a cell the map holds
+a wall in is freed at `sin(slant) ** GRAZE_POWER` (4) of `L_FREE`: 16 deg
+off a wall, the alley's median, a clear weighs 0.006 of one, 45 deg 0.25,
+60 deg 0.56, and square on the rule is the base's. The slant (`_slant`) is
+read off the line from the ray's end to a neighbour's end each way round:
+the nearest at least `SLANT_CHORD_M` (0.15 m) from its own, within
+`SLANT_REACH` (12) bearings and 15 deg, no ray between that ended on
+nothing -- the larger of the two sines where both ways found one, the one
+where only one did, square on where neither did. A cell with no wall's
+evidence is freed as before. Each part answers a cost its first form (M1's,
+`loop-712`: the slanter of the two adjacent ends, a veto) was found to have,
+and each is pinned and fails without it (`tests/test_occupancy_mapping.py`):
+
+- **A chord well over the range noise.** Off the next bearing's end, 1.7 cm
+  across a metre out, 2 cm of range noise read a wall seen square on at a
+  sine of 0.16, and kept walled cells a few cm in front of every near wall.
+- **The larger sine where both ways read.** At an occluding edge the way
+  across the depth jump read a graze, and kept up to 2 m of walled cells
+  along the rays beside every edge.
+- **The one way where only one reads.** ⚠ A departure from "where both
+  agree" (#712's option (c)): beside the far ray of a graze the next ray
+  returned nothing, so required both ways, the alley's own grazing rays read
+  square on (on cube 17's scans 45 rays, clearing 614 of the wall's walled
+  cells, every one with a miss beside it) and the alley's synthetic wall
+  kept 77 of its 90 columns. A miss has no end to read a jump off: the one
+  end found is the surface's own.
+- **A weight, never a veto.** A veto kept every copy of a wall that a
+  belief a few cm off had laid within 0.15 m of it, and held the belief to
+  the copy: a sure copy of a corridor's wall 6 cm in front of it, walked
+  along three times with rays at 30-48 deg, is worn away by the weight and
+  kept whole by a veto.
+
+**Its size, replayed closed-loop** (`~/pluggybot-training/loop-1116/
+p8-712b/rec/`: `p8_rec.py` records a flight's every match -- the belief
+before and after it, the scan, the truth -- its every map update and the
+matcher's other calls; `p8_replay.py` lays the map again under a rule with
+a fresh matcher matching every scan on that rule's own map, the belief
+before each match the replay's last moved as the flown belief moved since
+its own, a station's fix put where the flown one put it; the walk is the
+flown one). The base's rule replays its own flight to 0.0000 m on all eight
+flights; M1's reproduces the cost its flights had; the replay's walk from
+the mall reads 26.11 m where the flight's read 26.105. Eight base flights
+recorded on 9539e47: the cube's draws 17, 3 and 30 and the door's 3 from
+the mall, to the claim, and the drift spike's luca/start, 1/start, 2/start
+and 3/hall:
+
+| the rule | the map's walk from the mall, 4 flights | the facility's walls laid 2-3 cells off a true wall, 8 flights | the facility's belief against the base's, flights worse / better by 2 cm |
+|---|---|---|---|
+| the base's | 26.0-26.1 m | 64 | |
+| M1's (the slanter adjacent end, a veto) | 43.2-43.7 | 1,041 | 5 / 0 |
+| the chord and the larger sine, both ways required, a veto | 43 m on 1 of 4, else 26.1-26.2 | 76 | 3 / 2 |
+| ...sin^2 | 43 m on 2 of 4, else 26.1-26.3 | 74 | 1 / 2 |
+| ...one way where only one reads, a veto | 43.1-43.7 | 80 | 3 / 2 |
+| ...sin^2 | 43.1-43.7 | 338 | 2 / 2 |
+| ...sin^3 | 43.3-43.7 | 75 | 2 / 2 |
+| **...sin^4, served** | **43.1-43.7** | **48** | **1 / 2** |
+| ...sin^8 | 43.1-43.7 | 52 | 1 / 2 |
+
+The facility's belief moves by whole modes, 0.5-0.7 cm or 5 cm, as the
+street's crossing leaves it: the one flight sin^4 left worse (drift
+2/start, +4.5 cm) took its 5 cm on the sidewalk and the street, before the
+research center; the base's rule leaves four of the eight in the 5 cm mode
+too. With both ways required, a chord of 0.10 m laid 326 walls twice, 0.25 m
+was no better than 0.15, and a `GRAZE_M` of 0.10 or 0.20 moved nothing the
+table reads; one way allowed, 0.20 with sin^4 read as 0.15 does.
+
+**Measured** on one pod (a Vast EPYC 7H12, osmesa), 4f42236 -- the same
+map bit for bit as the rule as merged -- beside its base 9539e47, every batch
+flown fresh; the base's rows are M1's base's (a6e6f0e, an EPYC 7B13) to the
+row. Held out: everything but the eight flights the replays were sized on,
+whose rows are read apart where they fall in a batch:
+
+| | base | the rule |
+|---|---|---|
+| from the mall, the map's walk to the counter under 35 m: the cube's 64 draws, the drawer's, the door's and the chest's 16 | 81 of 112 | 0 |
+| ...held out | 77 of 108 | 0 |
+| ...passed (fell), all 112 | 89 (3) | 100 (1) |
+| ...held out, passed (fell): the cube 0-31 / the drawer / the door / the chest / the cube 32-63 | 23 (1) / 11 (2) / 13 (0) / 14 (0) / 24 (0) | 25 (1) / 15 (0) / 14 (0) / 16 (0) / 27 (0) |
+| ...the four sized on (the cube's 17, 3 and 30, the door's 3), passed | 4 | 3 |
+| the tour's five jobs at 32 draws, passed (fell): the chest / the cube / the door / the drawer / the table | 29 (0) / 26 (2) / 26 (1) / 30 (0) / 24 (0) | 32 (0) / 26 (0) / 31 (0) / 32 (0) / 28 (1) |
+| ...all | 135 (3) of 160 | 149 (1) |
+| the station: round the standoff; its seats; lost near; lost far | 39/39; 140/140; 20/20; 115/123 | 39; 140; 20; 118 |
+| the drift spike's 16 flights: docked; falls | 16; 0 | 16; 0 |
+| ...the belief's error in the lobby / the storeroom, median of every row there | 0.063 / 0.062 m | 0.049 / 0.049 |
+| ...held out (12) | 0.072 / 0.075 | 0.050 / 0.051 |
+| ...sized on (4) | 0.010 / 0.010 | 0.024 / 0.047 |
+| ...in the lab; in the house's rooms | 0.160; 0.053 | 0.031; 0.014 |
+| ...the worst anywhere, median of the flights (the worst) | 0.129 (0.270) | 0.110 (0.282) |
+| ...at each trip's end, median | 0.056 | 0.037 |
+
+Every flight parted from its base's early -- the rule acts on the map from
+the first scans -- so a verdict that moved was decided later, in a stance a
+few cm elsewhere: of the mall's 112, 21 went fail to pass and 10 pass to
+fail; of the tour's 160, 20 and 6 (the table's draw 6 from a pass to a fall
+in its lay).
+
+**What it costs.** In the drift spike the worst error rose on one flight of
+16, luca from the hall: 0.282 m on the street north, on a first walk out
+that took 111 s for the base's 65 (0.107 m at the base's worst); and two of
+the four drift flights the replays were sized on took the 5 cm mode in the
+research center that the base's had not (1/start and 2/start, 0.006-0.009 m
+to 0.048-0.053); held out, the lobby's median passed 7 cm on 3 flights of
+12 under the rule and on 7 under the base's. A scan's update takes 1.3-1.5
+ms more than the base's (7.6-8.2 ms against 6.1-6.8 on the dev box,
+interleaved: the slant 0.53 of it), about 14 ms a sim second a robot;
+computing the slant only for rays with a walled cell in their last 2 m would
+save part of it, unbuilt.
+
+**What it still reads wrong** (its two reviews; none of it seen in the
+replays' maps, where the whole map's walls laid two or more cells off a true
+wall numbered 1,806 under the rule against 3,870 under the base's):
+
+- **A chord across a depth jump reads a graze.** A ray on an object
+  narrower than about 0.3 m in front of a farther surface finds its 0.15 m
+  chord only across the jump, both ways (a 12 cm pole 2 m out read sines of
+  0.07-0.10, and a wall cell left 0.5 m in front of it was kept through 30
+  scans from where it stood); an edge's ray whose other neighbour returned
+  nothing reads the jump alone; and within about 0.72 m (0.15 m over 12
+  bearings) a surface seen square on finds no chord along itself, so beside
+  an edge it reads the jump (masked in the served scan by its `free_from`,
+  about 1 m). A sine near 0 weighs nothing over a 2 m stretch: a veto there.
+- **A hole in the bearings is read across.** A bearing the scan has no entry
+  for -- another robot's returns split out, a held grip's dropped, the
+  body's own -- is no stop, so a chord may span it.
+- **At a graze the weight is nearly a veto.** 16 deg off a wall a clear
+  weighs 0.006 of one (0.0024 of log-odds), so a copy of a wall seen only
+  under about 25 deg wears away hardly faster than under M1's veto: the
+  corridor's pin is at 30-48 deg, where the weight is what it changes.
+- **A stray hit is a walled cell** (any evidence over 0), and one by a
+  surface seen only at a graze wears away at the graze's weight.
+
+A neighbour whose own next end turns off the chord's line -- a jump -- read
+as no reading would answer the first; a hole of more than a bearing read as
+a stop, the second; reading the wall's normal off the matcher's field
+instead of the scan's ends, both in one mechanism. None is built.
+
+**`find`'s rate with the wall kept** (#698's `GUESS_WALK_S_M`, 10 s a
+metre; M1's flights of the veto): of the 123 first walks of two batches
+whose map's walk read 40 m or more, the slowest took 4.6 s a metre of it
+(median 2.3), and 5 s a metre would have run none of them out; the 10 was
+sized where the map's walk read 26-27 m and a walk took up to 8.5 s a metre
+of it.
 
 ## Debugging workflow that worked
 
