@@ -210,9 +210,10 @@ flown on the branch, 11,705 lines, every one the committed fixture's but two
   map.
 - Both are `drift` rows (`why` `refusing` / `matching`, with `seconds` and
   the `verdict`). ⚠ The site's observatory files a `drift` row only under a
-  why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`), so
-  until the site adds the two they stop at its door; the History lines
-  reach it as records either way.
+  why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`): it
+  lists the two, and keeps `verdict` beside `seconds`, from rooftop's
+  `loop-drift-whys` on (M5 of the loop of 11-15/16), and a site before it
+  drops them at its door; the History lines reach it as records either way.
 - It moves no belief, adds no search and names no act: what the robot does
   about it is its mind's. Measured on the served body's own scans, its
   map one scan standing, nothing stepped: its belief turned 120 deg and
