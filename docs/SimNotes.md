@@ -574,16 +574,14 @@ time on the physics thread. **What is true now:** every detector of one
 model and picture size draws through one renderer (`tags._renderer_for`),
 kept beside a count of its users and closed with the last
 (`TagDetector.close`; a detector collected unclosed releases its use
-through a finalizer, and its renderer, if it was the last, is closed at the
-next draw, build or close: a collection runs at any allocation and on any
-thread, another renderer's draw included). Kept without the count, the
-tests' bodies of many models would each hold a renderer alive in a worker
+through a finalizer). Kept without the count, the tests' bodies of many
+models would each hold a renderer alive in a worker
 (`tests/test_shared_renderer.py`). A draw is `update_scene` and `render`
-back to back, and nothing of one camera's picture carries into the next:
-on the served pair under osmesa, each of the four cameras' pictures came
-out the same bit for bit through the one renderer as through a renderer of
-its own, in the order built, reversed and interleaved, at three placings
-of the pair, and so did every decode (2026-11-16). Measured there, the
+back to back under one lock, and nothing of one camera's picture carries
+into the next: on the served pair under osmesa, each of the four cameras'
+pictures came out the same bit for bit through the one renderer as through
+a renderer of its own, in the order built, reversed and interleaved, at
+three placings of the pair, and so did every decode (2026-11-16). Measured there, the
 pair's four cameras cost 306 MiB over the built pair where they cost 946:
 the first camera 285 (the renderer, the AprilTag detector and the process's
 first GL context), each other camera 0-10 at its first picture where each
@@ -592,9 +590,15 @@ with its own GL context current (`tags._close`): MuJoCo 3.10's
 `Renderer.close` frees the context and then the `MjrContext`, whose
 deletes go to whatever context is current, and under osmesa a renderer
 closed while another's was current left that other's next picture wrong in
-626,450 of its 921,600 pixels (the GTX's EGL drew it unchanged). And the
-key carries the process: a forked child inherits the model object, id and
-all, but no GL context survives a fork.
+626,450 of its 921,600 pixels (the GTX's EGL drew it unchanged). ⚠ One
+collected unclosed is closed at once only on the thread that built it with
+nothing drawing: a collection runs at any allocation and on any thread,
+between a renderer's context made current and its draw included, and a
+context closed off its thread is still current on its own; else at that
+thread's next draw, build or close. ⚠ A forked child forgets its parent's
+renderers (`os.register_at_fork`): it inherits the model object, id and
+all, but no GL context survives a fork -- and forked from a process
+holding one, the GTX's EGL took the parent down at its next close.
 
 ## The physics thread was four-fifths bookkeeping (rooftop-media-2026 #296, the profile)
 
