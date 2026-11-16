@@ -265,29 +265,33 @@ def kept_detector(**params):
 
 
 #: The renderers the detectors draw through, ONE per model and picture size
-#: (#713): {(id(model), height, width): [renderer, users, the thread that
-#: built it]}. Each is ~210 MiB under osmesa (its GL context, MuJoCo's and
-#: Mesa's buffers), and a pair's four cameras of one model drew one at a time
-#: on the physics thread through four. ⚠ CLOSED WHEN ITS LAST USER IS
-#: (`TagDetector.close`, or one collected unclosed): kept, the tests' many
-#: bodies of many models each held one alive in a worker. The renderer holds
-#: its model, so the id is that model's while the entry is here. One still
-#: kept at exit goes with this module, as an unclosed detector's own did.
-_RENDERERS: dict[tuple[int, int, int], list] = {}
-#: Held across a draw (one scene, one context) and every change here.
-#: Re-entrant: a detector collected unclosed releases its use from inside
-#: whatever allocation set the cycle collector off, a draw included.
+#: (#713): {(pid, id(model), height, width): [renderer, users]}. Each is ~210
+#: MiB under osmesa (its GL context, MuJoCo's and Mesa's buffers), and a
+#: pair's four cameras of one model drew one at a time on the physics thread
+#: through four. ⚠ CLOSED WHEN ITS LAST USER IS (`TagDetector.close`, or one
+#: collected unclosed): kept, the tests' many bodies of many models each held
+#: one alive in a worker. The renderer holds its model, so the id is that
+#: model's while the entry is here; ⚠ the pid, so a forked child builds its
+#: own (no GL context survives a fork; what it inherited is as it was before
+#: #713). One still kept at exit goes with this module, as an unclosed
+#: detector's own renderer did.
+_RENDERERS: dict[tuple[int, int, int, int], list] = {}
+_getpid = os.getpid
+#: Held across a draw (one scene and one context serve every camera of a
+#: model) and every change here. Re-entrant: a detector collected unclosed
+#: releases its use from inside whatever allocation set the cycle collector
+#: off, a draw's included.
 _RENDERERS_LOCK = threading.RLock()
-#: Draws, builds and closes in progress (under the lock).
-_BUSY = 0
-#: Entries whose last user was collected unclosed in the middle of a draw, a
-#: build or a close (`_BUSY`), or on a thread that did not build its
-#: renderer: closed at that thread's next draw, build or close
-#: (`_close_pending`). ⚠ A collection runs at any allocation and on any
-#: thread, between a renderer's context made current and its draw included;
-#: closed there, a renderer left that draw with no context, and a context
-#: closed off its thread is still current on its own.
+#: Renderers whose last user was collected unclosed: closed at the next draw,
+#: build or close (`_close_pending`), never inside the collection, which runs
+#: at any allocation and on any thread -- between another renderer's
+#: context made current and its draw included, which a close there would
+#: leave with no context. Every tag draw here is on one thread (the physics
+#: thread; a test's).
 _PENDING: list = []
+#: A renderer whose close failed: kept, as one never closed was before #713,
+#: so that its own `__del__` never closes it with another's context current.
+_UNCLOSED: list = []
 
 
 def _renderer_for(model, height: int, width: int):
@@ -295,20 +299,15 @@ def _renderer_for(model, height: int, width: int):
   through, built at the first one's need, and its key. One picture is the
   same bit for bit drawn through it after any other camera's or through a
   renderer of its own (#713, on osmesa; `test_shared_renderer.py`): a draw
-  is `update_scene` and `render` back to back, under the lock, and the
-  scene keeps nothing of the last camera's."""
+  is `update_scene` and `render` back to back under the lock, and the scene
+  keeps nothing of the last camera's."""
   import mujoco
-  global _BUSY
-  key = (id(model), int(height), int(width))
+  key = (_getpid(), id(model), int(height), int(width))
   with _RENDERERS_LOCK:
     _close_pending()
     entry = _RENDERERS.get(key)
     if entry is None:
-      _BUSY += 1
-      try:
-        renderer = mujoco.Renderer(model, height, width)
-      finally:
-        _BUSY -= 1
+      renderer = mujoco.Renderer(model, height, width)
       # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296): under osmesa
       # a home frame cost 1113 ms with its sixteen shadow-casting lights and
       # 32 ms without, and a tag decode needs neither (SimNotes, "The tag
@@ -316,63 +315,38 @@ def _renderer_for(model, height: int, width: int):
       # the flags; the viewer and the filmstrips keep their shadows.
       for flag in (mujoco.mjtRndFlag.mjRND_SHADOW, mujoco.mjtRndFlag.mjRND_REFLECTION):
         renderer.scene.flags[flag] = 0
-      entry = _RENDERERS[key] = [renderer, 0, threading.get_ident()]
+      entry = _RENDERERS[key] = [renderer, 0]
     entry[1] += 1
     return key, entry[0]
 
 
 def _release_renderer(key, collected: bool = False) -> None:
   """One user of the renderer at `key` gone; the last closes it, at once
-  unless its detector was `collected` unclosed mid-draw or off its thread
-  (`_PENDING`)."""
+  where its detector was closed and at the next draw, build or close where
+  it was `collected` unclosed (`_PENDING`)."""
   with _RENDERERS_LOCK:
     entry = _RENDERERS.get(key)
     if entry is not None:
       entry[1] -= 1
       if entry[1] <= 0:
         del _RENDERERS[key]
-        _PENDING.append(entry)
-    if not (collected and _BUSY):
+        _PENDING.append(entry[0])
+    if not collected:
       _close_pending()
 
 
 def _close_pending() -> None:
-  """Close the pending renderers this thread built. One whose close fails
-  is dropped and said: it never fails a draw."""
-  global _BUSY
+  """Close the pending renderers. One whose close fails is kept and said:
+  it never fails a draw."""
   with _RENDERERS_LOCK:
-    here = threading.get_ident()
-    mine = [e for e in _PENDING if e[2] == here]
-    if not mine:
-      return
-    _PENDING[:] = [e for e in _PENDING if e[2] != here]
-    _BUSY += 1
-    try:
-      for entry in mine:
-        try:
-          _close(entry[0])
-        except Exception as exc:  # noqa: BLE001
-          warnings.warn(f"a tag camera's renderer was not closed: {exc!r}",
-                        RuntimeWarning, stacklevel=2)
-    finally:
-      _BUSY -= 1
-
-
-def _forget_after_fork() -> None:
-  """In a forked child: no GL context survives a fork, and the model the
-  child inherits is its parent's object, id and all. Its parent's renderers
-  are emptied -- never drawn through, closed or freed there: a detector the
-  child inherited raises at its next draw -- and the child builds its own."""
-  global _RENDERERS_LOCK, _BUSY
-  _RENDERERS_LOCK = threading.RLock()
-  _BUSY = 0
-  for entry in [*_RENDERERS.values(), *_PENDING]:
-    entry[0]._gl_context = entry[0]._mjr_context = None
-  _RENDERERS.clear()
-  _PENDING.clear()
-
-
-os.register_at_fork(after_in_child=_forget_after_fork)
+    while _PENDING:
+      renderer = _PENDING.pop()
+      try:
+        _close(renderer)
+      except Exception as exc:  # noqa: BLE001
+        _UNCLOSED.append(renderer)
+        warnings.warn(f"a tag camera's renderer was not closed: {exc!r}",
+                      RuntimeWarning, stacklevel=2)
 
 
 def _close(renderer) -> None:
@@ -468,17 +442,12 @@ class TagDetector:
 
   def frame(self, data) -> np.ndarray:
     """The camera's colour frame, (height, width, 3) uint8: what it decodes."""
-    global _BUSY
     if self.renderer is None:
       raise RuntimeError(f"{self.camera_name}'s tag detector is closed")
     with _RENDERERS_LOCK:
       _close_pending()
-      _BUSY += 1
-      try:
-        self.renderer.update_scene(data, camera=self.camera_name)
-        return self.renderer.render()
-      finally:
-        _BUSY -= 1
+      self.renderer.update_scene(data, camera=self.camera_name)
+      return self.renderer.render()
 
   def close(self) -> None:
     """Its use of the shared renderer released (the last user's closes it);
