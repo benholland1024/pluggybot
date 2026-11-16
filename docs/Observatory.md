@@ -39,8 +39,8 @@ body (`movedM`, `turnedDeg`) and the belief (`beliefMovedM`), the belief's
 error as it stood (`errorM`, `headingDeg`), which fall of its struggle it
 was, and `told` (`run`, `job`, `aside`, `line`, `death` or null: each
 teller marks the fall as its line says it). A get-up an hour's end cuts
-short is saved with the world and its row is the next run's, one row
-either way. The site files them (rooftop `loop-falls`: the `fall`
+short is that run's row, `unfinished`; the next run carries it on and
+writes the line as the robot stands, and no second row. The site files them (rooftop `loop-falls`: the `fall`
 observatory kind, its migration). Neither committed recording holds a fall (every frame of both
 `standing`), so neither was flown again.
 

@@ -70,12 +70,10 @@ type is new:
   - `ended` (`FALL_ENDINGS`): `stood` (its get-up stood it again), `died`
     (its robot died first: `cause`, the death's), `reset` (a stand-up or a
     person's reset put it at its start first), `stuck` (where nothing dies,
-    the run its get-up would have died in ended), `unfinished` (a run ended
-    first that nothing carries on, or whose world the next run could not
-    put the body back into: then the next run sends it as that run left it,
-    `t` and `after` there). A run's end saves the world mid get-up, and
-    where the next run carries the get-up on, the row is that run's, ONE,
-    as the get-up ends;
+    the run its get-up would have died in ended), `unfinished` (the run
+    ended first: the row is that run's, as it left it -- a run's end saves
+    the world mid get-up, and a next run that carries the get-up on writes
+    the robot's line as it stands, never a second row);
   - `at`: where it fell and what it was doing, read the step it was
     counted, in a death's `at`'s shape -- `pose` (where it IS: the sim's own
     check) beside `believed`, `tilt`, `state`, `status`, `setpoints`,
@@ -95,8 +93,9 @@ type is new:
     #58 program, which leaves no line, does not), `job` (a hand job's own
     line at the fall, or a `done`'s grade in its hold, #701), `aside` (the
     line of the step aside it ended, "I fell over"), `line` (its own
-    History line, below), `death`; null where nothing did (a get-up a reset
-    or a run's end cut short).
+    History line, below), `death` (a `stuck` death's line, "fell and could
+    not get up"); null where nothing did (a get-up a reset or a run's end
+    cut short, a death for another cause).
 
   Nothing the robot is shown carries the truth. A fall nothing else told is
   ONE line of the robot's History once its get-up stands it, alive, and

@@ -327,35 +327,106 @@ def test_a_restored_body_brings_its_count_back_never_a_row():
 
 
 @pytest.mark.parametrize("in_place", [True, False])
-def test_a_get_up_a_run_ends_in_is_the_next_runs_row_where_the_world_carries_on(in_place):
-  """A run's end saves the world mid get-up (`Keeper.finish`), and the next
-  run carries the get-up on: its row is that run's, ONE, sent as the get-up
-  ends, and its line with it -- or, where the world cannot put the body
-  back, ONE row as the run left it, `unfinished`. Shown to fail with no
-  `fallOpen` kept: no row and no line in the next run (#707's review)."""
+def test_a_get_up_a_run_ends_in_is_that_runs_row_and_the_next_runs_line(in_place):
+  """A run's end saves the world mid get-up (`Keeper.finish`): the fall's
+  row is the run's that saw it, `unfinished` as it left it -- a save may
+  never carry it on (a start-over, a stop while paused) -- and the next run
+  that carries the get-up on writes its line as it stands, and no second
+  row; one that cannot put the body back writes neither. Shown to fail with
+  no `fallOpen` kept: no line in the next run (#707's review)."""
   life = stub_life()
   life.continuing = True
   life.begin((0.0, 0.0, 0.0))
   rows = _rows(life)
   t0 = _fall(life)
   _hold(life, 1.0)
-  cut = float(life.data.time)
-  life.end()
-  assert rows == [], "the next run's row"
+  summary = life.end()
+  [row] = rows
+  assert row["ended"] == "unfinished" and row["seconds"] == pytest.approx(1.0, abs=0.01)
+  assert summary["falls"] == rows and _fell_lines(life) == []
   state, arrays = life.kept_state()
   nxt = stub_life()
   nxt_rows = _rows(nxt)
-  nxt.data.time = cut
+  nxt.data.time = float(life.data.time)
   nxt.body.falls, nxt.body.posture = 1, "getting_up"      # ...as the body's restore puts it
   nxt.restore_kept(state, arrays, in_place=in_place)
   _hold(nxt, 2.0)
   nxt.body.posture = "standing"
   _hold(nxt, 1.0)
-  [row] = nxt_rows
-  assert row["falls"] == 1 and row["fellT"] == pytest.approx(t0, abs=0.01)
-  if in_place:
-    assert row["ended"] == "stood" and row["seconds"] == pytest.approx(3.0, abs=0.01)
-    assert row["told"] == "line" and len(_fell_lines(nxt)) == 1
-  else:
-    assert row["ended"] == "unfinished" and row["t"] == pytest.approx(cut, abs=0.01)
-    assert row["told"] is None and _fell_lines(nxt) == []
+  assert nxt_rows == [], "one row a fall"
+  lines = [ln.split("] ", 1)[-1] for ln in _fell_lines(nxt)]
+  assert lines == ([FELL_LINE.format(seconds=float(nxt.data.time) - 1.0 - t0)]
+                   if in_place else [])
+
+
+def test_a_get_up_stood_as_the_run_ends_is_a_stand():
+  """A get-up that stood in the run's last step, before the row's hook read
+  it, stood: never `unfinished` (#707's second review)."""
+  life = stub_life()
+  life.begin((0.0, 0.0, 0.0))
+  rows = _rows(life)
+  _fall(life)
+  _hold(life, 2.0)
+  life.body.posture = "standing"
+  life.end()
+  [row] = rows
+  assert row["ended"] == "stood" and row["told"] == "line" and len(_fell_lines(life)) == 1
+
+
+@pytest.mark.parametrize("cause, told", [("stuck", "death"), ("flat", None)])
+def test_a_death_tells_a_fall_only_where_its_line_says_it(cause, told):
+  """A `stuck` death's line says the fall ("fell and could not get up");
+  a flat pack's, or an `unminded` one's, says nothing of it (#707's second
+  review)."""
+  life = stub_life(mortal=True)
+  rows = _rows(life)
+  _fall(life)
+  _hold(life, 1.0)
+  life._die(cause, "why")
+  _hold(life, 0.1)
+  [row] = rows
+  assert (row["ended"], row["cause"], row["told"]) == ("died", cause, told)
+
+
+def test_a_struggle_restored_from_a_save_before_it_counts_on():
+  """A save from before the row kept no count of its struggle: a stuck
+  clock it brings back running is a struggle of at least one fall."""
+  life = stub_life()
+  state, arrays = life.kept_state()
+  del state["fallStruggle"]
+  state["downSince"] = float(life.data.time) - 2.0
+  life.restore_kept(state, arrays, in_place=True)
+  life.body.falls += 1
+  life._fall_read()
+  assert life._fall_open["struggle"] == 2
+
+
+def test_a_get_up_carried_on_that_a_restore_moves_clear_ends_with_no_line(tmp_path):
+  """The world's hand that puts a restored robot clear of the other
+  (`unclip`) ends a get-up the next run carried on, as a reset does: a
+  warp, never "got up again" (#707's second review)."""
+  from pluggybot import continuation
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.pair import build_pair
+  starts = (world_config(HUMANOID_HOME)["start"], world_config(HUMANOID_HOME)["start2"])
+  b = starts[1]
+  lives = build_pair(HUMANOID_HOME, thoughts_root=str(tmp_path / "before"))
+  lives[0].body.start_at(b[0] + 0.05, b[1], b[2])
+  lives[1].body.start_at(*b)
+  m = lives[1].body.mission
+  m.falls, m.legs = 1, "getup"                    # ...the second robot mid get-up
+  lives[1]._falls_rowed = 1
+  lives[1]._fall_open = {"falls": 1, "fellT": 0.0, "at": {}, "truth": list(b),
+                         "belief": list(b), "struggle": 1, "dead": False, "told": None,
+                         "rowed": True}
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
+  snap = continuation.read(path)
+  back = build_pair(HUMANOID_HOME, resume=snap, thoughts_root=str(tmp_path / "after"))
+  rows: list = []
+  for life, start in zip(back, starts):
+    life.begin(start)
+    life.on_event.append(lambda e: rows.append(e) if e.get("type") == "fall" else None)
+  assert continuation.restore(back, snap)["unclipped"] == [back[1].root]
+  back[1].body.run(back[1].body.hold_routine(0.01))
+  assert rows == [] and _fell_lines(back[1]) == []
