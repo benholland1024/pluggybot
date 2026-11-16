@@ -9683,18 +9683,21 @@ hand -- with counterfactuals flown in the harness only
   0.37 s after the touch, and it held the command the arm was driving on to,
   so the arm pulled on.
 
-**What is true now** (`Reach._update`, `_tipping`, `_struck`;
-`reach.OUT_TIP_NM`): a hand on its way out to its pre-grasp stops the tick
-what its arm's own reading (`force`, as the line in's stop reads it) would
-tip the body toward the hand past 20 N m -- the reading's pull toward the
-stance's middle at the hand's height, less its press down at the hand's
-reach, where its senses put the hand: the moment of the world's push on the
-hand about the level line through the stance's middle that tips the robot
-over its soles' edge toward the hand -- `blocked`, the body in the posture
-it has got to (`halt`), the arm held where its drivers read its joints,
-never at the command it drove on to. It says what a reach stopped on its
-way always said ("stopped short ... or pushing on something"), and its
-`withdraw` backs out along its fingers as any hand that is out does.
+**What is true now** (`Reach._update`, `_tipping`, `_tipped`, `_struck`;
+`reach.OUT_TIP_NM`, `OUT_TIP_S`): a hand on its way out to its pre-grasp
+stops the tick what its arm's own reading (`force`, as the line in's stop
+reads it) would tip the body toward the hand past 20 N m -- or, while the
+body still takes the posture it was asked, once it has for 0.03 s running
+(a transient is no catch: "A transient on the way out", below) -- the
+reading's pull toward the stance's middle at the hand's height, less
+its press down at the hand's reach, where its senses put the hand: the
+moment of the world's push on the hand about the level line through the
+stance's middle that tips the robot over its soles' edge toward the hand
+-- `blocked`, the body in the posture it has got to (`halt`), the arm held
+where its drivers read its joints, never at the command it drove on to. It
+says what a reach stopped on its way always said ("stopped short ... or
+pushing on something"), and its `withdraw` backs out along its fingers as
+any hand that is out does.
 - *Not any push, nor a pull alone.* Our own references' ways out press on
   something in 57 of their 304 at the hands check's set-outs 0-31 (the
   counter, a drawer's top, the door's top, the chest's knob) and press on.
@@ -9721,13 +9724,20 @@ way always said ("stopped short ... or pushing on something"), and its
   line to the middle counts for nothing, and near the stance's own axis that
   line has no direction to speak of. Only the way out is watched: a withdraw
   goes home over what the hand caught unstopped, as before (a guard there
-  cost the lid check, "The way home"), though no flight below fell so. ⚠ A
-  way out begun with the hand already out can stop in free air: of its 203
-  stops in our references' flights none came before a touch, but in the
-  wake of 11-15's `door_run31` at draw 407 (Luca's own, flown with every
-  contact recorded) two reaches begun after a `pull` and an `open_hand`
-  stopped 0.05 s in with no contact of 1 N in the 0.6 s before -- that run
-  failed as it does without the stop.
+  cost the lid check, "The way home"), though no flight below fell so. ⚠ The
+  reading cannot tell the robot's own body from the world: a push of the
+  hand on its own torso stops a way out as a catch does. In the wake of
+  11-15's `door_run31` at draw 407 (Luca's own, flown at its live draw), a
+  reach begun with the hand still out at the cupboard's lever, after a
+  `pull` and an `open_hand`, took the straight way out in joint space --
+  from a hand already out a way out is not judged at all, and no way out
+  is judged against the robot's own trunk (`_picked`) -- and drove its
+  left gripper into its torso; stopped there at 57 N, and twice more 0.04 s
+  into the reaches that followed (49 and 46 N), the gripper resting on the
+  torso between them. Without the stop the same way out pressed the torso
+  at up to 165 N until its command arrived. The run failed either way. A
+  contact record that skipped contacts between two of the robot's own parts
+  had read these as stops in free air.
 
 **Measured** (one pod, an AMD EPYC 7713, which flew the dev box's flights
 second for second; each flight its own noise; against 3dffda2):
@@ -9881,6 +9891,84 @@ frozen:
   the same (7.92 Wh, passed); the door's from the mall failed on both trees,
   11.32 Wh on today's tree and 9.38 with both, where the table carries
   9.04.
+
+### A transient on the way out (the loop of 11-16/17, P1)
+
+**Every stop recorded with what the arm touched.** The contact record the
+two loops before read (`fly_live_c.py`, `hc708.py`) skipped a contact
+between two of the robot's own parts, so `door_run31`'s stops on its own
+torso (above) read as stops in free air. Flown again with every stop's
+contacts -- the world's, the robot's own body's, a joint limit's, at its
+tick and in the 0.1 s before (`~/pluggybot-training/loop-1116/p1-708/`,
+`c/stoprec.py`) -- on bab67ea with the stop merged in, one stop of the
+stop alone's «N_M20_STOPS» over #708's flights, the wake's 53 runs and the
+hands check at set-outs 0-127 touched nothing at all: the cube's at
+set-out 38, at 32.43 s.
+
+**The cube's: the body's own jolt.** Taken apart every physics step
+(`c/probe_steps.py`), on today's tree, which flies the same up to there:
+- the way out's command walked one segment throughout (no corner of its
+  way, its gap shrinking 0.01 rad a tick), deep in its posture (-0.25 m,
+  0.95 rad of bow, the waist at 60 deg) and still bowing;
+- at 32.418 s the standing policy stopped the bow within about 8 ms, the
+  pelvis's pitch rate 0.24 to -0.01 rad/s, with no contact and no joint at
+  its limit anywhere;
+- the arm's joints' speeds jumped in that one step (the shoulder's roll
+  1.01 to 1.20, then 1.53 rad/s), its drivers caught it up, and the
+  reading, which takes the body as still, read 44 N at the hand: past 20 N
+  m for two ticks (0.02 s), then 18 N m and falling. The shoulder's dry
+  friction flipped in that step too, but at 0.3 N m against the 4-10 N m
+  its drivers then pushed.
+The motion-taken reading read 37 N too, and no loop of the body's reads it
+(#631). Nor is the trunk's rate a gate: at #708's own catches the pelvis
+turns 0.08-0.15 rad/s (n5's dense record), the catch itself turning it.
+
+**Held 0.03 s everywhere, it cost #708's catches.** The line in's rule,
+short -- a push lasts, a transient does not (`BLOCKED_S`) -- flown as a way
+out that stops once its moment has stayed past the line for 0.03 s running
+(555e66b3): K4's eight keys still never fell, but at the chest's draws
+321-336 3 of 16 fell where the stop alone lets 1 fall. Each first catch
+stopped two ticks later, the hand pressing the bracket at 41-104 N by then,
+and the flights parted: two fell about 2.2 s after a stop, one about 80 s
+on. At all four of those catches the body stood in the posture it was
+asked (within `POSTURE_TOL`) as the moment passed the line; the cube's
+phantom came while it still turned into it, its waist 0.05 rad short.
+
+**What is true now** (`reach.OUT_TIP_S`, `Reach._tipped`): the hold keyed
+on the posture -- the nearness the line in's start waits on
+(`POSTURE_TOL`), without its stillness, which a catch itself breaks. While
+the body still takes the posture it was asked -- `posture_now`, read off
+its model of itself posed by its drivers' replies, its IMU's tilt and its
+waist's encoder, beyond `POSTURE_TOL` of it -- the way out stops once its
+moment has stayed past the line for 0.03 s running, its count begun again
+where the reading falls back and at every reach; in its posture, the first
+tick past the line stops it, as before.
+
+**Measured** (one Vast pod, an AMD EPYC 7B12, each flight its own noise,
+against bab67ea; four arms -- bab67ea, the stop alone (fe943347), held 0.03
+s everywhere (555e66b3) and the gate keyed on the posture (ca2f774d) --
+every stop recorded with what it touched, and every run of an arm's ticks
+past the line with its contacts and the true grip's travel,
+`c/stoprec.py`):
+- *Every stop with what it touched* (#708's flights, the wake's 53 runs,
+  the hands check at set-outs 0-127 and 192-255, the tour's five jobs):
+  «STOPS»
+- *The gate's margin:* «MARGIN»
+- *#708's flight:* K4's eight keys 6 falls on bab67ea and none on any of
+  the three others; draws 321-336 6, 1, 3 and 1 (the one, d329, late in
+  the procedure's own lid pulls, as K13's fresh one).
+- *What a hold costs a catch* (#708's flights): held 0.03 s, each stop came
+  with the hand gone on 1 mm at the median (6 at most) from the line's
+  first tick and pressing 54-60 N at the median (124-144 at most), where
+  the stop alone stopped it at 27-35 (40-43). Keyed on the posture, 39 of
+  #708's 43 stops came on the first tick, as the stop alone's; the other 4
+  were held, the waist 0.022-0.026 rad short of its posture (`POSTURE_TOL`
+  holds it to 0.02), pressing 53-149 N by the stop, none falling.
+- *The wake's 53 runs:* held 0.03 s or keyed on the posture, as with the
+  stop alone, the 7 falls go (`door_p1` three times, one of them stuck,
+  `door_run31` once, `chest_run36` three times), none comes and no pass is
+  lost.
+- *The hands check and the tour:* «BAR»
 
 ## Debugging workflow that worked
 

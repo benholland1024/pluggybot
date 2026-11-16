@@ -123,10 +123,10 @@ OUT_TIP_NM = 20.0
 #: standing policy stopped a deep bow within 0.01 s (the cube check's
 #: set-out 38, its waist 0.05 rad short of its posture), the arm's drivers
 #: caught the arm up and read 44 N at a hand that touched nothing, past the
-#: line for two of the arm's ticks (0.02 s). ⚠ NEVER IN THE POSTURE: there
-#: #708's catches pass the line, and held 0.02 s past it at the chest's
-#: draws 321-336, 3 of 16 fell where 1 did, the hand pressing the bracket
-#: at 41-104 N by the stop.
+#: line for two of the arm's ticks (0.02 s). ⚠ NO HOLD IN THE POSTURE:
+#: there #708's catches pass the line, and held 0.02 s past it at the
+#: chest's draws 321-336, 3 of 16 fell where 1 did, the hand pressing the
+#: bracket at 41-104 N by the stop.
 OUT_TIP_S = 0.03
 #: A hand held whose force pushes on along its fingers past this, N, is
 #: eased before its jaws shut (`ease`, #560): pressed on a cube's board at
