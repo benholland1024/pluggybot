@@ -1159,7 +1159,8 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
     # ...and what a step keeps off (#717): what it saw at its knees, and its
     # newest scan at its head's height
     k0, k1 = was.body.mission.knee, now.body.mission.knee
-    assert np.array_equal(k1.pts, k0.pts) and np.array_equal(k1.t, k0.t) and k1.at == k0.at
+    assert np.array_equal(k1.pts, k0.pts) and np.array_equal(k1.t, k0.t)
+    assert np.array_equal(k1.seen, k0.seen)
     o0, o1 = was.body.mission.over_returns, now.body.mission.over_returns
     assert o1[0] == o0[0] and np.array_equal(o1[1], o0[1]) and np.array_equal(o1[2], o0[2])
   assert any(len(life.body.mission.knee.pts) for life in lives), "the premise: something seen"

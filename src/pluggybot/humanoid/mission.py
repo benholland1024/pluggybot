@@ -105,12 +105,24 @@ LOW_BURN = OCC_THRESH + 2.0
 #: keeps off low down, `HumanoidBody._Room`): its depth camera's points from
 #: `LOW_MIN_Z` up to this, m -- a counter's face, a chair; never a table's
 #: top on legs (0.71-0.75 m), whose edge the table's lay stands its pelvis
-#: 0.17 m from -- kept this long, s, and within this, m. ⚠ REMEMBERED AND
-#: CARRIED AS ITS LEGS COUNT ITS WALKS: the camera's picture ends 69 deg
-#: below level, 1.26 m up, so it loses a counter's face below 0.6 m from
-#: 0.33 m out (its pelvis's) and the top's edge from 0.21-0.25 m -- nearer
-#: than a thigh pressed on it (0.15-0.17 m), so what it saw is all it has.
+#: 0.17 m from -- kept this long, s, and within this, m. ⚠ REMEMBERED, PLACED
+#: AS ITS BELIEF PLACES THEM: the camera's picture ends 69 deg below level,
+#: 1.26 m up, so it loses a counter's face below 0.6 m from 0.33 m out (its
+#: pelvis's) and the top's edge from 0.21-0.25 m -- nearer than a thigh
+#: pressed on it (0.15-0.17 m), so what it saw is all it has. ⚠ NEVER BY ITS
+#: LEGS ALONE: carried so from 1.5 m out, the storeroom counter's face read
+#: 5-21 cm nearer than it stood at the tour's work spots (a step's legs count
+#: a fifth short, and pressed, three times over), and the keep-off stopped 12
+#: of 50 references short; its matched belief tracks a step to the truth.
 KNEE_Z, KNEE_S, KNEE_M = 0.6, 60.0, 1.5
+#: ...and forgotten where the belief jumps past this, m or rad (a relocation,
+#: a station's fix): what it saw is placed where it no longer is.
+KNEE_JUMP_M, KNEE_JUMP_RAD = 0.10, math.radians(3.0)
+#: ...and what a frame sees afresh replaces what was kept there: past this
+#: from the pelvis, m, the camera's picture holds the knees' whole height
+#: (0.08 m over the floor from 0.45 m ahead of the camera, 7.5 cm ahead of
+#: the pelvis), within this either side of where the camera faces, rad.
+KNEE_FULL_M, KNEE_VIEW_RAD = 0.55, math.radians(35.0)
 #: THE SELF-FILTER (#682; Ben, 2026-11-12): a return within this of a grip
 #: whose gripper says it holds something, m -- placed off the robot's model of
 #: itself, as its LIDAR's band and its depth camera's layer are -- is the
@@ -227,43 +239,44 @@ class HumanoidStepper:
 
 class KneeMemory:
   """What its depth camera has seen at its knees' height (`KNEE_Z`) in the
-  last `KNEE_S`, within `KNEE_M`: points on the floor plan from its pelvis,
-  x along its heading, one a 2 cm cell, carried as its legs count its walk
-  (`carry`) -- never by a correction from outside them, its odometry's
-  `corrected` taken off: a correction moves the belief, never the body --
-  and forgotten where no leg counts how the body moved (a get-up, a warp).
-  """
+  last `KNEE_S`, within `KNEE_M`: points on the floor plan, one a 2 cm
+  cell, placed in its believed world (its matched belief: the legs' count
+  corrected by its scans), what a frame sees afresh replacing what was kept
+  there (`KNEE_FULL_M`), and forgotten where the belief jumps
+  (`KNEE_JUMP_M`) or no leg counts how the body moved (a get-up, a warp)."""
 
   def __init__(self) -> None:
     self.pts = np.zeros((0, 2))
     self.t = np.zeros(0)
-    #: where its legs had it as the points were last carried: (x, y,
-    #: heading) less the corrections, and its believed heading
-    self.at: tuple[float, float, float, float] | None = None
+    #: its odometry's corrections as last read: a jump since is a forget
+    self.seen: np.ndarray | None = None
 
   def forget(self) -> None:
-    self.pts, self.t, self.at = np.zeros((0, 2)), np.zeros(0), None
+    self.pts, self.t = np.zeros((0, 2)), np.zeros(0)
 
-  def carry(self, pose, corrected) -> None:
-    """The points moved as its legs went since they were last carried."""
+  def _jumped(self, corrected) -> None:
+    c = np.array(corrected, dtype=float)
+    if self.seen is not None:
+      d = c - self.seen
+      if math.hypot(d[0], d[1]) > KNEE_JUMP_M or abs(d[2]) > KNEE_JUMP_RAD:
+        self.forget()
+    self.seen = c
+
+  def _from(self, pose) -> np.ndarray:
     x, y, yaw = (float(v) for v in pose)
-    cx, cy, cyaw = (float(v) for v in corrected)
-    at = (x - cx, y - cy, yaw - cyaw, yaw)
-    if self.at is not None and len(self.pts):
-      dx, dy = at[0] - self.at[0], at[1] - self.at[1]
-      c, s = math.cos(self.at[3]), math.sin(self.at[3])
-      lx, ly = c * dx + s * dy, c * dy - s * dx
-      turn = at[2] - self.at[2]
-      ct, st = math.cos(turn), math.sin(turn)
-      px, py = self.pts[:, 0] - lx, self.pts[:, 1] - ly
-      self.pts = np.stack([ct * px + st * py, ct * py - st * px], axis=1)
-    self.at = at
+    c, s = math.cos(yaw), math.sin(yaw)
+    dx, dy = self.pts[:, 0] - x, self.pts[:, 1] - y
+    return np.stack([c * dx + s * dy, c * dy - s * dx], axis=1)
 
-  def fold(self, points: np.ndarray, t: float, pose, corrected, drop=None) -> None:
-    """A levelled frame's points (from the pelvis, z over the floor) at time
-    `t`: those at its knees' height within reach kept, less what a hand holds
-    (`drop`, `HumanoidMission._held_drop`); what is older or further gone."""
-    self.carry(pose, corrected)
+  def fold(self, points: np.ndarray, t: float, pose, corrected, drop=None,
+           facing: float = 0.0) -> None:
+    """A levelled frame's points (from the pelvis along its heading, z over
+    the floor) at time `t`, its camera turned `facing` rad off the heading:
+    those at its knees' height within reach kept, less what a hand holds
+    (`drop`, `HumanoidMission._held_drop`), in the believed world -- in place
+    of what was kept where the frame sees afresh; what is older or further
+    gone."""
+    self._jumped(corrected)
     p = points
     keep = ((p[:, 2] >= LOW_MIN_Z) & (p[:, 2] <= KNEE_Z)
             & (np.hypot(p[:, 0], p[:, 1]) <= KNEE_M)) if len(p) else np.zeros(0, dtype=bool)
@@ -271,9 +284,17 @@ class KneeMemory:
     if drop is not None and len(p):
       c, r = drop
       p = p[~(((p[:, None, :] - c[None, :, :]) ** 2).sum(axis=2) <= r * r).any(axis=1)]
-    old = (t - self.t <= KNEE_S) & (np.hypot(self.pts[:, 0], self.pts[:, 1]) <= KNEE_M)
-    pts = np.concatenate((p[:, :2], self.pts[old]))
-    ts = np.concatenate((np.full(len(p), float(t)), self.t[old]))
+    x, y, yaw = (float(v) for v in pose)
+    c, s = math.cos(yaw), math.sin(yaw)
+    new = np.stack([x + c * p[:, 0] - s * p[:, 1], y + s * p[:, 0] + c * p[:, 1]], axis=1)
+    rel = self._from(pose)
+    r = np.hypot(rel[:, 0], rel[:, 1])
+    off = np.abs(np.remainder(np.arctan2(rel[:, 1], rel[:, 0]) - facing + math.pi, 2 * math.pi)
+                 - math.pi)
+    afresh = (r >= KNEE_FULL_M) & (off <= KNEE_VIEW_RAD)
+    old = (t - self.t <= KNEE_S) & (r <= KNEE_M) & ~afresh
+    pts = np.concatenate((new, self.pts[old]))
+    ts = np.concatenate((np.full(len(new), float(t)), self.t[old]))
     if not len(pts):
       self.pts, self.t = pts.reshape(0, 2), ts
       return
@@ -283,21 +304,23 @@ class KneeMemory:
     self.pts, self.t = cells[first] * 0.02, ts[first]
 
   def near(self, pose, corrected) -> np.ndarray:
-    """The points from where its legs have it now."""
-    self.carry(pose, corrected)
-    return self.pts
+    """The points from its pelvis along its heading, where its belief has
+    it now."""
+    self._jumped(corrected)
+    return self._from(pose) if len(self.pts) else self.pts
 
   def kept_state(self) -> tuple[dict, dict]:
-    return ({"at": None if self.at is None else list(self.at)},
+    return ({"seen": None if self.seen is None else [float(v) for v in self.seen]},
             {"kneePts": self.pts, "kneeT": self.t})
 
   def restore_kept(self, state: dict | None, arrays: dict) -> None:
     if state is None or "kneePts" not in arrays:
       self.forget()
+      self.seen = None
       return
     self.pts = np.asarray(arrays["kneePts"], dtype=float).reshape(-1, 2)
     self.t = np.asarray(arrays["kneeT"], dtype=float)
-    self.at = None if state["at"] is None else tuple(float(v) for v in state["at"])
+    self.seen = None if state["seen"] is None else np.array(state["seen"], dtype=float)
 
 
 class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
@@ -1201,7 +1224,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       return
     self._frame_used_t = self._frame_t
     self._fold_low(frame.points)
-    self.knee.fold(frame.points, self._frame_t, self.pose, self.odo.corrected, self._held_drop())
+    self.knee.fold(frame.points, self._frame_t, self.pose, self.odo.corrected, self._held_drop(),
+                   facing=float(self.odo.sm.q[self.odo.sm.waist][0]))
 
   def latest_depth(self) -> DepthFrame | None:
     """The newest depth frame, levelled, taken now if the last is a period

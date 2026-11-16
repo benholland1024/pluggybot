@@ -687,42 +687,57 @@ def test_a_step_stops_short_of_a_wall_its_lidar_reads_at_its_heads_height():
   assert _step(_walker(walk), 0.3)["why"] == "stepped"
 
 
-def test_a_step_keeps_off_what_it_saw_at_its_knees_as_its_legs_carry_it():
+def test_a_step_keeps_off_what_it_saw_at_its_knees_where_its_belief_has_it():
   """#717: up close the depth camera sees none of a counter's face (its
   picture's bottom), and pressed there a thigh met it at 150-400 N. What it
-  saw at its knees' height is kept and carried as its legs count the walk --
-  never by a correction the matcher made meanwhile -- and a step keeps its
-  middle `STEP_LOW_M` off it."""
+  saw at its knees' height is kept where its belief placed it -- a correction
+  the matcher makes is the body's truer place, a jump past `KNEE_JUMP_M` a
+  belief that no longer knows where it saw it -- and a step keeps its middle
+  `STEP_LOW_M` off it."""
   face = np.array([[0.45, y, 0.3] for y in np.linspace(-0.3, 0.3, 31)])
-  for correction in ((0.0, 0.0, 0.0), (0.1, 0.0, 0.0)):
+  for correction, short in (((0.0, 0.0, 0.0), 0.0), ((0.05, 0.0, 0.0), 0.05)):
     walk = Walk(coast_s=hb.STEP_STOP_S)
     walk.knee.fold(face, 0.0, walk.pose, walk.odo.corrected)
     walk.correct_at, walk.correction = 40, correction
     rep = _step(_walker(walk), 0.4)
     went = walk.pose[0] - walk.odo.corrected[0]
     assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "low", (correction, rep)
-    assert 0.45 - went == pytest.approx(hb.STEP_LOW_M, abs=0.02), (correction, went)
-    assert rep["keptOff"]["m"] == pytest.approx(0.45 - went, abs=0.02)
+    assert 0.45 - went == pytest.approx(hb.STEP_LOW_M + short, abs=0.02), (correction, went)
+    assert rep["keptOff"]["m"] == pytest.approx(0.45 - walk.pose[0], abs=0.02)
+  # ...a belief that jumped knows no longer where it saw it
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  walk.knee.fold(face, 0.0, walk.pose, walk.odo.corrected)
+  walk.correct_at, walk.correction = 40, (hmis.KNEE_JUMP_M + 0.05, 0.0, 0.0)
+  assert _step(_walker(walk), 0.4)["why"] == "stepped"
   # ...and what stands higher than its knees -- a table's top -- is no part of it
   walk = Walk(coast_s=hb.STEP_STOP_S)
   walk.knee.fold(face + [0.0, 0.0, hmis.KNEE_Z], 0.0, walk.pose, walk.odo.corrected)
   assert _step(_walker(walk), 0.4)["why"] == "stepped"
 
 
-def test_the_knee_memory_moves_as_the_legs_count_and_forgets_where_none_do():
-  """What it saw is carried by the legs' own reckoning: a walk ahead brings
-  it nearer, a turn swings it round, a correction from outside the legs moves
-  nothing -- and a get-up, which no leg counts, forgets it (#717)."""
+def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be():
+  """What it saw stays where its belief placed it: a walk ahead brings it
+  nearer, a turn swings it round; a frame that sees a place afresh replaces
+  what was kept there (never nearer than the camera holds the knees' whole
+  height); a jump of the belief, and a get-up, which no leg counts, forget it
+  (#717)."""
   k = hmis.KneeMemory()
-  k.fold(np.array([[1.0, 0.0, 0.3]]), 0.0, (0.0, 0.0, 0.0), np.zeros(3))
-  assert np.allclose(k.near((0.3, 0.0, 0.0), np.zeros(3)), [[0.7, 0.0]])
-  assert np.allclose(k.near((0.5, 0.0, 0.0), np.array([0.2, 0.0, 0.0])), [[0.7, 0.0]])
-  assert np.allclose(k.near((0.5, 0.0, math.pi / 2), np.array([0.2, 0.0, 0.0])), [[0.0, -0.7]])
-  assert np.allclose(k.near((0.5, 0.3, math.pi / 2), np.array([0.2, 0.0, 0.0])), [[-0.3, -0.7]])
+  k.fold(np.array([[1.0, 0.0, 0.3], [0.4, 0.2, 0.3]]), 0.0, (0.0, 0.0, 0.0), np.zeros(3))
+  assert np.allclose(sorted(map(tuple, k.near((0.3, 0.0, 0.0), np.zeros(3)))),
+                     [(0.1, 0.2), (0.7, 0.0)])
+  assert np.allclose(sorted(map(tuple, k.near((0.0, 0.0, math.pi / 2), np.zeros(3)))),
+                     [(0.0, -1.0), (0.2, -0.4)])
+  # ...a frame that sees the far one's place empty takes it out; the near one,
+  # under the camera's whole view of the knees' height, it keeps
+  k.fold(np.zeros((0, 3)), 1.0, (0.0, 0.0, 0.0), np.zeros(3))
+  assert np.allclose(k.near((0.0, 0.0, 0.0), np.zeros(3)), [(0.4, 0.2)])
   state, arrays = k.kept_state()
   back = hmis.KneeMemory()
   back.restore_kept(state, arrays)
-  assert np.array_equal(back.pts, k.pts) and back.at == k.at
+  assert np.array_equal(back.pts, k.pts) and np.array_equal(back.seen, k.seen)
+  assert not len(k.near((0.0, 0.0, 0.0), np.array([0.0, 0.0, hmis.KNEE_JUMP_RAD + 0.01]))), \
+    "a heading's jump kept what it saw"
+  k.fold(np.array([[0.4, 0.0, 0.3]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
   mission = NS(legs="getup", knee=k)
   HumanoidMission._look_step(mission)
   assert not len(k.pts), "a get-up kept what it saw"
