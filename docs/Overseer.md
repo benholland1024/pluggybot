@@ -939,7 +939,8 @@ Everything else is the robot's own, by what it is: its mind (`THINK`,
 `DECIDE` and every reason and source, any other decision, `INTERRUPT`,
 `ANSWER`, `LEFT OUT`, `RECALL`,
 `READ`, `LOOK`), its memory and its rules (`THOUGHT`, `HISTORY`,
-`CONSTITUTION`, `EVENT`, `BELIEF`), its library (`PROCEDURE define`,
+`CONSTITUTION`, `EVENT`, `BELIEF`), a fall it got up from (`FELL`, #707:
+its body's fate is shown off its posture and its death), its library (`PROCEDURE define`,
 `undefine`, a run refused), its books (`SCORE`, `GAVE`, `BOUGHT`, a heart,
 `HUNGER`, `ENERGY`, `SKIP`, `DEFER`, `DECLINE`, `TRUE DEATH`, an act's
 claim and close), its acts
@@ -2320,7 +2321,7 @@ for any of this; its own goals live in `Goals.md`.
 | **constitution** | human | always, the cached prefix | `Main.md`: rendered from the library file the environment names (#263); no write API, and an edit on the volume is set aside |
 | **core** | robot | always, whole | `Goals.md` (`intend` / `drop_goal`) and `Top_of_mind.md` (`pin` / `unpin`) — RAM: *always in front of you, so keep it short; anything you only need sometimes is a note* |
 | **notes** | robot | the INDEX always, beside what it holds (`holds`, #688); a body by `recall` | `Notes.md`: titled lines in topics the robot names (`note {topic, title, text}` / `unnote`). `Findings.md` is the first TYPED topic family, `findings/<task>`, fields declared by code (`record` / `retract`, offered with the library) |
-| **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, interventions, visitor and peer messages |
+| **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, a fall nothing else told it of (#707: "I fell over and got up again 4 s later"), interventions, visitor and peer messages |
 
 The **procedural** tier (`procedures/`) is unchanged by #221 and is memory
 in the paper's sense too — §2b.

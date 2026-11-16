@@ -10,6 +10,60 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Every fall a row, and a fall nothing else told a line (#707, P7, `loop-falls`) — opens when this PR is deployed
+
+**What moved for the robots is one History line** (`prompt_sha` unmoved,
+`0f1df27e…`, 67,157 characters, 17 sections; the session host's hello
+unmoved, sha1 `b796e75d…`). A fall was said to a robot only in the words
+of what it ended -- a run's verb (#671), a hand job (#701), a step aside, a
+death -- so one that tipped on a charge trip, at its station or between
+runs and was caught by its get-up read nothing of it (Rowan, 11-14 17:32:
+"CHARGE complete -- backing off", then a relocation 1.68 m, nothing
+between). Now such a fall, once its get-up stands it alive, is ONE line of
+History, narrated too (`FELL`, a private kind: the other robot is not shown
+it):
+
+- before: nothing;
+- after: "I fell over and got up again 4 s later" (`lifecycle.FELL_LINE`,
+  its own clock). Never a second line where the run, the job, the step
+  aside or the death says it, and per fall as the body counts it: a
+  struggle's second fall (under `STOOD_AGAIN_S` after it stood) is a line
+  of its own.
+
+**What moved on the wire is a row per fall** (`fall`; protocol/README.md
+has the fields): every fall the body's watch counts, sent as its get-up
+ends -- `ended` (`stood`, `died`, `reset`, `stuck`, `unfinished`), where it
+fell and what it was doing (`at`, a death's shape: the truth beside the
+belief, the state, the errand and its step), how far the get-up moved the
+body (`movedM`, `turnedDeg`) and the belief (`beliefMovedM`), the belief's
+error as it stood (`errorM`, `headingDeg`), which fall of its struggle it
+was, and `told` (`run`, `job`, `aside`, `line`, `death` or null: each
+teller marks the fall as its line says it). A get-up an hour's end cuts
+short is that run's row, `unfinished`; the next run carries it on and
+writes the line as the robot stands, and no second row. The site files them (rooftop `loop-falls`: the `fall`
+observatory kind, its migration). Neither committed recording holds a fall (every frame of both
+`standing`), so neither was flown again.
+
+**Flown** (one local flight at 7414ac1, osmesa: the house as the loop runs
+it, `station_spike._life`, the first robot's own noise as served; explored
+60 s from the start, then shoved over standing, 300 N for 0.3 s, and again
+2 s into a procedure's `wait(30)`): two rows, `falls` 1 and 2. The first,
+standing after the explore: `ended` `stood` in 4.2 s, `told` `line`, the
+body moved 0.17 m and turned 66 deg, the belief held where it was and
+turned with the body's IMU, 0.21 m off as it stood; History's
+`[t=95s] I fell over and got up again 4 s later`. The second, in the
+`wait`: `told` `run`, `struggle` 2 (2.6 s after the first stood), the body
+moved 0.75 m, the belief 0.73 m off; History's `the procedure lap did not
+finish -- it stopped at line 2, wait: you fell (0 steps had run)` and no
+line of the fall's own.
+
+**What the period is for.** The next live reading counts every fall off
+the rows, by `ended` and by `told` -- beside the falls a run's line said
+(M12's 22 on 11-15) -- and reads how far a get-up carries a body and how far
+off its belief stands then, beside the `drift` rows' relocations after. A
+`fall` row whose `falls` skips a count, or a fall in History with no row,
+would be a fault of this change.
+
 ### One renderer for the robots' cameras (#713, M4, `loop-713`) — opens when this PR is deployed
 
 **Nothing the robots read or do moved.** A robot's two tag cameras (the
