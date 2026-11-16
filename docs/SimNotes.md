@@ -10091,12 +10091,47 @@ too. With both ways required, a chord of 0.10 m laid 326 walls twice, 0.25 m
 was no better than 0.15, and a `GRAZE_M` of 0.10 or 0.20 moved nothing the
 table reads; one way allowed, 0.20 with sin^4 read as 0.15 does.
 
-**Measured** on one pod beside its base: the readings follow once flown.
+**Measured** on one pod (a Vast EPYC 7H12, osmesa), 4f42236 -- the same
+map bit for bit as the rule as merged -- beside its base 9539e47, every batch
+flown fresh; the base's rows are M1's base's (a6e6f0e, an EPYC 7B13) to the
+row. Held out: everything but the eight flights the replays were sized on,
+whose rows are read apart where they fall in a batch:
 
-**What it costs.** A scan's update takes 1.3-1.5 ms more than the
-base's (7.6-8.2 ms against 6.1-6.8 on the dev box, interleaved: the slant
-0.53 of it), about 14 ms a sim second a robot; computing the slant only for
-rays with a walled cell in their last 2 m would save part of it, unbuilt.
+| | base | the rule |
+|---|---|---|
+| from the mall, the map's walk to the counter under 35 m: the cube's 64 draws, the drawer's, the door's and the chest's 16 | 81 of 112 | 0 |
+| ...held out | 77 of 108 | 0 |
+| ...passed (fell), all 112 | 89 (3) | 100 (1) |
+| ...held out, passed (fell): the cube 0-31 / the drawer / the door / the chest / the cube 32-63 | 23 (1) / 11 (2) / 13 (0) / 14 (0) / 24 (0) | 25 (1) / 15 (0) / 14 (0) / 16 (0) / 27 (0) |
+| ...the four sized on (the cube's 17, 3 and 30, the door's 3), passed | 4 | 3 |
+| the tour's five jobs at 32 draws, passed (fell): the chest / the cube / the door / the drawer / the table | 29 (0) / 26 (2) / 26 (1) / 30 (0) / 24 (0) | 32 (0) / 26 (0) / 31 (0) / 32 (0) / 28 (1) |
+| ...all | 135 (3) of 160 | 149 (1) |
+| the station: round the standoff; its seats; lost near; lost far | 39/39; 140/140; 20/20; 115/123 | 39; 140; 20; 118 |
+| the drift spike's 16 flights: docked; falls | 16; 0 | 16; 0 |
+| ...the belief's error in the lobby / the storeroom, median of every row there | 0.063 / 0.062 m | 0.049 / 0.049 |
+| ...held out (12) | 0.072 / 0.075 | 0.050 / 0.051 |
+| ...sized on (4) | 0.010 / 0.010 | 0.024 / 0.047 |
+| ...in the lab; in the house's rooms | 0.160; 0.053 | 0.031; 0.014 |
+| ...the worst anywhere, median of the flights (the worst) | 0.129 (0.270) | 0.110 (0.282) |
+| ...at each trip's end, median | 0.056 | 0.037 |
+
+Every flight parted from its base's early -- the rule acts on the map from
+the first scans -- so a verdict that moved was decided later, in a stance a
+few cm elsewhere: of the mall's 112, 21 went fail to pass and 10 pass to
+fail; of the tour's 160, 20 and 6 (the table's draw 6 from a pass to a fall
+in its lay).
+
+**What it costs.** In the drift spike the worst error rose on one flight of
+16, luca from the hall: 0.282 m on the street north, on a first walk out
+that took 111 s for the base's 65 (0.107 m at the base's worst); and two of
+the four drift flights the replays were sized on took the 5 cm mode in the
+research center that the base's had not (1/start and 2/start, 0.006-0.009 m
+to 0.048-0.053); held out, the lobby's median passed 7 cm on 3 flights of
+12 under the rule and on 7 under the base's. A scan's update takes 1.3-1.5
+ms more than the base's (7.6-8.2 ms against 6.1-6.8 on the dev box,
+interleaved: the slant 0.53 of it), about 14 ms a sim second a robot;
+computing the slant only for rays with a walled cell in their last 2 m would
+save part of it, unbuilt.
 
 **What it still reads wrong** (its review, none of it seen in the replays'
 maps, where the whole map's walls laid two or more cells off a true wall

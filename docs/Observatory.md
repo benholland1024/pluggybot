@@ -18,19 +18,24 @@ and no wire format moved; nothing the robots read changes):
 - **A LIDAR ray that runs alongside the surface it ends on, within 0.15 m
   times cos(slant) of it, frees a cell the map holds a wall in only at
   sin(slant)^4 of a clear** (`OccupancyGrid.update`'s `graze_m`, `GRAZE_M`,
-  `GRAZE_POWER`):
-  16 deg off a wall a clear weighs 0.006 of one, 45 deg 0.25, square on
-  the whole of it. The slant is read off a neighbouring ray's end at least
+  `GRAZE_POWER`): 16 deg off a wall a clear weighs 0.006 of one, 45 deg
+  0.25, square on the whole of it. The slant is read off a neighbouring ray's end at least
   0.15 m away, the larger sine where both neighbours read one (`_slant`). A
   cell with no wall's evidence is freed as before.
 - So the research center's south wall (4 cm, along the alley) stays in a map
-  laid as the live robots lay theirs: in closed-loop replays of eight
-  flights the map's walk from the mall read 43 m on all four from the mall,
-  where the base's read 26 m.
+  laid as the live robots lay theirs: from the mall's station the map's walk
+  to the counter read under 35 m on none of 112 flights, where it read 26-27
+  m through the wall on 81 under the base's rule; the jobs passed 100 of 112
+  with 1 fall (89 and 3), the tour's five 149 of 160 with 1 (135 and 3), and
+  the station's trials docked as before (lost far 118 of 123, for 115).
 - ⚠ **What it costs** (SimNotes, "A thin wall met at a graze"): a wall
   laid a few cm off its twin wears away more slowly where rays run
-  alongside it. A scan's map update takes about 1.4 ms more (7.6-8.2 ms for 6.1-6.8 on
-  the dev box), about 14 ms a sim second a robot.
+  alongside it. In the drift spike's 16 flights the belief in the research
+  center's lobby and storeroom was off 0.049 m at the median (0.063 and
+  0.062 under the base's), but one flight's worst rose from 0.107 to 0.282
+  m, on the street north. A scan's map update takes about 1.4 ms more
+  (7.6-8.2 ms for 6.1-6.8 on the dev box), about 14 ms a sim second a
+  robot.
 
 **Why.** The alley's rays meet that wall at a graze, and laid from a belief
 7-10 cm off the one the wall was laid from (along a sidewalk, the direction
