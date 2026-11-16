@@ -14,18 +14,22 @@ world of two robots:
      one body's close while another body draws through it, and nothing is
      kept once the last user is closed -- or collected unclosed;
   3. a renderer is closed with its own GL context current, so another's
-     pictures are as they were (under osmesa they were not), and one
-     collected unclosed at the next draw, never where it was collected;
-  4. a forked child builds its own.
+     pictures are as they were (under osmesa they were not); a draw holds
+     the lock; one collected unclosed mid-draw or off its thread is closed
+     at its thread's next draw, never where it was collected;
+  4. a forked child never draws through, closes or frees its parent's.
 """
 
 import gc
 import math
-import os
+import subprocess
+import sys
+import threading
 import weakref
 
 import mujoco
 import numpy as np
+import pytest
 
 from pluggybot.body import body_for
 from pluggybot.humanoid import model as hm
@@ -79,7 +83,7 @@ def _own(model, data, camera: str) -> np.ndarray:
 
 def _renderers_of(model) -> list:
   """The shared renderers kept for `model` (the registry's own key)."""
-  return [entry[0] for key, entry in tags._RENDERERS.items() if key[1] == id(model)]
+  return [entry[0] for key, entry in tags._RENDERERS.items() if key[0] == id(model)]
 
 
 def test_the_cameras_draw_through_one_renderer_each_picture_as_its_own():
@@ -140,7 +144,6 @@ def test_a_renderer_is_closed_with_its_last_user_and_nothing_is_kept():
   dropped = weakref.ref(eye.renderer)
   del eye
   gc.collect()
-  tags.TagDetector(model, FIRST.el("nav_eye")).close()      # the next build
   assert dropped() is None and not _renderers_of(bare), \
     "a renderer kept for a detector collected unclosed"
 
@@ -180,47 +183,109 @@ def test_a_renderer_is_closed_with_its_own_context_current_and_the_others_draw_o
     assert calls == ["current", "free"], "closed with another context current"
     assert np.array_equal(kept.frame(other_data), before), \
       "another renderer's picture changed when one was closed"
+    with pytest.raises(RuntimeError, match="closed"):
+      closing.frame(data)
   finally:
     kept.close()
 
 
-def test_a_renderer_collected_unclosed_is_closed_at_the_next_draw():
+def test_a_draw_holds_the_renderers_lock():
+  """One scene and one context serve every camera of a model: a draw on
+  another thread between this one's `update_scene` and its `render` would
+  draw the other camera's picture here."""
+  model, data = _pair()
+  eye = tags.TagDetector(model, FIRST.el("nav_eye"))
+  held = []
+  render = eye.renderer.render
+
+  def spied(*args, **kwargs):
+    other = threading.Thread(target=lambda: held.append(
+      not tags._RENDERERS_LOCK.acquire(blocking=False) or tags._RENDERERS_LOCK.release()))
+    other.start()
+    other.join()
+    return render(*args, **kwargs)
+
+  eye.renderer.render = spied
+  try:
+    eye.frame(data)
+  finally:
+    del eye.renderer.render
+    eye.close()
+  assert held == [True], "another thread could take the renderers mid-draw"
+
+
+def test_a_renderer_collected_mid_draw_or_off_its_thread_waits_for_its_next_draw():
   """A cycle collection runs at any allocation and on any thread -- between
-  another renderer's context made current and its draw (`np.empty` in
+  a renderer's context made current and its draw (`np.empty` in
   `Renderer.render`) included -- and a renderer closed there leaves that
-  draw with no context. One whose last user was collected unclosed waits
-  for the next draw, build or close, on the thread drawing."""
+  draw with no context, as one closed off its thread leaves its context
+  current on its own. Collected so, it waits for its thread's next draw,
+  build or close; collected on its thread with nothing drawing (the
+  closing test), it is closed at once."""
   model, _data = _pair()
   other, other_data = _pair()
   drawing = tags.TagDetector(other, FIRST.el("nav_eye"))
   try:
     eye = tags.TagDetector(model, FIRST.el("nav_eye"))
     left = weakref.ref(eye.renderer)
-    del eye
-    gc.collect()
-    assert left() is not None and left()._mjr_context is not None, \
-      "closed where its detector was collected"
+    with tags._RENDERERS_LOCK:
+      tags._BUSY += 1                     # as a draw holds it
+      try:
+        del eye
+        gc.collect()
+        assert left() is not None and left()._mjr_context is not None, \
+          "closed in the middle of a draw"
+      finally:
+        tags._BUSY -= 1
     drawing.frame(other_data)
-    assert left() is None, "kept past the next draw"
+    assert left() is None, "kept past its thread's next draw"
+
+    eyes = [tags.TagDetector(model, FIRST.el("nav_eye"))]
+    left = weakref.ref(eyes[0].renderer)
+
+    def collect():
+      eyes.clear()
+      gc.collect()
+
+    collector = threading.Thread(target=collect)
+    collector.start()
+    collector.join()
+    assert left() is not None and left()._mjr_context is not None, \
+      "closed on the thread that collected its detector"
+    drawing.frame(other_data)
+    assert left() is None, "kept past its thread's next draw"
   finally:
     drawing.close()
 
 
-def test_a_forked_child_never_draws_through_its_parents_renderer(monkeypatch):
-  """A GL context does not survive a fork, and the model a child inherits
-  is the parent's object, id and all: the key carries the process, so a
-  detector built in the child builds its own renderer."""
-  model, _data = _pair()
-  parent = tags.TagDetector(model, FIRST.el("nav_eye"))
-  try:
-    pid = os.getpid()
-    monkeypatch.setattr(tags.os, "getpid", lambda: pid + 1)
-    child = tags.TagDetector(model, FIRST.el("color_eye"))
-    monkeypatch.undo()
-    try:
-      assert child.renderer is not parent.renderer, "a child drew through its parent's"
-    finally:
-      child.close()
-  finally:
-    parent.close()
-  assert not _renderers_of(model)
+#: The fork, in a process of its own: forked from a process holding a GL
+#: context, the GTX's EGL took the parent down at its next close, so this
+#: parent closes nothing, and the child touches no GL.
+FORK_CHECK = """
+import os
+import mujoco
+from pluggybot.perception import tags
+model = mujoco.MjModel.from_xml_string(
+  '<mujoco><visual><global offwidth="1280" offheight="720"/></visual><worldbody>'
+  '<camera name="eye" pos="0 0 1"/><geom type="plane" size="1 1 0.1"/></worldbody></mujoco>')
+eye = tags.TagDetector(model, "eye")
+pid = os.fork()
+if pid == 0:
+  r = eye.renderer
+  os._exit(0 if (not tags._RENDERERS and not tags._PENDING
+                 and r._gl_context is None and r._mjr_context is None) else 3)
+_, status = os.waitpid(pid, 0)
+os._exit(os.waitstatus_to_exitcode(status))
+"""
+
+
+def test_a_forked_child_never_draws_through_closes_or_frees_its_parents_renderer():
+  """No GL context survives a fork, and the model a child inherits is its
+  parent's object, id and all: at the fork (`os.register_at_fork`) the
+  child forgets its parent's renderers, emptied so that nothing there
+  draws through, closes or frees them, and builds its own."""
+  done = subprocess.run([sys.executable, "-c", FORK_CHECK], capture_output=True,
+                        text=True, timeout=120)
+  assert done.returncode == 0, (
+    f"the forked child kept its parent's renderers (exit {done.returncode}): "
+    f"{done.stderr[-400:]}")
