@@ -2082,7 +2082,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       result["stopped"] = "budget"
       break
     if why != "fell":
-      life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
+      life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}",
+                doing=f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.verb}")
     verdict = ({"ok": False, "fell": True, "reason": FELL} if why == "fell"
                else (yield from run_verb(life, VERBS[step.verb], step.args,
                                          {"procedure": program.name, "n": i + 1,
@@ -2098,7 +2099,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       life._say(f"PROCEDURE {program.name} failed at {i + 1}/{len(steps)} "
                 f"{step.describe()}" + (f" -- {verdict['reason']}"
                                          if verdict.get("reason") else ""),
-                detail=verdict.get("trace", ""))
+                detail=verdict.get("trace", ""),
+                doing=f"PROCEDURE {program.name} failed at {i + 1}/{len(steps)} {step.verb}")
       break
     result["completed"] = i + 1
   else:

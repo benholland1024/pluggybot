@@ -263,6 +263,19 @@ NO_CHARGER = "there is nowhere for me to charge here"
 #: unplug and a charge's end alike (#703).
 UNPLUG_FAILED = "CHARGE: my hand could not get the plug out -- going on anyway"
 
+#: THE STATED LIST of what the other robot may read of this one's narration
+#: (`others[].doing`, issue #709; Overseer.md §2c has the rule and each
+#: line's call): how a line saying what its BODY is doing begins -- a walk,
+#: a wait or a step aside, a charge, a procedure it runs, a job it holds,
+#: a stand-up, a decided walk's start (a death is read off `dead`). A line
+#: is shown only where it begins so AND its call says it is
+#: (`_say(doing=)`); everything else -- the robot's thinking, reasons,
+#: memory, list of rules, library, belief, books, talk and acts, an
+#: operator's, a visitor's, the board's -- is its own.
+DOING_KINDS = ("EXPLORE", "GO_CHARGE", "CHARGE", "WAIT:", "STATION:", "standing by:",
+               "MAKE WAY:", "MADE WAY:", "PROCEDURE ", "TASK ", "DONE ", "GRADE ",
+               "UP again", "STOOD UP ", "DECIDE ")
+
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
 #: ⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, and this one was sized
@@ -310,6 +323,11 @@ FIXTURE_WORDS = {"station": "my charging station"}
 MAP_REFUSING = ("My map has matched none of my scans for a minute, so I may not be "
                 "where I believe I am")
 MAP_MATCHING = "My map matches my scans again"
+#: What a robot reads of a fall nothing else told it of (issue #707,
+#: `_fall_row_step`) -- no run's verb, hand job, step aside or death -- once
+#: its get-up stands it again, alive: its own watch and its own clock, never
+#: the truth its `fall` row carries.
+FELL_LINE = "I fell over and got up again {seconds:.0f} s later"
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
 #: loop gets to reconsider (issue #15). Bounded on purpose: without it one
 #: `explore` decision eats the whole mission, and the point of an overseer is
@@ -497,6 +515,14 @@ EXPLORE_ENDS = {
   "blocked": ", until the way to the floor I have not seen was blocked",
   "battery": ", until the pack reached the reserve",
 }
+
+
+def belief_off(pose: dict, believed: dict) -> dict:
+  """The belief less the truth, off two wire poses (`navigator.wire_pose`):
+  `errorM` and `headingDeg`, as a `drift` row and a `fall` row (#707) each
+  carry them."""
+  return {"errorM": round(math.hypot(believed["x"] - pose["x"], believed["y"] - pose["y"]), 3),
+          "headingDeg": round((believed["yawDeg"] - pose["yawDeg"] + 180.0) % 360.0 - 180.0, 1)}
 
 
 def explore_outcome(zone: str, ended: str, seconds: float,
@@ -1004,6 +1030,16 @@ class HubLifecycle:
     # ...and a hand job its robot fell holding, ended at the fall (#701):
     # every step, its fall count an int, so the grade's call is the fall's
     self.body.step_hooks.append(self._fall_step)
+    # ...and every fall a row (issue #707)
+    #: The body's fall count as the `fall` rows have read it, the fall whose
+    #: get-up has not ended (its row's makings, or None), how many falls
+    #: its struggle has counted -- and every row sent, for the day's
+    #: summary.
+    self._falls_rowed = self.body.falls
+    self._fall_open: dict | None = None
+    self._struggle = 0
+    self.fall_rows: list[dict] = []
+    self.body.step_hooks.append(self._fall_row_step)
     # ...and the robot's own clock (issue #36), on the same seam and for a
     # closer version of the same reason: an appetite ticked on the
     # arbitration loop would not charge the robot for the twenty minutes it
@@ -1203,9 +1239,10 @@ class HubLifecycle:
     self.charge_cycles = 0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
-    #: ...and the latest that was this robot's OWN (`_say(board=)`): what the
-    #: other robot is shown as its `doing` (`others_context`). Empty until it
-    #: narrates one, at every start (neither is kept across a restart).
+    #: ...and the latest that said what its body is doing, in the form the
+    #: other robot is shown it as its `doing` (`_say(doing=)`, `DOING_KINDS`,
+    #: `others_context`). Empty until it narrates one, at every start
+    #: (neither is kept across a restart).
     self.doing = ""
     #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
     #: Read by `others_context` for what each broadcasts, and by nothing
@@ -1473,6 +1510,8 @@ class HubLifecycle:
     self.stuck = {"t": round(float(self.data.time), 3), "fellT": round(self._down_since, 3),
                   "why": why, "at": [round(float(x), 2), round(float(y), 2)]}
     self._say(f"STUCK: {why}; nothing dies here, so the run ends")
+    self._fall_read()
+    self._close_fall("stuck")
     raise Stuck(self.stuck)
 
   def _chassis_tilt(self) -> float:
@@ -1582,11 +1621,11 @@ class HubLifecycle:
       t, key = float(self.data.time), (by, self.body.way_refused)
       if why and t - self._way_refused.get(key, -math.inf) >= MAKE_WAY_WAIT_S:
         self._way_refused[key] = t
-        self._say(f"MAKE WAY: {who} asked me off its way, and I cannot: {why}")
+        self._say(f"MAKE WAY: {who} asked me off its way, and I cannot: {why}", doing=True)
       return False
     if was is None:
       # ...a humanoid rests standing (#559): it steps aside where it stands
-      self._say(f"MAKE WAY: resting across {who}'s way -- stepping aside")
+      self._say(f"MAKE WAY: resting across {who}'s way -- stepping aside", doing=True)
     return True
 
   def _aside_step(self) -> None:
@@ -1609,8 +1648,10 @@ class HubLifecycle:
       line = (f"set off to step aside for {who}, whose way I was standing in, "
               f"and stopped {moved:.1f} m on: "
               f"{ASIDE_ENDED.get(rec['why'], rec['why'])}")
-    self._say(f"MADE WAY: {line}")
+    self._say(f"MADE WAY: {line}", doing=True)
     self._remember(line)
+    if rec["why"] == "fell":
+      self._fall_told_by("aside")         # ..."I fell over" (#707)
 
   _asides_seen = 0
 
@@ -1656,9 +1697,7 @@ class HubLifecycle:
     the event's own fields -- `before`, `fixture`, `dropped`..."""
     t, b = rec["truth"], rec["after"]
     return {"type": "drift", "robot": self.root, "t": rec["t"], "why": rec["why"],
-            "pose": t, "believed": b,
-            "errorM": round(math.hypot(b["x"] - t["x"], b["y"] - t["y"]), 3),
-            "headingDeg": round((b["yawDeg"] - t["yawDeg"] + 180.0) % 360.0 - 180.0, 1),
+            "pose": t, "believed": b, **belief_off(t, b),
             **{k: v for k, v in rec.items() if k not in ("seq", "t", "why", "truth", "after")}}
 
   def _tell_belief(self, rec: dict) -> None:
@@ -1984,6 +2023,8 @@ class HubLifecycle:
     who = deepest[1].robot_name or deepest[1].root
     whose = self._whose_start(pose)
     at = self.body.pose_xy()
+    self._fall_read()                     # ...a get-up carried on, which the warp ends (#707)
+    self._close_fall("reset")
     self.body.start_at(*pose)
     mujoco.mj_forward(self.model, self.data)
     clip = {"who": who, "deepM": round(-deepest[0], 2),
@@ -2129,7 +2170,7 @@ class HubLifecycle:
       return True
     hx, hy = self.home_pose[0], self.home_pose[1]
     self._say(f"standing by: clearing the charging station for the others -- "
-              f"back to ({hx:.1f}, {hy:.1f})")
+              f"back to ({hx:.1f}, {hy:.1f})", doing=True)
     yield from self.body.go_to_routine(hx, hy)
     tried = [(hx, hy)]
     for spot in self._clear_spots()[:CLEAR_SPOTS]:
@@ -2138,7 +2179,7 @@ class HubLifecycle:
         break
       self._say(f"STATION: still {self.rack_distance(px, py):.1f} m from the "
                 f"charging station after heading for ({tried[-1][0]:.1f}, "
-                f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})")
+                f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})", doing=True)
       tried.append(spot)
       yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     px, py, _ = self.body.pose
@@ -2209,7 +2250,7 @@ class HubLifecycle:
       self._say(f"STATION: lingering {t - self._linger_since:.0f} s within "
                 f"{self.rack_distance(px, py):.2f} m of the charging station "
                 f"while {self.state} -- in the way of the others",
-                detail=f"pose ({px:.2f}, {py:.2f})")
+                detail=f"pose ({px:.2f}, {py:.2f})", doing=True)
 
   def _waiting_spot(self, sx: float,
                     sy: float) -> tuple[float, float] | None:
@@ -2310,7 +2351,7 @@ class HubLifecycle:
     if first:
       self._say(f"WAIT: {holder(self.peers, who, where, near, what)} -- waiting up to "
                 f"{bound:.0f} s" + ("" if spot is None else
-                                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
+                                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"), doing=True)
       self._remember(f"{who} was at {what} I needed; I waited for it "
                      f"(up to {bound:.0f} s)")
       self.bay_waits += 1
@@ -2348,9 +2389,9 @@ class HubLifecycle:
     if ended:
       self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} was still there "
                 + ("and this run's time is up" if ended == "hour"
-                   else f"(the bound is {bound:.0f} s)"))
+                   else f"(the bound is {bound:.0f} s)"), doing=True)
       return False
-    self._say(f"WAIT: {what} is free after {waited:.0f} s")
+    self._say(f"WAIT: {what} is free after {waited:.0f} s", doing=True)
     return True
 
   def _wait_dead_routine(self) -> Routine:
@@ -2361,20 +2402,21 @@ class HubLifecycle:
     if self.dead is not None:
       yield from self.body.hold_routine(WAIT_FOR_WORK_S)
 
-  def _say(self, msg: str, detail: str = "", board: bool = False) -> None:
+  def _say(self, msg: str, detail: str = "", doing: bool | str = False) -> None:
     """Narrate one line. `msg` is what the ROBOT says; `detail` is evidence.
 
     `msg` becomes `self.status`, which rides every telemetry frame, is
     rendered verbatim under the robot's portrait and goes to `say_hooks` (the
     event stream). So it has to be a sentence a robot could say.
 
-    ⚠ `board`: the line is the BOARD's doing and none of this robot's -- an
-    offer, an expiry, a job's things set out or put away. It is narrated
-    and becomes `status` like any other, and is KEPT OUT OF `doing`, the
-    robot's last OWN line, which is what the other robot is shown
-    (`others_context`): both lifecycles say the board's lines, and shown
-    one, the other robot read it as a claim on the job (Observatory.md,
-    the period of `loop-k4`).
+    ⚠ `doing`: what the OTHER robot is shown of the line, as this robot's
+    `doing` (`others_context`, issue #709) -- True, the line as said; a
+    string, the line in that form, with a battery level, points or hearts
+    taken out; False, nothing. PRIVATE BY DEFAULT, and shown only where it
+    begins as `DOING_KINDS` says a line may: a new kind of line is the
+    robot's own until someone lists it (Overseer.md §2c), and a marked one
+    the list does not begin is dropped (`tests/test_doing.py` narrates every
+    call and fails on one).
 
     `detail` reaches the console and `self.log` and NOTHING else -- no status,
     no frame, no hook. It is where a caught exception's class and message go
@@ -2383,8 +2425,9 @@ class HubLifecycle:
     traceback for something that did not crash.
     """
     self.status = msg
-    if not board:
-      self.doing = msg
+    shown = msg if doing is True else doing
+    if shown and shown.startswith(DOING_KINDS):
+      self.doing = shown
     # A second robot's lines say whose they are (issue #167); the first
     # robot's read exactly as they always did.
     who = f" {self.root}" if self.body.handle.prefix else ""
@@ -2649,7 +2692,7 @@ class HubLifecycle:
       if self.data.time > deadline:
         self.floor_explored = mark_done
         self._occur("task_complete", "explore")
-        self._say("EXPLORE: budget spent, stopping")
+        self._say("EXPLORE: budget spent, stopping", doing=True)
         return "budget"
       path, status = self.body.plan_frontier(self.blacklist)
       if status == "ok":
@@ -2669,12 +2712,12 @@ class HubLifecycle:
       if status == "no-frontiers" or strikes >= STRIKES_TO_FINISH:
         self.floor_explored = True
         self._occur("task_complete", "explore")
-        self._say(f"EXPLORE done ({status})")
+        self._say(f"EXPLORE done ({status})", doing=True)
         return status
     if self.needs_charge:
       self._say("EXPLORE -> GO_CHARGE (battery low)")
       return "battery"
-    self._say("EXPLORE: the run's time is up")
+    self._say("EXPLORE: the run's time is up", doing=True)
     return "time"
 
   def go_charge(self) -> bool:
@@ -2707,7 +2750,8 @@ class HubLifecycle:
       # ⚠ PLUGGED IN ALREADY, IT GOES STRAIGHT ON (#654): a run's end leaves
       # it so, and a walk to the standoff pulled the plug out to dock again.
       # ⚠ NOT `GO_CHARGE -> CHARGE`: the site counts a row per approach.
-      self._say(f"CHARGE: still plugged in at {self.battery.fraction:.0%} -- carrying on")
+      self._say(f"CHARGE: still plugged in at {self.battery.fraction:.0%} -- carrying on",
+                doing="CHARGE: still plugged in -- carrying on")
       return True
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
@@ -2737,7 +2781,7 @@ class HubLifecycle:
       if tried == NOT_SEEN or redocked or self.body.charging():
         return False
       redocked = True
-      self._say(f"GO_CHARGE again from the standoff -- it never got in: {tried}")
+      self._say(f"GO_CHARGE again from the standoff -- it never got in: {tried}", doing=True)
       return True
 
     while True:
@@ -2745,7 +2789,7 @@ class HubLifecycle:
         # ...nor a leg of the trip begun past the run's end (#654): a retry,
         # a search, a spin. The next run's mind asks again
         self.charge_failure = "this run's time was up"
-        self._say(f"GO_CHARGE stopped: {self.charge_failure}")
+        self._say(f"GO_CHARGE stopped: {self.charge_failure}", doing=True)
         return False
       if (self.peers and free and switched < MAX_STATION_SWITCHES
           and (held := self._bay_holder(sx, sy, seat)) is not None
@@ -2754,7 +2798,7 @@ class HubLifecycle:
         named = self.peer_at(held[0], held[1])
         who = named[0] if named is not None else "another robot"
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
-        self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one")
+        self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one", doing=True)
         self._remember(f"{who} was at the charging station I needed; I went on to the "
                        "nearest free one")
         sx, sy, hd = self.body.charge_standoff()
@@ -2795,7 +2839,7 @@ class HubLifecycle:
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
         # (rooftop's `chargeOutcome`): this attempt's one outcome comes after
         self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
-                  "station's tags decide")
+                  "station's tags decide", doing=True)
         tried = yield from self.body.dock_routine()
         if tried != NOT_SEEN or self.body.charging():
           if dock_again():
@@ -2845,15 +2889,15 @@ class HubLifecycle:
         "" if tried is None else "; the station was not in sight from there") + (
         "" if blocked is None else f" -- {self.held_for(blocked, holder[3], 'it')}")
       # ⚠ NOT `GO_CHARGE: ` for the run's end: the site counts that a failed attempt
-      self._say(f"GO_CHARGE{' stopped' if self._hour_up else ''}: {self.charge_failure}")
+      self._say(f"GO_CHARGE{' stopped' if self._hour_up else ''}: {self.charge_failure}", doing=True)
       return False
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
       self.charge_failure = f"no charge contact ({tried})"
       self._say(f"GO_CHARGE: {self.charge_failure}",
-                detail=self.body.charge_trace())
+                detail=self.body.charge_trace(), doing=True)
       return False
-    self._say("GO_CHARGE -> CHARGE (plugged in)")
+    self._say("GO_CHARGE -> CHARGE (plugged in)", doing=True)
     return True
 
   def _search_routine(self) -> Routine:
@@ -2900,7 +2944,7 @@ class HubLifecycle:
              and self.data.time - t0 < timeout):
         if self._hour_up:
           self._say(f"CHARGE: the run's time is up at {self.battery.fraction:.0%} -- "
-                    "my plug stays in")
+                    "my plug stays in", doing="CHARGE: the run's time is up -- my plug stays in")
           if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
           return
@@ -2909,7 +2953,7 @@ class HubLifecycle:
           # contact dropped: plug in again once, then give up on this attempt
           yield from self.body.redock_routine()
           if not self.charging_now:
-            self._say("CHARGE: the plug came out")
+            self._say("CHARGE: the plug came out", doing=True)
             self._bank(scoring.score_charge(self, before))
             return
     finally:
@@ -2917,7 +2961,8 @@ class HubLifecycle:
       self.body.docked = False
     self.charge_cycles += 1
     self._occur("task_complete", "charge")
-    self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off")
+    self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off",
+              doing="CHARGE complete -- backing off")
     # ...⚠ AND NO ROW FOR ONE THAT HELD NO MOMENT (#654, above too): plugged in
     # already and full, 0 Wh in 0 s reads as a charge that failed
     if self.data.time > t0:
@@ -2926,7 +2971,7 @@ class HubLifecycle:
     if self.body.charging():
       # ...said as the run's own unplug says it: unsaid, a charge's end that
       # left the plug in read as one that took it out (#703)
-      self._say(UNPLUG_FAILED)
+      self._say(UNPLUG_FAILED, doing=True)
 
   def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
     """The plug out by hand before the body goes anywhere (#654): a run's end
@@ -2937,10 +2982,11 @@ class HubLifecycle:
     catch holds, and the walk stalls (#703)."""
     if not self.body.charging():
       return
-    self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}")
+    self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}",
+              doing="CHARGE: unplugging")
     yield from self.body.undock_routine()
     if self.body.charging():
-      self._say(UNPLUG_FAILED)
+      self._say(UNPLUG_FAILED, doing=True)
 
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))
@@ -3002,7 +3048,7 @@ class HubLifecycle:
                                       t=float(self.data.time))
           if closed is not None:
             result["task_id"] = closed.id
-            self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+            self._say(f"TASK {closed.id} {closed.state}: {closed.description}", doing=True)
       self.errand_results.append(result)
       if died:
         self._failed_by_death = "" if self._after_true_death() else errand.name
@@ -3062,7 +3108,7 @@ class HubLifecycle:
              "completed": 0, "steps": [], "ok": False,
              "error": f"{type(e).__name__}: {e}"}
       self._say("PROCEDURE FAILED: something went wrong",
-                detail=run["error"])
+                detail=run["error"], doing=True)
     # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
     # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
     # names no line of the source, and the step's own reason was on no
@@ -3095,7 +3141,7 @@ class HubLifecycle:
               f"{run['completed']}/{run['total']} steps"
               + (f", {read} test{'' if read == 1 else 's'} read false" if read else ""),
               detail="; ".join(s["trace"] for s in run["steps"]
-                               if s.get("ok") and s.get("trace")))
+                               if s.get("ok") and s.get("trace")), doing=True)
     # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
     # #227, #264): its locals are its readout, and where it stopped and why
     # is the only way it can fix one. A house program's outcome is its
@@ -3108,6 +3154,10 @@ class HubLifecycle:
       if is_proc or run.get("locals"):
         for line in procedure_outcome(program.name, run):
           self._remember(line)
+        # ...a fall it stopped at said in its line (#671): the fall's row
+        # says so, and the fall says nothing more (#707)
+        if any(step.get("fell") for step in run["steps"]):
+          self._fall_told_by("run")
       elif died:
         self._remember(f"dying cut short {errand.name}")
     return {"procedure": run,
@@ -3199,7 +3249,7 @@ class HubLifecycle:
       closed = self.tasks.resolve(errand.task_id, verdict,
                                   t=float(self.data.time))
       if closed is not None:
-        self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+        self._say(f"TASK {closed.id} {closed.state}: {closed.description}", doing=True)
 
   # ---- the visitor channel (issue #16) -------------------------------------
 
@@ -3392,6 +3442,8 @@ class HubLifecycle:
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
     whose = self._whose_start(pose)
+    self._fall_read()                     # ...a get-up the warp ends (#707)
+    self._close_fall("reset")
     self.body.start_at(*pose)
     # ...on no map (#572, Ben's call): put right at its start, a belief is
     # pulled back onto the askew map it kept (Ben's reset of Rowan on 10-08
@@ -3441,10 +3493,11 @@ class HubLifecycle:
       # and "I waited and got up" are two different things to have believed
       # about your own life. The death line above it survives either way --
       # that is what dying costs (Evaluation.md §6).
-      self._say(f"UP again after {dead_s:.0f} s down -- back at "
-                + (f"{whose}'s start pose (another robot was on mine)"
-                   if whose else "the start pose")
-                + " with a full pack and no map (nobody came; the world stood me up)")
+      start = (f"{whose}'s start pose (another robot was on mine)" if whose
+               else "the start pose")
+      self._say(f"UP again after {dead_s:.0f} s down -- back at {start} with a full "
+                "pack and no map (nobody came; the world stood me up)",
+                doing=f"UP again after {dead_s:.0f} s down -- back at {start}")
       self._remember(f"stood back up on my own after {dead_s:.0f} s down: {MAP_GONE}")
     else:
       self._say(f"ADMIN {by} reset me -- back at "
@@ -3455,6 +3508,10 @@ class HubLifecycle:
       self._remember(f"reset by {by}" + (f" after {dead_s:.0f} s dead"
                                          if was else " while still awake")
                      + f": {MAP_GONE}")
+      # ...an operator's line, never the other robot's to read (#709), and
+      # what it read before is no longer so: the robot is where it starts,
+      # as at a run's start, and has said nothing since
+      self.doing = ""
     self._emit(event)
     # ...and the map hears it (issue #348), with WHO as its kind -- and the
     # run its death ended, failed, as when the stand-up closed one (#671)
@@ -4341,7 +4398,8 @@ class HubLifecycle:
     now = self.dead is None and not decision.action.startswith(PROCEDURE_PREFIX)
     when = (f"graded now, before this answer's {decision.action}" if now
             else "graded once everything queued has run")
-    self._say(f"DONE {task.id}: {when} -- {task.description}")
+    self._say(f"DONE {task.id}: {when} -- {task.description}",
+              doing=f"DONE {task.id}: {task.description}")
     # ...and History says it (#629): said to the log alone, a grade that came
     # 37 s after its job's take read as another job's
     self._remember(f"said done on {_job_named(task.id, task)}: {when}")
@@ -4354,10 +4412,10 @@ class HubLifecycle:
     task_id, self._grade_pending = self._grade_pending, ""
     task = self.tasks.get(task_id) if self.tasks is not None else None
     if task is None or task.state != "active":
-      self._say(f"GRADE {task_id}: no longer held")
+      self._say(f"GRADE {task_id}: no longer held", doing=True)
       return
     if self._fell_holding(task_id):
-      self._say(f"GRADE {task_id}: a fall ended it -- graded as its hold ends")
+      self._say(f"GRADE {task_id}: a fall ended it -- graded as its hold ends", doing=True)
       return
     yield from self._grade_hands_routine(task)
 
@@ -4419,7 +4477,7 @@ class HubLifecycle:
     else:
       at_call = module.measure(self.model, self.data, prop)
       watch.hold()
-      self._say(f"GRADE {task.id}: holding {module.HOLD_S:.0f} s, standing clear")
+      self._say(f"GRADE {task.id}: holding {module.HOLD_S:.0f} s, standing clear", doing=True)
       try:
         while float(self.data.time) - t0 < module.HOLD_S:
           yield self.body.STILL
@@ -4480,15 +4538,17 @@ class HubLifecycle:
     grader reads it, the hold begun, History told at the fall."""
     from pluggybot.economy.tasks import KINDS
     module = _hand_grader(HAND_JOBS[KINDS[task.kind].task])
+    self._fall_read()
     t0 = float(self.data.time)
     self._fallen[task.id] = (t0, module.measure(self.model, self.data, task.target),
                              t0 + module.HOLD_S)
     watch.hold()
     self._say(f"TASK {task.id}: I fell -- a fall fails the try, so the job ends here; "
-              f"graded once I am up, {module.HOLD_S:.0f} s on at the least")
+              f"graded once I am up, {module.HOLD_S:.0f} s on at the least", doing=True)
     self._remember(f"fell holding {_job_named(task.id, task)}: a fall fails the try, so "
                    f"the job ends here -- graded as things stand once I am up, "
                    f"{module.HOLD_S:.0f} s on at the least")
+    self._fall_told_by("job")
 
   def _fall_graded(self, task_id: str) -> None:
     """A job a fall ended, graded as its hold ends (`_fall_step`); settled
@@ -4520,6 +4580,91 @@ class HubLifecycle:
     watch = self._job_watches.get(task_id)
     return task_id in self._fallen or (watch is not None and _fell_unheld(watch))
 
+  def _fall_row_step(self) -> None:
+    """Every fall the body's own watch counts (`Body.falls`) is ONE `fall`
+    row (issue #707), sent as its get-up ends: stood again, or its robot
+    dead first -- or a reset, `Stuck` or the run's end first, each of which
+    closes it (`_close_fall`), the row sent in the run that saw the fall."""
+    if self._fall_open is None and self.body.falls == self._falls_rowed:
+      return
+    self._fall_read()
+    fall = self._fall_open
+    if fall is not None:
+      if self.dead is not None and not fall["dead"]:
+        self._close_fall("died")
+      elif self.body.posture != "getting_up":
+        self._close_fall("stood")
+
+  def _fall_read(self) -> None:
+    """A fall the body has counted since the last read opens its row: where
+    it fell and what it was doing (`_moment`), which fall of one struggle it
+    is as the `stuck` clock counts one (its clock already running as it
+    came, `_death_step`), and a hand job's `done` in its grade's hold, whose
+    verdict says the fall first (#701), as what tells the robot of it. Read
+    by every closer and teller first, so none depends on the hooks' order."""
+    falls = self.body.falls
+    if falls == self._falls_rowed:
+      return
+    self._close_fall("stood")               # ...one whose stand was never read
+    t = float(self.data.time)
+    again = self._down_since is not None and self._down_since < t
+    self._struggle = self._struggle + 1 if again else 1
+    self._falls_rowed = falls
+    held = any(self._holds(task_id) is not None and task_id not in self._fallen
+               and watch.holding for task_id, watch in self._job_watches.items())
+    self._fall_open = {"falls": falls, "fellT": t, "at": self._moment(),
+                       "truth": list(self.body.true_pose()), "belief": list(self.body.pose),
+                       "struggle": self._struggle, "dead": self.dead is not None,
+                       "told": "job" if held else None}
+
+  def _fall_told_by(self, who: str) -> None:
+    """The open fall told the robot of, in History, by `who`
+    (`protocol.FALL_TOLD`), as it tells it: the run whose verb or ask it fell
+    in (`run`, #671), a hand job's line at the fall (`job`, #701), the step
+    aside it ended (`aside`). The first to tell it stands."""
+    self._fall_read()
+    if self._fall_open is not None and self._fall_open["told"] is None:
+      self._fall_open["told"] = who
+
+  def _close_fall(self, ended: str) -> None:
+    """The open fall's `fall` row, its get-up ended as `ended` says
+    (`protocol.FALL_ENDINGS`): how far the get-up moved the body and the
+    belief, and the belief's error as it ended (a `drift` row's) -- and,
+    where nothing else told it, a robot alive at the fall and stood again
+    by its get-up, `FELL_LINE` in History. One a run's end sent its row for
+    and the next run carried on (`rowed`) owes its line alone. Nothing where
+    none is open."""
+    fall, self._fall_open = self._fall_open, None
+    if fall is None:
+      return
+    t, truth, belief = float(self.data.time), self.body.true_pose(), self.body.pose
+    told = fall["told"]
+    if told is None and ended == "stood" and not fall["dead"] and self.dead is None:
+      line = FELL_LINE.format(seconds=t - fall["fellT"])
+      self._say(f"FELL: {line}")
+      self._remember(line)
+      told = "line"
+    elif told is None and ended == "died" and self.dead["cause"] == "stuck":
+      told = "death"                        # ..."fell and could not get up"
+    if fall.get("rowed"):
+      return
+    (x0, y0, a0), (x1, y1, a1) = fall["truth"], truth
+    (u0, v0, b0) = fall["belief"]
+    pose, believed = wire_pose(truth), wire_pose(belief)
+
+    def deg(rad: float) -> float:
+      return round(math.degrees(math.atan2(math.sin(rad), math.cos(rad))), 1)
+    row = {"type": "fall", "robot": self.root, "t": round(t, 3), "falls": fall["falls"],
+           "fellT": round(fall["fellT"], 3), "seconds": round(t - fall["fellT"], 3),
+           "ended": ended, "struggle": fall["struggle"], "told": told, "at": fall["at"],
+           "after": {"pose": pose, "believed": believed},
+           "movedM": round(math.hypot(x1 - x0, y1 - y0), 3), "turnedDeg": deg(a1 - a0),
+           "beliefMovedM": round(math.hypot(belief[0] - u0, belief[1] - v0), 3),
+           "beliefTurnedDeg": deg(belief[2] - b0), **belief_off(pose, believed),
+           **({"cause": self.dead["cause"]} if ended == "died" else {})}
+    self.fall_rows.append(row)
+    self._emit(row)
+
   def _hold_of(self, task_id: str) -> float:
     """The hold `task_id`'s grade takes, s: its check's own `HOLD_S`."""
     from pluggybot.economy.tasks import KINDS
@@ -4548,7 +4693,7 @@ class HubLifecycle:
     entry = self._bank(verdict)
     closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
     if closed is not None:
-      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
+      self._say(f"TASK {closed.id} {closed.state}: {closed.description}", doing=True)
     self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
                         "ok": verdict.ok, "reason": verdict.reason,
                         "points": entry["points"] if entry is not None else 0})
@@ -4579,7 +4724,7 @@ class HubLifecycle:
     prop until a `done` that could only fail it (three booked all three of
     the counter's, 11-03)."""
     limit = task.limit_s
-    self._say(f"TASK {task.id}: out of time -- not graded within the {limit:.0f} s it allows")
+    self._say(f"TASK {task.id}: out of time -- not graded within the {limit:.0f} s it allows", doing=True)
     self._fail_held(task, f"not graded within the {limit:.0f} s the job allows")
 
   def _fail_held(self, task, why: str) -> None:
@@ -4992,13 +5137,13 @@ class HubLifecycle:
     target, k = task.target, task.secret.get("draw")
     area = jobs.area_of(target)
     if area is None or k is None or not area.present(self.model):
-      self._say(f"TASK {task.id}: this world has no {target} to set out", board=True)
+      self._say(f"TASK {task.id}: this world has no {target} to set out")
       return
     area.set_out(self.model, self.data, target, int(k), kind=task.kind)
     act = self._target_activity(target)
     if act is not None:
       act.renew(self.model, area.drawn(target, int(k)))
-    self._say(f"TASK {task.id}: the {target} is set out", board=True)
+    self._say(f"TASK {task.id}: the {target} is set out")
 
   def _worked_props(self) -> set:
     """The job targets whose things a robot is touching now (#559, #560;
@@ -5032,7 +5177,7 @@ class HubLifecycle:
         if target in worked:
           continue
         area.put_away(self.model, self.data, target)
-        self._say(f"the {target}'s things are put away: no job holds it", board=True)
+        self._say(f"the {target}'s things are put away: no job holds it")
 
   def restore_jobs(self) -> None:
     """After a restart (#559, #560): the world file carries each target's
@@ -5075,8 +5220,7 @@ class HubLifecycle:
     worked, out = self._worked_props(), []
     for prop, t in unseen:
       if prop in worked:
-        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved",
-                  board=True)
+        self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
         continue
       self._set_out_job(t)
       out.append(prop)
@@ -5118,7 +5262,7 @@ class HubLifecycle:
       return
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
-      self._say(f"TASK {task.id} expired: {task.description}", board=True)
+      self._say(f"TASK {task.id} expired: {task.description}")
     # ...and on a charge trip, away from the counter with its hands home, a
     # job it holds past the time it gives (#602): left to the loop's pass, a
     # 74-minute charge held t_0024 and its drawer 69 minutes past its limit
@@ -5133,7 +5277,7 @@ class HubLifecycle:
     if self.producer is not None:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh,
                                      busy=self._worked_props):
-        self._say(f"TASK {task.id} offered: {task.description}", board=True)
+        self._say(f"TASK {task.id} offered: {task.description}")
     # ...and what no job holds now put away (#560), where the world's
     # activities are
     if self.activities is not None:
@@ -5745,7 +5889,9 @@ class HubLifecycle:
                         pack_wh=self.claim_budget_wh) is None:
       return self._no_take(task.id, task, "the board refused it")
     self.claimed.append(task.id)
-    self._say(f"TASK {task.id} claimed: {task.description}")
+    # ...an act's claim IS the act, on an offer hidden from the robot it
+    # names (#228): never that robot's to read as this one's doing (#709)
+    self._say(f"TASK {task.id} claimed: {task.description}", doing=other is None)
     # ACTIVE from the claim: a job's work starts the moment the robot takes
     # it on -- writing the procedure is the work, and an act is done here.
     self.tasks.start(task.id, t=now)
@@ -5855,7 +6001,8 @@ class HubLifecycle:
     if call:
       self._emit({"type": "call", "t": round(float(self.data.time), 3),
                   "robot": self.root, "source": decision.source, **call})
-    self._say(f"DECIDE {decision.summary()}", detail=call_said(call))
+    self._say(f"DECIDE {decision.summary()}", detail=call_said(call),
+              doing=f"DECIDE {decision.shown()}" if decision.shown() else False)
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- but a FALLBACK KEEPS IT ONCE (#604): the mind did
     # not act on what it looked up, and dropped, the robot recalled the same
@@ -5981,7 +6128,7 @@ class HubLifecycle:
       walk_why = None
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
-        self._say(f"EXPLORE: heading for {decision.zone}")
+        self._say(f"EXPLORE: heading for {decision.zone}", doing=True)
         if not (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
           walk_why = self.drive_why(wx, wy)
           # ⚠ A WALK THAT ENDS IN ITS ZONE GOT THERE (issue #454): it aims
@@ -5990,10 +6137,10 @@ class HubLifecycle:
           # got there", and the robot took the room for one it could not
           # reach
           if in_zone(self.world, decision.zone, *self.body.pose_xy()):
-            self._say(f"EXPLORE: in {decision.zone}, short of its middle -- {walk_why}")
+            self._say(f"EXPLORE: in {decision.zone}, short of its middle -- {walk_why}", doing=True)
             walk_why = None
           else:
-            self._say(f"EXPLORE: never reached {decision.zone} -- {walk_why}")
+            self._say(f"EXPLORE: never reached {decision.zone} -- {walk_why}", doing=True)
       t0 = float(self.data.time)
       ended = yield from self.explore_routine(budget=DECIDED_EXPLORE_S,
                                               mark_done=False)
@@ -6112,6 +6259,10 @@ class HubLifecycle:
       "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
       "minded": self._minded, "downSince": self._down_since,
       "upSince": self._up_since, "fall": self._fall,
+      # ...and a get-up a run's end left going, its line owed (#707:
+      # `Keeper.finish` saves a world mid get-up, and the next run carries
+      # it on), and its struggle's falls so far
+      "fallOpen": self._fall_open, "fallStruggle": self._struggle,
       "decidedAt": (None if self._decided_at is None else list(self._decided_at)),
       "stoodStill": self._stood_still,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
@@ -6219,6 +6370,17 @@ class HubLifecycle:
       self.queued_row = row if row in self.event_map.rows else None
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
+    # ...and the body's fall count as its own restore put it back, read
+    # afresh, never as falls (#707) -- and a get-up a run's end left going,
+    # its row sent then, carried on where its body is back mid-way: its
+    # line the next stand's (`end`)
+    self._falls_rowed, self._fall_open = self.body.falls, None
+    self._struggle = (int(state["fallStruggle"]) if "fallStruggle" in state
+                      else int(self._down_since is not None))
+    kept = state.get("fallOpen")
+    if (kept is not None and in_place and int(kept["falls"]) == self.body.falls
+        and self.body.posture == "getting_up"):
+      self._fall_open = dict(kept)
     self.resumed = {"inPlace": bool(in_place), "why": why,
                     "exploreDeadline": state.get("exploreDeadline") if mapped else None,
                     "errand": state.get("errand"), "preset": state.get("preset", []),
@@ -6283,7 +6445,7 @@ class HubLifecycle:
           # can be out of time from the new clock's 0
           self._run_out(task)
           continue
-        self._say(f"TASK {task.id}: still mine after the restart")
+        self._say(f"TASK {task.id}: still mine after the restart", doing=True)
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")
         continue
@@ -6303,7 +6465,7 @@ class HubLifecycle:
     present = {self.root, *(p.root for p in self.peers)}
     for task in self.tasks.release_absent(present):
       self._say(f"TASK {task.id}: offered again -- whoever held it is not "
-                "in this world", board=True)
+                "in this world")
     return self.tasks.held_by(self.root)
 
   # ---- the loop ------------------------------------------------------------
@@ -6397,7 +6559,9 @@ class HubLifecycle:
       self._emit({"type": "procedure", "robot": self.root, "name": program.name,
                   "program": program.as_dict(), "t": round(t, 3),
                   "outcome": "aborted", "stopped": "stood_up"})
-    self._say(f"STOOD UP mid-errand: {errand.name} ended there")
+    # ...but never the errand of a robot before this one (a true death's)
+    self._say(f"STOOD UP mid-errand: {errand.name} ended there",
+              doing=not self._after_true_death())
     if self._after_true_death():
       return
     self._occur("task_failed", errand.name)
@@ -6542,7 +6706,7 @@ class HubLifecycle:
     # (issue #345 keeps the rest).
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
-        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart", board=True)
+        self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
       # ...and the board written as this day reads it (#602): a start-over
       # moves its deadlines and claims in memory, and a restart that carried
       # on before its next change read the old clock back
@@ -6551,9 +6715,20 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
+    # ...a get-up the run's end cut short is a row too (#707), as the run
+    # left it: a save may never carry it on (a start-over, a stop while
+    # paused). Where the world carries on (`Keeper.finish` saves it mid get-up)
+    # its line is the next run's, as it stands (`rowed`, `kept_state`).
+    self._fall_row_step()
+    fall = self._fall_open
+    self._close_fall("unfinished")
+    if fall is not None and self.continuing:
+      self._fall_open = {**fall, "rowed": True}
     return {
       "state": self.state,
       "aborted": aborted,
+      # Every fall its body counted, as the wire had each (issue #707).
+      "falls": list(self.fall_rows),
       # ...and the get-up that aborted it where nothing dies (#684, `Stuck`)
       "stuck": self.stuck,
       # A failed dock ended this run (issue #32) -- distinct from "aborted"
@@ -7160,15 +7335,23 @@ WAY_REFUSED = {"charging": "I am plugged in at my charging station",
 def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
   nothing else -- name, reported pose, state and the last line they
-  narrated of their OWN doing (`HubLifecycle.doing`: never the board's). Not their battery, points, goals, thoughts, reasons
-  or secrets: those are theirs, and a robot that could read them would not
-  need to infer them."""
+  narrated of what their body is doing (`HubLifecycle.doing`, #709: only a
+  line `DOING_KINDS` lists and its call marks, in its call's form). Not
+  their battery, points, hearts, goals, thoughts, their mind's reasons or
+  secrets: those are theirs, and a robot that could read them would not
+  need to infer them. (A walk's own words -- why it stopped short -- are
+  the body's, and are shown; a procedure's are its verbs alone.)"""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
-                "doing": other.doing[:120],
+                # ...and a dead body does nothing: its death until it stands
+                # up, whatever it says as it lies there (a run its death
+                # ended, the jobs a true death fails, a late answer's `done`)
+                # and across a restart, which brings `dead` back, not `doing`
+                "doing": (f"DEAD ({other.dead['cause']})" if other.dead
+                          else other.doing)[:120],
                 "dead": other.dead["cause"] if other.dead else None,
                 # ...and whether it is lying down to rest (issue #387): a
                 # posture anyone in the room can see, never a fall

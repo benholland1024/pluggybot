@@ -504,7 +504,10 @@ middle and its put-downs moved, 10 of 32 on walk2 and 0 on the carry walker
 (held out, 6 and 0); a third time, on walk2 alone (round 3: the cup brought
 down to its grip by a position move and set down from a stance turned 4 deg
 right, the plate taken from further off, brought back by a position move and
-eased before it is let go), 15 of 32 (held out, 11 of 32).
+eased before it is let go), 15 of 32 (held out, 11 of 32); a fourth (round
+4: the fork brought back off the pass in two pulls, the cup's pick tried
+again where its descent is held back on the lid), 16 of 32 (held out,
+19 of 32).
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

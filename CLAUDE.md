@@ -981,11 +981,13 @@ save a filmstrip PNG named after the script.
   flights a walker; at the middle none of 64), ⚠ brought down to it by
   `move_hand` (by `pull` it drifted onto the lid's rim), ⚠ takes the plate
   from 0.50 m and brings it back by `move_hand`, never `pull` (that far, a
-  pull bowed over the counter and fell), and ⚠ eases it before its let-go
-  (let go tilted, it dropped): `test_solutions`. ⚠ ITS BAR (24 of 32 over
-  the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2 at its
-  best, held out 11, the carry walker 0 (each miss: SimNotes; 14 with
-  #693's hand-over, every flight parted at its first walk with a piece).
+  pull bowed over the counter and fell), ⚠ eases it before its let-go (let
+  go tilted, it dropped), ⚠ brings the fork back in two pulls (one of 0.24
+  m or more bowed 31 deg, stood up out of it and fell, 6 of 21) and ⚠ tries
+  the cup's pick again where its descent is held back on the lid (every
+  such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32 over the tour,
+  a fall failing the try) IS NOT MET: 16 of 32 on walk2 (round 4), held
+  out 19, the carry walker 0 (each miss: SimNotes).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1930,7 +1932,8 @@ save a filmstrip PNG named after the script.
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
   `vitals: rss` line every wall minute; at a RUNAWAY (`RUNAWAY_MB_PER_MIN` 50
   for THREE samples, after a warm-up of five that NO PAUSED SAMPLE counts:
-  a camera's renderer, ~210 MiB at its first use, is a step) every thread's
+  the cameras' one renderer, 285 MiB at the first camera's first use, is a
+  step, and two again is Ben's call, #713) every thread's
   stack, then the largest
   allocations `TRACE_S` later; every end Python sees prints `vitals: exiting
   -- <why>`, so a process with no such line was killed. `RunawayRule` is pure
@@ -2249,11 +2252,13 @@ save a filmstrip PNG named after the script.
   `others` in the context is the PUBLIC surface (`lifecycle.others_context`) —
   never battery, points, goals, thoughts, reasons or secrets;
   `HubLifecycle.peers` is read by that and by NOTHING that decides. ⚠ ITS
-  `doing` IS THE ROBOT'S LAST OWN LINE, NEVER THE BOARD'S
-  (`HubLifecycle.doing`, `_say(board=True)`; `tests/test_table_job.py`):
-  both lifecycles narrate an offer's things set out, the first every offer
-  and expiry, and shown one of those the other robot took it for a claim
-  on the job (Observatory.md, the period of `loop-k4`). ⚠ `status` IS
+  `doing` IS THE LAST LINE THAT SAID WHAT THE ROBOT'S BODY IS DOING, IN ITS
+  CALL'S FORM, AND A LINE IS PRIVATE BY DEFAULT (#709; `_say(doing=)`,
+  `lifecycle.DOING_KINDS` the stated list a shown line begins as,
+  `Decision.shown`; Overseer.md §2c has the table; `tests/test_doing.py`
+  lists every kind, so a new one fails until classed): never a battery
+  level, points, hearts, the mind's reasons or what a procedure handed a
+  verb. ⚠ `status` IS
   UNTOUCHED: the wire's, a recording's only narration and the site's line
   under a portrait are every narrated line, the board's among them.
 - **Acts between robots are measured, and none is refused for its cost**
@@ -2330,7 +2335,18 @@ save a filmstrip PNG named after the script.
   so more cores do not move it. ⚠ THE TAG CAMERA RENDERS
   WITHOUT SHADOWS: under osmesa a 1280×720 home frame cost 1113 ms with its
   sixteen shadow-casting lights and 32 ms without
-  (`tests/test_render_context.py`).
+  (`tests/test_render_context.py`). ⚠ A MODEL'S TAG CAMERAS DRAW THROUGH
+  ONE RENDERER (#713; `tags._renderer_for`, `tests/test_shared_renderer.py`):
+  a renderer each, ~210 MiB under osmesa, the pair held four; every picture
+  is the same bit for bit through the one, in any order, a draw under its
+  lock. ⚠ IT IS CLOSED WITH ITS LAST USER (`TagDetector.close`; one
+  collected unclosed at the next draw, build or close, never inside the
+  collection): kept, the tests' bodies of many models would each hold one
+  in a worker. ⚠ AND WITH ITS OWN GL CONTEXT CURRENT (`tags._close`):
+  MuJoCo 3.10's close sends its deletes to whatever context is current, and
+  under osmesa another renderer's next picture came out wrong in 626,450 of
+  921,600 pixels. ⚠ Its key carries the process: a forked child builds its
+  own.
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step
@@ -2681,6 +2697,31 @@ save a filmstrip PNG named after the script.
   `stood_up`, `_failed_by_death`: heard at the death, its row held the one
   slot through it), and after a TRUE death the new robot hears nothing of it
   either (`_after_true_death`).
+- **Every fall the body counts is a `fall` row, and a fall nothing else
+  told is a line** (issue #707; `HubLifecycle._fall_row_step`,
+  `protocol.FALL_ENDINGS` / `FALL_TOLD`, protocol/README.md;
+  `tests/test_fall_rows.py`): sent as its get-up ends -- stood, its robot
+  dead, or a reset, `Stuck` or a run's end first, each of which closes it
+  -- with `at` (a death's `_moment`, read at the fall) and how far the
+  get-up moved the body and the belief. ⚠ THE TRUTH RIDES THE ROW ALONE. ⚠
+  ONE LINE (`FELL_LINE`), AND ONLY WHERE NOTHING ELSE TOLD THE FALL: the
+  line of a run it fell in (#671; a #58 program leaves none), a hand job's
+  line or a `done`'s grade (#701), a step aside's line, a `stuck` death's
+  -- each
+  teller marks the open fall AS ITS LINE SAYS IT (`_fall_told_by`: guessed
+  off a flag, `_in_errand` or `making_way`, a fall no line said reads as
+  told), a `done`'s grade as the fall comes (its verdict may follow the
+  stand): told twice, one fall reads as two. ⚠ PER FALL, AS THE BODY COUNTS
+  IT: a struggle's second fall is a row and a line of its own, the row's
+  `struggle` the `stuck` clock's own count (`_down_since` already running
+  as it came). ⚠ A RUN'S END SAVES A WORLD MID GET-UP (`Keeper.finish`): the
+  row is that run's, `unfinished` (a save may never carry it on: a
+  start-over, a stop while paused), and the open fall rides the save
+  (`fallOpen`, `rowed`), its line the next run's as it stands and never a
+  second row; a restore reads the body's count afresh, never as falls. ⚠
+  Every closer and teller reads the count first (`_fall_read`), or a reset
+  in the step a fall is counted reads as "got up again 0 s later"; and a
+  warp ends a get-up (`_stand_up`, `unclip`), never "got up again".
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md): a task never carries its own payout
   (`Task.create` refuses a kind with no evaluator). The wire may carry
