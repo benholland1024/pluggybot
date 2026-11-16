@@ -552,13 +552,54 @@ sixteen `castshadow` lights at MuJoCo's default 4096 `shadowsize`, sixteen
 16-megapixel depth passes a look. A wrong turn worth keeping: timing inside
 the container found "fast" and "slow" GL contexts, and the fast ones were
 contexts whose shadow framebuffer had failed to create; MuJoCo then renders
-without shadows and says nothing. **What is true now:** `TagDetector` clears
-`mjRND_SHADOW` and `mjRND_REFLECTION` on its own scene, and `update_scene`
-keeps the flags (`tests/test_render_context.py`). A tag decode thresholds
-gray levels and a real camera has no shadow pass, so nothing hardware has is
-lost; the viewer and the filmstrips keep their shadows. The site's clock
+without shadows and says nothing. **What is true now:** the detectors'
+renderer (one a model since #713, "One renderer for the robots' cameras")
+has `mjRND_SHADOW` and `mjRND_REFLECTION` cleared on its scene, and
+`update_scene` keeps the flags (`tests/test_render_context.py`). A tag
+decode thresholds gray levels and a real camera has no shadow pass, so
+nothing hardware has is lost; the viewer and the filmstrips keep their
+shadows. The site's clock
 follows the stream's measured pace, so a world that cannot hold real time
 plays smoothly slow rather than stop-and-go.
+
+## One renderer for the robots' cameras (#713)
+
+A humanoid decodes tags off two cameras, each through a `TagDetector`: the
+colour imager (`spot`, `watch`, the charge's looks) and the navigation
+camera (the walking look, `find`, the lost search). Each detector built a
+`mujoco.Renderer` of its own at its first use -- a GL context, MuJoCo's
+`MjrContext`, the offscreen buffers -- about 210 MiB under osmesa, so the
+served pair held four renderers of one model at one size, drawn one at a
+time on the physics thread. **What is true now:** every detector of one
+model and picture size draws through one renderer (`tags._renderer_for`),
+kept beside a count of its users and closed with the last
+(`TagDetector.close`; a detector collected unclosed releases its use
+through a finalizer). Kept without the count, the tests' bodies of many
+models would each hold a renderer alive in a worker
+(`tests/test_shared_renderer.py`). A draw is `update_scene` and `render`
+back to back under one lock, and nothing of one camera's picture carries
+into the next: on the served pair under osmesa, each of the four cameras'
+pictures came out the same bit for bit through the one renderer as through
+a renderer of its own, in the order built, reversed and interleaved, at
+three placings of the pair, and so did every decode; the pair's committed
+recording flew line for line the same, and `determinism_spike.py --pair`
+traced the same day (2026-11-16). Measured there, the
+pair's four cameras cost 306 MiB over the built pair where they cost 946:
+the first camera 285 (the renderer, the AprilTag detector and the process's
+first GL context), each other camera 0-10 at its first picture where each
+had cost 215-224, and a picture the same 21-27 ms. ⚠ A renderer is closed
+with its own GL context current (`tags._close`): MuJoCo 3.10's
+`Renderer.close` frees the context and then the `MjrContext`, whose
+deletes go to whatever context is current, and under osmesa a renderer
+closed while another's was current left that other's next picture wrong in
+626,450 of its 921,600 pixels (the GTX's EGL drew it unchanged). ⚠ One
+whose last user was collected unclosed is closed at the next draw, build or
+close, never inside the collection: a collection runs at any allocation,
+between another renderer's context made current and its draw included, and
+a close there leaves that draw with no context. ⚠ The key carries the
+process: a forked child inherits the model object, id and all, and builds
+its own renderer, as no GL context survives a fork (forked from a process
+holding one, the GTX's EGL took the parent down at its next close).
 
 ## The physics thread was four-fifths bookkeeping (rooftop-media-2026 #296, the profile)
 
@@ -7846,11 +7887,12 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), three times, and has not met it. What developing it took, each
-measured on the loops' pods (AMD EPYC 7B13 and 7K62, Xeon Gold 6138,
+below), four times, and has not met it. What developing it took, each
+measured on the loops' pods (AMD EPYC 7B13, 7K62 and 7763, Xeon Gold 6138,
 osmesa, each draw its own noise; rows in
-`~/pluggybot-training/loop-1113/l4-shelf/` and, round 3's,
-`~/pluggybot-training/loop-1114/n4-pass/`):
+`~/pluggybot-training/loop-1113/l4-shelf/`, round 3's in
+`~/pluggybot-training/loop-1114/n4-pass/` and round 4's in
+`~/pluggybot-training/loop-1115/m6-pass4/`):
 
 - **A carried piece hangs under the pass's top.** The carry pose holds the
   cup's grip at 0.89 m and the plate's at 0.865, 0.23-0.26 m ahead of the
@@ -8022,7 +8064,7 @@ osmesa, each draw its own noise; rows in
   over the tour, a fall failing the try, on walk2 and on the carry walker,
   one pod, then 32 held-out draws each, sealed by the frozen commit), and
   read twice on one pod (an AMD EPYC 7B13, osmesa), then a third time on
-  another (an AMD EPYC 7K62):
+  another (an AMD EPYC 7K62) and a fourth on another (an AMD EPYC 7763):
   - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
     0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
     (walk2's bar and held-out draws, then the carry walker's): the cup let
@@ -8086,6 +8128,28 @@ osmesa, each draw its own noise; rows in
     The tally the first two readings were read by takes a piece's first
     let-go. Read that way, this reading's first misses are a put-down 8 and
     13, a pick-up 6 and 4, a carry 1 and 1, and a fall 2 and 3.
+  - At a108b1c (round 4, below: the fork brought back in two pulls, the
+    cup's pick tried again where it is held back), on walk2: 16 of 32;
+    held out (sealed by a108b1c), 19; each laid in 416-520 s. On the same
+    pod and draws, bc07d5e's reference on round 4's tree laid 14 of 32.
+    The first piece not laid in each flight (the bar's draws, then the
+    held-out): the lay 8 and 6 (a cup 3-5 cm off 5 and 4, a fork 3 cm off
+    or let go over the table 3 and 2); the carry 4 and 6 (a plate slid off
+    carried 2 and 2, the cup let go 1.05-1.1 m up by the hand-over after its
+    pull-back ran out of reach 1 and 2, a fork slipping in the jaws at the
+    hand-over or on its second pull 1 and 2); a fall 2 and 0, both the
+    plate's (its `move_hand`
+    pull-back took a posture at its start and the pelvis came 0.26 m toward
+    the pass, a flight the reference before fell on too; and its put-down's
+    reach after the approach's last turn of 14 deg); the grip 1 and 1 (a cup
+    knocked over at its pick, its tag gone from the retry's look); the walk
+    1 and 0 (the plate's walk walled in 1.4 m short). Beside the reference
+    before on the same draws (its 14: the lay 8, the grip 4 -- each a cup
+    whose descent was held back on its lid -- the carry 4, a fall 1, the
+    walk 1), the retry took back 3 of those 4 picks, and no fork fell in
+    either (bc07d5e's two fork falls on these draws in round 3's reading did
+    not come on this tree). The retry fired 9 times in the 64 flights and
+    lost 2: a cup knocked over at the first descent.
 - **What round 3 left, measured beside its reading** (not in the
   reference; round 3 ended with the reading):
   - **The fork's pull-back as a fixed length** from where its hand gripped
@@ -8099,14 +8163,65 @@ osmesa, each draw its own noise; rows in
     3 times, the first miss in only one, now that the walk to the standoff
     is not insisted on. The legs' evidence for Ben's call 5 stands (above),
     and it could buy at most 1-3 places in 64.
-  - **Named, not measured:**
-    - the put-downs brought down by a position move from the hover, as the
-      cup's pick is (the lay is 22 of the reading's 38 misses, and the force
-      move down re-poses);
-    - the cup's hover corrected when it lands short of the middle (its tag
-      is on its lid, under the hand there);
-    - the plate's tilt in its pinch;
-    - the approach's lateral error at the table.
+  - **Named, not measured:** the plate's tilt in its pinch; the approach's
+    lateral error at the table (round 4 measured the other two, below; it
+    names the plate's pull-back in two moves, its one 0.26-0.27 m
+    `move_hand` having fallen as the fork's pull did; the fork's midpoint
+    taken off its grip, where 0.33 m holds only for the grips flown,
+    0.39-0.47 m out; the retry's own failures, none flown -- all 35 false
+    descents read held back, all 12 moves up arrived, every retry's reach
+    reached -- guarded as the first pick's are; and the self-filter).
+- **Round 4** (the loop of 11-15/16; `~/pluggybot-training/loop-1115/m6-pass4/`,
+  one pod, an AMD EPYC 7763, osmesa, each draw its own noise, dev draws from
+  3000 up; the tree carried #693's hand-over and #699's rule):
+  - **The fork's falls come out of a bow its one pull-back took.** On 40 dev
+    places the reference as it stood laid 20 and fell twice, and on 64 fork
+    legs alone from the tour it fell 4 times: every fall in the fork's pull
+    back off the pass, as were all of round 3's reading's. A pull of 0.24 m
+    or more (the grip 0.45 m out or further) fell in 6 of 21, a shorter one
+    in none of 79: it took a 0.55 rad bow with a 20 cm crouch for its way,
+    then, its arm missing, stood up out of it within 0.3 s, the hand reading
+    0-10 N, and the pelvis came 0.26-0.33 m toward the pass as the robot
+    went over. Brought back in two pulls, the first stopping at 0.33 m
+    (`PASS_FORK_MID`), each half's posture reaches both its ends standing:
+    on the fork leg alone, one fall in 64 -- none of the 13 gripped 0.45 m
+    out or further; the one, a second pull of 0.11 m whose feet moved --
+    where one pull fell 4 times in 64. It laid no more forks for it: 36,
+    the one pull's 39, what the rest lose being the walk's -- a fork
+    slipping in the jaws at its hand-over, tilted about 25 deg (10 and 7),
+    and a walk walled in by the fork it carries, "no route" 4.4-4.8 m
+    short (11 and 7; the self-filter, Ben's call 5, above).
+  - **#699's rule A does nothing for them** (a gripping hand also giving up a
+    posture that comes while it reads past 40 N; flown as a reading on a
+    scratch tree, the gate's two lines): 39 of the 40 places were the
+    base's flight for flight, both falls among them -- the hand reads no
+    load as those postures come; the 40th laid where the base's fork came
+    down.
+  - **Not the fork's levers:** brought back by `move_hand` it fell once
+    where the base fell twice, but 8 of 27 forks slipped in the jaws at the
+    hand-over (the base's 1); stood 3 cm nearer (its tag 0.41 m ahead), no
+    pull-back bowed, but the hand-over swept 19 of 50 forks off.
+  - **The cup's pick, tried again.** A descent held back on the lid lost the
+    pick in every one of round 3's 26 (the hover 0.8 cm or more off the
+    cup's middle). Held back, the hand now goes straight back up to its
+    hover -- a withdraw from the lid dragged the tipped cup off the pass's
+    edge once -- goes home, and the cup is looked at again and come down to
+    afresh: each of the 3 such picks in 40 dev places then came down within
+    0.4-0.7 cm of the middle and shut.
+  - **A put-down by one position move lays no better.** `move_hand` from the
+    hover aimed 3 cm under the top and stopped where the hand pushes down
+    past `axes.MOVING_N` (`until="right.fz"`, `below=-12`): 33 of 39 cups
+    were set on the top untilted -- but they came to rest where the base's
+    pull set them, flight by flight, and once a re-pose at the bottom
+    dragged one 6 cm and dropped it; with the fork's `move_hand` pull-back,
+    those 39 places laid 12 (the base 20 of 40). A `move_hand` to 2 cm over
+    the top then a 4 cm pull turned the waist at the table all the same.
+    The cups' misses lie on a diagonal (left of the spot with away from the
+    robot, right with toward): read again at the hover with the arm out,
+    the card moved every hand 0.8-3.0 cm further left and 1.0-2.1 cm away,
+    flight by flight -- a bias `PASS_CUP_AT` already takes off -- and left
+    the spread as it was (on 32 cup legs each, within 2.5 cm 23 of 27 with
+    the look and 23 of 26 without; left sd 1.1 and 1.3 cm). Not taken.
 
 ## The arms keep off the other robot (issue #678)
 

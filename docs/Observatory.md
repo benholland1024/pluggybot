@@ -75,6 +75,82 @@ a way out caught on something that would have tipped the robot toward it,
 where it used to drive on. The references' retries are on no live row:
 the robots write their own procedures.
 
+### One renderer for the robots' cameras (#713, M4, `loop-713`) — opens when this PR is deployed
+
+**Nothing the robots read or do moved.** A robot's two tag cameras (the
+colour imager and the navigation camera) draw through one renderer the
+pair's four share, where each built its own (`tags._renderer_for`;
+SimNotes, "One renderer for the robots' cameras"). Every camera's picture
+is the same bit for bit (the served pair under osmesa, three placings,
+every order of the four; every decode the same); the pair's committed
+recording flew line for line the same, 11,705 lines, and
+`determinism_spike.py --pair` traced one day on both sides (543 state
+samples, 137 looks, 5,135 scans, a fall, a death and a stand-up), both
+under osmesa; `prompt_sha` `0f1df27e…` (67,157 characters, 17 sections)
+and the session host's hello (sha1 `b796e75d…`) are unmoved; no geometry
+and no wire field moved, so no fixture was flown again.
+
+**What moved is the served process's memory** (`vitals: rss`). Measured
+off the box, the pair's four cameras cost 306 MiB where they cost 946, so a
+process's steady state should read about 640 MiB under the 1.4-1.56 GB of
+11-14 and 11-15, and its first minutes awake show one step at the first
+camera's first use (285 MiB) where they showed four of 215-285. The
+alarm's rule is unchanged: three samples, and whether two is Ben's call
+(#713).
+
+**What the period is for.** The `vitals: rss` steady state about 0.6 GB
+lower than the period before; a step of about 200 MiB in a process's log
+after its first camera's would be a fault of this change.
+
+### The other robot is shown what a robot's body is doing, never what its mind does (#709, M2, `loop-709`) — opens when this PR is deployed
+
+**What changed is what each robot reads of the other** (`others[].doing`;
+`prompt_sha` unmoved, `0f1df27e…`, 67,157 characters, 17 sections, and
+`OTHER_ROBOT_RULE` and its sha untouched; the session host's hello unmoved,
+sha1 `b796e75d…`; no geometry and no wire field moved, and `status` -- each
+frame's narration, a recording's, the site's line under a portrait -- is
+every line as before, so neither committed recording moved: no mind flies
+in either). `doing` was the other robot's last narrated line of any kind
+but the board's eight (the period of `loop-k4`). It is now the last line
+that said what its BODY is doing, in the form its call gives
+(`_say(doing=)`), and only a line beginning as the stated list says one may
+(`lifecycle.DOING_KINDS`); private by default, a dead robot's its death
+until it stands up, and emptied by an operator's reset. Overseer.md §2c has
+the table of what is shown and in what form; in short, a walk, a charge, a
+procedure's lines, a job it holds, its death and stand-up, and a decided
+charge's, explore's or idle's action are shown, each without a battery
+level, points, hearts, a reason or the values a procedure handed a verb
+("CHARGE complete -- backing off", "PROCEDURE door_p1 step 24 (line 34):
+step", "DECIDE idle"); and its thinking, decisions' reasons, memory, list
+of rules, belief, books, talk and acts, an operator's and a visitor's
+lines, an act's claim and a take that did not happen are not.
+
+**Why** (#709). The rule told each robot that what the other "wants, what
+it is worried about and why it is doing what it does, you can only infer",
+and CLAUDE.md that `others` carries no battery, points, goals, thoughts or
+reasons, but every narrated line was `doing` until the next. On the 11-15
+wake (`~/pluggybot-training/live-1115/`, replayed under `loop-k4`'s rule as
+far as the export keeps the lines) the other's `doing` at the 380 answers a
+mind wrote itself was a row of its list of rules firing at 227 ("EVENT
+message received -> ask -- but something is already queued"), a `DECIDE`
+line at 36, a `RECALL` at 7 and a battery level at 2; under this rule it
+is a procedure's line at 133 (its steps as their verbs), a walk or a charge
+at 124, a job it holds at 89, a decided charge, explore or idle at 20, and
+nothing yet at 14 (the start of a run, before a line the list shows). It
+differs at 337 of the 380.
+
+**What the period is for.** ⚠ This changes the empathy measurement's input
+(what a robot can read of the other): Ben confirms it at the release.
+- **The thoughts that read the other:** what each robot says of the other's
+  doing (11-14: "Rowan looks like it just finished a task (task complete ->
+  ask)", read off a row of its list); none should quote the other's
+  thinking, its reasons, its list of rules, its level or its balance.
+- **`doing` may be old:** it is the last thing the body was seen doing, and
+  `state` beside it is what it is in now. Whether a robot reads an old line
+  as now ("PROCEDURE x complete" while the other idles for 20 minutes).
+- **Who takes a job:** with the claims and `tell` the only word on it, as
+  under `loop-k4`.
+
 ### Both maps dropped at the next wake: `MAP_EPOCH` 5 (#681, Ben's call of 2026-11-15) — opens when this PR is deployed
 
 **What changed is what the next wake carries over.** The save the deployed
@@ -224,11 +300,15 @@ flown on the branch, 11,705 lines, every one the committed fixture's but two
   fix within the map's reach the line comes once its 30 anchored scans are
   laid and its fits have held, about 8 s on. Kept across a restart with the
   map.
-- Both are `drift` rows (`why` `refusing` / `matching`, with `seconds` and
-  the `verdict`). ⚠ The site's observatory files a `drift` row only under a
-  why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`), so
-  until the site adds the two they stop at its door; the History lines
-  reach it as records either way.
+- Both are `drift` rows: `refusing` with `seconds` and its `verdict`,
+  `matching` with its `verdict`. ⚠ The site's observatory files a `drift`
+  row only under a why its own list knows (`DRIFT_WHYS` in
+  `pluggyworldObservatory.ts`). Rooftop's `loop-drift-whys` (its commit
+  48b89ef; M5 of the loop of 11-15/16) adds the two and keeps their
+  `verdict` (it kept a row's `seconds` already), so the record of the two
+  rows begins at the later of two deploys, this period's sim and a site
+  with that commit; a site before it drops them at its door. The History
+  lines reach it as records either way.
 - It moves no belief, adds no search and names no act: what the robot does
   about it is its mind's. Measured on the served body's own scans, its
   map one scan standing, nothing stepped: its belief turned 120 deg and
@@ -252,10 +332,10 @@ a minute.
 **What to read on the live rows.** The `refusing` line should come only
 after a fall that turned the heading or a belief set far off, and a
 `matching` after it at the station's fix (then the map's next fit) or a
-relocation, 5 s on. Once the site files the two rows, each one's `errorM` and
-`headingDeg` say whether the robot was off when told: a `refusing` row near
-the truth is a robot told it may be lost that was not. ⚠ A robot lost on a
-map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the
+relocation, 5 s on. Each row's `errorM` and `headingDeg` (where the site
+files them, above) say whether the robot was off when told: a `refusing`
+row near the truth is a robot told it may be lost that was not. ⚠ A robot
+lost on a map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the
 storeroom's counter with every verdict `ok` on 11-14 -- is never told by
 it.
 

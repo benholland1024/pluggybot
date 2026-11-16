@@ -157,12 +157,18 @@ def test_two_minds_have_two_memories_two_wallets_and_one_board(tmp_path):
 
 
 def test_what_a_mind_is_shown_of_the_other_is_the_public_surface_only():
+  """The other's pin and goal written through the lifecycle's own door, so
+  each is in its store AND narrated (`THOUGHT pin: ...`, issue #709), and
+  neither is anywhere in what this robot is shown."""
+  from pluggybot.mind.overseer import Decision
   a, b = stub_pair()
   a.body.start_at(0.5, 3.0, 0.0)
   b.body.start_at(3.0, 3.0, 0.0)
-  a.thoughts.pin("I prefer the pen", t=0.0)
-  a.thoughts.intend("draw a sun every day", t=0.0)
-  a._say("EXPLORE: heading for the kitchen")
+  a._say("EXPLORE: heading for the kitchen", doing=True)
+  a._reconsider(Decision(action="idle", pin="I prefer the pen",
+                         intend="draw a sun every day"))
+  assert "I prefer the pen" in a.thoughts.read("Top_of_mind.md")
+  assert any("THOUGHT pin: I prefer the pen" in line for line in a.log)
   shown = others_context(b)
   assert len(shown) == 1 and shown[0]["name"] == "Pluggy"
   assert shown[0]["robot"] == "pluggybot" and shown[0]["state"] == a.state

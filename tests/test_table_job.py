@@ -672,7 +672,8 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
   was shown as doing a job it had never taken (Observatory.md, the period
   of `loop-k4`). `status` is as it was, on the wire and under a portrait;
   the other robot is shown the last line that was the robot's OWN
-  (`HubLifecycle.doing`), whichever of the board's eight lines came since."""
+  (`HubLifecycle.doing`; since #709 only a line its call marks so),
+  whichever of the board's eight lines came since."""
   from types import SimpleNamespace
 
   from pluggybot.lifecycle import others_context
@@ -701,7 +702,7 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
   life.data.time = 5000.0
   the_board_says(" offered: ", "to set out", by=lambda: _sweep(life))
   assert shown() == ""
-  life._say("EXPLORE: heading for the kitchen")
+  life._say("EXPLORE: heading for the kitchen", doing=True)
   assert life.status == shown() == "EXPLORE: heading for the kitchen"
   # the table's offer sets its things out; a continuation leaves them under
   # a hand; the offer is claimed by a robot that is not here, and a restart
@@ -719,7 +720,7 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
 
   def a_restart_failed_one() -> None:
     for gone in life.tasks.announce_interrupted(t=float(life.data.time)):
-      life._say(f"TASK {gone.id} ({gone.kind}): interrupted by a restart", board=True)
+      life._say(f"TASK {gone.id} ({gone.kind}): interrupted by a restart")
   the_board_says("interrupted by a restart", by=a_restart_failed_one)
 
   def lapse() -> None:
@@ -727,7 +728,8 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
     _sweep(life)
   the_board_says(" expired: ", "things are put away", by=lapse)
   assert shown() == life.doing == "EXPLORE: heading for the kitchen"
-  # ...and each of the eight is marked the board's where the lifecycle says it
+  # ...and none of the eight is marked the robot's doing where the lifecycle
+  # says it (#709: a line is private unless its call marks it)
   import ast
   import inspect
 
@@ -740,9 +742,9 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
       for phrase in BOARD_LINES:
         if phrase in text:
           marked.setdefault(phrase, []).append(
-            any(k.arg == "board" and ast.unparse(k.value) == "True" for k in node.keywords))
+            any(k.arg == "doing" for k in node.keywords))
   assert set(marked) == set(BOARD_LINES), sorted(set(BOARD_LINES) - set(marked))
-  assert all(all(v) for v in marked.values()), {k: v for k, v in marked.items() if not all(v)}
+  assert not any(any(v) for v in marked.values()), {k: v for k, v in marked.items() if any(v)}
 
 
 #: The board's own lines, by a phrase of each as the lifecycle says it: an

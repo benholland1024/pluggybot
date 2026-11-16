@@ -79,9 +79,7 @@ def child(cfg: dict, trace_path: Path) -> None:
 
   def detect(self, data):
     # the same render the real method does, hashed before the decode
-    self.renderer.update_scene(data, camera=self.camera_name)
-    rgb = self.renderer.render()
-    img = _h(rgb)
+    img = _h(self.frame(data))
     found = real_detect(self, data)      # renders again: identical scene
     log(k="tag", t=round(float(data.time), 4), cam=self.camera_name, img=img,
         det=hashlib.sha256(json.dumps(found, sort_keys=True).encode()).hexdigest()[:16],

@@ -916,17 +916,52 @@ in the context) is the public surface and nothing else: name, reported pose,
 state, what it says it is doing, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines. Its `doing` is the last line
-the other narrated of its OWN doing (`HubLifecycle.doing`), never the
-BOARD's: an offer, an expiry, an offer's things set out (or not there, or
-left under a hand), things put away, a claim given back for a robot that is
-not in this world and a job a restart failed are narrated like any line and
-become the wire's `status` as ever (`_say(board=True)`), and are kept out
-of `doing`. Both lifecycles say the set-out line and the first says every
-offer, and shown as the other's `doing` they read as its claims
-(Observatory.md, the period of `loop-k4`, has the rows). `doing` is empty
-until a robot narrates a line of its own, at every start: neither it nor
-`status` is kept across a restart.
+whole context for the other's thought lines.
+
+**Its `doing` is the last line the other narrated that says what its BODY
+is doing** (`HubLifecycle.doing`, issue #709), the way anyone in the room
+could see it, and only in the form that call gives it
+(`_say(doing=True)` as said, or `doing="..."`): PRIVATE BY DEFAULT, and
+shown only where the line begins as the stated list says one may
+(`lifecycle.DOING_KINDS`; a decided walk's `DECIDE` line only as
+`Decision.shown`, its action and where). The wire's `status` is still
+every line.
+
+| what the other is shown | the lines (and the form) |
+|---|---|
+| a walk | `EXPLORE` (heading for a zone, how it ended; never "-> GO_CHARGE (battery low)", which only a pack run low says), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station; a decided explore's `DECIDE` line as its action alone ("DECIDE explore (store)"), and a decided idle's ("DECIDE idle") |
+| a charge | a decided charge's `DECIDE` line as its action alone ("DECIDE charge (free)": it says nothing more until it plugs in, waits or fails), `GO_CHARGE` (each leg; never "stranded", which only a pack run low says), `CHARGE` without its level or why: "CHARGE complete -- backing off", "CHARGE: unplugging", "CHARGE: still plugged in -- carrying on", "CHARGE: the run's time is up -- my plug stays in", "the plug came out", and the hand that could not take it out |
+| a procedure it runs | `PROCEDURE` step lines as the verb alone, never the values it was handed (a procedure may hand a verb what it read of its pack or wallet): "PROCEDURE door_p1 step 24 (line 34): step"; a step that read false or failed, and a stop, without their words (a check's words repeat the values: "seconds=731.9 is above 60.0"); how the run ended (complete, cut short, failed) |
+| a job it holds | `TASK` claimed (never an act's: its claim is the act, on an offer hidden from the robot it names), done or failed, ended by a fall, out of time, still held after a restart; `DONE` without when it is graded ("before this answer's ..."); `GRADE` (the hold, standing clear) |
+| its body's fate | `DEAD (cause)`, read off `dead` itself (`others_context`), never the death's line (its why, its hearts), and nothing else until it stands up (a run its death ended, the jobs a true death fails, a late answer's `done`; and across a restart, which brings `dead` back and not `doing`); `UP again after N s down -- back at` its start, without the pack; `STOOD UP mid-errand`. An operator's reset is never shown and empties `doing`: the robot is where it starts, as at a run's start |
+
+Everything else is the robot's own, by what it is: its mind (`THINK`,
+`DECIDE` and every reason and source, any other decision, `INTERRUPT`,
+`ANSWER`, `LEFT OUT`, `RECALL`,
+`READ`, `LOOK`), its memory and its rules (`THOUGHT`, `HISTORY`,
+`CONSTITUTION`, `EVENT`, `BELIEF`), its library (`PROCEDURE define`,
+`undefine`, a run refused), its books (`SCORE`, `GAVE`, `BOUGHT`, a heart,
+`HUNGER`, `ENERGY`, `SKIP`, `DEFER`, `DECLINE`, `TRUE DEATH`, an act's
+claim and close), its acts
+and its talk (`PREDICT`, `TELL`, `RATE`, `CHAT`, `VISITOR`, `TICKET`), an
+operator's (`ADMIN`, `PAUSED`, `RESUMED`, `STOPPING`), a take that did not
+happen, a job's note to its own mind ("nothing queued -- write a
+procedure"), the world's and the board's (`RESTART`, `PRESS`, which says
+the mouse's state; an offer, an expiry, things set out or put away, a claim
+given back) and the run's own (`mission ...`, `stopping at`, `STUCK`).
+`tests/test_doing.py` lists every kind one way or the other (a new kind
+fails it until someone classes it), narrates every call through `_say` as
+it is written and reads the other's whole context after each (and a form
+whose words its line no longer says fails it), and narrates the private
+things through the lifecycle's own methods. A walk's own words (why it
+stopped short) are the body's, and are shown; a procedure's name is shown
+as its errand's (#709's option 1 named `procedure:door_run26` a doing).
+
+`doing` may be old: it is the last thing the body was seen doing, and
+`state` beside it is what the robot is in now. It is empty until a robot
+narrates a line the list shows, at every start: neither it nor `status` is
+kept across a restart. Observatory.md's periods of `loop-k4` (the board's
+lines) and `loop-709` (this rule) have the rows.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork
