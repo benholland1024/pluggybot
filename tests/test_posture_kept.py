@@ -1,53 +1,104 @@
-"""#719's option 2: while one hand's gripper reads it holds something, a reach,
-a carry or a pull of the other hand takes no posture but the one the body is
-in, and says so where that one does not reach. Asked a rise out of a deep bow
-and a turn of the waist with the left jaws on a cupboard's lever, Rowan's
-right reach tipped the body over backward (door_p3, 6 of 48 flights at its two
-live draws, 3 of them stuck deaths); taken in stages, it fell as often."""
+"""#719's option 2: while one hand is out at its work and its gripper reads it
+holds something, a reach, a carry or a pull of the other hand takes no
+posture but the one the body is in, and says so where that one does not
+reach. Asked a rise out of a deep bow and a turn of the waist with the left
+jaws on a cupboard's lever, Rowan's right reach tipped the body over backward
+(door_p3, 6 of 48 flights at its two live draws, 3 of them stuck deaths);
+taken in stages, it fell as often."""
 import numpy as np
+import pytest
 
+from pluggybot.body import StubBody
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import reach as rc
-from pluggybot.body import StubBody
 from pluggybot.procedure import steps as st
 
 from test_hands import _bare, _bare_reach, _fly
 
+BOWED = (-0.22, 0.8, 0.0)
 
-def _holding(left=True):
+
+def _holding(left="hold", held=True):
+  """A bare reach bowed, its left hand in phase `left` -- out at its work
+  ("hold"), carried at its side ("carried") or home ("rest") -- its gripper
+  reading `held`."""
   r = _bare_reach()
-  r.posture = np.array([-0.22, 0.8, 0.0])
-  r.grippers["left"].holding = left
+  r.posture = np.array(BOWED)
+  r.phase["left"] = left
+  r.goal["left"] = None if left == "rest" else rc.HandGoal(np.array([0.4, 0.2, 0.8]))
+  r.grippers["left"].holding = held
   return r
 
 
-def test_a_reach_plans_only_in_the_posture_it_is_in_while_the_other_hand_holds():
-  for left in (True, False):
-    r = _holding(left)
-    asked = []
-    r._planned = lambda side, goal, approach, postures, flip: (asked.append(postures), (None, goal))[1]
-    assert not r.reach("right", rc.HandGoal(np.array([0.4, -0.1, 0.8])))
-    assert (asked[0] == ((-0.22, 0.8, 0.0),)) == left
-    assert asked[0] == rc.REACH_POSTURES or left
-    assert r.kept_by["right"] == ("left" if left else None)
+@pytest.mark.parametrize("left,held,verb,kept", [
+  ("hold", True, True, True),
+  ("hold", False, True, False),
+  ("carried", True, True, False),     # a piece carried at the side (#682) holds the body in nothing
+  ("rest", True, True, False),
+  ("hold", True, False, False),       # the loop's own reach, a charge's: never kept
+])
+def test_a_reach_plans_only_in_the_posture_it_is_in_while_the_other_hand_holds(left, held, verb, kept):
+  r = _holding(left, held)
+  asked = []
+  r._planned = lambda side, goal, approach, postures, flip: (asked.append(postures), (None, goal))[1]
+  assert not r.reach("right", rc.HandGoal(np.array([0.4, -0.1, 0.8])), refuse=verb)
+  assert asked[0] == ((BOWED,) if kept else rc.REACH_POSTURES)
+  assert r.kept_by["right"] == ("left" if kept else None)
 
 
 def test_a_carry_and_a_pull_take_no_other_posture_while_the_other_hand_holds():
   r = _holding()
   r.goal["right"], r.phase["right"] = rc.HandGoal(np.array([0.4, -0.1, 0.8])), "hold"
   r.grip_now = lambda side: (np.array([0.4, -0.1, 0.8]), np.eye(3))
-  planned = []
-  r.posture_for = r.path_for = lambda *a, **kw: planned.append(a) or (0.0, 0.0, 0.0)
+  asked = []
+  r.posture_for = r.path_for = lambda *a, postures=None, **kw: asked.append(postures) or BOWED
   r.force = {s: np.zeros(3) for s in hm.SIDES}
   assert r.carry("right", np.array([0.4, -0.1, 0.9]))
-  assert planned == [] and r.postures == [(-0.22, 0.8, 0.0)]
+  assert asked == [(BOWED,)] and r.postures == [BOWED]
+  # ...and one the posture it is in does not reach is refused, nothing moved
+  r.posture_for = lambda *a, postures=None, **kw: asked.append(postures) or None
   r.phase["right"] = "hold"
+  assert not r.carry("right", np.array([0.4, -0.1, 1.2]))
+  assert r.report["right"]["why"] == "out of reach" and r.postures == [BOWED]
+  # a pull takes none, and says whose grip kept it, pressed or not
+  r.phase["right"] = "hold"
+  r.force["right"] = np.array([0.0, 0.0, -100.0])
+  r.kept_by["right"] = None
   assert r.pull("right", np.array([0.0, 0.0, 1.0]), 10.0, 0.1)
-  assert planned == [] and "postured" not in r.pulls["right"]
+  assert len(asked) == 2 and "postured" not in r.pulls["right"] and r.kept_by["right"] == "left"
   # ...and with nothing held, as before
   r.grippers["left"].holding = False
   r.phase["right"] = "hold"
+  r.posture_for = lambda *a, postures=None, **kw: asked.append(postures) or BOWED
   assert r.carry("right", np.array([0.4, -0.1, 0.9]))
+  assert asked[-1] is None and r.kept_by["right"] is None   # (no `postures` passed)
+
+
+def test_a_carried_or_pulled_hand_plans_no_new_posture_while_the_grip_kept_it():
+  r = _holding()
+  at = np.array([0.4, -0.1, 0.8])
+  r.cmd = {"right": rc.HandGoal(at.copy(), None, 1.0)}
+  # ...a goal it does not reach in the test's time
+  r.goal["right"] = rc.HandGoal(at + [0.0, 0.0, 1.0], None, 1.0)
+  r.speed, r.q_cmd = {"right": rc.HOLD_SPEED}, {"right": np.zeros(len(hm.ARM))}
+  r.miss, r._off, r.phase["right"] = {"right": 0.0}, {"right": 0.0}, "carry"
+  r.self_model = type("SM", (), {"solve": staticmethod(
+    lambda side, pos, rot: (np.zeros(len(hm.ARM)), 2 * rc.REPLAN_M, 0.0))})()
+  planned = []
+  r.posture_for = lambda *a, **kw: planned.append(a) or (0.0, 0.0, 0.0)
+  r.pulls = {"right": {"start": at.copy(), "t": 0.0, "ways": [], "fixed": False}}
+  r.kept_by["right"] = "left"
+  for _ in range(int(3 * rc.REPLAN_S / 0.1)):
+    r._held("right", 0.1, at, None)
+  assert planned == []
+  # ...the value kept at the ask, never the gripper read again: a grip
+  # reading empty for an instant opens no posture change
+  r.grippers["left"].holding = False
+  for _ in range(int(3 * rc.REPLAN_S / 0.1)):
+    r._held("right", 0.1, at, None)
+  assert planned == []
+  r.kept_by["right"] = None
+  r._held("right", 0.1, at, None)
   assert len(planned) == 1
 
 

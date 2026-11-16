@@ -1102,10 +1102,12 @@ class Reach:
     #678), its way out and its way home from there keep off it: none that
     does, and nothing moves (`kept` says how) -- or, not `refuse`, the way
     out that comes least near it is taken (`_kept_off`). ⚠ NO OTHER POSTURE
-    WHILE THE OTHER HAND IS SHUT ON SOMETHING (#719's option 2,
-    `_other_holds`): only the one it holds."""
-    if self._keep(side):
-      postures = (tuple(float(v) for v in self.posture),)
+    WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
+    `keep`): only the one it holds -- a verb's reach, never the loop's own
+    (`refuse` False: a charge's)."""
+    kept = self.keep(side, refuse)
+    if kept is not None:
+      postures = (kept,)
     plan_, goal = self._planned(side, goal, approach, postures, flip)
     self.kept[side] = self.judged_home[side] = None
     if plan_ is None:
@@ -1294,7 +1296,7 @@ class Reach:
     return self._planner
 
   def posture_for(self, side: str, pos, rot=None, onward: bool = False,
-                  past=()) -> tuple | None:
+                  past=(), postures=None) -> tuple | None:
     """The least-bent posture (`CARRY_POSTURES`: the legs' and the waist's)
     from which `side`'s grip reaches `pos` -- turned to `rot`, or at any
     turn -- on the robot's model of itself as it would stand in each, its
@@ -1302,9 +1304,9 @@ class Reach:
     arm starting where it is and from `SEEDS`; or None if none reaches it.
     `onward`: a held hand going on, whose arm missed `pos` in the posture it
     holds -- another posture, from the arm as it is alone, and none of
-    `past`. ⚠ AS IT STANDS, NEVER A STATUE BALANCED AT ITS SOLES' MIDDLE: a
-    carry re-planned on one took the posture it held again, and ended out of
-    reach (#626, #627)."""
+    `past`; `postures`, those alone (`keep`). ⚠ AS IT STANDS, NEVER A STATUE
+    BALANCED AT ITS SOLES' MIDDLE: a carry re-planned on one took the
+    posture it held again, and ended out of reach (#626, #627)."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     lean, arms = self._lean(), self._arms()
@@ -1318,6 +1320,8 @@ class Reach:
     gone = {here} | {tuple(float(v) for v in p_) for p_ in past}
     order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
              else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
+    if postures is not None:
+      order = [p_ for p_ in postures]
     for posture in order:
       if not stands(sm, posture, q0) or out_of_reach(sm, side, pos, -LEAN_MOST_M):
         continue
@@ -1331,7 +1335,7 @@ class Reach:
           return tuple(posture)
     return None
 
-  def path_for(self, side: str, poses, rot=None) -> tuple | None:
+  def path_for(self, side: str, poses, rot=None, postures=None) -> tuple | None:
     """A posture (`CARRY_POSTURES`, the least bent first) from which `side`'s grip
     FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- or at each
     pose its own, where `rot` is a list -- the first
@@ -1344,7 +1348,8 @@ class Reach:
     load still brings. ⚠ A point
     reached from a fresh seed is not a path: the arm went up a lid's arc in
     one branch, and where only another reached on, it swung between them
-    and jerked the lid shut at 3.3 rad/s (#493)."""
+    and jerked the lid shut at 3.3 rad/s (#493). `postures`: those alone
+    (`keep`)."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     poses = [np.asarray(p, dtype=float) for p in poses]
@@ -1360,6 +1365,8 @@ class Reach:
     here = tuple(float(v) for v in self.posture)
     order = ([here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here]) if out \
       else CARRY_POSTURES
+    if postures is not None:
+      order = [tuple(float(v) for v in p_) for p_ in postures]
     lean, arms = self._lean(), self._arms()
     for posture in order:
       # ⚠ ...AND THE ROBOT AS IT STANDS, its model posed off its senses, in
@@ -1429,14 +1436,14 @@ class Reach:
     if len(rots) != len(ways) + 1:
       raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
                        f"not {len(rots)}")
-    if self._keep(side):
-      # ...none but the one it holds while the other hand is shut on something (#719)
-      posture = tuple(float(v) for v in self.posture)
-    elif ways or turns is not None:
+    # ...none but the one it holds while the other hand holds something (#719)
+    kept = self.keep(side)
+    only = {} if kept is None else {"postures": (kept,)}
+    if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
-      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots)
+      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, **only)
     else:
-      posture = self.posture_for(side, end, rot=r)
+      posture = self.posture_for(side, end, rot=r, **only)
     if posture is None:
       self.report[side] = {"why": "out of reach", "shortM": float(np.linalg.norm(end - h)),
                            "moved": 0.0, "seconds": 0.0}
@@ -1487,8 +1494,8 @@ class Reach:
     # it comes: a posture changed partway jerks what the hand holds -- and
     # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
     gripped = self.grippers[side].held()
-    posture = (None if (not gripped and self._pressed(self.force[side], force))
-               or self._keep(side)
+    kept = self.keep(side)
+    posture = (None if (not gripped and self._pressed(self.force[side], force)) or kept is not None
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved else None
@@ -1514,22 +1521,17 @@ class Reach:
     way, past `share` times its `ask`, of `PRESSED_ASK_N` at least."""
     return float(np.linalg.norm(read)) > share * max(float(ask), PRESSED_ASK_N)
 
-  def _other_holds(self, side: str) -> bool:
-    """Whether the other hand's gripper reads it holds something (#719's
-    option 2): then a hand takes no posture but the one the body holds."""
-    return self._holder(side) is not None
-
-  def _keep(self, side: str) -> str | None:
-    """`_holder`, kept by side as this hand's move is asked (`kept_by`)."""
-    holder = self._holder(side)
-    self.__dict__.setdefault("kept_by", {s: None for s in hm.SIDES})[side] = holder
-    return holder
-
-  def _holder(self, side: str) -> str | None:
-    """The other hand, where its gripper reads it holds something (#719's
-    option 2), else None."""
+  def keep(self, side: str, verb: bool = True) -> tuple | None:
+    """As a hand's reach, carry or pull is asked (#719's option 2): the
+    posture the body is in, where the other hand is out at its work (`out`)
+    and its gripper reads it holds something -- a verb's move, never the
+    loop's own (`verb`) -- else None; which hand held, by side, in
+    `kept_by`, which the move's posture changes on its way read. A piece
+    carried at the side (#682) holds the body in nothing."""
     other = "left" if side == "right" else "right"
-    return other if self.grippers[other].held() else None
+    held = verb and self.out(other) and self.grippers[other].held()
+    self.kept_by[side] = other if held else None
+    return tuple(float(v) for v in self.posture) if held else None
 
   def _standing_in(self) -> tuple:
     """The posture the body stands in as another is asked of it: the one it
@@ -1548,7 +1550,7 @@ class Reach:
     EITHER WAY: the table's cup is reached by an arm over the top, which leant
     the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
     plan bows deeper than it need -- out of its tags' view."""
-    if self.looks[side] >= LOOKS or self._other_holds(side):
+    if self.looks[side] >= LOOKS or self.kept_by[side]:
       return True
     self.looks[side] += 1
     sm = self._planner_model()
@@ -2156,7 +2158,7 @@ class Reach:
     there = False if settling else self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
     q, ep, er = sm.solve(side, c.pos, c.rot)
-    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed") and not self._other_holds(side)
+    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed") and not self.kept_by[side]
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`).
@@ -2321,7 +2323,7 @@ class Reach:
         # ...none while the hand reads a load, nor once one was given up
         # (`PRESSED_SHARE`, #699): it goes as far as its arm reaches
         pass
-      elif not self._other_holds(side) and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
+      elif not self.kept_by[side] and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
         st["planned"] = st["t"]
         # ...never one it has left this move: free to, two postures could take
         # turns, each switch a fresh wait, and the move never end out of reach

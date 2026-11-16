@@ -717,10 +717,10 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def posture_kept_by(self, side: str) -> str | None:
-    """The other hand -- "left" or "right" -- whose gripper read it held
-    something as this hand's last `reach_routine`, `move_hand_routine` or
-    `pull_routine` was asked, so that the body kept the posture it was in
-    (#719's option 2), else None."""
+    """The other hand -- "left" or "right" -- out at its work with its
+    gripper reading it held something as this hand's last `reach_routine`,
+    `move_hand_routine` or `pull_routine` was asked, so that the body kept
+    the posture it was in (#719's option 2), else None."""
 
   @abc.abstractmethod
   def arm_kept(self) -> dict | None:

@@ -506,6 +506,8 @@ def _bare_reach():
   # ...and no carry (#682): home is the rest; nor a stand waiting on one (#693)
   r.carry_q = {s: None for s in hm.SIDES}
   r.stand_home = False
+  # ...nor a hand whose grip keeps the body in its posture (#719)
+  r.kept_by = {s: None for s in hm.SIDES}
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
