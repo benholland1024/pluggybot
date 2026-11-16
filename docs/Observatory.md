@@ -19,7 +19,13 @@ characters, 17 sections, as on bab67ea), nor the session host's hello
 this way says what one stopped on its way always said -- "your left hand
 stopped short on its way: out of reach from how you truly stand, or pushing
 on something" -- and its hand is out where it stopped, as one stopped on its
-line in is. «PAIR AND STATION»
+line in is. The pair's committed recording is the same day: its fixture's
+command flown on bab67ea and with the stop alone, 11,705 lines the same line
+for line (the wall clock and the build aside), and the committed file the
+same; the gate stops a way out only where the stop alone does or later, so
+it flies that day too. The station's trials, the candidate against bab67ea:
+39 of 39 approaches docked and unplugged, 140 of 140 seats plugged in and
+unplugged, 16 of 16 lost near docked, each its flight exactly.
 
 **The change** (`Reach._update`, `_tipping`, `_tipped`, `_struck`;
 `reach.OUT_TIP_NM`, `OUT_TIP_S`; SimNotes, "A hand on its way out that
@@ -54,8 +60,18 @@ open jaw over the counter's edge, and stopped there, the reference's tilted
 retry bowed the robot onto the counter.
 
 **Measured** (one Vast pod, an AMD EPYC 7B12, each flight its own noise,
-against bab67ea; the loop of 11-16/17, P1; SimNotes has e1ee005's four
-arms). «MEASURED»
+against bab67ea; the loop of 11-16/17, P1; SimNotes has e1ee005's four arms
+and the gate's). #708's own flight no longer falls in a way out: 0 of the 8
+keys (6 on bab67ea), 1 of 16 at draws nothing had seen (6), as with the stop
+alone. Every stop in every reading came on a contact, the world's or the
+robot's own body's; the stop alone stopped once on nothing (the cube's
+set-out 38), which the gate lets walk on. Our hands check passes 453 of 576
+at set-outs 0-127 where bab67ea passes 421, with 9 falls for 11, no job
+worse; the tour's five jobs 134 for 135 with 2 falls for 3 (the cube's draw
+7); held out at 192-255 245 passes for 232 and 6 falls for 6 -- the door's
+221 new, its reference's retry's own, and a drawer's gone. The wake of
+11-15's own door and chest runs, flown at their live draws: none passed
+fewer, none fell more, and 7 falls went.
 
 **What to read on the live rows.** A fall inside a `reach` ("failed at step
 N (line L, reach) -- you fell on the way there"), Luca's `chest_run36`'s

@@ -9900,10 +9900,10 @@ between two of the robot's own parts, so `door_run31`'s stops on its own
 torso (above) read as stops in free air. Flown again with every stop's
 contacts -- the world's, the robot's own body's, a joint limit's, at its
 tick and in the 0.1 s before (`~/pluggybot-training/loop-1116/p1-708/`,
-`c/stoprec.py`) -- on bab67ea with the stop merged in, one stop of the
-stop alone's «N_M20_STOPS» over #708's flights, the wake's 53 runs and the
-hands check at set-outs 0-127 touched nothing at all: the cube's at
-set-out 38, at 32.43 s.
+`c/stoprec.py`) -- on bab67ea with the stop merged in, one stop of the stop
+alone's 183 over #708's flights, the wake's 53 runs, the hands check at
+set-outs 0-127 and 192-255 and the tour's five jobs touched nothing at all:
+the cube's at set-out 38, at 32.43 s.
 
 **The cube's: the body's own jolt.** Taken apart every physics step
 (`c/probe_steps.py`), on today's tree, which flies the same up to there:
@@ -9942,7 +9942,10 @@ its model of itself posed by its drivers' replies, its IMU's tilt and its
 waist's encoder, beyond `POSTURE_TOL` of it -- the way out stops once its
 moment has stayed past the line for 0.03 s running, its count begun again
 where the reading falls back and at every reach; in its posture, the first
-tick past the line stops it, as before.
+tick past the line stops it, as before. A transient with the body already
+within its posture's tolerance would still stop it on its first tick, and
+so would the arm's own swing there (#631's 11-16 N in free air, at a high
+shelf's height); over every reading below, none did.
 
 **Measured** (one Vast pod, an AMD EPYC 7B12, each flight its own noise,
 against bab67ea; four arms -- bab67ea, the stop alone (fe943347), held 0.03
@@ -9952,8 +9955,18 @@ past the line with its contacts and the true grip's travel,
 `c/stoprec.py`):
 - *Every stop with what it touched* (#708's flights, the wake's 53 runs,
   the hands check at set-outs 0-127 and 192-255, the tour's five jobs):
-  «STOPS»
-- *The gate's margin:* «MARGIN»
+  the stop alone stopped 183 ways out, 179 on the world, 3 on the robot's
+  own body (`door_run31`'s torso) and 1 on nothing (the cube's set-out 38);
+  keyed on the posture 165, 162 on the world, the same 3 on its own body
+  (held there, the body taking its posture: 62-78 N) and none on nothing.
+- *The gate's margin:* every run of an arm's ticks past 20 N m in bab67ea's
+  readings that recorded them -- #708's flights, the 53 runs, the hands
+  check at 32-127 and 192-255 -- where nothing stops one: 212, all but one
+  touching the world or the robot's own body, for 1 to 135 ticks (76 of them
+  one tick, 23 two), and the cube's at set-out 38 touching nothing, for 2
+  ticks. Keyed on the posture, over every reading, 203 runs: the same one
+  touched nothing, unstopped, and no other did. The hold's 3 ticks clear the
+  one transient read by one tick.
 - *#708's flight:* K4's eight keys 6 falls on bab67ea and none on any of
   the three others; draws 321-336 6, 1, 3 and 1 (the one, d329, late in
   the procedure's own lid pulls, as K13's fresh one).
@@ -9968,7 +9981,17 @@ past the line with its contacts and the true grip's travel,
   stop alone, the 7 falls go (`door_p1` three times, one of them stuck,
   `door_run31` once, `chest_run36` three times), none comes and no pass is
   lost.
-- *The hands check and the tour:* «BAR»
+- *The hands check and the tour:* bab67ea / the stop alone / keyed on the
+  posture, passes (falls): set-outs 0-31 115 (6) / 122 (5) / 122 (5); 32-127
+  306 (5) / 333 (2) / 331 (4); the tour 135 (3) / 134 (2) / 134 (2) (the
+  table 24, the chest 29, the drawer 30, the door 26 its fall gone, the cube
+  25 for 26, draw 7 as K13 flew it); held out at 192-255 232 (6) / 244 (6) /
+  245 (6). Keyed on the posture it gives back to bab67ea three of the stop
+  alone's flights at 32-127 -- cubes 46 (a fall) and 81 (a pass and a fall)
+  and the lid's 49 (a pass) -- each where a catch, or a jaw coming off the
+  counter it had pressed at 61-81 N, crossed the line for a tick or two
+  while the body still took its posture; and it passes the cube's 195 at
+  192-255, which the stop alone lost.
 
 ## Debugging workflow that worked
 
