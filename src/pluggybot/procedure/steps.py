@@ -626,7 +626,7 @@ def _spot(life, args: dict) -> Routine:
   got, bowed, seen, held = None, False, None, None
   for down in SPOT_GAZES:
     if down:
-      held = (yield from life.body.gaze_routine(down)) or held
+      held = yield from life.body.gaze_routine(down)
       bowed = True
     yield from life.body.hold_routine(SPOT_STILL_S)
     got = life.body.spot(int(tag))
@@ -660,11 +660,11 @@ def _bow_said(held: dict) -> str:
   reads it."""
   m = max(0.0, float(held["m"]))
   if held["bow"] <= 0.0:
-    return (f"something your LIDAR reads at your head's height stands {m:.2f} m in front of "
-            "your head, too near for you to bow at all")
-  return (f"something your LIDAR reads at your head's height stands {m:.2f} m in front of "
-          f"your head, so you bowed only {math.degrees(held['bow']):.0f} degrees of the "
-          f"{math.degrees(held['asked']):.0f} you would have")
+    return (f"your LIDAR reads something {m:.2f} m in front of your head, too near for you to "
+            "bow at all")
+  return (f"your LIDAR reads something {m:.2f} m in front of your head, so you bowed only "
+          f"{math.degrees(held['bow']):.0f} degrees of the {math.degrees(held['asked']):.0f} "
+          "you would have")
 
 
 #: `watch` waits this long at most for its first reading, s, looking every

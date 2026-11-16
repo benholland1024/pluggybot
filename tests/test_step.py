@@ -756,8 +756,12 @@ def test_a_steps_own_scan_draws_noise_of_its_own():
     mi = body.mission
     lidar = (mi.lidar.rng.bit_generator.state, mi.lidar.peer_rng.bit_generator.state)
     look = mi._look_rngs[0].bit_generator.state
+    seen = (mi.peer_returns, mi.scanned_t, dict(mi.seen_t))
     mi.look_scan()
     assert (mi.lidar.rng.bit_generator.state, mi.lidar.peer_rng.bit_generator.state) == lidar
+    # ...nor whom it saw, nor the front stop's reading: with another robot by,
+    # those move the pair's flight (#717's review)
+    assert (mi.peer_returns, mi.scanned_t, dict(mi.seen_t)) == seen
     assert mi._look_rngs[0].bit_generator.state != look
     assert mi.over_returns is not None and mi.over_returns[0] == float(body._d.time)
     state, _ = mi.kept_state()

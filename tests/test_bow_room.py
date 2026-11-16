@@ -32,7 +32,7 @@ def _standing(wall_x: float | None, t: float = 10.0, peer_x: float | None = None
   pa = np.radians(np.arange(-10.0, 11.0))
   peers = (t, pa, (peer_x - px) / np.cos(pa)) if peer_x is not None else (t, pa[:0], pa[:0])
   mission = NS(over_returns=(t, a, r, (0.0, 0.0)), peer_returns=peers, odo=NS(sm=sm),
-               last_motion_t=0.0, scans=[])
+               last_motion_t=0.0, scans=[], look_peers=None)
   body = NS(mission=mission, _d=NS(time=t), reach=NS(posture=np.zeros(3)))
   mission.look_scan = lambda: mission.scans.append(body._d.time)
   return body
@@ -85,18 +85,18 @@ def test_a_look_that_did_not_see_its_tag_says_how_its_bow_was_held():
   """The robot reads why it saw nothing: what stood in front of its head,
   and how far it bowed of what it would have, or that it could not bow."""
   for held, said in (({"asked": 0.45, "bow": 0.25, "m": 0.12},
-                      "something your LIDAR reads at your head's height stands 0.12 m in front "
-                      "of your head, so you bowed only 14 degrees of the 26 you would have"),
+                      "your LIDAR reads something 0.12 m in front of your head, so you bowed "
+                      "only 14 degrees of the 26 you would have"),
                      ({"asked": 0.25, "bow": 0.0, "m": 0.03},
-                      "something your LIDAR reads at your head's height stands 0.03 m in front "
-                      "of your head, too near for you to bow at all")):
+                      "your LIDAR reads something 0.03 m in front of your head, too near for "
+                      "you to bow at all")):
     body = StubBody(*_bare())
     body.bow_held = held
     ran = _fly('def a():\n    spot(55)\n', body)
     assert ran["steps"][0]["reason"].endswith("; " + said), ran["steps"][0]["reason"]
   body = StubBody(*_bare())
   ran = _fly('def a():\n    spot(55)\n', body)
-  assert "head's height" not in ran["steps"][0]["reason"]
+  assert "your LIDAR reads" not in ran["steps"][0]["reason"]
 
 
 def test_the_spots_text_says_how_far_a_bow_keeps_the_head_off_its_constant():

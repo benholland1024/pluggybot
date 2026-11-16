@@ -448,6 +448,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.knee = KneeMemory()
     self._look_rngs = (np.random.default_rng(self.noise.seed("lookscan")),
                        np.random.default_rng(self.noise.seed("lookscan") + 1))
+    #: ...and what such a scan read of another robot (`look_scan`)
+    self.look_peers: tuple | None = None
     self._init_way()
     # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
     # looks through the head's navigation camera
@@ -813,10 +815,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def look_scan(self) -> None:
     """A scan where it stands, for a step's walk or a look's bow to read
-    (#717; `HumanoidBody._Room`, `bow_room`): recorded as every scan's is
-    (`_sighted`), never into the map nor the matcher -- ⚠ ITS NOISE A STREAM
-    OF ITS OWN (`_look_rngs`): drawn from the LIDAR's, every scan after it
-    drew otherwise, and a flight the rules never stopped flew another flight."""
+    (#717; `HumanoidBody._Room`, `bow_room`): its returns at the head's
+    height (`over_returns`) and another robot's (`look_peers`) alone, never
+    into the map, the matcher, the front stop nor whom it saw -- ⚠ ITS NOISE
+    A STREAM OF ITS OWN (`_look_rngs`): drawn from the LIDAR's, every scan
+    after it drew otherwise, and a flight the rules never stopped flew
+    another flight."""
     lidar = self.lidar
     rngs = lidar.rng, lidar.peer_rng
     lidar.rng, lidar.peer_rng = self._look_rngs
@@ -824,7 +828,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       scan = self._scan()
     finally:
       lidar.rng, lidar.peer_rng = rngs
-    self._sighted(scan, float(self.data.time))
+    t = float(self.data.time)
+    self.over_returns = (t, scan.over_angles, scan.over_ranges, scan.origin)
+    self.look_peers = (t, scan.peer_angles, scan.peer_ranges)
 
   def keep_out(self, seen) -> list[tuple[float, float]]:
     """What a hand's way keeps off (#678): each other robot its LIDAR saw
@@ -993,6 +999,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       t, a, r, origin = self.over_returns
       over = {"t": t, "origin": None if origin is None else list(origin)}
       arrays.update(overA=a, overR=r)
+      if self.look_peers is not None:
+        over["lookT"] = self.look_peers[0]
+        arrays.update(lookA=self.look_peers[1], lookR=self.look_peers[2])
     frame = None
     if self._frame is not None:
       f = self._frame
@@ -1110,6 +1119,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                          (float(over["t"]), np.asarray(arrays["overA"], dtype=float),
                           np.asarray(arrays["overR"], dtype=float),
                           None if over["origin"] is None else tuple(over["origin"])))
+    self.look_peers = (None if over is None or "lookT" not in over or "lookA" not in arrays else
+                       (float(over["lookT"]), np.asarray(arrays["lookA"], dtype=float),
+                        np.asarray(arrays["lookR"], dtype=float)))
     memo = state.get("memo")
     # ...and what kept its stand-in off the goal (#700): none in a save from before
     kept_by = memo[5] if memo is not None and len(memo) > 5 else None

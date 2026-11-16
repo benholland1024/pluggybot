@@ -648,7 +648,7 @@ class HumanoidBody(Body):
     # nor what it read round it there (#717: a look's bow judged against it)
     self.mission.seen_t.clear()
     self.mission._looked = None
-    self.mission.over_returns = self.mission.peer_returns = None
+    self.mission.over_returns = self.mission.peer_returns = self.mission.look_peers = None
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -1088,12 +1088,16 @@ class HumanoidBody(Body):
     t_over, a, r, origin = mi.over_returns
     ox, oy = origin if origin is not None else (0.0, 0.0)
     peers = mi.peer_returns
-    if not len(a) and (peers is None or peers[0] != t_over or not len(peers[1])):
+    looked = mi.look_peers
+    if (not len(a) and (peers is None or peers[0] != t_over or not len(peers[1]))
+        and (looked is None or looked[0] != t_over or not len(looked[1]))):
       return float(down), math.inf
     # ...and another robot's body the same scan saw: it stands at the head's
     # height too, and the head's room is the step's (`_kept_off`) no less
     if peers is not None and peers[0] == t_over and len(peers[1]):
       a, r = np.concatenate((a, peers[1])), np.concatenate((r, peers[2]))
+    elif mi.look_peers is not None and mi.look_peers[0] == t_over and len(mi.look_peers[1]):
+      a, r = np.concatenate((a, mi.look_peers[1])), np.concatenate((r, mi.look_peers[2]))
     # ...each return from the pelvis along its heading, into the stance
     # frame through its odometry's model of itself, posed every tick
     sm = mi.odo.sm
