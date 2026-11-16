@@ -117,13 +117,16 @@ BLOCKED_S = 0.15
 #: door's top pressing down on it, and stopped on the whole reading or on
 #: its pull alone the door passed fewer.
 OUT_TIP_NM = 20.0
-#: ...past it this long running, s (`_tipped`). ⚠ A TRANSIENT IS NO CATCH:
-#: the reading assumes the body still, and as the standing policy stopped a
-#: deep bow within 0.01 s (the cube check's set-out 38), the arm's drivers
+#: ...past it this long running, s, while the body still takes the posture
+#: it was asked (`POSTURE_TOL`); in it, the tick it passes (`_tipped`). ⚠ A
+#: TRANSIENT IS NO CATCH: the reading assumes the body still, and as the
+#: standing policy stopped a deep bow within 0.01 s (the cube check's
+#: set-out 38, its waist 0.05 rad short of its posture), the arm's drivers
 #: caught the arm up and read 44 N at a hand that touched nothing, past the
-#: line for two of the arm's ticks (0.02 s). Held longer, the stop comes
-#: later on a catch: halted up to 0.25 s after the touch, #708's reaches
-#: all stayed up, and at 0.3 s one fell.
+#: line for two of the arm's ticks (0.02 s). ⚠ NEVER IN THE POSTURE: there
+#: #708's catches pass the line, and held 0.02 s past it at the chest's
+#: draws 321-336, 3 of 16 fell where 1 did, the hand pressing the bracket
+#: at 41-104 N by the stop.
 OUT_TIP_S = 0.03
 #: A hand held whose force pushes on along its fingers past this, N, is
 #: eased before its jaws shut (`ease`, #560): pressed on a cube's board at
@@ -1235,9 +1238,14 @@ class Reach:
 
   def _tipped(self, side: str, dt: float) -> bool:
     """Whether what a hand's arm reads has tipped the body toward the hand
-    past `OUT_TIP_NM` for `OUT_TIP_S` running (#708), `dt` its tick."""
+    past `OUT_TIP_NM` (#708): the tick it does with the body in the posture
+    it was asked (`POSTURE_TOL`), else once it has for `OUT_TIP_S` running;
+    `dt` its tick."""
     self._tip[side] = self._tip[side] + dt if self._tipping(side) > OUT_TIP_NM else 0.0
-    return self._tip[side] >= OUT_TIP_S - 1e-9
+    if not self._tip[side]:
+      return False
+    there = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
+    return bool(there) or self._tip[side] >= OUT_TIP_S - 1e-9
 
   def _struck(self, side: str) -> None:
     """A hand on its way out caught on something (`OUT_TIP_NM`, #708):

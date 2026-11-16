@@ -1314,16 +1314,18 @@ def _walking_out(phase="move"):
 def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_body():
   """⚠ A jaw caught on a chest's bracket on its way out was driven on at
   full stiffness, the world pulling the hand 50-80 N toward the chest until
-  the robot went over its toes (#708): an arm walking out to its pre-grasp
-  stops once its own reading (`force`, as every loop of the body's reads it)
-  has tipped the body toward the hand past `OUT_TIP_NM` for `OUT_TIP_S`
-  running -- its pull toward the body at the hand's height, less its press
-  down at the hand's reach -- `blocked`, out where its arm then puts the hand, held where its
+  the robot went over its toes (#708): an arm walking out to its pre-grasp,
+  the body in the posture it was asked, stops the tick its own reading
+  (`force`, as every loop of the body's reads it) would tip the body toward
+  the hand past `OUT_TIP_NM` -- its pull toward the body at the hand's
+  height, less its press down at the hand's reach -- `blocked`, out where
+  its arm then puts the hand, held where its
   drivers read its joints: held at the command it drove on to, it pulled on
   and the robot fell all the same. ⚠ Never on a push or a press: our door's
   way out drags a jaw back over the door's top pressing down on it, which
   tips the body back, and passes."""
   r, rc = _walking_out()
+  r.posture = r.posture_now()                     # in the posture it was asked
   # ...measured on the arm's own reading in `move` (#708's flights, the
   # hands checks): read there off the whole body, it must be measured again
   assert "move" not in rc.FELT_PHASES
@@ -1342,10 +1344,9 @@ def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_
     r._update(0.01)
     assert r.phase["left"] == "move", push
   assert np.abs(r.q_cmd["left"] - ahead).max() > 0.0, "its command walked on toward q_to"
-  # past the line for `OUT_TIP_S`: stopped then, held where its drivers read its arm
+  # past the line: stopped that tick, held where its drivers read its arm
   r.feel(1.05 * pull * toward)
-  for _ in range(round(rc.OUT_TIP_S / 0.01)):
-    r._update(0.01)
+  r._update(0.01)
   assert r.phase["left"] == "blocked" and r.done("left") and r.out("left")
   assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read)
   left = [(q, k) for s, q, k in r.sent if s == "left"]
@@ -1353,19 +1354,26 @@ def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_
   assert r.postures[-1] == (-0.16, 0.0, 0.5), "the body held in the posture it has got to"
 
 
-def test_a_way_outs_reading_past_the_line_for_less_than_its_hold_walks_on():
+def test_a_transient_past_the_line_while_the_body_takes_its_posture_walks_on():
   """⚠ A TRANSIENT IS NO CATCH (#708's gate, the loop of 11-16/17): as the
   standing policy stopped a deep bow within 0.01 s (the cube check's
-  set-out 38), the arm's drivers caught the arm up and read 44 N at a hand
-  that touched nothing, past the line for two of the arm's ticks -- and the
-  way out stopped in free air. Past the line for less than `OUT_TIP_S`
-  running, a way out walks on, its count begun again once the reading falls
-  back under; held past it that long, it stops."""
+  set-out 38, its waist 0.05 rad short of its posture), the arm's drivers
+  caught the arm up and read 44 N at a hand that touched nothing, past the
+  line for two of the arm's ticks -- and the way out stopped in free air.
+  While the body still takes the posture it was asked (`POSTURE_TOL`), a
+  way out past the line for less than `OUT_TIP_S` running walks on, its
+  count begun again once the reading falls back under; held past it that
+  long, it stops. ⚠ In its posture, the first tick past the line stops it:
+  held there 0.02 s longer at the chest's draws 321-336, 3 of 16 fell where
+  1 did."""
   r, rc = _walking_out()
   toward = np.array([-0.8, -0.6, 0.0])
   past = 1.05 * rc.OUT_TIP_NM / 0.9 * toward     # past the line at the hand's height, 0.9 m
   ticks = round(rc.OUT_TIP_S / 0.01)
   assert ticks >= 3, "a hold longer than the cube's two ticks"
+  taking = r.posture_now() + np.array([0.0, 0.0, 0.05])   # the waist 0.05 rad short of it
+  assert (np.abs(r.posture_now() - taking) > rc.POSTURE_TOL).any()
+  r.posture = taking
   for _ in range(2):
     # past the line one tick short of the hold, then back under: a transient
     for _ in range(ticks - 1):
@@ -1375,8 +1383,16 @@ def test_a_way_outs_reading_past_the_line_for_less_than_its_hold_walks_on():
     r.feel(0.5 * past)
     r._update(0.01)
     assert r.phase["left"] == "move"
-  # held past it the whole hold: stopped
-  for _ in range(ticks):
+  # in its posture now: the first tick past the line stops it
+  r.posture = r.posture_now()
+  r.feel(past)
+  r._update(0.01)
+  assert r.phase["left"] == "blocked"
+  # ...and still taking it, held past the line the whole hold
+  r, rc = _walking_out()
+  r.posture = taking
+  for k in range(ticks):
+    assert r.phase["left"] == "move", k
     r.feel(past)
     r._update(0.01)
   assert r.phase["left"] == "blocked"
