@@ -10133,21 +10133,33 @@ interleaved: the slant 0.53 of it), about 14 ms a sim second a robot;
 computing the slant only for rays with a walled cell in their last 2 m would
 save part of it, unbuilt.
 
-**What it still reads wrong** (its review, none of it seen in the replays'
-maps, where the whole map's walls laid two or more cells off a true wall
-numbered 1,806 under the rule against 3,870 under the base's): a ray on an
-object narrower than about 0.3 m in front of a farther surface finds its
-0.15 m chord only across the depth jump, both ways, and reads a graze (a
-12 cm pole 2 m out read sines of 0.07-0.10, and a wall cell left 0.5 m in
-front of it was kept through 30 scans from where it stood); within about
-0.72 m (0.15 m over 12 bearings) a surface seen square on finds no chord
-along itself, and beside an edge reads the jump (masked in the served scan
-by its `free_from`, about 1 m); and one stray hit by a surface seen only at
-a graze is a walled cell that wears away at the graze's weight. A neighbour
-whose own next end turns off the chord's line -- a jump -- read as no
-reading would answer the first two, unbuilt; reading the wall's normal off
-the matcher's field instead of the scan's ends would answer them in one
-mechanism.
+**What it still reads wrong** (its two reviews; none of it seen in the
+replays' maps, where the whole map's walls laid two or more cells off a true
+wall numbered 1,806 under the rule against 3,870 under the base's):
+
+- **A chord across a depth jump reads a graze.** A ray on an object
+  narrower than about 0.3 m in front of a farther surface finds its 0.15 m
+  chord only across the jump, both ways (a 12 cm pole 2 m out read sines of
+  0.07-0.10, and a wall cell left 0.5 m in front of it was kept through 30
+  scans from where it stood); an edge's ray whose other neighbour returned
+  nothing reads the jump alone; and within about 0.72 m (0.15 m over 12
+  bearings) a surface seen square on finds no chord along itself, so beside
+  an edge it reads the jump (masked in the served scan by its `free_from`,
+  about 1 m). A sine near 0 weighs nothing over a 2 m stretch: a veto there.
+- **A hole in the bearings is read across.** A bearing the scan has no entry
+  for -- another robot's returns split out, a held grip's dropped, the
+  body's own -- is no stop, so a chord may span it.
+- **At a graze the weight is nearly a veto.** 16 deg off a wall a clear
+  weighs 0.006 of one (0.0024 of log-odds), so a copy of a wall seen only
+  under about 25 deg wears away hardly faster than under M1's veto: the
+  corridor's pin is at 30-48 deg, where the weight is what it changes.
+- **A stray hit is a walled cell** (any evidence over 0), and one by a
+  surface seen only at a graze wears away at the graze's weight.
+
+A neighbour whose own next end turns off the chord's line -- a jump -- read
+as no reading would answer the first; a hole of more than a bearing read as
+a stop, the second; reading the wall's normal off the matcher's field
+instead of the scan's ends, both in one mechanism. None is built.
 
 **`find`'s rate with the wall kept** (#698's `GUESS_WALK_S_M`, 10 s a
 metre; M1's flights of the veto): of the 123 first walks of two batches

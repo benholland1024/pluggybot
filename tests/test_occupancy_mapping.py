@@ -215,3 +215,40 @@ def test_a_copy_of_a_wall_a_few_cm_in_front_of_it_wears_away_under_rays_that_run
                graze_m=GRAZE_M)
   kept = int((g.grid[row, c0:c1] > 0.5).sum())
   assert kept == 0, f"{kept} of {c1 - c0} cells of the copy kept"
+
+
+def test_a_walled_cell_nearer_than_free_from_is_never_cleared_by_a_slanted_ray():
+  # #712's revision's review: the served scan carries both rules, and the
+  # nearer one wins. A ray meeting a wall at 45 deg 0.7 m out clears a walled
+  # cell in its last 0.15 m at sin(45 deg)^4, a quarter of a clear -- but
+  # nearer than its `free_from` (1 m here) a ray frees no walled cell at all.
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
+  g = OccupancyGrid(x_min=-1, y_min=-3, x_max=6, y_max=3, resolution=0.05)
+  ix, iy = g.world_to_cell(0.6, 0.0)
+  g.grid[iy, ix] = 1.0
+  bearings = np.radians(np.arange(-20.0, 21.0, 1.0))
+  ranges = 0.7 / (np.cos(bearings) + np.sin(bearings))  # the wall x + y = 0.7, met at 45 deg
+  for _ in range(20):
+    g.update((0.0, 0.0, 0.0), bearings, ranges, 8.0, origin=(0.0, 0.0),
+             free_from=np.full(bearings.size, 1.0), graze_m=GRAZE_M)
+  assert logodds_at(g, 0.6, 0.0) == 1.0
+
+
+def test_a_slant_read_a_hair_over_square_on_is_square_on():
+  # #712's revision's review: a sine of 1 plus a rounding error took the
+  # square root of a negative number -- NaN, and numpy's warning on every
+  # such scan. Read as square on, it holds nothing.
+  import warnings
+  from pluggybot.mapping import occupancy_grid as og
+  g = OccupancyGrid(x_min=-1, y_min=-3, x_max=6, y_max=3, resolution=0.05)
+  bearings = np.radians(np.arange(-20.0, 21.0, 1.0))
+  ranges = 2.0 / np.cos(bearings)
+  real = og._slant
+  og._slant = lambda a, *rest: np.full(a.size, 1.0 + 2.0 ** -52)
+  try:
+    with warnings.catch_warnings():
+      warnings.simplefilter("error")
+      g.update((0.0, 0.0, 0.0), bearings, ranges, 8.0, origin=(0.0, 0.0), graze_m=og.GRAZE_M)
+  finally:
+    og._slant = real
+  assert logodds_at(g, 1.0, 0.0) < 0.0

@@ -163,7 +163,7 @@ class OccupancyGrid:
       # ...over a ray's last graze_m / tan(slant) metres, where it runs
       # alongside the surface it ends on, sin(slant) ** GRAZE_POWER
       sin_in = _slant(a, ex, ey, hit, cos_a, sin_a)
-      along = graze_m * np.sqrt(1.0 - sin_in ** 2) / np.maximum(sin_in, 1e-9)
+      along = graze_m * np.sqrt(np.maximum(1.0 - sin_in ** 2, 0.0)) / np.maximum(sin_in, 1e-9)
       stretch = np.minimum(np.minimum(along, GRAZE_MOST_M), ranges)
       held = keep & (ts > (ranges - stretch)[:, None])
       w_ray = sin_in ** GRAZE_POWER
