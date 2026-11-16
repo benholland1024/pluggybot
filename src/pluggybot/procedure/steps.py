@@ -1049,6 +1049,10 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                               "how you truly stand, or pushing on something",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
+#: ...and one out of reach with the other hand holding something, whose grip
+#: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
+REACH_KEPT = ("your {other} hand holds something, so your body keeps the posture it is in, "
+              "and from it your {hand} hand does not reach there")
 #: A reach that STOPPED SHORT on its way says how far from where it was
 #: asked its grip was as it stopped (#711): past this, m, off the last of
 #: what it felt (`_felt_routine`: nothing more is read). ⚠ NOT ONE THAT
@@ -1167,6 +1171,12 @@ def _reach(life, args: dict) -> Routine:
   if why == UNTIL:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
+  kept_by = life.body.posture_kept_by(hand) if why == "out of reach" else None
+  if kept_by:
+    # ...no other posture while the other hand holds something (#719): what
+    # any other posture or the other hand could do is beside the point
+    return {"ok": False, "hand": hand, "why": why, "reason": REACH_KEPT.format(
+      hand=hand, other=kept_by), **said, "felt": felt}
   if why == "stopped short":
     reason += _short_of(life, place, rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
@@ -1206,6 +1216,10 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
             "not out": "your {hand} hand is not out: `reach` with it first",
             "fell": "you fell on the way, and let go",
             "out of time": "your {hand} hand did not get there in time"}
+#: ...and one out of reach with the other hand holding something (#719's
+#: option 2).
+MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture you are in: "
+             "your {other} hand holds something, so your body keeps it")
 
 
 def _hand_report(life, hand: str, rep: dict) -> dict:
@@ -1250,6 +1264,9 @@ def _move_hand(life, args: dict) -> Routine:
   said = _said(guard, stopped, rep.get("why"))
   if rep.get("why") in (UNTIL, "arrived"):
     return {"ok": True, **out, **said}
+  kept_by = life.body.posture_kept_by(hand) if rep.get("why") == "out of reach" else None
+  if kept_by:
+    return {"ok": False, **out, **said, "reason": MOVE_KEPT.format(hand=hand, other=kept_by)}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 
@@ -1578,7 +1595,10 @@ HANDS_VERBS: dict[str, Verb] = {
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "
                 "either way, a two-jaw grip -- or at whatever turn your arm finds where those "
                 "are all left 0. It goes out to a point short of it, then in along the "
-                "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
+                "fingers; you take whatever posture reaches -- but while your other hand holds "
+                "something, your body keeps the posture it is in, and a hand that does not "
+                "reach there from it does not move and reads false saying so. stiffness 1 is "
+                "your arm's full "
                 "stiffness, less is softer. ok once it holds there -- or as near as it came: "
                 "what it touches on its way in can hold it a few cm short, and your hand's "
                 "place (`left.x` and the rest) says where it is. Its way out, and its way "
@@ -1596,7 +1616,8 @@ HANDS_VERBS: dict[str, Verb] = {
                     "turn, as one motion from one posture that follows them all, turning as "
                     "each asks (a point with no turn keeps the one before); the path is then "
                     "empty -- its turn kept, or turned to (fx, fy, fz) and (jx, jy, jz) given "
-                    "as for `reach`; ok when it arrives"),
+                    "as for `reach`; while your other hand holds something, your body keeps "
+                    "the posture it is in; ok when it arrives"),
   # ⚠ A WAY OF ANY LENGTH (`_pull` scales it to one): bounded to 1 a
   # component, two of #493's tries ended at a computed 1.03 and 1.001
   "pull": Verb("pull", {"hand": _HAND, "dx": Arg("float"), "dy": Arg("float"),
@@ -1612,7 +1633,8 @@ HANDS_VERBS: dict[str, Verb] = {
                "turn. It stops once it has "
                "gone `distance` m along the way, it is held fast "
                "(pushing with its whole force and not moving), its grip lets go, or it can "
-               "reach no further; then it holds there. Standing, your body holds a pull of "
+               "reach no further; then it holds there. While your other hand holds "
+               "something, your body keeps the posture it is in. Standing, your body holds a pull of "
                f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
                "that. How far it went, the hardest it pushed, whether it ended held fast and "
                "the way it was going at its end ride `pull.*`, unless it reads false; ok unless "

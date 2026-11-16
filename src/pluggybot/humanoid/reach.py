@@ -1079,6 +1079,10 @@ class Reach:
     #: None: home is its rest. A new reach, a joint moved by hand and a
     #: let-go end it (`drop_carry`).
     self.carry_q: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
+    #: By side, the other hand whose grip kept the body in its posture as
+    #: this hand's last reach, carry or pull was asked (#719's option 2), else
+    #: None (`Body.posture_kept_by`).
+    self.kept_by: dict[str, str | None] = {s: None for s in hm.SIDES}
     #: Whether the stand waits for an arm on its way home (`_go_home`, #693):
     #: asked once every arm is home or carried (`_update`).
     self.stand_home = False
@@ -1100,7 +1104,7 @@ class Reach:
     out that comes least near it is taken (`_kept_off`). ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND IS SHUT ON SOMETHING (#719's option 2,
     `_other_holds`): only the one it holds."""
-    if self._other_holds(side):
+    if self._keep(side):
       postures = (tuple(float(v) for v in self.posture),)
     plan_, goal = self._planned(side, goal, approach, postures, flip)
     self.kept[side] = self.judged_home[side] = None
@@ -1425,7 +1429,7 @@ class Reach:
     if len(rots) != len(ways) + 1:
       raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
                        f"not {len(rots)}")
-    if self._other_holds(side):
+    if self._keep(side):
       # ...none but the one it holds while the other hand is shut on something (#719)
       posture = tuple(float(v) for v in self.posture)
     elif ways or turns is not None:
@@ -1484,7 +1488,7 @@ class Reach:
     # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
     gripped = self.grippers[side].held()
     posture = (None if (not gripped and self._pressed(self.force[side], force))
-               or self._other_holds(side)
+               or self._keep(side)
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved else None
@@ -1513,8 +1517,19 @@ class Reach:
   def _other_holds(self, side: str) -> bool:
     """Whether the other hand's gripper reads it holds something (#719's
     option 2): then a hand takes no posture but the one the body holds."""
+    return self._holder(side) is not None
+
+  def _keep(self, side: str) -> str | None:
+    """`_holder`, kept by side as this hand's move is asked (`kept_by`)."""
+    holder = self._holder(side)
+    self.__dict__.setdefault("kept_by", {s: None for s in hm.SIDES})[side] = holder
+    return holder
+
+  def _holder(self, side: str) -> str | None:
+    """The other hand, where its gripper reads it holds something (#719's
+    option 2), else None."""
     other = "left" if side == "right" else "right"
-    return bool(self.grippers[other].held())
+    return other if self.grippers[other].held() else None
 
   def _standing_in(self) -> tuple:
     """The posture the body stands in as another is asked of it: the one it

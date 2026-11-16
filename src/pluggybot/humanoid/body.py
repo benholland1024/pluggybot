@@ -862,6 +862,9 @@ class HumanoidBody(Body):
   def hand_kept(self, side) -> dict | None:
     return self._kept.get(side)
 
+  def posture_kept_by(self, side) -> str | None:
+    return getattr(self.reach, "kept_by", {}).get(side)
+
   def arm_kept(self) -> dict | None:
     # ...one look, and only with an arm out that a walk would move: a hand
     # home, or carried at its side already (#682), sweeps nothing
