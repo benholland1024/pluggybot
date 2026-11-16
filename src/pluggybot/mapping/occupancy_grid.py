@@ -44,10 +44,10 @@ GRAZE_M = 0.15
 #: ...the weight's power: 16 deg off a wall (the alley's median) a clear
 #: weighs 0.006 of one, 45 deg 0.25, 60 deg 0.56. A veto (M1's rule,
 #: `loop-712`) kept every copy of a wall a belief a few cm off had laid, and
-#: held the research center's belief to it; replayed closed-loop on eight
-#: flights' scans, the power 2 kept the alley's wall on none of four
-#: flights from the mall, 3-8 on all four, 4 with the fewest walls laid
-#: twice.
+#: held the research center's belief to it. Replayed closed-loop on eight
+#: flights' scans, every power from 2 to 8 kept the map's walk from the mall
+#: at 43 m on all four of its flights, and 4 laid the fewest walls twice (48
+#: cells, 75 at 3, 338 at 2).
 GRAZE_POWER = 4.0
 #: ...over its last this many metres at most.
 GRAZE_MOST_M = 2.0
@@ -108,8 +108,7 @@ class OccupancyGrid:
     where it runs alongside that surface within `graze_m` of it -- only at
     `sin(slant) ** GRAZE_POWER` of `L_FREE` (`GRAZE_M`): square on, nothing
     more than the one cell short of its end -- the slant read off the
-    scan's own endpoints either side, and judged only where both agree
-    (`_slant`).
+    scan's own endpoints either side (`_slant`).
     """
     px, py, theta = pose
     fwd, left = origin

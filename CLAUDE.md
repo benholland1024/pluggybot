@@ -776,20 +776,21 @@ save a filmstrip PNG named after the script.
   BEHIND ANOTHER ROBOT NEARER THAN THE ROOM (the rings over its head read
   the wall beyond), NOR ANY TILTED PAST `CLEARS_TILT_RAD` (30 deg: bowed,
   the steepest rings turn past straight down onto the bearings behind, and
-  a low box 2 m behind was cleared on 8 bearings of 9). ⚠ NOR WHERE A RAY
-  RUNS ALONGSIDE THE SURFACE IT ENDS ON WITHIN `GRAZE_M` (0.15 m) OF IT
-  (#712; `OccupancyGrid.update`'s `graze_m`, the slant off the scan's own
-  neighbouring endpoints, `_slant`; square on, nothing): laid 7-10 cm off
-  the wall the robot had laid from inside, the alley's grazing rays erased
-  the research center's 4 cm south wall in 8.5 s -- none of those clears at
-  the true pose -- and the map's walk from the mall read 26 m for 43; a
-  wall that moved is still cleared by the rays that pass it on their way
-  elsewhere. ⚠ IT KEEPS A WALL FIRST LAID FROM A BELIEF THAT WAS OFF, AND
-  THE BELIEF IS HELD TO IT: in the drift spike the research center's
-  belief was off 0.12-0.15 m at the median, where 0.06 without it: the
-  trade-off #712 puts to Ben. ⚠ THE HEAD IS BUILT
-  ROUND IT (stage 3, `model._head`; Ben, 2026-11-01 and 11-02: the post was
-  fragile, and a crown narrower than the face read as mounted over it): one
+  a low box 2 m behind was cleared on 8 bearings of 9). ⚠ A RAY RUNNING
+  ALONGSIDE THE SURFACE IT ENDS ON, WITHIN `GRAZE_M` (0.15 m) OF IT, CLEARS
+  A WALL ONLY AT `sin(slant) ** GRAZE_POWER` (4) OF A CLEAR (#712;
+  `OccupancyGrid.update`'s `graze_m`; SimNotes, "A thin wall met at a
+  graze"): laid 7-10 cm off, the alley's grazing rays erased the research
+  center's 4 cm south wall, and the map's walk from the mall read 26 m for
+  43. ⚠ NEVER A VETO: vetoed, every copy of a wall that a belief a few cm
+  off had laid was kept, and the belief held to it. ⚠ ITS SLANT IS READ
+  OFF A NEIGHBOUR'S END AT LEAST `SLANT_CHORD_M` (0.15 m) AWAY, THE LARGER
+  SINE WHERE BOTH WAYS READ ONE (`_slant`): off the next end the range noise
+  read a near wall as a graze, and so did an edge's jump; and the one way
+  where only one reads (a graze's far ray has a miss beside it). ⚠ THE
+  HEAD IS BUILT ROUND IT (stage 3, `model._head`; Ben, 2026-11-01 and 11-02:
+  the post was fragile, and a crown narrower than the face read as mounted
+  over it): one
   cylinder above and below its window, open all round (its manual: nothing
   in its field, "including glass") but where a fin carries the cap and where
   panels round the back half close it under -26 deg -- the rings the band's

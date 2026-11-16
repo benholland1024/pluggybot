@@ -10,27 +10,26 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A thin wall met at a graze stays in the map (#712, M1, `loop-712`) — opens when this PR is deployed
+### A thin wall met at a graze stays in the map (#712, M1 and P8, `loop-712b`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
 sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
 and no wire format moved; nothing the robots read changes):
-- **A LIDAR ray that ends on a surface frees no cell the map holds a wall
-  in where it runs alongside that surface within 0.15 m of it**
-  (`OccupancyGrid.update`'s `graze_m`, `GRAZE_M`; the slant off the scan's
-  own neighbouring endpoints). Square on, nothing changed; a cell with no
-  wall's evidence is freed as before.
+- **A LIDAR ray that runs alongside the surface it ends on, within 0.15 m of
+  it, frees a cell the map holds a wall in only at sin(slant)^4 of a
+  clear** (`OccupancyGrid.update`'s `graze_m`, `GRAZE_M`, `GRAZE_POWER`):
+  16 deg off a wall a clear weighs 0.006 of one, 45 deg 0.25, square on
+  the whole of it. The slant is read off a neighbouring ray's end at least
+  0.15 m away, the larger sine where both neighbours read one (`_slant`). A
+  cell with no wall's evidence is freed as before.
 - So the research center's south wall (4 cm, along the alley) stays in a map
-  laid as the live robots lay theirs on most walks: from the mall's station
-  the map's walk to the counter read under 35 m on 13 flights of 80, where
-  it read 26-27 m through the wall on 60 (and on 7 of the cube's next 32
-  draws, for 21).
-- ⚠ **What it costs** (SimNotes, "A thin wall met at a graze"): a wall first
-  laid from a belief that was off is kept, and the belief held to it. In
-  the drift spike's 16 flights the belief in the research center's lobby
-  and storeroom was off by 0.12-0.15 m at the median, where the base's was
-  0.06; in the house it was better (0.01-0.04 for 0.03-0.07). Every flight
-  docked. The tour's five jobs passed 144 of 160 (135), the table 22 (24).
+  laid as the live robots lay theirs: in closed-loop replays of eight
+  flights the map's walk from the mall read 43 m on all four from the mall,
+  where the base's read 26 m.
+- ⚠ **What it costs** (SimNotes, "A thin wall met at a graze"): a wall
+  laid a few cm off its twin wears away more slowly where rays run
+  alongside it. A scan's map update takes about 1.4 ms more (7.6-8.2 ms for 6.1-6.8 on
+  the dev box), about 14 ms a sim second a robot.
 
 **Why.** The alley's rays meet that wall at a graze, and laid from a belief
 7-10 cm off the one the wall was laid from (along a sidewalk, the direction
@@ -38,13 +37,18 @@ its walls do not fix), each ran along the wall's own cells for 0.3 m or more
 before its end: the stretch the robot had laid sure from inside was erased
 in 8.5 s, and at the true pose none of those clears happens. The planner
 then routed through the wall, the walk found it again on the way, and
-#698's patience, sized off the map's walk, read it short.
+#698's patience, sized off the map's walk, read it short. Its first form, a
+veto (M1, `loop-712`), kept the wall but kept every copy of a wall a belief
+a few cm off had laid too, and held the research center's belief 10 cm off
+the truth at the median in the drift spike's flights, where the base left
+it 6 cm off; it was not deployed.
 
 **What the period is for.** The robots' maps on the wire (`grid`) after a
 walk past the alley's mouth: the research center's south wall held along
 its length. Then the walks between the mall and the storeroom: none
 planned through it, and none given up on a wall left standing where a
-door, a prop or a robot had been.
+door, a prop or a robot had been. And the belief inside the research
+center, on the drift rows: no worse than the period before's.
 
 ### Every fall a row, and a fall nothing else told a line (#707, P7, `loop-falls`) — opens when this PR is deployed
 
