@@ -2843,7 +2843,12 @@ save a filmstrip PNG named after the script.
   late; `CHALLENGE_RULE` says so, Overseer.md §2b), unless that answer runs
   a procedure, whose run is the work and is graded by the day loop once the
   queue is empty -- and a robot that died while it thought is graded there
-  after its stand-up, which closes its answer, a grade mid-hold too. ⚠ GATED ON A MIND, NOT MOVED INTO
+  after its stand-up, which closes its answer, a grade mid-hold too. ⚠ A
+  `done` BESIDE A RUN THAT NEVER BEGAN IS NOT GRADED (#706, Ben's call; its
+  define refused, nothing built, or its run refused before its first verb:
+  `_grade_waits`, cleared at the run's `validated`, kept across a restart):
+  one History line, the job held and its time running on, said again it is
+  graded; the rule says so. ⚠ GATED ON A MIND, NOT MOVED INTO
   `rewards.json` (a prop is a target only where `world_targets(...,
   procedures=True)`, and every `task_producer` caller passes whether there
   is a mind). ⚠ `_claim_task` gates on `claim_budget_wh`, not

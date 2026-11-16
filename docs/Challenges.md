@@ -308,7 +308,8 @@ they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
 the robot writes the procedure, runs it and sets `done` to the job's id --
 graded at that word, before its answer's action, or once the run is over
-where the same answer runs a procedure (#689) -- and only a mind with a
+where the same answer runs a procedure (#689), and not at all where that
+run never began (#706: Overseer.md §2b) -- and only a mind with a
 library is offered one (`lifecycle.world_targets`).
 All four are offered (cadence.json), the cube's since its reference passed
 from the tour (below).

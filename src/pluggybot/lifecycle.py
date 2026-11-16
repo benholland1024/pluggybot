@@ -249,6 +249,12 @@ class Stuck(MissionAborted):
 DEATH_ENDED = "interrupted by a death"
 #: What a stand-up's History line says it cost (#572).
 MAP_GONE = "the map I had and the places I had found are gone"
+#: Why a `done` beside a run that never began is not graded (#706, Ben's
+#: call of 11-16), in its History line's words: on 11-14, 6 of 22 refused
+#: defines carried a `done`, and 4 jobs were graded 4-10 s later on a prop
+#: nothing had worked.
+NEVER_BEGAN = ("the run I said it beside never began -- I still hold it, "
+               "and its time runs on")
 
 #: What a charge fills the pack to, as a fraction. The reserve is absolute
 #: energy, never a fraction of the pack -- the milestone-7 lesson: the cost
@@ -855,6 +861,10 @@ class HubLifecycle:
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
+    #: ...and said beside a procedure whose run has not begun yet (#706):
+    #: set by the `done`, cleared once that run is validated, and a grade
+    #: still waiting when the queue is empty is not made (`NEVER_BEGAN`).
+    self._grade_waits = False
     #: ON A CHARGE TRIP NOW (#602): set only while one runs. ⚠ Never read
     #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
     #: was run out on the seam mid-hold and banked twice.
@@ -1892,6 +1902,7 @@ class HubLifecycle:
       if KINDS[task.kind].discharge == "procedure":
         self._fail_held(task, "the robot that took it ran out of lives")
     self._grade_pending = ""
+    self._grade_waits = False
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -3096,6 +3107,7 @@ class HubLifecycle:
               "error": f"refused: {e}"}
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
+    self._grade_waits = False             # ...the run a `done` waited on began (#706)
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -4362,8 +4374,9 @@ class HubLifecycle:
     says stands. Paperwork -- it costs no turn -- that SETS the grade
     pending, and is True where the answer grades it before its action
     (#689): every answer but one that runs a procedure, whose run is the
-    work and is graded from the day loop once the errand queue is empty --
-    and a dead robot's, graded there after its stand-up as before. A `done`
+    work and is graded from the day loop once the errand queue is empty,
+    unless that run never began (#706: `_grade_routine`) -- and a dead
+    robot's, graded there after its stand-up as before. A `done`
     that names nothing this robot holds is dropped, like a `respond_to` for
     a message already dealt with, and History says why (#648)."""
     if not decision.done:
@@ -4396,6 +4409,8 @@ class HubLifecycle:
       self._remember(f"said done on {named}: not graded, because {why}")
       return False
     self._grade_pending = task.id
+    # ...beside a procedure, waiting on its run to begin (#706)
+    self._grade_waits = decision.action.startswith(PROCEDURE_PREFIX)
     # ...never inside a dead robot's answer, which its stand-up closes, a
     # grade mid-hold and all: the loop's pass after it grades, as before.
     # (No other stand-up lands in an answer: an admin's reaches a robot
@@ -4415,12 +4430,22 @@ class HubLifecycle:
     criteria, run on the seam (`_grade_hands_routine`) -- never the robot's
     account of what it did."""
     task_id, self._grade_pending = self._grade_pending, ""
+    waited, self._grade_waits = self._grade_waits, False
     task = self.tasks.get(task_id) if self.tasks is not None else None
     if task is None or task.state != "active":
       self._say(f"GRADE {task_id}: no longer held", doing=True)
       return
     if self._fell_holding(task_id):
       self._say(f"GRADE {task_id}: a fall ended it -- graded as its hold ends", doing=True)
+      return
+    if waited:
+      # ...a `done` beside a run that never began (#706, Ben's call): no
+      # errand was built for it, or its run was refused before its first
+      # verb. The job stays held, its time running on; said again, graded.
+      self._say(f"GRADE {task_id}: not graded -- the run it was said beside never began",
+                doing=True)
+      self._remember(f"said done on {_job_named(task.id, task)}: not graded, "
+                     f"because {NEVER_BEGAN}")
       return
     yield from self._grade_hands_routine(task)
 
@@ -6275,6 +6300,8 @@ class HubLifecycle:
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
       "gradePending": self._grade_pending,
+      # ...and whether it waits on a run not begun yet (#706)
+      "gradeWaits": self._grade_waits,
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()
@@ -6365,6 +6392,7 @@ class HubLifecycle:
     self._next_near_field = float(clocks.get("nearField", 0.0))
     self._deferrals = {str(k): int(v) for k, v in (state.get("deferrals") or {}).items()}
     self._grade_pending = str(state.get("gradePending") or "")
+    self._grade_waits = bool(self._grade_pending and state.get("gradeWaits"))
     if state.get("eventClock"):
       self.event_clock.restore_kept(state["eventClock"])
     # ...only a row of the list in force: one it no longer has (left out at
