@@ -10268,6 +10268,55 @@ reckoning by both soles or by the reading ahead closing:
   seats and its lost search the base's, none slower; the pair's recorded
   day unmoved. The period of `loop-step` (Observatory.md) has the rest.
 
+## A posture change out of a deep bow, with the other hand on a lever (issue #719)
+
+On 11-15 Rowan's `door_p3` (t_0419, t_0430) fell in its right `reach` (line
+78) after its left hand had reached the cupboard's lever, shut on it at 80 N
+and pulled it 8 cm down; and Luca's `cube_fix3` (t_0423) in a `move_hand` up
+just after an `open_hand`, out of a 17-deg bow it had leant on a hand pressed
+on the cube's board (the loop of 11-15/16, M12). Flown again at their live
+draws on 73f8daf, M12's starts and keys, door_p3's belief 1.55-1.86 m off at
+24 bearings each, the robot's own pairs recorded with the world's
+(`~/pluggybot-training/loop-1116/p3-719/`, `c/fly_p3.py`): `cube_fix3` no
+longer falls -- #717's keep-off at the knees stops six of its steps and it
+stands further back, its `move_hand` arriving -- and `door_p3` falls in 11 of
+its 48 flights: 6 in that reach (3 of them stuck deaths) and 5 in a withdraw,
+or a step after withdraws that did not get home (#693's family).
+
+**What the reach asks.** Bowed 0.55-0.8 rad with the left jaws on the
+lever's arm or tip (25-45 N a pad), the right reach asks a posture of
+(-0.16 to -0.08 m, 0 to 0.3 rad, 45-60 deg): a rise of 0.25-0.8 rad and a
+turn of the waist of 0.5-1.05 rad, in one go. The lever holds the left hand.
+As the trunk comes up and turns, the left jaws load to 120-220 N on the
+lever and the door's panel, and the trunk goes over backward 1.4-2.6 s
+after the ask, the torso sometimes meeting the counter's edge at 600 N on
+the way.
+
+**In stages it falls as often (option 1).** The posture walked there in
+stages of 0.10, 0.15 or 0.30 rad of pitch and 0.27 or 0.53 rad of waist,
+each held (`POSTURE_TOL`, `TRUNK_STILL_RATE`) or given 2 s before the next,
+on 9 flights that fell on M12's tree or today's: 7, 6 and 6 fell, where
+today's tree fell 5. Where nothing holds the body a stage is held in 0.5-0.75
+s; here the trunk cannot come up -- the second stage never held, the lever
+at 87 N -- and the next, asked once the wait ran out, loaded it until the
+body went over. A stage not held given up where the body had got to (as a
+move stopped is held) still fell 7 of 9: the stage that loads the lever is
+held, and the next tips the body within its own wait. The posture cannot be
+held with the other hand on the lever, however it is approached.
+
+**No posture while the other hand holds something (option 2).** O2_MEASURED
+
+**What is true now** (`Reach._holder`, `kept_by`, `Body.posture_kept_by`,
+`steps.REACH_KEPT`, `MOVE_KEPT`): while one hand's gripper reads it holds
+something -- its own sensing, never the simulator's -- the other hand's
+`reach` plans only in the posture the body is in, its `move_hand` and its
+`pull` take no new one, a look at its pre-grasp none either, and none is
+planned on their way; a reach or a move that does not reach from it reads
+false saying so ("your left hand holds something, so your body keeps the
+posture it is in, and from it your right hand does not reach there"), and
+the three verbs' texts say the rule. A hand that holds nothing, with the
+other home or open, takes its postures as before.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
