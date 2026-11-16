@@ -261,6 +261,8 @@ TABLE = _table_job()
 #:    its lift could not raise); the plate, taken from 0.50 m, to 0.23 by
 #:    `move_hand` (nearer the pass the hand-over struck it, and a `pull` that
 #:    long took a 31 deg bow over the counter and fell: `test_solutions`);
+#:    the fork's to 0.21 in two pulls (`PASS_FORK_MID`: by `move_hand` it
+#:    slipped in the jaws at the hand-over; `test_solutions`);
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
 #:    further back, its last step over 0.45 m in two, its last turn the
 #:    facing its run wants (the cup's `PASS_CUP_FACING`); nothing steps aside
@@ -337,10 +339,11 @@ PASS_CUP_FACING = -0.07
 #: from that stance set it down (the reference before aimed at 0.075, 0.24).
 PASS_CUP_AT = (0.066, 0.209)
 #: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
-#: ahead: in one pull, one 0.25 m or longer (a grip 0.46 m out or more) took
+#: ahead: in one pull, one 0.24 m or longer (a grip 0.45 m out or more) took
 #: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
-#: 0.3 s as its arm missed, and fell (SimNotes, "The place laid from the
-#: pass"); each half asks a posture that reaches both its ends standing.
+#: 0.3 s as its arm missed, and fell in 6 of 21, a shorter one in none of 79
+#: (SimNotes, "The place laid from the pass"); each half asks a posture that
+#: reaches both its ends standing.
 PASS_FORK_MID = 0.33
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),

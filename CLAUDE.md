@@ -970,11 +970,13 @@ save a filmstrip PNG named after the script.
   flights a walker; at the middle none of 64), ⚠ brought down to it by
   `move_hand` (by `pull` it drifted onto the lid's rim), ⚠ takes the plate
   from 0.50 m and brings it back by `move_hand`, never `pull` (that far, a
-  pull bowed over the counter and fell), and ⚠ eases it before its let-go
-  (let go tilted, it dropped): `test_solutions`. ⚠ ITS BAR (24 of 32 over
-  the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2 at its
-  best, held out 11, the carry walker 0 (each miss: SimNotes; 14 with
-  #693's hand-over, every flight parted at its first walk with a piece).
+  pull bowed over the counter and fell), ⚠ eases it before its let-go (let
+  go tilted, it dropped), ⚠ brings the fork back in two pulls (one of 0.24
+  m or more bowed 31 deg, stood up out of it and fell, 6 of 21) and ⚠ tries
+  the cup's pick again where its descent is held back on the lid (every
+  such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32 over the tour,
+  a fall failing the try) IS NOT MET: 16 of 32 on walk2 (round 4), held
+  out 19, the carry walker 0 (each miss: SimNotes).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

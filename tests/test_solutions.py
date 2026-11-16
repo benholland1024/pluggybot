@@ -267,11 +267,12 @@ def test_the_pass_cup_pick_is_tried_again_where_its_descent_is_held_back():
 
 def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
   """#682's stage C, round 4: the fork gripped at the pass is pulled back
-  over the counter's edge to 0.21 m before the walk. Pulled back 0.25 m or
-  more in one pull -- a grip 0.46 m out or further -- the pull took a 31
+  over the counter's edge to 0.21 m before the walk. Pulled back 0.24 m or
+  more in one pull -- a grip 0.45 m out or further -- the pull took a 31
   deg bow and a 20 cm crouch for its way, stood up out of it within 0.3 s
-  as its arm missed, and the robot fell: every fall of round 3's reading (5
-  of 64) and of round 4's base on dev draws. In two pulls, the first
+  as its arm missed, and the robot fell in 6 of 21 (a shorter pull in none
+  of 79): every fall of round 3's reading (5 of 64) and of round 4's base on
+  dev draws. In two pulls, the first
   stopping at `PASS_FORK_MID`, each asks a posture that reaches both its
   ends standing (SimNotes, "The place laid from the pass"). Off the
   reference's own source: after the lift off the pass, the fork's hand is
