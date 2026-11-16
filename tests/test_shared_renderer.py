@@ -12,11 +12,15 @@ world of two robots:
      bit as through a renderer of its own, drawn in any order;
   2. a body's close releases its cameras' use, a model's renderer outlives
      one body's close while another body draws through it, and nothing is
-     kept once the last user is closed -- or collected unclosed.
+     kept once the last user is closed -- or collected unclosed;
+  3. a renderer is closed with its own GL context current, so another's
+     pictures are as they were (under osmesa they were not);
+  4. a forked child builds its own.
 """
 
 import gc
 import math
+import os
 import weakref
 
 import mujoco
@@ -74,7 +78,7 @@ def _own(model, data, camera: str) -> np.ndarray:
 
 def _renderers_of(model) -> list:
   """The shared renderers kept for `model` (the registry's own key)."""
-  return [entry[0] for key, entry in tags._RENDERERS.items() if key[0] == id(model)]
+  return [entry[0] for key, entry in tags._RENDERERS.items() if key[1] == id(model)]
 
 
 def test_the_cameras_draw_through_one_renderer_each_picture_as_its_own():
@@ -137,3 +141,62 @@ def test_a_renderer_is_closed_with_its_last_user_and_nothing_is_kept():
   gc.collect()
   assert dropped() is None and not _renderers_of(bare), \
     "a renderer kept for a detector collected unclosed"
+
+
+class _Spy:
+  """A renderer's GL context, the calls made on it written down."""
+
+  def __init__(self, gl, calls: list):
+    self.gl, self.calls = gl, calls
+
+  def make_current(self):
+    self.calls.append("current")
+    self.gl.make_current()
+
+  def free(self):
+    self.calls.append("free")
+    self.gl.free()
+
+
+def test_a_renderer_is_closed_with_its_own_context_current_and_the_others_draw_on():
+  """MuJoCo 3.10's `Renderer.close` frees its GL context and then its
+  `MjrContext`, whose deletes go to whatever context is current: closed
+  while another model's renderer was current, under osmesa that renderer's
+  next picture came out wrong in 626,450 of its 921,600 pixels. Closed with
+  its own context current, the other draws as it did (the pictures fail
+  without it under osmesa alone; the order on any backend)."""
+  model, data = _pair()
+  other, other_data = _pair()
+  closing = tags.TagDetector(model, FIRST.el("nav_eye"))
+  kept = tags.TagDetector(other, FIRST.el("nav_eye"))
+  try:
+    closing.frame(data)
+    before = kept.frame(other_data)
+    calls = []
+    closing.renderer._gl_context = _Spy(closing.renderer._gl_context, calls)
+    closing.close()
+    assert calls == ["current", "free"], "closed with another context current"
+    assert np.array_equal(kept.frame(other_data), before), \
+      "another renderer's picture changed when one was closed"
+  finally:
+    kept.close()
+
+
+def test_a_forked_child_never_draws_through_its_parents_renderer(monkeypatch):
+  """A GL context does not survive a fork, and the model a child inherits
+  is the parent's object, id and all: the key carries the process, so a
+  detector built in the child builds its own renderer."""
+  model, _data = _pair()
+  parent = tags.TagDetector(model, FIRST.el("nav_eye"))
+  try:
+    pid = os.getpid()
+    monkeypatch.setattr(tags.os, "getpid", lambda: pid + 1)
+    child = tags.TagDetector(model, FIRST.el("color_eye"))
+    monkeypatch.undo()
+    try:
+      assert child.renderer is not parent.renderer, "a child drew through its parent's"
+    finally:
+      child.close()
+  finally:
+    parent.close()
+  assert not _renderers_of(model)
