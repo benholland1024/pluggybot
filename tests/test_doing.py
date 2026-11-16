@@ -44,7 +44,7 @@ PRIVATE = {
   # its memory and its rules
   "THOUGHT": "a line of its documents", "HISTORY": "its History",
   "CONSTITUTION": "its constitution", "EVENT": "its list of rules",
-  "BELIEF": "where it believes it is",
+  "BELIEF": "where it believes it is", "FELL": "a fall it got up from (#707)",
   # its books
   "SCORE": "a verdict and its balance", "GAVE": "points given and its balance",
   "BOUGHT": "a heart bought and its balance", "HEART": "a heart refused",

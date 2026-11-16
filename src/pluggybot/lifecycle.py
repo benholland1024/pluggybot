@@ -323,6 +323,11 @@ FIXTURE_WORDS = {"station": "my charging station"}
 MAP_REFUSING = ("My map has matched none of my scans for a minute, so I may not be "
                 "where I believe I am")
 MAP_MATCHING = "My map matches my scans again"
+#: What a robot reads of a fall nothing else told it of (issue #707,
+#: `_fall_row_step`) -- no run's verb, hand job, step aside or death -- once
+#: its get-up stands it again, alive: its own watch and its own clock, never
+#: the truth its `fall` row carries.
+FELL_LINE = "I fell over and got up again {seconds:.0f} s later"
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
 #: loop gets to reconsider (issue #15). Bounded on purpose: without it one
 #: `explore` decision eats the whole mission, and the point of an overseer is
@@ -1017,6 +1022,18 @@ class HubLifecycle:
     # ...and a hand job its robot fell holding, ended at the fall (#701):
     # every step, its fall count an int, so the grade's call is the fall's
     self.body.step_hooks.append(self._fall_step)
+    # ...and every fall a row (issue #707), read after the job's: what told
+    # the robot of a fall is read the step it is counted
+    #: The body's fall count as the `fall` rows have read it, the fall whose
+    #: get-up has not ended (its row's makings, or None), when the last
+    #: get-up stood it and how many falls its struggle has counted -- and
+    #: every row sent, for the day's summary.
+    self._falls_rowed = self.body.falls
+    self._fall_open: dict | None = None
+    self._stood_t: float | None = None
+    self._struggle = 0
+    self.fall_rows: list[dict] = []
+    self.body.step_hooks.append(self._fall_row_step)
     # ...and the robot's own clock (issue #36), on the same seam and for a
     # closer version of the same reason: an appetite ticked on the
     # arbitration loop would not charge the robot for the twenty minutes it
@@ -1487,6 +1504,7 @@ class HubLifecycle:
     self.stuck = {"t": round(float(self.data.time), 3), "fellT": round(self._down_since, 3),
                   "why": why, "at": [round(float(x), 2), round(float(y), 2)]}
     self._say(f"STUCK: {why}; nothing dies here, so the run ends")
+    self._close_fall("stuck")
     raise Stuck(self.stuck)
 
   def _chassis_tilt(self) -> float:
@@ -3411,6 +3429,7 @@ class HubLifecycle:
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
     whose = self._whose_start(pose)
+    self._close_fall("reset")             # ...a get-up the warp ends (#707)
     self.body.start_at(*pose)
     # ...on no map (#572, Ben's call): put right at its start, a belief is
     # pulled back onto the askew map it kept (Ben's reset of Rowan on 10-08
@@ -4544,6 +4563,87 @@ class HubLifecycle:
       return False
     watch = self._job_watches.get(task_id)
     return task_id in self._fallen or (watch is not None and _fell_unheld(watch))
+
+  def _fall_row_step(self) -> None:
+    """Every fall the body's own watch counts (`Body.falls`) is ONE `fall`
+    row (issue #707), sent as its get-up ends: stood again, or its robot
+    dead first -- or a reset, the run's end or `Stuck` first, each of which
+    closes it (`_close_fall`). What told the robot of it is read the step
+    it is counted (`_fall_told`). ⚠ After `_fall_step`, whose job's line at
+    the fall is read here as told."""
+    falls = self.body.falls
+    if falls != self._falls_rowed:
+      self._close_fall("stood")             # ...one whose stand was never read
+      t = float(self.data.time)
+      self._struggle = (self._struggle + 1 if self._stood_t is not None
+                        and t - self._stood_t < STOOD_AGAIN_S else 1)
+      self._falls_rowed = falls
+      self._fall_open = {"falls": falls, "fellT": t, "at": self._moment(),
+                         "truth": self.body.true_pose(), "belief": self.body.pose,
+                         "struggle": self._struggle, "dead": self.dead is not None,
+                         "told": self._fall_told()}
+    elif self._fall_open is not None:
+      if self.dead is not None and not self._fall_open["dead"]:
+        self._close_fall("died")
+      elif self.body.posture != "getting_up":
+        self._close_fall("stood")
+
+  def _fall_told(self) -> str | None:
+    """What tells the robot of the fall its body has just counted
+    (`protocol.FALL_TOLD`): the run whose verb it fell in (`run`, #671), a
+    hand job it holds (`job`: the job's line at this fall, or a `done`'s
+    grade in its hold, the fall first -- never a job an earlier fall
+    ended), the step aside it was making (`aside`: "I fell over") -- or
+    nothing yet, None."""
+    if self._in_errand:
+      return "run"
+    if self.body.making_way is not None:
+      return "aside"
+    now = float(self.data.time)
+    for task_id, watch in self._job_watches.items():
+      if self._holds(task_id) is None:
+        continue
+      fallen = self._fallen.get(task_id)
+      if (fallen[0] == now) if fallen is not None else watch.holding:
+        return "job"
+    return None
+
+  def _close_fall(self, ended: str) -> None:
+    """The open fall's `fall` row, its get-up ended as `ended` says
+    (`protocol.FALL_ENDINGS`): how far the get-up moved the body and the
+    belief, and the belief's error as it ended -- and, where nothing else
+    told it, a robot alive at the fall and stood again by its get-up,
+    `FELL_LINE` in History. Nothing where none is open."""
+    fall, self._fall_open = self._fall_open, None
+    if fall is None:
+      return
+    t = float(self.data.time)
+    told = fall["told"]
+    if told is None and ended == "stood" and not fall["dead"] and self.dead is None:
+      line = FELL_LINE.format(seconds=t - fall["fellT"])
+      self._say(f"FELL: {line}")
+      self._remember(line)
+      told = "line"
+    elif told is None and ended == "died":
+      told = "death"
+    self._stood_t = t if ended == "stood" else None
+    truth, belief = self.body.true_pose(), self.body.pose
+    (x0, y0, a0), (x1, y1, a1) = fall["truth"], truth
+    (u0, v0, b0), (u1, v1, b1) = fall["belief"], belief
+
+    def deg(rad: float) -> float:
+      return round(math.degrees(math.atan2(math.sin(rad), math.cos(rad))), 1)
+    row = {"type": "fall", "robot": self.root, "t": round(t, 3), "falls": fall["falls"],
+           "fellT": round(fall["fellT"], 3), "seconds": round(t - fall["fellT"], 3),
+           "ended": ended, "struggle": fall["struggle"], "told": told, "at": fall["at"],
+           "after": {"pose": wire_pose(truth), "believed": wire_pose(belief)},
+           "movedM": round(math.hypot(x1 - x0, y1 - y0), 3), "turnedDeg": deg(a1 - a0),
+           "beliefMovedM": round(math.hypot(u1 - u0, v1 - v0), 3),
+           "beliefTurnedDeg": deg(b1 - b0),
+           "errorM": round(math.hypot(u1 - x1, v1 - y1), 3), "headingDeg": deg(b1 - a1),
+           **({"cause": self.dead["cause"]} if ended == "died" else {})}
+    self.fall_rows.append(row)
+    self._emit(row)
 
   def _hold_of(self, task_id: str) -> float:
     """The hold `task_id`'s grade takes, s: its check's own `HOLD_S`."""
@@ -6139,6 +6239,9 @@ class HubLifecycle:
       "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
       "minded": self._minded, "downSince": self._down_since,
       "upSince": self._up_since, "fall": self._fall,
+      # ...and when its last get-up stood it, and that struggle's falls
+      # (#707: a `fall` row's `struggle`)
+      "fallStood": [self._stood_t, self._struggle],
       "decidedAt": (None if self._decided_at is None else list(self._decided_at)),
       "stoodStill": self._stood_still,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
@@ -6246,6 +6349,11 @@ class HubLifecycle:
       self.queued_row = row if row in self.event_map.rows else None
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
+    # ...and the body's fall count as its own restore put it back, read
+    # afresh, never as falls (#707): no save is made while a get-up runs
+    self._falls_rowed, self._fall_open = self.body.falls, None
+    stood = state.get("fallStood") or (None, 0)
+    self._stood_t, self._struggle = stood[0], int(stood[1])
     self.resumed = {"inPlace": bool(in_place), "why": why,
                     "exploreDeadline": state.get("exploreDeadline") if mapped else None,
                     "errand": state.get("errand"), "preset": state.get("preset", []),
@@ -6580,9 +6688,14 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
+    # ...a get-up the run's end cut short is a row too (#707): no save is
+    # made while one runs, and the next run carries on from before its fall
+    self._close_fall("unfinished")
     return {
       "state": self.state,
       "aborted": aborted,
+      # Every fall its body counted, as the wire had each (issue #707).
+      "falls": list(self.fall_rows),
       # ...and the get-up that aborted it where nothing dies (#684, `Stuck`)
       "stuck": self.stuck,
       # A failed dock ended this run (issue #32) -- distinct from "aborted"
