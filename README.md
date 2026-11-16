@@ -1,5 +1,11 @@
 # PluggyBot
 
+**In short:** Two humanoid robots live on their own in a small simulated
+neighborhood: they explore, charge their batteries, do jobs with their
+hands and chat with visitors, and an AI model decides what they do. The
+project studies how robots can learn new skills by themselves, and the
+robots are built from real parts that you could buy.
+
 This repository holds the simulation behind
 [PluggyWorld](https://rooftop-media.org/experiments/pluggyworld): the
 world, the robots' bodies and their minds. PluggyWorld is a small simulated
