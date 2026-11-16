@@ -10250,7 +10250,23 @@ reckoning by both soles or by the reading ahead closing:
   body the same scan saw -- off a scan taken since it last walked, 0.05 rad
   at a time, and none where even upright it does not; `spot` says so where
   it saw nothing.
-- Flown: «MEASURED».
+- Flown (one pod, a Xeon E5-2698 v4, against 41e574b, the candidate the
+  branch's `src/` on 41e574b): the lobby's nine starts fell 9 of 9 in `spot`
+  (one a stuck death, the head on the wall in each) and fall in none -- every
+  step stops 0.27-0.34 m off the wall, every deep bow held at 0.15-0.40 rad,
+  the head touching nothing; the storeroom's corner 2 of 2, and none.
+  `drawer_final`'s pressed sweeps put a thigh on the counter at 272-458 N in
+  all 17 flights, 21 of their steps "stepped" with the pelvis under 2 cm:
+  none now, the knees' memory stopping every last step 0.18-0.21 m off the
+  face. The tour's cube reference steps into its knees' room too: stopped
+  in 22 of its 32 flights, it places 28 for 25 and falls once for twice.
+  Every flight of Ben's bar no rule touched flew the base's flight to the
+  byte, and the bar went from 587 passes and 11 falls of 736 to 591 and 10.
+  The wake of 11-15's 121 hand runs at their live draws: 14 passes and 9
+  falls to 15 and 9 (two falls gone, two new). M12's 38 sweep falls of
+  #710's family: 32 fall again, 16 now. The station: its approaches, its
+  seats and its lost search the base's, none slower; the pair's recorded
+  day unmoved. The period of `loop-step` (Observatory.md) has the rest.
 
 ## Debugging workflow that worked
 
