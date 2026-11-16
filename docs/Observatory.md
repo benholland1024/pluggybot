@@ -10,6 +10,27 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A reach's, a carry's or a pull's posture taken in stages (#719's option 1, P3, `loop-719`) -- opens when this PR is deployed
+
+**What the robots read does not move** (`prompt_sha` `0ba46734…`, 68,294
+characters, 17 sections, as at `loop-staging` 73f8daf; the session host's
+hello `39c0692a…`, unmoved): nothing is refused, and no words change.
+
+**The change** (`Reach.take_posture`, `stages`, `_stage_on`, `asked`;
+`STAGE_PITCH` 0.15 rad, `STAGE_WAIST` 0.27 rad, `STAGE_WAIT_S` 2 s; SimNotes,
+"A posture change out of a deep bow, taken in stages"). A posture a reach, a
+`move_hand`, a `pull`, a reach's look or a carry's or pull's re-plan asks,
+further than a stage of pitch or waist from the posture the body is in by its
+senses, is walked there in even stages, each held or given 2 s before the
+next; the reach goes in, and a carried or pulled hand moves, only once every
+stage is passed. The loop's own reach -- a charge's plug-in -- is staged too.
+
+**Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): O1_OBS
+
+**What to read**: falls in a reach, a `move_hand` or a `pull` out of a deep
+bow; the hand jobs' minutes against the time a reach now takes; a charge's
+plug-in.
+
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294

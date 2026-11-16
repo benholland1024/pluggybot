@@ -154,7 +154,9 @@ POSTURE_TOL, TRUNK_STILL_RATE, POSTURE_WAIT_S = (0.025, 0.06, 0.02), 0.05, 4.0
 #: its senses have it (`posture_now`) is taken in STAGES no bigger, all
 #: three of its numbers walked evenly, each held (`POSTURE_TOL`,
 #: `TRUNK_STILL_RATE`) -- or given this long, s -- before the next is asked
-#: (`staged`). STAGE_TBD
+#: (`take_posture`; SimNotes, "A posture change out of a deep bow, taken in
+#: stages"). ⚠ It took none of door_p3's falls away: with the other hand
+#: shut on a lever the trunk holds no stage, and the next loads the lever.
 STAGE_PITCH, STAGE_WAIST, STAGE_WAIT_S = 0.15, 0.27, 2.0
 #: The waist turns to its posture's angle no faster than this, rad/s: the
 #: trunk's pitch's ramp (`policy.PITCH_RATE`) -- and is set going and stopped

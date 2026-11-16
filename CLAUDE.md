@@ -462,7 +462,15 @@ save a filmstrip PNG named after the script.
   GRIPS WHAT IT PULLS TAKES ITS POSTURES AS IT DID: two of our door's 72
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
-  call. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
+  call. ⚠ A POSTURE A REACH, A CARRY OR A PULL ASKS IS TAKEN IN STAGES
+  (#719's option 1; `Reach.take_posture`, `stages`, `_stage_on`, `asked`;
+  SimNotes, "A posture change out of a deep bow, taken in stages"): further
+  than `STAGE_PITCH` (0.15 rad) of pitch or `STAGE_WAIST` (0.27) of waist
+  from the posture its senses read, in even stages, each held or given
+  `STAGE_WAIT_S` (2 s), the policy, the trim, the waist, the fall watch and
+  #708's hold reading the stage asked; nothing goes in, moves on or re-plans
+  until every stage is passed. ⚠ It took none of door_p3's falls away (the
+  other hand on a lever holds the trunk out of every stage). ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
   (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the
