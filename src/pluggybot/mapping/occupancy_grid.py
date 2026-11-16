@@ -25,13 +25,44 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 #: added to every cell and clipped), each plan's inflation transform and
 #: lattice weights (32 of a 3 m hop's 42 ms at 4x), the explore's frontier
 #: leg (A* in pure Python), the wire's image and the save; what does not is
-#: the scan matcher's field (a 15 m window) or the height map (4 m). ⚠ The
+#: the scan matcher's field (a 15 m window) or the height map (4 m); since
+#: #712's rule (`GRAZE_M`) a scan's update takes about 1.4 ms more on the
+#: dev box on today's 856,800 cells, the slant 0.5 of it. ⚠ The
 #: humanoid pays two of them oftener -- its camera's walls are its whole
 #: grid dilated every depth frame, and its arrival replans every step (2.5
 #: to 11 plans a second where the quadruped makes 0.5), each plan 43 ms at
 #: 4x. SimNotes, "The map's size limit"; move it with a measurement, not by
 #: feel.
 MAX_CELLS = 1_876_800
+
+#: A ray that ends on a surface frees a cell the map holds a wall in, over
+#: its last `GRAZE_M` / tan(slant) metres -- where it runs within this times
+#: cos(slant) of that surface, m, this far at a graze -- only at
+#: `sin(slant) ** GRAZE_POWER` of `L_FREE` (`update`'s `graze_m`, #712): the
+#: alley's rays, laid 7-10 cm off the research center's 4 cm south wall the
+#: robot had laid sure from inside, erased it in 8.5 s -- none of those
+#: clears at the true pose. SimNotes, "A thin wall met at a graze".
+GRAZE_M = 0.15
+#: ...the weight's power, never a veto: vetoed, every copy of a wall that a
+#: belief a few cm off had laid was kept, and the belief held to it. 16 deg
+#: off a wall (the alley's median) a clear weighs 0.006 of one, 45 deg 0.25,
+#: 60 deg 0.56. Replayed closed-loop on eight flights' scans, every power
+#: from 2 to 8 kept the map's walk from the mall at 43 m on all four of its
+#: flights, and 4 laid the fewest walls twice (48 cells, 75 at 3, 338 at 2).
+GRAZE_POWER = 4.0
+#: ...over its last this many metres at most.
+GRAZE_MOST_M = 2.0
+#: The slant is read off the line from a ray's end to a neighbour's (`_slant`)
+#: at least this far from it, m: well over the range noise (a 2 cm sigma,
+#: `lidar.SIGMA`) -- off the next bearing's, 1.7 cm across at a metre, a wall
+#: seen square on read as met at a graze, and at 0.10 m the replays laid four
+#: times the base's walls twice.
+SLANT_CHORD_M = 0.15
+#: ...the nearest such neighbour each way round, within this many of the
+#: scan's bearings and this far round, with no ray between that ended on
+#: nothing.
+SLANT_REACH = 12
+SLANT_SPAN_RAD = math.radians(15.0)
 
 
 class OccupancyGrid:
@@ -58,7 +89,8 @@ class OccupancyGrid:
     world_y = ((y + 0.5) * self.resolution) + self.y_min
     return (world_x, world_y)
     
-  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03), free_from=None):
+  def update(self, pose, angles, ranges, max_range, origin=(0.03, 0.03), free_from=None,
+             graze_m=None):
     """Update the occupancy map. pose = (x, y, theta) at the AXLE midpoint.
 
     `origin` is where the sensor sits relative to that axle, in robot-frame
@@ -71,6 +103,13 @@ class OccupancyGrid:
     `free_from`, m a ray, is where each ray may begin to clear a cell the
     map holds a wall in (`perception.lidar.Scan`): nearer, it frees only
     cells with no wall's evidence in them.
+
+    `graze_m` (None: off), m: a ray that ends on a surface frees a cell the
+    map holds a wall in, over its last `graze_m` / tan(slant) metres --
+    where it runs within `graze_m` cos(slant) of that surface -- only at
+    `sin(slant) ** GRAZE_POWER` of `L_FREE` (`GRAZE_M`): square on, nothing
+    more than the one cell short of its end -- the slant read off the
+    scan's own endpoints either side (`_slant`).
     """
     px, py, theta = pose
     fwd, left = origin
@@ -111,23 +150,43 @@ class OccupancyGrid:
     keep[:, 1:] &= (cells[:, 1:] != cells[:, :-1]) | ~live[:, :-1]
 
     # -- The hits themselves
-    hxs = ((ox + ranges * cos_a - self.x_min) / self.resolution).astype(np.int32)
-    hys = ((oy + ranges * sin_a - self.y_min) / self.resolution).astype(np.int32)
+    ex, ey = ox + ranges * cos_a, oy + ranges * sin_a
+    hxs = ((ex - self.x_min) / self.resolution).astype(np.int32)
+    hys = ((ey - self.y_min) / self.resolution).astype(np.int32)
     hin = hit & (hxs.view(np.uint32) < cols) & (hys.view(np.uint32) < rows)
 
-    # One weighted bincount accumulates all the evidence in a single pass
+    # One weighted bincount accumulates all the evidence in a single pass:
+    # a clear of a cell the map holds a wall in (read before this scan) by a
+    # sample `held` weighs its ray's `w_ray` of one (none without a graze)
+    held = w_ray = None
+    if graze_m is not None:
+      # ...over a ray's last graze_m / tan(slant) metres, where it runs
+      # alongside the surface it ends on, sin(slant) ** GRAZE_POWER
+      sin_in = _slant(a, ex, ey, hit, cos_a, sin_a)
+      along = graze_m * np.sqrt(np.maximum(1.0 - sin_in ** 2, 0.0)) / np.maximum(sin_in, 1e-9)
+      stretch = np.minimum(np.minimum(along, GRAZE_MOST_M), ranges)
+      held = keep & (ts > (ranges - stretch)[:, None])
+      w_ray = sin_in ** GRAZE_POWER
     if free_from is not None:
-      # ...nearer than its `free_from`, a ray frees no cell the map holds
-      # any wall's evidence in (read before this scan)
+      # ...and nearer than its `free_from`, nothing
       near = keep & (ts < np.asarray(free_from, dtype=float)[:, None])
-      keep &= ~near
-      walled = self.grid.reshape(-1)[cells[near]] > 0.0
-      free_cells = np.concatenate([cells[keep], cells[near][~walled]])
+      held = near if held is None else held | near
+    if held is not None and held.any():
+      held_cells = cells[held]
+      walled = self.grid.reshape(-1)[held_cells] > 0.0
+      w = (np.zeros(held_cells.size) if w_ray is None
+           else np.broadcast_to(w_ray[:, None], held.shape)[held])
+      if free_from is not None and w_ray is not None:
+        w[near[held]] = 0.0
+      weighed = walled & (w > 0.0)
+      free_cells = np.concatenate([cells[keep & ~held], held_cells[~walled], held_cells[weighed]])
+      free_weights = np.concatenate([np.full(free_cells.size - int(weighed.sum()), L_FREE),
+                                     L_FREE * w[weighed]])
     else:
       free_cells = cells[keep]
+      free_weights = np.full(free_cells.size, L_FREE)
     hit_cells = (hys * cols + hxs)[hin]
-    weights = np.concatenate([np.full(free_cells.size, L_FREE),
-                              np.full(hit_cells.size, L_OCC)])
+    weights = np.concatenate([free_weights, np.full(hit_cells.size, L_OCC)])
     evidence = np.bincount(np.concatenate([free_cells, hit_cells]),
                            weights=weights, minlength=rows * cols)
     self.grid += evidence.reshape(rows, cols)
@@ -141,3 +200,46 @@ class OccupancyGrid:
     img[self.grid < -0.5] = 255    # confidently free
     img[self.grid > 0.5] = 0       # confidently occupied
     return img
+
+
+def _slant(a: np.ndarray, ex: np.ndarray, ey: np.ndarray, hit: np.ndarray,
+           cos_a: np.ndarray, sin_a: np.ndarray) -> np.ndarray:
+  """Per ray (world bearings `a`, ends `ex`, `ey`), the sine of the angle at
+  which it meets the surface it ends on, read off the line from its end to
+  a neighbour's each way round -- the nearest that ended on something
+  `SLANT_CHORD_M` or more from it, within `SLANT_REACH` bearings and
+  `SLANT_SPAN_RAD`, no ray between it and this one ending on nothing: the
+  larger of the two sines where both ways found one (at an occluding edge
+  the way across the jump reads a graze), the one where one did, and 1
+  (square on) where neither did."""
+  n = a.size
+  out = np.ones(n)
+  if n < 3:
+    return out
+  order = np.argsort(np.mod(a, 2 * math.pi), kind="stable")
+  s = np.mod(a[order], 2 * math.pi)
+  h, sx, sy, ca, sa = hit[order], ex[order], ey[order], cos_a[order], sin_a[order]
+  sides = []
+  for step in (1, -1):
+    sine = np.ones(n)
+    found = np.zeros(n, dtype=bool)
+    look = np.flatnonzero(h)                   # still looking that way
+    for k in range(1, SLANT_REACH + 1):
+      if look.size == 0:
+        break
+      j = (look + step * k) % n
+      gap = np.abs(np.mod(s[j] - s[look] + math.pi, 2 * math.pi) - math.pi)
+      stop = ~h[j] | (gap > SLANT_SPAN_RAD) | (j == look)
+      dx, dy = sx[j] - sx[look], sy[j] - sy[look]
+      length = np.hypot(dx, dy)
+      ok = ~stop & (length >= SLANT_CHORD_M)
+      at = look[ok]
+      sine[at] = np.abs(ca[at] * dy[ok] - sa[at] * dx[ok]) / length[ok]
+      found[at] = True
+      look = look[~stop & ~ok]
+    sides.append((sine, found))
+  (s1, f1), (s2, f2) = sides
+  # ...the larger where both ways found one, else the one found: a miss
+  # beside it has no end to read a jump off (the far ray of a graze's)
+  out[order] = np.where(f1 & f2, np.maximum(s1, s2), np.where(f1, s1, s2))
+  return out

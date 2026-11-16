@@ -73,6 +73,56 @@ at 150-400 N, and those steps read "stepped" 7-9 cm where the body went
 **Measured** («BAR»).
 
 **What to read on the live rows.** «READ».
+### A thin wall met at a graze stays in the map (#712, M1 and P8, `loop-712b`) — opens when this PR is deployed
+
+**What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
+sections; the session host's hello unmoved, sha1 `b796e75d…`; no geometry
+and no wire format moved; nothing the robots read changes):
+- **A LIDAR ray that runs alongside the surface it ends on, within 0.15 m
+  times cos(slant) of it, frees a cell the map holds a wall in only at
+  sin(slant)^4 of a clear** (`OccupancyGrid.update`'s `graze_m`, `GRAZE_M`,
+  `GRAZE_POWER`): 16 deg off a wall a clear weighs 0.006 of one, 45 deg
+  0.25, square on the whole of it. The slant is read off a neighbouring ray's end at least
+  0.15 m away, the larger sine where both neighbours read one (`_slant`). A
+  cell with no wall's evidence is freed as before.
+- So the research center's south wall (4 cm, along the alley) stays in a map
+  laid as the live robots lay theirs: from the mall's station the map's walk
+  to the counter read under 35 m on none of 112 flights, where it read 26-27
+  m through the wall on 81 under the base's rule; the jobs passed 100 of 112
+  with 1 fall (89 and 3), the tour's five 149 of 160 with 1 (135 and 3), and
+  the station's trials docked as before (lost far 118 of 123, for 115).
+- ⚠ **What it costs** (SimNotes, "A thin wall met at a graze"): a wall
+  laid a few cm off its twin wears away more slowly where rays run
+  alongside it. In the drift spike's 16 flights the belief in the research
+  center's lobby and storeroom was off 0.049 m at the median (0.063 and
+  0.062 under the base's), but one flight's worst rose from 0.107 to 0.282
+  m, on the street north. A scan's map update takes about 1.4 ms more
+  (7.6-8.2 ms for 6.1-6.8 on the dev box), about 14 ms a sim second a
+  robot.
+
+**Why.** The alley's rays meet that wall at a graze, and laid from a belief
+7-10 cm off the one the wall was laid from (along a sidewalk, the direction
+its walls do not fix), each ran along the wall's own cells for 0.3 m or more
+before its end: the stretch the robot had laid sure from inside was erased
+in 8.5 s, and at the true pose none of those clears happens. The planner
+then routed through the wall, the walk found it again on the way, and
+#698's patience, sized off the map's walk, read it short. Its first form, a
+veto (M1, `loop-712`), kept the wall but kept every copy of a wall a belief
+a few cm off had laid too, and held the research center's belief 10 cm off
+the truth at the median in the drift spike's flights, where the base left
+it 6 cm off; it was not deployed.
+
+**No `MAP_EPOCH` of its own** (Ben's): the deployed save is epoch 4, and its
+maps are dropped at the next wake anyway (`MAP_EPOCH` 5, below). A map laid
+under the base's rule before this ships keeps the wall it erased until the
+robot sees it again from inside, square on.
+
+**What the period is for.** The robots' maps on the wire (`grid`) after a
+walk past the alley's mouth: the research center's south wall held along
+its length. Then the walks between the mall and the storeroom: none
+planned through it, and none given up on a wall left standing where a
+door, a prop or a robot had been. And the belief inside the research
+center, on the drift rows: no worse than the period before's.
 
 ### A hand on its way out that would tip the body over stops there, and our door's and lid's references try their grip turned toward the middle before they tilt (#708, K13, M3 and P1, `loop-708b`) — opens when this PR is deployed
 
