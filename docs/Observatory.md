@@ -114,6 +114,55 @@ your depth camera saw in front of you at your knees' height", where it read
 fall in a `spot` after steps (three on 11-15). A step used as a statement now
 ends its run where it reads false.
 
+### A `done` beside a run that never began is not graded (#706, P9, `loop-done`) — opens when this PR is deployed
+
+**What changed is when a `done` is graded, and the rule that says so**
+(`prompt_sha` `0f1df27e…` -> `ff0e67df…`, 67,157 -> 67,340 characters, 17
+sections: one sentence added to `CHALLENGE_RULE`, after #689's words, which
+stand as they were; the session host's hello unmoved, sha1 `b796e75d…`; no
+geometry and no wire field moved, and no committed recording carries a
+job). A `done` said on an answer that runs a procedure waits on the errand
+that answer builds (`HubLifecycle._grade_waits`, kept across a restart as
+`gradeWaits`; a restart drops the errand). Where none is built -- a
+`procedure:new` whose define was refused or left out, or whose def takes
+arguments; a `procedure:<name>` that builds nothing (the same answer's
+`undefine`, a callee gone); a run too dear to start -- or its run is
+refused by its own validation before its first verb, the grade is not made
+at the loop's pass once the queue is empty (a dead robot's, after its
+stand-up): History says `said done on t_0301 (open_drawer): not graded,
+because the run I said it beside never began -- I still hold it, and its
+time runs on` (narrated `GRADE t_0301: not graded -- the run it was said
+beside never began`); the job stays held and runs out at its time as any
+held job does (#602), at once where that time is already up; and a `done`
+said again is graded as any is. Beside a run, the `done`'s own line (`said
+done on …: graded once everything queued has run`) is now written as that
+run begins, not at the word, so a run that never begins is never promised
+a grade. A run that began is graded once it is over, as before (#689),
+whatever ended it. The rule now says: "A `done`
+beside a run that never begins -- a `procedure:new` whose define was
+refused, say -- is not graded: the job stays yours, its time runs on, and a
+`done` said again is graded."
+
+**Why** (#706, Ben's call of 11-16). On the 11-14 wake (build 2a1fbaf)
+`procedure:new` ran nothing 22 times, its define refused, and 6 of those
+answers said `done` too: 4 jobs (t_0301, t_0316, t_0321, t_0322) were
+graded 4-10 s later on a prop nothing had worked, with 300-500 s of their
+time left. The robots knew both halves of the rule and gambled under the
+clock. One went the other way: Luca's first chest pass (t_0295) said `done`
+beside a refused define with the work already standing, and passed at once;
+under this rule it is graded one answer later.
+
+**What the period is for.**
+- **The line read:** `said done on …: not graded, because the run I said it
+  beside never began` should be followed by a run or a `done` said again
+  while the job's time lasts, never by a `done` the robot thinks was graded.
+- **What it costs:** a `done` held so that the job then ran out of time
+  (`not graded within the … s the job allows`) is the rule's price; count
+  them beside the jobs it kept open.
+- **The other half of the reflex** (#705: a `done` its own answer's think
+  argues against, beside a run that DID begin, or a `recall`) is not
+  touched here: those are still graded.
+
 ### A procedure's lines are shown to the other robot without its name or a def's (#709's follow-up, P12, `loop-709b`) — opens when this PR is deployed
 
 **What changed is what each robot reads of the other** (`others[].doing`;

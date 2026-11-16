@@ -249,6 +249,12 @@ class Stuck(MissionAborted):
 DEATH_ENDED = "interrupted by a death"
 #: What a stand-up's History line says it cost (#572).
 MAP_GONE = "the map I had and the places I had found are gone"
+#: Why a `done` beside a run that never began is not graded (#706, Ben's
+#: call of 11-16), in its History line's words (Observatory.md, its period).
+NEVER_BEGAN = ("the run I said it beside never began -- I still hold it, "
+               "and its time runs on")
+#: A grade waiting on a run no errand has been built for yet (#706).
+NO_RUN_YET = object()
 
 #: What a charge fills the pack to, as a fraction. The reserve is absolute
 #: energy, never a fraction of the pack -- the milestone-7 lesson: the cost
@@ -855,6 +861,11 @@ class HubLifecycle:
     #: waiting for the loop's next idle moment to be graded -- after
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
+    #: ...and said beside a procedure whose run has not begun yet (#706):
+    #: `NO_RUN_YET` from the `done`, then the errand built for that run, and
+    #: None once THAT errand's run is validated; a grade still waiting when
+    #: the queue is empty is not made (`NEVER_BEGAN`).
+    self._grade_waits: object = None
     #: ON A CHARGE TRIP NOW (#602): set only while one runs. ⚠ Never read
     #: `state` for it: a trip leaves `CHARGE` behind, and a grade after it
     #: was run out on the seam mid-hold and banked twice.
@@ -1892,6 +1903,7 @@ class HubLifecycle:
       if KINDS[task.kind].discharge == "procedure":
         self._fail_held(task, "the robot that took it ran out of lives")
     self._grade_pending = ""
+    self._grade_waits = None
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -3096,6 +3108,13 @@ class HubLifecycle:
               "error": f"refused: {e}"}
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
+    if self._grade_waits is errand:
+      # ...the run a `done` waited on began (#706): said now, so a run
+      # that never begins is never promised a grade
+      self._grade_waits = None
+      held = self.tasks.get(self._grade_pending) if self.tasks is not None else None
+      if held is not None and held.state == "active" and not self._fell_holding(held.id):
+        self._done_said(held.id, "graded once everything queued has run")
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -4362,8 +4381,9 @@ class HubLifecycle:
     says stands. Paperwork -- it costs no turn -- that SETS the grade
     pending, and is True where the answer grades it before its action
     (#689): every answer but one that runs a procedure, whose run is the
-    work and is graded from the day loop once the errand queue is empty --
-    and a dead robot's, graded there after its stand-up as before. A `done`
+    work and is graded from the day loop once the errand queue is empty,
+    unless that run never began (#706: `_never_began`) -- and a dead
+    robot's, graded there after its stand-up as before. A `done`
     that names nothing this robot holds is dropped, like a `respond_to` for
     a message already dealt with, and History says why (#648)."""
     if not decision.done:
@@ -4382,9 +4402,7 @@ class HubLifecycle:
       elif fell:
         # ...a job a fall ended, in its grade's hold (#701): the fall's
         # verdict, its time where the seam has read it
-        t0 = self._fallen[task.id][0] if task.id in self._fallen else None
-        why = (f"I fell{_at(t0, float(self.data.time))}, and that ended it -- it is "
-               "graded as things stand once I am up")
+        why = self._fell_why(task)
       elif (task is not None and task.state == "offered"
             and decision.action == "take_task" and decision.task == decision.done):
         # ...before the action runs: "nobody has taken it", after its own
@@ -4395,34 +4413,80 @@ class HubLifecycle:
       self._say(f"DONE {decision.done}: not a challenge you hold -- {why}")
       self._remember(f"said done on {named}: not graded, because {why}")
       return False
+    ran = decision.action.startswith(PROCEDURE_PREFIX)
     self._grade_pending = task.id
+    # ...beside a procedure, waiting on its run to begin (#706): on the
+    # errand its action builds, whose validation ends the wait and says the
+    # `done` in History
+    self._grade_waits = NO_RUN_YET if ran else None
     # ...never inside a dead robot's answer, which its stand-up closes, a
     # grade mid-hold and all: the loop's pass after it grades, as before.
     # (No other stand-up lands in an answer: an admin's reaches a robot
     # only between errands, and the timer's 300 s after a death.)
-    now = self.dead is None and not decision.action.startswith(PROCEDURE_PREFIX)
+    now = self.dead is None and not ran
     when = (f"graded now, before this answer's {decision.action}" if now
             else "graded once everything queued has run")
-    self._say(f"DONE {task.id}: {when} -- {task.description}",
+    self._say(f"DONE {task.id}: "
+              f"{'graded once its run is over, if it begins' if ran else when} -- "
+              f"{task.description}",
               doing=f"DONE {task.id}: {task.description}")
     # ...and History says it (#629): said to the log alone, a grade that came
-    # 37 s after its job's take read as another job's
-    self._remember(f"said done on {_job_named(task.id, task)}: {when}")
+    # 37 s after its job's take read as another job's -- beside a run, once
+    # that run begins (#706)
+    if not ran:
+      self._done_said(task.id, when)
     return now
+
+  def _done_said(self, task_id: str, when: str) -> None:
+    """A `done`'s History line (#629), by the job's id and kind."""
+    task = self.tasks.get(task_id) if self.tasks is not None else None
+    self._remember(f"said done on {_job_named(task_id, task)}: {when}")
+
+  def _fell_why(self, task) -> str:
+    """Why a job a fall ended takes no `done` (#701), its time where the
+    seam has read it."""
+    t0 = self._fallen[task.id][0] if task.id in self._fallen else None
+    return (f"I fell{_at(t0, float(self.data.time))}, and that ended it -- it is "
+            "graded as things stand once I am up")
 
   def _grade_routine(self) -> Routine:
     """Grade the job the robot said it finished (issues #207, #559): its own
     criteria, run on the seam (`_grade_hands_routine`) -- never the robot's
     account of what it did."""
     task_id, self._grade_pending = self._grade_pending, ""
+    waited, self._grade_waits = self._grade_waits is not None, None
     task = self.tasks.get(task_id) if self.tasks is not None else None
+    # ...a `done` whose run never began (#706: the errand built for it never
+    # validated -- refused before its first verb, too dear to start, dropped
+    # by a restart -- or none was built) is not graded, and its one History
+    # line says what came of it, whatever ended the job meanwhile
     if task is None or task.state != "active":
       self._say(f"GRADE {task_id}: no longer held", doing=True)
+      if waited:
+        self._done_said(task_id, "not graded, because "
+                        + self._not_mine(task, float(self.data.time)))
       return
     if self._fell_holding(task_id):
       self._say(f"GRADE {task_id}: a fall ended it -- graded as its hold ends", doing=True)
+      if waited:
+        self._done_said(task_id, f"not graded, because {self._fell_why(task)}")
+      return
+    if waited:
+      self._never_began(task)
       return
     yield from self._grade_hands_routine(task)
+
+  def _never_began(self, task) -> None:
+    """A `done` beside a run that never began, not graded (#706, Ben's
+    call), at the holder's pass of the day loop: one History line, and the
+    job stays held, its time running on -- or, that time already up, it
+    runs out here as any held job does (#602), and that line says so."""
+    if self._out_of_time(task):
+      self._run_out(task)
+      return
+    self._say(f"GRADE {task.id}: not graded -- the run it was said beside never began",
+              doing=True)
+    self._done_said(task.id, f"not graded, because {NEVER_BEGAN}")
 
   def _watch_job(self, task_id: str):
     """A hand job's watch from its claim (#559): its check's grader reading
@@ -6231,6 +6295,8 @@ class HubLifecycle:
     # arbitration the preset queue does: errands before decisions, and a
     # stand-up or a death ending it where it stands.
     self.errands.append(errand)
+    if self._grade_waits is NO_RUN_YET:
+      self._grade_waits = errand          # ...the run this answer's `done` waits on (#706)
     return ""
 
   # ---- a restart is a continuation (issue #345) ----------------------------
@@ -6275,6 +6341,9 @@ class HubLifecycle:
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
       "gradePending": self._grade_pending,
+      # ...and whether it waits on a run not begun yet (#706): a restart
+      # drops the errand it waits on, so it never begins
+      "gradeWaits": self._grade_waits is not None,
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()
@@ -6365,6 +6434,8 @@ class HubLifecycle:
     self._next_near_field = float(clocks.get("nearField", 0.0))
     self._deferrals = {str(k): int(v) for k, v in (state.get("deferrals") or {}).items()}
     self._grade_pending = str(state.get("gradePending") or "")
+    self._grade_waits = (NO_RUN_YET if self._grade_pending and state.get("gradeWaits")
+                         else None)
     if state.get("eventClock"):
       self.event_clock.restore_kept(state["eventClock"])
     # ...only a row of the list in force: one it no longer has (left out at

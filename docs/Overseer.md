@@ -398,7 +398,22 @@ offer. History says the `done` and names the job (`said done on t_0027
 (open_door): …`, #629: by its kind alone, Rowan took one job's grade for
 another's). A `done` on a job the robot does not hold is dropped and says
 why (`said done on t_0137 (open_chest): not graded, because nobody has
-taken it`; #648). A fall while the robot holds one ends it there, graded as
+taken it`; #648). A `done` beside a run that never began is not graded
+either (#706, Ben's call of 11-16; why, in its Observatory period): its
+grade waits on the errand its answer builds (`_grade_waits`: that errand's
+alone, kept across a restart, which drops it), and one never built -- a
+`procedure:new` whose define was refused or left out, or whose def takes
+arguments, a `procedure:<name>` that builds nothing, a run too dear to
+start -- or never validated -- refused before its first verb -- is not made
+at the loop's pass once the queue is empty, a dead robot's after its
+stand-up too. History says so (`said done on t_0301 (open_drawer): not
+graded, because the run I said it beside never began -- I still hold it,
+and its time runs on`; a job whose time is already up runs out there
+instead), the job stays held, and a `done` said again is graded; beside a
+run, `said done on …: graded once everything queued has run` is written as
+that run begins, never before. A run that began -- validated, whatever
+ended it after, a death before its first verb included -- is graded as
+before. A fall while the robot holds one ends it there, graded as
 if `done` were said as it fell (`fell holding t_0239 (open_door): a fall
 fails the try, so the job ends here …`, then the grade's line; #701). A job
 held past the time its description gives is failed by the

@@ -49,7 +49,8 @@ only that the verdict is reachable from the world afterwards (§4). **Since
   (`HubLifecycle._grade_routine`; the humanoids' hand jobs,
   `_grade_hands_routine`, Challenges.md §11) at the word, before its
   answer's action, or once the run is over where the same answer runs a
-  procedure (#689). Its target is named only
+  procedure (#689), and not at all where that run never began (#706). Its
+  target is named only
   where a procedure can be written (`lifecycle.world_targets`), so the
   offer exists on the `autonomous` arm alone; a procedure job of another
   shape adds its own grade there.
