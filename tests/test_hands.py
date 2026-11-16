@@ -486,6 +486,7 @@ def _bare_reach():
   r.q_to = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
+  r._tip = {s: 0.0 for s in hm.SIDES}
   r.slack = {s: True for s in hm.SIDES}
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
@@ -1314,10 +1315,10 @@ def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_
   """⚠ A jaw caught on a chest's bracket on its way out was driven on at
   full stiffness, the world pulling the hand 50-80 N toward the chest until
   the robot went over its toes (#708): an arm walking out to its pre-grasp
-  stops the tick its own reading (`force`, as every loop of the body's reads
-  it) would tip the body toward the hand past `OUT_TIP_NM` -- its pull
-  toward the body at the hand's height, less its press down at the hand's
-  reach -- `blocked`, out where its arm then puts the hand, held where its
+  stops once its own reading (`force`, as every loop of the body's reads it)
+  has tipped the body toward the hand past `OUT_TIP_NM` for `OUT_TIP_S`
+  running -- its pull toward the body at the hand's height, less its press
+  down at the hand's reach -- `blocked`, out where its arm then puts the hand, held where its
   drivers read its joints: held at the command it drove on to, it pulled on
   and the robot fell all the same. ⚠ Never on a push or a press: our door's
   way out drags a jaw back over the door's top pressing down on it, which
@@ -1341,14 +1342,44 @@ def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_
     r._update(0.01)
     assert r.phase["left"] == "move", push
   assert np.abs(r.q_cmd["left"] - ahead).max() > 0.0, "its command walked on toward q_to"
-  # past the line: stopped that tick, held where its drivers read its arm
+  # past the line for `OUT_TIP_S`: stopped then, held where its drivers read its arm
   r.feel(1.05 * pull * toward)
-  r._update(0.01)
+  for _ in range(round(rc.OUT_TIP_S / 0.01)):
+    r._update(0.01)
   assert r.phase["left"] == "blocked" and r.done("left") and r.out("left")
   assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read)
   left = [(q, k) for s, q, k in r.sent if s == "left"]
   assert np.allclose(left[-1][0], read) and left[-1][1] == 0.5, "commanded there, at its reach's stiffness"
   assert r.postures[-1] == (-0.16, 0.0, 0.5), "the body held in the posture it has got to"
+
+
+def test_a_way_outs_reading_past_the_line_for_less_than_its_hold_walks_on():
+  """⚠ A TRANSIENT IS NO CATCH (#708's gate, the loop of 11-16/17): as the
+  standing policy stopped a deep bow within 0.01 s (the cube check's
+  set-out 38), the arm's drivers caught the arm up and read 44 N at a hand
+  that touched nothing, past the line for two of the arm's ticks -- and the
+  way out stopped in free air. Past the line for less than `OUT_TIP_S`
+  running, a way out walks on, its count begun again once the reading falls
+  back under; held past it that long, it stops."""
+  r, rc = _walking_out()
+  toward = np.array([-0.8, -0.6, 0.0])
+  past = 1.05 * rc.OUT_TIP_NM / 0.9 * toward     # past the line at the hand's height, 0.9 m
+  ticks = round(rc.OUT_TIP_S / 0.01)
+  assert ticks >= 3, "a hold longer than the cube's two ticks"
+  for _ in range(2):
+    # past the line one tick short of the hold, then back under: a transient
+    for _ in range(ticks - 1):
+      r.feel(past)
+      r._update(0.01)
+      assert r.phase["left"] == "move"
+    r.feel(0.5 * past)
+    r._update(0.01)
+    assert r.phase["left"] == "move"
+  # held past it the whole hold: stopped
+  for _ in range(ticks):
+    r.feel(past)
+    r._update(0.01)
+  assert r.phase["left"] == "blocked"
 
 
 @pytest.mark.parametrize("phase", ["joints", "home", "rest"])

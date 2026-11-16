@@ -105,8 +105,8 @@ BLOCKED_M, BLOCKED_N = 0.03, 30.0
 #: still, and a deep bow's folding read 81.5 N at the hand for an instant
 #: as its approach began. A push lasts; a transient does not.
 BLOCKED_S = 0.15
-#: A hand on its WAY OUT to its pre-grasp (`move`, in joint space) stops the
-#: tick what its arm reads would TIP THE BODY TOWARD IT past this, N m --
+#: A hand on its WAY OUT to its pre-grasp (`move`, in joint space) stops
+#: once what its arm reads would TIP THE BODY TOWARD IT past this, N m --
 #: its pull toward the body at the hand's height, less its press down at
 #: the hand's reach (`_tipping`) -- held where its drivers read its joints,
 #: never where they were commanded (`_struck`; SimNotes, "A hand on its way
@@ -117,6 +117,14 @@ BLOCKED_S = 0.15
 #: door's top pressing down on it, and stopped on the whole reading or on
 #: its pull alone the door passed fewer.
 OUT_TIP_NM = 20.0
+#: ...past it this long running, s (`_tipped`). ⚠ A TRANSIENT IS NO CATCH:
+#: the reading assumes the body still, and as the standing policy stopped a
+#: deep bow within 0.01 s (the cube check's set-out 38), the arm's drivers
+#: caught the arm up and read 44 N at a hand that touched nothing, past the
+#: line for two of the arm's ticks (0.02 s). Held longer, the stop comes
+#: later on a catch: halted up to 0.25 s after the touch, #708's reaches
+#: all stayed up, and at 0.3 s one fell.
+OUT_TIP_S = 0.03
 #: A hand held whose force pushes on along its fingers past this, N, is
 #: eased before its jaws shut (`ease`, #560): pressed on a cube's board at
 #: 40-120 N, the jaws dragged across it and the feet swivelled 4-6 deg
@@ -1003,6 +1011,9 @@ class Reach:
     self.slack = {s: True for s in hm.SIDES}
     #: How long each hand has been out of reach or pushing (`BLOCKED_S`).
     self._off = {s: 0.0 for s in hm.SIDES}
+    #: ...and how long its way out's reading has tipped the body past the
+    #: line, running (`OUT_TIP_S`).
+    self._tip = {s: 0.0 for s in hm.SIDES}
     self.every = max(1, round(EVERY_S / model.opt.timestep))
     self.steps = 0
     #: The posture the plan wants -- the pelvis's height off the stand's,
@@ -1103,7 +1114,7 @@ class Reach:
       return False
     self.slack[side], self.outs[side] = slack, outs
     self.hold_posture(*posture)
-    self._off[side] = 0.0
+    self._off[side] = self._tip[side] = 0.0
     self.speed[side] = HAND_SPEED
     self.goal[side] = goal
     self.q_to[side] = self.outs[side].pop(0)
@@ -1221,6 +1232,12 @@ class Reach:
     f = self.force[side]
     pull = -(float(f[0]) * float(at[0]) + float(f[1]) * float(at[1])) / reach_m
     return float(at[2]) * pull + reach_m * float(f[2])
+
+  def _tipped(self, side: str, dt: float) -> bool:
+    """Whether what a hand's arm reads has tipped the body toward the hand
+    past `OUT_TIP_NM` for `OUT_TIP_S` running (#708), `dt` its tick."""
+    self._tip[side] = self._tip[side] + dt if self._tipping(side) > OUT_TIP_NM else 0.0
+    return self._tip[side] >= OUT_TIP_S - 1e-9
 
   def _struck(self, side: str) -> None:
     """A hand on its way out caught on something (`OUT_TIP_NM`, #708):
@@ -1992,7 +2009,7 @@ class Reach:
   #: What a restart carries of a reach (#559, `HumanoidMission.kept_state`):
   #: every hand's phase and commands, its filters and what it last read.
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
-          "_off", "steps", "posture", "trim", "tau", "qd", "standing", "force",
+          "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
           "allowed", "left", "looks", "looking", "carry_q", "stand_home")
 
@@ -2356,7 +2373,7 @@ class Reach:
         pulled = self.pulls[s] is not None and self.pulls[s].get("pull") is not None
         stiffness = (self._pulled if pulled else self._held)(s, dt, *have[s])
         sm._set_arm(s, self.q_cmd[s])
-      elif phase == "move" and self._tipping(s) > OUT_TIP_NM:
+      elif phase == "move" and self._tipped(s, dt):
         self._struck(s)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness
