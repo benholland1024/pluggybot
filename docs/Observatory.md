@@ -211,12 +211,12 @@ flown on the branch, 11,705 lines, every one the committed fixture's but two
 - Both are `drift` rows: `refusing` with `seconds` and its `verdict`,
   `matching` with its `verdict`. ⚠ The site's observatory files a `drift`
   row only under a why its own list knows (`DRIFT_WHYS` in
-  `pluggyworldObservatory.ts`). Rooftop's `loop-drift-whys` (M5 of the loop
-  of 11-15/16) adds the two and keeps their `verdict` (it kept a row's
-  `seconds` already), so the rows reach `/observe` only where this
-  period's sim and a site with that branch are both deployed; a site before
-  it drops them at its door. The History lines reach it as records either
-  way.
+  `pluggyworldObservatory.ts`). Rooftop's `loop-drift-whys` (its commit
+  48b89ef; M5 of the loop of 11-15/16) adds the two and keeps their
+  `verdict` (it kept a row's `seconds` already), so the record of the two
+  rows begins at the later of two deploys, this period's sim and a site
+  with that commit; a site before it drops them at its door. The History
+  lines reach it as records either way.
 - It moves no belief, adds no search and names no act: what the robot does
   about it is its mind's. Measured on the served body's own scans, its
   map one scan standing, nothing stepped: its belief turned 120 deg and
