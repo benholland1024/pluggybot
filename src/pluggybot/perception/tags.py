@@ -26,6 +26,7 @@ read from across the lab; a rack's are read from the working pose.
 import io
 import os
 import threading
+import weakref
 from pathlib import Path
 
 import numpy as np
@@ -262,6 +263,62 @@ def kept_detector(**params):
   return Kept(**params)
 
 
+#: The renderers the detectors draw through, ONE per model and picture size
+#: (#713): {(id(model), height, width): [renderer, users]}. Each is ~210 MiB
+#: under osmesa (its GL context, MuJoCo's and Mesa's buffers), and a pair's
+#: four cameras of one model drew one at a time on the physics thread
+#: through four. ⚠ CLOSED WHEN ITS LAST USER IS (`TagDetector.close`, or
+#: one collected unclosed): kept, the tests' many bodies of many models
+#: each held one alive in a worker. The renderer holds its model, so the id
+#: is that model's while the entry is here.
+_RENDERERS: dict[tuple[int, int, int], list] = {}
+#: Re-entrant: a detector collected unclosed releases its use from inside
+#: whatever allocation set the cycle collector off, building one included.
+_RENDERERS_LOCK = threading.RLock()
+
+
+def _renderer_for(model, height: int, width: int):
+  """The renderer every camera of `model` draws a `height` x `width` picture
+  through, built at the first one's need, and its key. One picture is the
+  same bit for bit drawn through it after any other camera's or through a
+  renderer of its own (#713, on osmesa; `test_shared_renderer.py`): a draw
+  is `update_scene` and `render` back to back on one thread, and the scene
+  keeps nothing of the last camera's."""
+  import mujoco
+  key = (id(model), int(height), int(width))
+  with _RENDERERS_LOCK:
+    entry = _RENDERERS.get(key)
+    if entry is None:
+      renderer = mujoco.Renderer(model, height, width)
+      # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296). MEASURED on
+      # the deploy box (MUJOCO_GL=osmesa, llvmpipe, home world, 2026-09-19):
+      # this frame costs 1113 ms with shadows and 32 ms without -- sixteen
+      # lights each casting into a 4096^2 shadow map is sixteen 16-Mpixel
+      # depth passes per look, on a software rasteriser, ~97 % of the render.
+      # At 3-4 looks a sim-second per robot the served pair spent ~80 % of
+      # all its CPU here and ran at 0.23x real time. A tag decode thresholds
+      # gray levels and a real camera sees no shadow PASS; nothing hardware
+      # has is lost. The viewer and the filmstrips keep their shadows: this
+      # is the detectors' scene alone, and `update_scene` keeps the flags.
+      for flag in (mujoco.mjtRndFlag.mjRND_SHADOW, mujoco.mjtRndFlag.mjRND_REFLECTION):
+        renderer.scene.flags[flag] = 0
+      entry = _RENDERERS[key] = [renderer, 0]
+    entry[1] += 1
+    return key, entry[0]
+
+
+def _release_renderer(key) -> None:
+  """One user of the renderer at `key` gone; the last closes it."""
+  with _RENDERERS_LOCK:
+    entry = _RENDERERS.get(key)
+    if entry is None:
+      return
+    entry[1] -= 1
+    if entry[1] <= 0:
+      del _RENDERERS[key]
+      entry[0].close()
+
+
 class TagDetector:
   """Renders one camera and decodes the AprilTags in it.
 
@@ -271,20 +328,11 @@ class TagDetector:
 
   def __init__(self, model, camera_name: str, width: int = PICTURE_W,
                height: int = PICTURE_H, tag_size: float = SMALL_TAG_SIZE) -> None:
-    import mujoco
-    self.renderer = mujoco.Renderer(model, height, width)
-    # ⚠ NO SHADOWS, NO REFLECTIONS (rooftop-media-2026 #296). MEASURED on
-    # the deploy box (MUJOCO_GL=osmesa, llvmpipe, home world, 2026-09-19):
-    # this frame costs 1113 ms with shadows and 32 ms without -- sixteen
-    # lights each casting into a 4096^2 shadow map is sixteen 16-Mpixel
-    # depth passes per look, on a software rasteriser, ~97 % of the render.
-    # At 3-4 looks a sim-second per robot the served pair spent ~80 % of
-    # all its CPU here and ran at 0.23x real time. A tag decode thresholds
-    # gray levels and a real camera sees no shadow PASS; nothing hardware
-    # has is lost. The viewer and the filmstrips keep their shadows: this
-    # is the detector's scene alone, and `update_scene` keeps the flags.
-    for flag in (mujoco.mjtRndFlag.mjRND_SHADOW, mujoco.mjtRndFlag.mjRND_REFLECTION):
-      self.renderer.scene.flags[flag] = 0
+    key, self.renderer = _renderer_for(model, height, width)
+    # its use released once, at `close` or when it is collected unclosed;
+    # never at exit, where the OS takes the renderers back
+    self._release = weakref.finalize(self, _release_renderer, key)
+    self._release.atexit = False
     self.camera_name = camera_name
     self.width, self.height = width, height
     self.tag_size = tag_size
@@ -356,4 +404,7 @@ class TagDetector:
     return self.renderer.render()
 
   def close(self) -> None:
-    self.renderer.close()
+    """Its use of the shared renderer released (the last user's closes it);
+    a second close does nothing."""
+    self._release()
+    self.renderer = None
