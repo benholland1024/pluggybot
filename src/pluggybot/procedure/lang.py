@@ -1370,15 +1370,15 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     result["completed"] = count
     return True
 
-  def fault(why: str, line: int, verb: str, at: At) -> None:
+  def fault(why: str, line: int, callee: str, at: At) -> None:
     """A fault a test reads -- in the arithmetic a call it tests ran, or in
     computing that call's arguments: a step of its own that failed, and the
-    run goes on (no count: no verb ran)."""
-    result["steps"].append({"verb": verb, "line": line, **at.said(), "ok": False,
+    run goes on (no count: no verb ran). `callee` is the def the call named,
+    or `expr`: the other robot is shown the line alone."""
+    result["steps"].append({"verb": callee, "line": line, **at.said(), "ok": False,
                             "reason": why, "tested": True})
     result["testsFalse"] += 1
-    # ...`verb` is the def the call named, or `expr`: shown, the line alone
-    life._say(f"PROCEDURE {proc.name} line {line}{at.text()}, {verb} did not do what it "
+    life._say(f"PROCEDURE {proc.name} line {line}{at.text()}, {callee} did not do what it "
               f"said, as its test read -- {why}",
               doing=f"PROCEDURE line {line} did not do what it said, as its test read")
 
@@ -1503,8 +1503,8 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
           # at the call's line (#560), in a statement's own, at its (#686)
           result["total"] = count + 1
           result["failedAt"] = count
-          line, verb, at = stop.at if stop.at else (None, "expr", None)
-          result["steps"].append({"i": count, "verb": verb,
+          line, callee, at = stop.at if stop.at else (None, "expr", None)
+          result["steps"].append({"i": count, "verb": callee,
                                   **({"line": line, **at.said()} if line else {}),
                                   "ok": False, "reason": stop.why})
           life._say(f"PROCEDURE {proc.name} stopped: {stop.why}",

@@ -479,24 +479,32 @@ def test_a_procedure_is_shown_as_its_steps_never_its_name_nor_a_defs(what):
 
 
 #: What a run's line may show of it (#709's follow-up): the step's count,
-#: its line and its verb, and how many ran and read false.
+#: its line and its verb (a language verb: `verb_step`'s), and how many ran
+#: and read false.
 OF_A_RUN = {"count", "line", "verb", "step.verb", "i + 1", "len(steps)",
             "run['completed']", "run['total']", "read"}
+#: ...and what holds a name the robot gave a procedure or a def, or a
+#: house program's, which no line of any kind shows: `at.text()` names the
+#: def and the library's procedure that holds it, `callee` the def a call
+#: named (an errand's name is none: a procedure runs as the errand
+#: `procedure`, `errand_from`).
+NAMED_BY = re.compile(r"\b(proc|program)\.name\b|\bat\.text\(\)|\bcallee\b")
 
 
 def test_no_call_shows_a_runs_line_with_anything_but_its_step():
-  """Every call that narrates a run's line, as its call is written: what its
-  shown form interpolates is a count, a line or a verb -- never a name the
-  robot gave the procedure or a def, as a new line would that copied its
-  said form (`at.text()` names the def and the library's procedure that
-  holds it)."""
+  """Every call, as it is written: what a run's shown line interpolates is
+  a count, a line or a verb, and no shown line of any kind interpolates a
+  name the robot gave the procedure or a def -- as a new line would that
+  copied its said form."""
   named = set()
   for site in _all_sites():
     for msg, doing in _variants(site):
       shown = msg if doing is True else doing or ""
-      if shown.startswith("PROCEDURE "):
-        named.update((site.where, part.split(">>")[0]) for part in shown.split("<<")[1:]
-                     if part.split(">>")[0] not in OF_A_RUN)
+      for part in shown.split("<<")[1:]:
+        marker = part.split(">>")[0]
+        if NAMED_BY.search(marker) or (shown.startswith("PROCEDURE ")
+                                       and marker not in OF_A_RUN):
+          named.add((site.where, marker))
   assert not named, sorted(named)
 
 

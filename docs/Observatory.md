@@ -25,9 +25,10 @@ that def: a step ("PROCEDURE step 24 (line 34): step", which the robot
 says as "PROCEDURE door_p1 step 24 (line 34): step(ahead=0.12, left=0.0,
 turn=0.0)"), a step a test read false, a step that failed, a call a test
 read false (its line alone), a stop, and how the run ended ("PROCEDURE
-complete: 40/40 steps, 3 tests read false"). A house program's (#58) lines
-are shown the same way. Everything else in `doing` is as `loop-709` made it,
-and a dead robot is still shown `DEAD (cause)` (Ben, 2026-11-16).
+complete: 40/40 steps, 3 tests read false"). A house program's (#58)
+`PROCEDURE` lines are shown the same way. Everything else in `doing` is as
+`loop-709` made it, and a dead robot is still shown `DEAD (cause)` (Ben,
+2026-11-16).
 
 **Why** (#709's follow-up, Ben, 2026-11-16). A name is the robot's own
 words, and it can carry the robot's reasons: on the 11-15 wake the names
