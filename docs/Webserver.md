@@ -480,21 +480,26 @@ Why the numbers are what they are:
   still grew by up to +10 MiB a minute, and a clock standing with memory
   over the rate is no pause, so a runaway that stops the world is still
   judged.
-- **Three samples, not two.** Each of a robot's two cameras (the colour
-  imager and the navigation camera) builds its renderer at its first use
-  and keeps it: about 210 MiB under osmesa, 190 when it is built and 20-27
-  at its first picture, four in a pair, once a process. A robot that began
-  a process charging built both on its first walk, a minute apart
-  (2026-11-14 17:32-17:33 UTC: +207 and +239, then flat), and two samples
-  read that as a runaway. Its trace held 4.0 MiB: `tracemalloc` sees only
-  the renderer's own arrays, 20 of its 190 MiB. Three renderers in three
-  minutes in a row (both robots' first walks together) would still read as
-  a runaway; none came so in the nine processes of the saved logs of
-  11-12, 11-14 and 11-15. The cost is a
+- **Three samples, not two.** The rule was set when each of a robot's two
+  cameras (the colour imager and the navigation camera) built a renderer of
+  its own at its first use and kept it: about 210 MiB under osmesa, 190
+  when it was built and 20-27 at its first picture, four in a pair, once a
+  process. A robot that began a process charging built both on its first
+  walk, a minute apart (2026-11-14 17:32-17:33 UTC: +207 and +239, then
+  flat), and two samples read that as a runaway. Its trace held 4.0 MiB:
+  `tracemalloc` sees only the renderer's own arrays, 20 of its 190 MiB.
+  Since #713 the four cameras draw through one renderer: measured on the
+  served pair under osmesa, the first camera's first use costs 285 MiB
+  (the renderer, the AprilTag detector and the process's first GL
+  context) and each other camera's 0-10, so only the first camera's first
+  use is a step. Whether the rule goes back to two samples is Ben's call
+  (#713). The cost of three is a
   minute at any rate: a runaway of 115 MiB a minute (the deaths of
   2026-09-24) is reported about 345 MiB in, where those died 7-9 minutes
-  in. One faster than about 170 MiB a minute from the pair's ~1.5 GB
-  reaches the 2 GiB cap before its third sample.
+  in. One faster than about 170 MiB a minute from the pair's ~1.5 GB of
+  2026-11-14 reached the 2 GiB cap before its third sample; with #713's 640
+  MiB off it (measured off the box, its steady state there not yet read),
+  about 370.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
   with the pair free-running on the dev machine (EGL, Python 3.14; the
   image runs 3.12), four interleaved runs, per wall minute after start-up:
