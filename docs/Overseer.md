@@ -383,8 +383,13 @@ the validator refuses teaches the robot a refusal.
 errand behind it -- the humanoids' hand jobs at the storeroom's counter,
 `open_drawer`, `open_door` and `open_chest` (Challenges.md §11) -- queues
 nothing when it is taken: the robot writes and runs the procedure that
-does it, and sets `done` to the task's id — a paperwork field on the
-library's slot, so it exists only where a procedure can be written. It is
+does it, and sets `done` to `{"task": <the task's id>, "stands": true}` — a
+paperwork field on the library's slot, so it exists only where a procedure
+can be written. ⚠ AN ID ALONE IS NO ACT (#705): `stands` false says nothing,
+and so does a bare id; the field was the id, and the fill-in a robot
+holding a job wrote in it was that id -- 8 of the 11-14 wake's 44 `done`s
+held it where the answer's own think said it was not done (the replay of
+those turns: P9's report, loop of 11-16/17). It is
 graded at the word, before the answer's action (#689: after it, the 15
 said with `idle` from 11-01 to 11-12 were each graded a minute late),
 unless the same answer runs a procedure, whose run is the work: then at the

@@ -961,8 +961,9 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "take a procedure of yours back out of the library. With `define` on "
    "the same answer it replaces one: the undefine is done first."),
   ("done", "procedures", "CHALLENGES",
-   "the id of a challenge you claimed and say now stands, ready to be "
-   "graded."),
+   "`{task, stands}`: a challenge you claimed, by its id, and `stands` true "
+   "to say its work stands now, ready to be graded; `stands` false says "
+   "nothing."),
   ("record", "procedures", "WHAT YOU HAVE MEASURED",
    "write down something you MEASURED: `{quantity, value, unit, method, "
    "topic}`. Code reads the number back."),
@@ -1522,9 +1523,13 @@ class Menu:
             # a slot the grammar could never free.
             "undefine": enum(keeps if keeps is not None else procedures),
             # ...and `done` (issue #207): the claimed challenge the robot
-            # says stands. A free string, like `task`: the board changes
-            # every call and is checked in the lifecycle.
-            "done": {"type": "string"},
+            # says stands, by a free id, like `task` (the board changes
+            # every call and is checked in the lifecycle), and a word that
+            # it stands (#705): an id alone is no act.
+            "done": {"type": "object", "additionalProperties": False,
+                     "required": ["task", "stands"],
+                     "properties": {"task": {"type": "string"},
+                                    "stands": {"type": "boolean"}}},
             # ...and the science record's two verbs (issue #217), riding
             # the library's slot: a finding is a quantity, a NUMBER (the
             # schema says so, which is what makes the record checkable by
@@ -1790,7 +1795,10 @@ class Menu:
     # `done` rides the library's slot (issue #207): a challenge is
     # discharged by a procedure, so only a mind that can write one can
     # finish one. Dropped, not raised on, where there is no library.
-    done = clean(raw.get("done"), MAX_ID) if procedures is not None else ""
+    said = raw.get("done")
+    done = (clean(said.get("task"), MAX_ID)
+            if procedures is not None and isinstance(said, dict)
+            and said.get("stands") is True else "")
     # ...and so do the science record's verbs (issue #217), on `define`'s
     # terms: NOT checked here -- `ThoughtFiles.record` refuses a finding
     # that is not one, out loud, which is the interesting path.
@@ -2819,7 +2827,8 @@ CHALLENGES
 Some jobs on the board are CHALLENGES: nobody wrote the robot a way to do \
 them. Taking one queues nothing. You write the procedure that does the job \
 (`define`), run it (`procedure:<name>`), and when the work stands you set \
-`done` to the job's id -- on the same answer as the run if you like, and the \
+`done` to `{"task": "<the job's id>", "stands": true}` (with `stands` false \
+it says nothing) -- on the same answer as the run if you like, and the \
 grade then waits until that run has finished; on an answer that runs no \
 procedure, the grade comes at once, before that answer's action. A `done` \
 beside a run that never begins -- a `procedure:new` whose define was refused, \

@@ -159,15 +159,19 @@ def test_done_rides_the_library_slot_and_a_menu_without_one_never_sees_it():
   from dataclasses import replace
   menu = replace(ov.Menu.for_world(HUMANOID_HOME), procedures=True)
   with_library = menu.schema(procedures=("drawer",))
-  assert with_library["properties"]["done"] == {"type": "string"}
+  assert with_library["properties"]["done"] == {
+    "type": "object", "additionalProperties": False, "required": ["task", "stands"],
+    "properties": {"task": {"type": "string"}, "stands": {"type": "boolean"}}}
   assert "done" in with_library["required"]
   without = menu.schema()
   assert "done" not in without["properties"] and "done" not in without["required"]
-  d = menu.validate({"action": "procedure:drawer", "reason": "r", "done": "t_0007"},
+  d = menu.validate({"action": "procedure:drawer", "reason": "r",
+                     "done": {"task": "t_0007", "stands": True}},
                     procedures=("drawer",))
   assert d.done == "t_0007" and d.as_dict()["done"] == "t_0007"
   bare = ov.Menu.for_world(HUMANOID_HOME)
-  dropped = bare.validate({"action": "idle", "reason": "r", "done": "t_0007"})
+  dropped = bare.validate({"action": "idle", "reason": "r",
+                           "done": {"task": "t_0007", "stands": True}})
   assert dropped.done == "" and "done" not in dropped.as_dict()
 
 
@@ -184,3 +188,24 @@ def test_the_challenge_rule_names_no_charging_and_the_table_shows_the_row_with_a
   with_library = [r["task"] for r in table.as_context(challenges=True)]
   assert "program" not in bare and "program" in with_library
   assert set(bare) < set(with_library)
+
+
+def test_a_done_is_an_act_only_where_it_says_the_work_stands():
+  """#705: 8 of the 11-14 wake's 44 `done`s held the id of the job their
+  robot held where its own think said it was not done -- the fill-in a
+  robot holding a job writes is that id, which was the act itself. The
+  field is `{task, stands}`: only `stands` true says done; false, or an id
+  alone, says nothing."""
+  from dataclasses import replace
+  menu = replace(ov.Menu.for_world(HUMANOID_HOME), procedures=True)
+
+  def done(said):
+    return menu.validate({"action": "idle", "reason": "r", "done": said},
+                         procedures=("drawer",)).done
+  assert done({"task": "t_0007", "stands": True}) == "t_0007"
+  assert done({"task": "t_0007", "stands": False}) == ""
+  assert done("t_0007") == "", "an id alone is no act"
+  assert done({"task": "", "stands": True}) == ""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ('you set `done` to `{"task": "<the job\'s id>", "stands": true}` (with '
+          '`stands` false it says nothing)') in flat

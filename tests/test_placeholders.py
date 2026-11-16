@@ -44,7 +44,8 @@ def _quiet(**fields) -> dict:
          "unpin": "", "note": {"topic": "", "title": "", "text": ""},
          "unnote": "", "cites": "", "intend": "", "drop_goal": "", "serves": "",
          "standing_order": "", "buy_heart": False, "event_map": [],
-         "define": {"name": "", "source": ""}, "undefine": "", "done": "",
+         "define": {"name": "", "source": ""}, "undefine": "",
+         "done": {"task": "", "stands": False},
          "record": {"quantity": "", "value": 0, "unit": "", "method": "",
                     "topic": ""},
          "retract": "", "other_needs": "", "tell": {"to": "", "text": ""},
@@ -143,7 +144,8 @@ def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
   counted as filler, it made this answer full of placeholders and left out
   the `done`, the heart and the rating it meant (found in review). So
   Rowan's `say` "tell:" (t=1110967.439) stands."""
-  raw = _quiet(action="idle", reason="the tower is up", done="t_0758",
+  raw = _quiet(action="idle", reason="the tower is up",
+               done={"task": "t_0758", "stands": True},
                say="Done!", lookup="Reason", tell={"to": "Rowan", "text": "done"},
                pin=",", intend="n", buy_heart=True, heart_for="Rowan",
                rate={"board": "whiteboard_a", "quality": 0.8})
@@ -189,7 +191,8 @@ def test_an_answer_full_of_placeholders_acts_on_nothing_and_its_action_stands():
     assert getattr(d, write) == "", write
   assert d.note is None and d.record is None and d.define is None
   assert d.left_out["why"] == "filled" and d.left_out["words"] == ["n"]
-  assert d.left_out["acts"] == ["buy_heart", "heart_for", "rate", "other_needs", "done"]
+  # ...its `done` an id alone, which is no act (#705's shape)
+  assert d.left_out["acts"] == ["buy_heart", "heart_for", "rate", "other_needs"]
   assert len(d.left_out["fields"]) == 15 and "tell" in d.left_out["fields"]
   assert d.as_dict()["leftOut"] == d.left_out, "the decision's row carries it"
 

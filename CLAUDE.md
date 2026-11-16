@@ -2869,7 +2869,9 @@ save a filmstrip PNG named after the script.
   built or never validated is not made at the loop's pass: the `done`'s one
   History line says so (said "graded once everything queued has run" only
   as its run begins), the job held and its time running on, said again it
-  is graded; a dead robot's too; the rule says so. ⚠ GATED ON A MIND, NOT MOVED INTO
+  is graded; a dead robot's too; the rule says so. ⚠ `done` IS `{task,
+  stands}` (#705): only `stands` true is an act; an id alone, the fill-in a
+  robot holding a job wrote, says nothing. ⚠ GATED ON A MIND, NOT MOVED INTO
   `rewards.json` (a prop is a target only where `world_targets(...,
   procedures=True)`, and every `task_producer` caller passes whether there
   is a mind). ⚠ `_claim_task` gates on `claim_budget_wh`, not

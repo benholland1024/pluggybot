@@ -10,6 +10,27 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `done` says in a word that the work stands (#705, P9, `loop-done-shape`, NOT MERGED) — opens when this PR is deployed
+
+**What changed is the `done` field's shape** (`prompt_sha` `0ba46734…` ->
+`18e7c09b…`, 68,294 -> 68,439 characters, 17 sections: `CHALLENGE_RULE`'s
+words for setting it and its line in WHAT YOU CAN DO; the schema's `done`
+is now an object; the session host's hello unmoved, sha1 `39c0692a…`).
+`done` is `{"task": "<the job's id>", "stands": true}`, and only `stands`
+true is an act: `stands` false says nothing, and so does an id alone.
+
+**Why** (#705). On the 11-14 wake 8 of the 44 `done`s held the id of the
+job their robot held where the same answer's think said it was not done,
+or planned the work for its next turns; 7 of those jobs were lost. The
+field was the id, and the fill-in a robot holding a job writes is that id.
+
+**What the period is for.**
+- **The reflex:** a `done` whose `stands` is true beside a think that
+  plans the work for later turns. Count them beside the `done`s with
+  `stands` false, and read whether `stands` itself became the fill-in.
+- **What it costs:** a `done` the robot meant, left out because it wrote
+  `stands` false (its think saying done).
+
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294
