@@ -1638,7 +1638,7 @@ HANDS_VERBS: dict[str, Verb] = {
                f"the way you step and {STEP_FRONT_HALF_M:g} m either side of it. Either "
                "reads false and says so. It keeps off walls and furniture too: it stops before "
                f"it would bring your LIDAR within {STEP_WALL_M:g} m of anything that reads at "
-               f"your head's height ({OVER_Z:g} m over the floor and up) -- a wall, a door, a "
+               f"your head's height ({OVER_Z:g} m over the floor and up) -- a wall, a fence, a "
                f"tall shelf -- or your middle within {STEP_LOW_M:g} m of what your depth camera "
                f"has seen in front of you at your knees' height ({KNEE_Z:g} m over the floor and "
                "lower) -- a counter's face, a chair -- each ahead in the way you step; standing "

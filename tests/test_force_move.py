@@ -823,7 +823,10 @@ def test_the_humanoid_keeps_its_posture_to_look_with_a_hand_out():
   from pluggybot.humanoid import body as hb
   body = object.__new__(hb.HumanoidBody)
   r = _bare_reach()
-  body.mission = NS(to_stand_routine=lambda: iter(()), reach=r)
+  body._d = NS(time=1.0)
+  # ...nothing read in front of its head (#717's bow room)
+  body.mission = NS(to_stand_routine=lambda: iter(()), reach=r, last_motion_t=0.0,
+                    over_returns=(1.0, [], [], (0.0, 0.0)), peer_returns=None)
   r._posture_held = lambda: True
   r.phase["left"] = "hold"
   for _ in body.gaze_routine(st.SPOT_GAZES[2]):

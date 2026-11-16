@@ -32,9 +32,10 @@ def _standing(wall_x: float | None, t: float = 10.0, peer_x: float | None = None
   pa = np.radians(np.arange(-10.0, 11.0))
   peers = (t, pa, (peer_x - px) / np.cos(pa)) if peer_x is not None else (t, pa[:0], pa[:0])
   mission = NS(over_returns=(t, a, r, (0.0, 0.0)), peer_returns=peers, odo=NS(sm=sm),
-               last_motion_t=0.0, scans=[], _scan=lambda: None)
-  mission._sighted = lambda scan, when: mission.scans.append(when)
-  return NS(mission=mission, _d=NS(time=t), reach=NS(posture=np.zeros(3)))
+               last_motion_t=0.0, scans=[])
+  body = NS(mission=mission, _d=NS(time=t), reach=NS(posture=np.zeros(3)))
+  mission.look_scan = lambda: mission.scans.append(body._d.time)
+  return body
 
 
 def test_a_bow_is_held_where_the_head_would_come_too_near_a_wall():

@@ -277,7 +277,7 @@ class _Room:
     # first comes a tenth of a second and 3 cm in
     seen = mission.over_returns
     if seen is None or seen[0] < since:
-      mission._sighted(mission._scan(), walk_t)
+      mission.look_scan()
 
   def _wall(self) -> np.ndarray | None:
     seen = self.mi.over_returns
@@ -1084,12 +1084,14 @@ class HumanoidBody(Body):
     over = mi.over_returns
     if over is None or t - over[0] > BOW_SCAN_S or over[0] < mi.last_motion_t:
       # ...one taken where it stands: none since it last walked, or old
-      mi._sighted(mi._scan(), t)
+      mi.look_scan()
     t_over, a, r, origin = mi.over_returns
     ox, oy = origin if origin is not None else (0.0, 0.0)
+    peers = mi.peer_returns
+    if not len(a) and (peers is None or peers[0] != t_over or not len(peers[1])):
+      return float(down), math.inf
     # ...and another robot's body the same scan saw: it stands at the head's
     # height too, and the head's room is the step's (`_kept_off`) no less
-    peers = mi.peer_returns
     if peers is not None and peers[0] == t_over and len(peers[1]):
       a, r = np.concatenate((a, peers[1])), np.concatenate((r, peers[2]))
     # ...each return from the pelvis along its heading, into the stance

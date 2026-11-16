@@ -18,7 +18,7 @@ hello moves, sha1 `361f10cd…` from `b796e75d…`):
 - `step`'s text, after the sentence that ends "Either reads false and says
   so.", gains: "It keeps off walls and furniture too: it stops before it
   would bring your LIDAR within 0.3 m of anything that reads at your head's
-  height (1.05 m over the floor and up) -- a wall, a door, a tall shelf --
+  height (1.05 m over the floor and up) -- a wall, a fence, a tall shelf --
   or your middle within 0.2 m of what your depth camera has seen in front of
   you at your knees' height (0.6 m over the floor and lower) -- a counter's
   face, a chair -- each ahead in the way you step; standing that near

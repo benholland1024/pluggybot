@@ -223,10 +223,7 @@ class Walk:
     return
     yield
 
-  def _scan(self):
-    return None
-
-  def _sighted(self, scan, t):
+  def look_scan(self):
     """A scan taken now (`_Room`'s, where a step has none, #717)."""
     self.scans_taken = getattr(self, "scans_taken", 0) + 1
     self._over_scan()
@@ -746,6 +743,27 @@ def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be(
   mission = NS(falls=0, legs="stand", knee=k, getup=NS(begin=lambda: None))
   HumanoidMission._fell(mission)
   assert not len(k.pts), "a fall kept what it saw"
+
+
+def test_a_steps_own_scan_draws_noise_of_its_own():
+  """The scan a step takes as it sets off, and a look's (`look_scan`), draw
+  their noise from a stream of their own (#717): every other scan the LIDAR
+  takes draws as it did, so a flight no new rule stops is the flight it was.
+  Drawn from the LIDAR's, the tour's table lays parted from today's at their
+  first step and fell in a withdraw three times."""
+  body = _floor_body()
+  try:
+    mi = body.mission
+    lidar = (mi.lidar.rng.bit_generator.state, mi.lidar.peer_rng.bit_generator.state)
+    look = mi._look_rngs[0].bit_generator.state
+    mi.look_scan()
+    assert (mi.lidar.rng.bit_generator.state, mi.lidar.peer_rng.bit_generator.state) == lidar
+    assert mi._look_rngs[0].bit_generator.state != look
+    assert mi.over_returns is not None and mi.over_returns[0] == float(body._d.time)
+    state, _ = mi.kept_state()
+    assert state["lookRng"][0] == mi._look_rngs[0].bit_generator.state
+  finally:
+    body.close()
 
 
 def test_a_pressed_step_reads_false_and_says_what_its_scans_do():

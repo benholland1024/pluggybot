@@ -442,8 +442,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._frame_level = False
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
-    #: ...and what it saw at its knees' height, kept for its steps (#717)
+    #: ...and what it saw at its knees' height, kept for its steps (#717),
+    #: and the noise of the scans a step or a look takes where it stands
+    #: (`look_scan`): a stream of their own
     self.knee = KneeMemory()
+    self._look_rngs = (np.random.default_rng(self.noise.seed("lookscan")),
+                       np.random.default_rng(self.noise.seed("lookscan") + 1))
     self._init_way()
     # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
     # looks through the head's navigation camera
@@ -807,6 +811,21 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._looked = (t, frozenset(scan.peer_roots))
     return self._looked[1]
 
+  def look_scan(self) -> None:
+    """A scan where it stands, for a step's walk or a look's bow to read
+    (#717; `HumanoidBody._Room`, `bow_room`): recorded as every scan's is
+    (`_sighted`), never into the map nor the matcher -- ⚠ ITS NOISE A STREAM
+    OF ITS OWN (`_look_rngs`): drawn from the LIDAR's, every scan after it
+    drew otherwise, and a flight the rules never stopped flew another flight."""
+    lidar = self.lidar
+    rngs = lidar.rng, lidar.peer_rng
+    lidar.rng, lidar.peer_rng = self._look_rngs
+    try:
+      scan = self._scan()
+    finally:
+      lidar.rng, lidar.peer_rng = rngs
+    self._sighted(scan, float(self.data.time))
+
   def keep_out(self, seen) -> list[tuple[float, float]]:
     """What a hand's way keeps off (#678): each other robot its LIDAR saw
     (`seen`, by root: a look, `look_round`) standing within `ARMS_NEAR_M`
@@ -1019,6 +1038,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "lidarSeen": [self.scanned_t, dict(self.seen_t)],
              "lidarRng": [self.lidar.rng.bit_generator.state,
                           self.lidar.peer_rng.bit_generator.state],
+             "lookRng": [r.bit_generator.state for r in self._look_rngs],
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
              "match": match,
@@ -1108,6 +1128,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.seen_t = {str(k): float(v) for k, v in seen.items()}
     self.lidar.rng.bit_generator.state = state["lidarRng"][0]
     self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
+    # ...a save from before #717 took no look's scan: its stream from its seed
+    for r, kept in zip(self._look_rngs, state.get("lookRng", ())):
+      r.bit_generator.state = kept
     self.depth.rng.bit_generator.state = state["depthRng"][0]
     self.depth.peer_rng.bit_generator.state = state["depthRng"][1]
     if state.get("station") in self.stations:
