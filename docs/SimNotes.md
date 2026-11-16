@@ -9973,10 +9973,11 @@ past the line with its contacts and the true grip's travel,
 - *What a hold costs a catch* (#708's flights): held 0.03 s, each stop came
   with the hand gone on 1 mm at the median (6 at most) from the line's
   first tick and pressing 54-60 N at the median (124-144 at most), where
-  the stop alone stopped it at 27-35 (40-43). Keyed on the posture, 39 of
-  #708's 43 stops came on the first tick, as the stop alone's; the other 4
-  were held, the waist 0.022-0.026 rad short of its posture (`POSTURE_TOL`
-  holds it to 0.02), pressing 53-149 N by the stop, none falling.
+  the stop alone stopped it at 27-34 at the median. Keyed on the posture,
+  39 of #708's 43 stops came on the first tick, as the stop alone's; the
+  other 4 were held, the waist 0.022-0.026 rad short of its posture
+  (`POSTURE_TOL` holds it to 0.02), pressing 53-149 N by the stop, none
+  falling.
 - *The wake's 53 runs:* held 0.03 s or keyed on the posture, as with the
   stop alone, the 7 falls go (`door_p1` three times, one of them stuck,
   `door_run31` once, `chest_run36` three times), none comes and no pass is
