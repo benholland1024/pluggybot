@@ -1097,7 +1097,11 @@ class Reach:
     it may take the other grip. Where another robot stands by (`keep_out`,
     #678), its way out and its way home from there keep off it: none that
     does, and nothing moves (`kept` says how) -- or, not `refuse`, the way
-    out that comes least near it is taken (`_kept_off`)."""
+    out that comes least near it is taken (`_kept_off`). ⚠ NO OTHER POSTURE
+    WHILE THE OTHER HAND IS SHUT ON SOMETHING (#719's option 2,
+    `_other_holds`): only the one it holds."""
+    if self._other_holds(side):
+      postures = (tuple(float(v) for v in self.posture),)
     plan_, goal = self._planned(side, goal, approach, postures, flip)
     self.kept[side] = self.judged_home[side] = None
     if plan_ is None:
@@ -1421,7 +1425,10 @@ class Reach:
     if len(rots) != len(ways) + 1:
       raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
                        f"not {len(rots)}")
-    if ways or turns is not None:
+    if self._other_holds(side):
+      # ...none but the one it holds while the other hand is shut on something (#719)
+      posture = tuple(float(v) for v in self.posture)
+    elif ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
       posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots)
     else:
@@ -1476,7 +1483,8 @@ class Reach:
     # it comes: a posture changed partway jerks what the hand holds -- and
     # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
     gripped = self.grippers[side].held()
-    posture = (None if not gripped and self._pressed(self.force[side], force)
+    posture = (None if (not gripped and self._pressed(self.force[side], force))
+               or self._other_holds(side)
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved else None
@@ -1502,6 +1510,12 @@ class Reach:
     way, past `share` times its `ask`, of `PRESSED_ASK_N` at least."""
     return float(np.linalg.norm(read)) > share * max(float(ask), PRESSED_ASK_N)
 
+  def _other_holds(self, side: str) -> bool:
+    """Whether the other hand's gripper reads it holds something (#719's
+    option 2): then a hand takes no posture but the one the body holds."""
+    other = "left" if side == "right" else "right"
+    return bool(self.grippers[other].held())
+
   def _standing_in(self) -> tuple:
     """The posture the body stands in as another is asked of it: the one it
     holds, or -- one still coming -- where it has got to, as a move stopped
@@ -1519,7 +1533,7 @@ class Reach:
     EITHER WAY: the table's cup is reached by an arm over the top, which leant
     the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
     plan bows deeper than it need -- out of its tags' view."""
-    if self.looks[side] >= LOOKS:
+    if self.looks[side] >= LOOKS or self._other_holds(side):
       return True
     self.looks[side] += 1
     sm = self._planner_model()
@@ -2127,7 +2141,7 @@ class Reach:
     there = False if settling else self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
     q, ep, er = sm.solve(side, c.pos, c.rot)
-    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed")
+    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed") and not self._other_holds(side)
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`).
@@ -2292,7 +2306,7 @@ class Reach:
         # ...none while the hand reads a load, nor once one was given up
         # (`PRESSED_SHARE`, #699): it goes as far as its arm reaches
         pass
-      elif st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
+      elif not self._other_holds(side) and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
         st["planned"] = st["t"]
         # ...never one it has left this move: free to, two postures could take
         # turns, each switch a fresh wait, and the move never end out of reach
