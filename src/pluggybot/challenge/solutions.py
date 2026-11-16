@@ -247,7 +247,10 @@ TABLE = _table_job()
 #:    it from 10 cm over by `move_hand` (by `pull` it drifted across the jaws
 #:    onto the lid's rim; reached for nearer, the arm took another
 #:    configuration and its pull-back ran out of reach: `test_solutions`),
-#:    not read again at its hover (its tag is on its lid, under the hand);
+#:    not read again at its hover (its tag is on its lid, under the hand) --
+#:    but a descent held back on the lid, which every such pick lost (the
+#:    hover 0.8 cm or more off its middle), is tried again from the stance,
+#:    looked at afresh (`test_solutions`);
 #:    the plate's wall 1 cm lower than the table check grips it (the pads'
 #:    tips over 0.7-0.9 cm of the wall, it slipped out), the plate and the
 #:    fork from a hover read again there and pulled straight down (the
@@ -333,6 +336,12 @@ PASS_CUP_FACING = -0.07
 #: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
 #: from that stance set it down (the reference before aimed at 0.075, 0.24).
 PASS_CUP_AT = (0.066, 0.209)
+#: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
+#: ahead: in one pull, one 0.25 m or longer (a grip 0.46 m out or more) took
+#: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
+#: 0.3 s as its arm missed, and fell (SimNotes, "The place laid from the
+#: pass"); each half asks a posture that reaches both its ends standing.
+PASS_FORK_MID = 0.33
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -356,7 +365,19 @@ PASS_CUP = '''def lay_cup():
     withdraw("right")
     reach("right", x, y, cz + 0.115, 0.707, 0, -0.707, 0, 1, 0)
   if not move_hand("right", x, y, cz):
-    pass
+    if not move_hand("right", x, y, cz + 0.10):
+      pass
+    withdraw("right")
+    move("right_shoulder_roll", -0.9)
+    move("right_elbow", 1.4)
+    open_hand("right")
+    spot(91)
+    x = read("spot.x")
+    y = read("spot.y")
+    cz = read("spot.z") - 0.015
+    reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0)
+    if not move_hand("right", x, y, cz):
+      pass
   if not close_hand("right", 25):
     open_hand("right")
     close_hand("right", 25)
@@ -441,6 +462,7 @@ PASS_FORK = '''def lay_fork():
     close_hand("left", 25)
   oz = read("left.z") - gz + 0.0484
   pull("left", 0, 0, 1, 20, 0.05, give=0)
+  go("left", %(fork_mid)g, read("left.y"), read("left.z"), 20, 0)
   go("left", 0.21, read("left.y"), read("left.z"), 20, 0)
   to_place(%(facing)g)
   spot(93)
@@ -471,7 +493,7 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
   terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
-           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1]}
+           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 

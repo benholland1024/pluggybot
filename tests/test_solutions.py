@@ -240,3 +240,47 @@ def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
   reach = _index(moves, lambda m: m[0] == "reach", "reach for the cup")
   shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the cup", start=reach + 1)
   assert moves[shut - 1][0] == "move_hand", f"the cup is brought down to its grip by {moves[shut - 1][0]}"
+
+
+def test_the_pass_cup_pick_is_tried_again_where_its_descent_is_held_back():
+  """#682's stage C, round 4: the cup is brought down to its grip from its
+  10 cm hover by a position move. Where the hover landed 0.8 cm or more off
+  the cup's middle the jaws came down on its lid and the move read held
+  back -- and in every one of round 3's 26 such picks the pick failed (the
+  cup tipped 34-46 deg in the jaws, the lift read it let go, or the shut
+  closed on nothing). Tried again from the stance -- the arm home, posed and
+  the cup looked at again -- a fresh hover lands within the jaws' 1 cm a
+  side (SimNotes, "The place laid from the pass"). Off the reference's own
+  source: the descent's test, read false, looks at the cup again and comes
+  down again before the shut."""
+  from pluggybot.challenge import solutions
+  tree = ast.parse(solutions.PROCEDURES["set_table_pass"][0])
+  tests = [n for n in ast.walk(tree) if isinstance(n, ast.If)
+           and isinstance(n.test, ast.UnaryOp) and isinstance(n.test.operand, ast.Call)
+           and getattr(n.test.operand.func, "id", "") == "move_hand"]
+  assert tests, "the cup's descent to its grip is not a test"
+  again = [c.func.id for n in ast.walk(ast.Module(body=tests[0].body, type_ignores=[]))
+           for c in [n] if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)]
+  for verb in ("withdraw", "spot", "reach", "move_hand"):
+    assert verb in again, f"held back, the pick does not {verb} again: {again}"
+
+
+def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
+  """#682's stage C, round 4: the fork gripped at the pass is pulled back
+  over the counter's edge to 0.21 m before the walk. Pulled back 0.25 m or
+  more in one pull -- a grip 0.46 m out or further -- the pull took a 31
+  deg bow and a 20 cm crouch for its way, stood up out of it within 0.3 s
+  as its arm missed, and the robot fell: every fall of round 3's reading (5
+  of 64) and of round 4's base on dev draws. In two pulls, the first
+  stopping at `PASS_FORK_MID`, each asks a posture that reaches both its
+  ends standing (SimNotes, "The place laid from the pass"). Off the
+  reference's own source: after the lift off the pass, the fork's hand is
+  brought back by two moves, the first stopping short of the second."""
+  from pluggybot.challenge import solutions
+  moves = _hand_moves(solutions.PROCEDURES["set_table_pass"][2], "left")
+  shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the fork at the pass")
+  lift = _index(moves, lambda m: m[0] == "pull", "lift off the pass", start=shut + 1)
+  back = moves[lift + 1:lift + 3]
+  assert [m[0] for m in back] == ["go", "go"], f"the fork is brought back by {back}"
+  first, last = (float(m[1][1]) for m in back)
+  assert first == solutions.PASS_FORK_MID and first - last >= 0.1, (first, last)
