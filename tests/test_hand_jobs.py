@@ -929,6 +929,20 @@ def test_a_done_waits_on_its_own_run_never_another(tmp_path, monkeypatch):
   assert len(_not_graded(life, task)) == 1
 
 
+def test_a_done_whose_run_never_began_on_a_job_ended_meanwhile_says_so(tmp_path):
+  """...and one whose job ended while it waited -- here failed in the
+  other's records' way, by the board -- still has its one History line,
+  saying why it is not graded (#648's words)."""
+  from pluggybot.economy.scoring import evaluate
+  life, task = _minded(tmp_path)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_REFUSED)))
+  life.tasks.resolve(task.id, evaluate("open_drawer", {}), t=float(life.data.time))
+  _drained(life)
+  [line] = [ln for ln in _history(life) if f"said done on {task.id}" in ln]
+  assert f"said done on {task.id} (open_drawer): not graded, because it is over" in line, line
+
+
 def test_a_done_beside_a_run_that_never_began_with_its_time_up_runs_it_out(tmp_path):
   """...and one whose time is already up is not told it still holds the
   job: it runs out there, its line the run-out's (#602)."""

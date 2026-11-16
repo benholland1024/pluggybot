@@ -3112,7 +3112,9 @@ class HubLifecycle:
       # ...the run a `done` waited on began (#706): said now, so a run
       # that never begins is never promised a grade
       self._grade_waits = None
-      self._done_said(self._grade_pending, "graded once everything queued has run")
+      held = self.tasks.get(self._grade_pending) if self.tasks is not None else None
+      if held is not None and held.state == "active" and not self._fell_holding(held.id):
+        self._done_said(held.id, "graded once everything queued has run")
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -4400,9 +4402,7 @@ class HubLifecycle:
       elif fell:
         # ...a job a fall ended, in its grade's hold (#701): the fall's
         # verdict, its time where the seam has read it
-        t0 = self._fallen[task.id][0] if task.id in self._fallen else None
-        why = (f"I fell{_at(t0, float(self.data.time))}, and that ended it -- it is "
-               "graded as things stand once I am up")
+        why = self._fell_why(task)
       elif (task is not None and task.state == "offered"
             and decision.action == "take_task" and decision.task == decision.done):
         # ...before the action runs: "nobody has taken it", after its own
@@ -4426,7 +4426,9 @@ class HubLifecycle:
     now = self.dead is None and not ran
     when = (f"graded now, before this answer's {decision.action}" if now
             else "graded once everything queued has run")
-    self._say(f"DONE {task.id}: {when} -- {task.description}",
+    self._say(f"DONE {task.id}: "
+              f"{'graded once its run is over, if it begins' if ran else when} -- "
+              f"{task.description}",
               doing=f"DONE {task.id}: {task.description}")
     # ...and History says it (#629): said to the log alone, a grade that came
     # 37 s after its job's take read as another job's -- beside a run, once
@@ -4436,8 +4438,16 @@ class HubLifecycle:
     return now
 
   def _done_said(self, task_id: str, when: str) -> None:
+    """A `done`'s History line (#629), by the job's id and kind."""
     task = self.tasks.get(task_id) if self.tasks is not None else None
     self._remember(f"said done on {_job_named(task_id, task)}: {when}")
+
+  def _fell_why(self, task) -> str:
+    """Why a job a fall ended takes no `done` (#701), its time where the
+    seam has read it."""
+    t0 = self._fallen[task.id][0] if task.id in self._fallen else None
+    return (f"I fell{_at(t0, float(self.data.time))}, and that ended it -- it is "
+            "graded as things stand once I am up")
 
   def _grade_routine(self) -> Routine:
     """Grade the job the robot said it finished (issues #207, #559): its own
@@ -4446,15 +4456,22 @@ class HubLifecycle:
     task_id, self._grade_pending = self._grade_pending, ""
     waited, self._grade_waits = self._grade_waits is not None, None
     task = self.tasks.get(task_id) if self.tasks is not None else None
+    # ...a `done` whose run never began (#706: the errand built for it never
+    # validated -- refused before its first verb, too dear to start, dropped
+    # by a restart -- or none was built) is not graded, and its one History
+    # line says what came of it, whatever ended the job meanwhile
     if task is None or task.state != "active":
       self._say(f"GRADE {task_id}: no longer held", doing=True)
+      if waited:
+        self._done_said(task_id, "not graded, because "
+                        + self._not_mine(task, float(self.data.time)))
       return
     if self._fell_holding(task_id):
       self._say(f"GRADE {task_id}: a fall ended it -- graded as its hold ends", doing=True)
+      if waited:
+        self._done_said(task_id, f"not graded, because {self._fell_why(task)}")
       return
     if waited:
-      # ...the errand built for its run was never validated: refused
-      # before its first verb, too dear to start, or dropped by a restart
       self._never_began(task)
       return
     yield from self._grade_hands_routine(task)
@@ -4469,8 +4486,7 @@ class HubLifecycle:
       return
     self._say(f"GRADE {task.id}: not graded -- the run it was said beside never began",
               doing=True)
-    self._remember(f"said done on {_job_named(task.id, task)}: not graded, "
-                   f"because {NEVER_BEGAN}")
+    self._done_said(task.id, f"not graded, because {NEVER_BEGAN}")
 
   def _watch_job(self, task_id: str):
     """A hand job's watch from its claim (#559): its check's grader reading
