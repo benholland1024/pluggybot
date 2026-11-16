@@ -237,13 +237,15 @@ def _turn_pulse(togo: float) -> float:
   return 0.08 if d < 1.0 else 0.10 if d < 2.0 else 0.14
 
 
-def _ahead_of(pts: np.ndarray, ux: float, uy: float, carry: float) -> tuple[float, float]:
-  """Of points (n, 2) round where a walk is, m, those ahead along its way
-  (`ux`, `uy`): how near the `STEP_NEAREST`-th nearest is now and where the
-  stride's `carry` would take it; inf where there are too few."""
+def _ahead_of(pts: np.ndarray, ux: float, uy: float, at: float, carry: float) -> tuple[float, float]:
+  """Of points (n, 2) round where a walk was, m, those ahead along its way
+  (`ux`, `uy`) of where it is now, `at` m on: how near the `STEP_NEAREST`-th
+  nearest is from there and from where the stride's `carry` would take it;
+  inf where there are too few."""
   if not len(pts):
     return math.inf, math.inf
-  front = pts[pts[:, 0] * ux + pts[:, 1] * uy > 0.0]
+  q = pts - [at * ux, at * uy]
+  front = q[q[:, 0] * ux + q[:, 1] * uy > 0.0]
   if len(front) < STEP_NEAREST:
     return math.inf, math.inf
   k = STEP_NEAREST - 1
@@ -255,14 +257,25 @@ def _ahead_of(pts: np.ndarray, ux: float, uy: float, carry: float) -> tuple[floa
 class _Room:
   """WHAT A STEP'S WALK KEEPS OFF BESIDES ANOTHER ROBOT (#717; `STEP_WALL_M`):
   walls and what stands at its head's height, off its LIDAR's newest scan
-  since `since` (`Navigator.over_returns`, from the sensor); and what its
-  depth camera has seen at its knees' height, remembered and carried as its
-  legs count its walks (`HumanoidMission.knee`), from its pelvis. Its way
-  (`ux`, `uy`) in the trunk's frame as the walk began."""
+  since `since` (`Navigator.over_returns`, from the sensor), moved on by
+  what its legs have walked since it was taken (none before the walk began,
+  at `walk_t`); and what its depth camera
+  has seen at its knees' height, remembered and carried as its legs count
+  its walks (`HumanoidMission.knee`), from its pelvis. Its way (`ux`, `uy`)
+  in the trunk's frame as the walk began."""
 
-  def __init__(self, mission, ux: float, uy: float, since: float) -> None:
-    self.mi, self.ux, self.uy, self.since = mission, ux, uy, since
+  def __init__(self, mission, ux: float, uy: float, since: float, walk_t: float) -> None:
+    self.mi, self.ux, self.uy, self.since, self.walk_t = mission, ux, uy, since, walk_t
     self.began: dict[str, float] = {}
+    #: the newest scan's time, and how far the walk had gone as it came
+    #: (one taken before the walk began, at `walk_t`: none)
+    self.scan_t, self.went_at = None, 0.0
+    # ...and a scan where it stands as it sets off, where the step has taken
+    # none: standing still, the LIDAR takes none of its own, and a walk's
+    # first comes a tenth of a second and 3 cm in
+    seen = mission.over_returns
+    if seen is None or seen[0] < since:
+      mission._sighted(mission._scan(), walk_t)
 
   def _wall(self) -> np.ndarray | None:
     seen = self.mi.over_returns
@@ -271,28 +284,33 @@ class _Room:
     a, r = seen[1], seen[2]
     return np.stack([np.cos(a) * r, np.sin(a) * r], axis=1)
 
-  def kept(self, carry: float) -> dict | None:
-    """None while its walk is clear of both, else how it keeps off: `by`
-    "wall" (what its LIDAR reads at its head's height) or "low" (what its
-    depth camera saw at its knees), `m` how near it is now -- from its LIDAR,
-    or from its middle -- and `keepM` how near a step lets it."""
+  def kept(self, carry: float, went: float) -> dict | None:
+    """None while its walk, `went` m along its way by its legs, is clear of
+    both, else how it keeps off: `by` "wall" (what its LIDAR reads at its
+    head's height) or "low" (what its depth camera saw at its knees), `m`
+    how near it is now -- from its LIDAR, or from its middle -- and `keepM`
+    how near a step lets it."""
     pts = self._wall()
     if pts is not None:
-      now, then = _ahead_of(pts, self.ux, self.uy, carry)
+      t = self.mi.over_returns[0]
+      if t != self.scan_t:
+        self.scan_t, self.went_at = t, (went if t >= self.walk_t else 0.0)
+      now, then = _ahead_of(pts, self.ux, self.uy, went - self.went_at, carry)
       if self._nearer("wall", now, then, STEP_WALL_M):
         return {"by": "wall", "m": round(now, 3), "keepM": STEP_WALL_M, "room": self}
     pts = self.mi.knee.near(self.mi.pose, self.mi.odo.corrected)
-    now, then = _ahead_of(pts, self.ux, self.uy, carry)
+    now, then = _ahead_of(pts, self.ux, self.uy, 0.0, carry)
     if self._nearer("low", now, then, STEP_LOW_M):
       return {"by": "low", "m": round(now, 3), "keepM": STEP_LOW_M, "room": self}
     return None
 
   def now(self, by: str) -> float:
     """How near what it kept off by `by` stands now, m, ahead along its
-    way: its stride's carry and its settle walked."""
+    way: its stride's carry and its settle walked (off the scans its settle
+    took, and the knees' memory as its legs carried it)."""
     pts = (self._wall() if by == "wall"
            else self.mi.knee.near(self.mi.pose, self.mi.odo.corrected))
-    return math.inf if pts is None else _ahead_of(pts, self.ux, self.uy, 0.0)[0]
+    return math.inf if pts is None else _ahead_of(pts, self.ux, self.uy, 0.0, 0.0)[0]
 
   def _nearer(self, by: str, now: float, then: float, keep: float) -> bool:
     began = self.began.setdefault(by, now)
@@ -1394,9 +1412,9 @@ class HumanoidBody(Body):
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
     held = mi.held_s
-    # ...and walls and furniture (#717): since this walk began, its turn's
-    # scans left out -- they look other ways
-    room = _Room(mi, ux, uy, float(self._d.time))
+    # ...and walls and furniture (#717), off every scan the step has taken
+    # as a walk's front stop reads the other robot's
+    room = _Room(mi, ux, uy, since, float(self._d.time))
     while True:
       if mi.held_s != held:
         # ...held through the other robot's blocking run (#690): its window
@@ -1410,7 +1428,7 @@ class HumanoidBody(Body):
         return "stepped", None
       kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)
       if kept is None:
-        kept = room.kept(max(speed, 0.0) * STEP_STOP_S)
+        kept = room.kept(max(speed, 0.0) * STEP_STOP_S, went)
       if kept is not None:
         return "blocked", kept
       if float(self._d.time) - mark[0] >= window:
