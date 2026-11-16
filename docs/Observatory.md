@@ -17,9 +17,13 @@ colour imager and the navigation camera) draw through one renderer the
 pair's four share, where each built its own (`tags._renderer_for`;
 SimNotes, "One renderer for the robots' cameras"). Every camera's picture
 is the same bit for bit (the served pair under osmesa, three placings,
-every order of the four; every decode the same), and `prompt_sha`
-`0f1df27e…` (67,157 characters, 17 sections) and the session host's hello
-(sha1 `b796e75d…`) are unmoved; no geometry and no wire field moved.
+every order of the four; every decode the same); the pair's committed
+recording flew line for line the same, 11,705 lines, and
+`determinism_spike.py --pair` traced one day on both sides (543 state
+samples, 137 looks, 5,135 scans, a fall, a death and a stand-up), both
+under osmesa; `prompt_sha` `0f1df27e…` (67,157 characters, 17 sections)
+and the session host's hello (sha1 `b796e75d…`) are unmoved; no geometry
+and no wire field moved, so no fixture was flown again.
 
 **What moved is the served process's memory** (`vitals: rss`). Measured
 off the box, the pair's four cameras cost 306 MiB where they cost 946, so a

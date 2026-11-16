@@ -581,7 +581,9 @@ back to back under one lock, and nothing of one camera's picture carries
 into the next: on the served pair under osmesa, each of the four cameras'
 pictures came out the same bit for bit through the one renderer as through
 a renderer of its own, in the order built, reversed and interleaved, at
-three placings of the pair, and so did every decode (2026-11-16). Measured there, the
+three placings of the pair, and so did every decode; the pair's committed
+recording flew line for line the same, and `determinism_spike.py --pair`
+traced the same day (2026-11-16). Measured there, the
 pair's four cameras cost 306 MiB over the built pair where they cost 946:
 the first camera 285 (the renderer, the AprilTag detector and the process's
 first GL context), each other camera 0-10 at its first picture where each
