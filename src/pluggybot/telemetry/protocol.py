@@ -645,6 +645,28 @@ DRIFT_EVENT_TYPES = ("drift",)
 DRIFT_WHYS = ("sample", "relocated", "fixed", "lost", "searched", "refusing", "matching")
 DRIFT_FIXTURES = ("dock", "rack", "station")
 
+#: EVERY FALL A ROW (issue #707), additive on the wire, no bump: one `fall`
+#: event per fall a robot's body counts (`Body.falls`), sent as its get-up
+#: ends -- `at` where it fell and what it was doing (a death's `at`: the
+#: truth beside the belief), and how far the get-up moved the body and the
+#: belief; protocol/README.md has the fields. The observatory files a row per
+#: event under `ended`; nothing the robot is shown carries the truth.
+FALL_EVENT_TYPES = ("fall",)
+#: How its get-up ended: `stood` (it stood it again), `died` (its robot died
+#: first: the row's `cause`), `reset` (a stand-up or a person's reset put it
+#: at its start first), `stuck` (where nothing dies, the run its get-up
+#: would have died in ended), `unfinished` (the run ended first: its row is
+#: that run's, and a next run that carries the get-up on writes the robot's
+#: line as it stands, never a second row).
+FALL_ENDINGS = ("stood", "died", "reset", "stuck", "unfinished")
+#: What told the robot of it in History, as it told it: `run` (the line of
+#: the run whose verb or ask it fell in, #671), `job` (a hand job's own line
+#: at the fall, or a `done`'s grade in its hold, #701), `aside` (the line of
+#: the step aside it ended), `line` (its own, `lifecycle.FELL_LINE`),
+#: `death` (a `stuck` death's, "fell and could not get up"); null where
+#: nothing did.
+FALL_TOLD = ("run", "job", "aside", "line", "death")
+
 #: WHAT THE ROBOT THINKS IS THERE (issue #466, stage 3), additive, no bump:
 #: an `imagined` event per model it made of an object in front of it --
 #: `robot`, `t`, `what` (its author's words), `parts` (`{id, shape, size,
