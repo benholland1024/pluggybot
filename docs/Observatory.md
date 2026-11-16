@@ -10,6 +10,55 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The other robot is shown what a robot's body is doing, never what its mind does (#709, M2, `loop-709`) — opens when this PR is deployed
+
+**What changed is what each robot reads of the other** (`others[].doing`;
+`prompt_sha` unmoved, `0f1df27e…`, 67,157 characters, 17 sections, and
+`OTHER_ROBOT_RULE` and its sha untouched; the session host's hello unmoved,
+sha1 `b796e75d…`; no geometry and no wire field moved, and `status` -- each
+frame's narration, a recording's, the site's line under a portrait -- is
+every line as before, so neither committed recording moved: no mind flies
+in either). `doing` was the other robot's last narrated line of any kind
+but the board's eight (the period of `loop-k4`). It is now the last line
+that said what its BODY is doing, in the form its call gives
+(`_say(doing=)`), and only a line beginning as the stated list says one may
+(`lifecycle.DOING_KINDS`); private by default, a dead robot's its death
+until it stands up, and emptied by an operator's reset. Overseer.md §2c has
+the table of what is shown and in what form; in short, a walk, a charge, a
+procedure's lines, a job it holds, its death and stand-up, and a decided
+charge's, explore's or idle's action are shown, each without a battery
+level, points, hearts, a reason or the values a procedure handed a verb
+("CHARGE complete -- backing off", "PROCEDURE door_p1 step 24 (line 34):
+step", "DECIDE idle"); and its thinking, decisions' reasons, memory, list
+of rules, belief, books, talk and acts, an operator's and a visitor's
+lines, an act's claim and a take that did not happen are not.
+
+**Why** (#709). The rule told each robot that what the other "wants, what
+it is worried about and why it is doing what it does, you can only infer",
+and CLAUDE.md that `others` carries no battery, points, goals, thoughts or
+reasons, but every narrated line was `doing` until the next. On the 11-15
+wake (`~/pluggybot-training/live-1115/`, replayed under `loop-k4`'s rule as
+far as the export keeps the lines) the other's `doing` at the 380 answers a
+mind wrote itself was a row of its list of rules firing at 227 ("EVENT
+message received -> ask -- but something is already queued"), a `DECIDE`
+line at 36, a `RECALL` at 7 and a battery level at 2; under this rule it
+is a procedure's line at 133 (its steps as their verbs), a walk or a charge
+at 124, a job it holds at 89, a decided charge, explore or idle at 20, and
+nothing yet at 14 (the start of a run, before a line the list shows). It
+differs at 337 of the 380.
+
+**What the period is for.** ⚠ This changes the empathy measurement's input
+(what a robot can read of the other): Ben confirms it at the release.
+- **The thoughts that read the other:** what each robot says of the other's
+  doing (11-14: "Rowan looks like it just finished a task (task complete ->
+  ask)", read off a row of its list); none should quote the other's
+  thinking, its reasons, its list of rules, its level or its balance.
+- **`doing` may be old:** it is the last thing the body was seen doing, and
+  `state` beside it is what it is in now. Whether a robot reads an old line
+  as now ("PROCEDURE x complete" while the other idles for 20 minutes).
+- **Who takes a job:** with the claims and `tell` the only word on it, as
+  under `loop-k4`.
+
 ### Both maps dropped at the next wake: `MAP_EPOCH` 5 (#681, Ben's call of 2026-11-15) — opens when this PR is deployed
 
 **What changed is what the next wake carries over.** The save the deployed
