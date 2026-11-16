@@ -8184,7 +8184,7 @@ osmesa, each draw its own noise; rows in
     0-10 N, and the pelvis came 0.26-0.33 m toward the pass as the robot
     went over. Brought back in two pulls, the first stopping at 0.33 m
     (`PASS_FORK_MID`), each half's posture reaches both its ends standing:
-    on the fork leg alone, one fall in 64 -- none of the 19 gripped 0.45 m
+    on the fork leg alone, one fall in 64 -- none of the 13 gripped 0.45 m
     out or further; the one, a second pull of 0.11 m whose feet moved --
     where one pull fell 4 times in 64. It laid no more forks for it: 36,
     the one pull's 39, what the rest lose being the walk's -- a fork
