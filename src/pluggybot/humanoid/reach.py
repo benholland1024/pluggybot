@@ -1246,12 +1246,13 @@ class Reach:
   def _tipped(self, side: str, dt: float) -> bool:
     """Whether what a hand's arm reads has tipped the body toward the hand
     past `OUT_TIP_NM` (#708): the tick it does with the body in the posture
-    it was asked (`POSTURE_TOL`), else once it has for `OUT_TIP_S` running;
-    `dt` its tick."""
+    it was asked (`POSTURE_TOL`) -- a stage of it, where it comes in stages
+    (`asked`, #719) -- else once it has for `OUT_TIP_S` running; `dt` its
+    tick."""
     self._tip[side] = self._tip[side] + dt if self._tipping(side) > OUT_TIP_NM else 0.0
     if not self._tip[side]:
       return False
-    there = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
+    there = (np.abs(self.posture_now() - self.asked()) <= POSTURE_TOL).all()
     return bool(there) or self._tip[side] >= OUT_TIP_S - 1e-9
 
   def _struck(self, side: str) -> None:
@@ -1585,15 +1586,15 @@ class Reach:
   def _stages_to(self, goal: np.ndarray) -> list[np.ndarray]:
     """The stages the body walks to `goal` in (`STAGE_PITCH`, `STAGE_WAIST`),
     from the posture it is in by its senses -- each of the three numbers an
-    even share of the way, `goal` itself the last: none where its pitch and
-    its waist are each within a stage."""
+    even share of the way -- `goal` itself not among them: none where its
+    pitch and its waist are each within a stage."""
     if np.isnan(self.sensed).any():
       return []
     now = self.posture_now()
     d = goal - now
     n = max(math.ceil(abs(float(d[1])) / STAGE_PITCH - 1e-9),
             *(math.ceil(abs(float(w)) / STAGE_WAIST - 1e-9) for w in d[2:]), 1)
-    return [now + d * (k / n) for k in range(1, n)] + [goal.copy()] if n > 1 else []
+    return [now + d * (k / n) for k in range(1, n)]
 
   def asked(self) -> np.ndarray:
     """The posture the body is asked now: the first stage still to come
@@ -1601,22 +1602,17 @@ class Reach:
     return self.stages[0] if self.stages else self.posture
 
   def _stage_on(self, dt: float) -> None:
-    """Once a tick: the stage asked held (`POSTURE_TOL`, `TRUNK_STILL_RATE`),
-    the next asked -- the plan's the last; one not held in `STAGE_WAIT_S`,
-    the posture GIVEN UP where the body has got to, as a move stopped is
-    held (`halt`): something holds the body out of it."""
+    """Once a tick: the stage asked held (`POSTURE_TOL`, `TRUNK_STILL_RATE`)
+    or given `STAGE_WAIT_S`, the next asked -- the plan's after the last."""
     if not self.stages:
       return
     self.stage_s += dt
-    now = self.posture_now()
-    near = (np.abs(now - self.stages[0]) <= POSTURE_TOL).all()
+    near = (np.abs(self.posture_now() - self.stages[0]) <= POSTURE_TOL).all()
     still = float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE
-    if near and still and self.stand.settled:
+    if (near and still and self.stand.settled) or self.stage_s >= STAGE_WAIT_S:
       self.stages.pop(0)
       self.stage_s = 0.0
       self.stand.ask(*(self.asked()[:2] + self.trim))
-    elif self.stage_s >= STAGE_WAIT_S:
-      self.hold_posture(*now)
 
   def turn_waist(self, waist: float) -> None:
     """The posture's waist alone turned to `waist`, rad (its command walks
