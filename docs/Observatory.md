@@ -37,9 +37,11 @@ fell and what it was doing (`at`, a death's shape: the truth beside the
 belief, the state, the errand and its step), how far the get-up moved the
 body (`movedM`, `turnedDeg`) and the belief (`beliefMovedM`), the belief's
 error as it stood (`errorM`, `headingDeg`), which fall of its struggle it
-was, and `told` (`run`, `job`, `aside`, `line`, `death` or null). The site
-files them (rooftop `loop-falls`: the `fall` observatory kind, its
-migration). Neither committed recording holds a fall (every frame of both
+was, and `told` (`run`, `job`, `aside`, `line`, `death` or null: each
+teller marks the fall as its line says it). A get-up an hour's end cuts
+short is saved with the world and its row is the next run's, one row
+either way. The site files them (rooftop `loop-falls`: the `fall`
+observatory kind, its migration). Neither committed recording holds a fall (every frame of both
 `standing`), so neither was flown again.
 
 **Flown** (one local flight at 7414ac1, osmesa: the house as the loop runs

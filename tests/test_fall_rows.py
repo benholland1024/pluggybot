@@ -11,6 +11,7 @@ import math
 
 import pytest
 
+from pluggybot import lifecycle as lc
 from pluggybot.lifecycle import FELL_LINE, STOOD_AGAIN_S, Stuck, world_facts
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import HISTORY
@@ -142,9 +143,12 @@ def test_a_fall_inside_a_runs_verb_is_the_verbs_words_and_no_second_line():
 def test_two_falls_in_one_struggle_are_two_rows_and_two_lines_as_the_body_counts_them():
   """A get-up's second fall under `STOOD_AGAIN_S` after it stood is one
   struggle on the `stuck` clock, and two falls by the body's watch: a row
-  and a line each, the row saying which of the struggle's falls it was; a
-  fall after it stood longer begins a struggle of its own."""
+  and a line each, the row saying which of the struggle's falls it was, as
+  that clock counts it (`_down_since`, the death seam's: two clocks parted
+  at their edges); a fall after it stood longer begins a struggle of its
+  own."""
   life = stub_life()
+  life.body.rights_itself, life.body.stuck_after_s = True, 60.0   # ...its clock running
   rows = _rows(life)
   for down, up in ((2.0, 1.0), (3.0, STOOD_AGAIN_S + 1.0), (2.0, 1.0)):
     _fall(life)
@@ -154,6 +158,20 @@ def test_two_falls_in_one_struggle_are_two_rows_and_two_lines_as_the_body_counts
   assert [(r["falls"], r["struggle"]) for r in rows] == [(1, 1), (2, 2), (3, 1)]
   assert [ln.split("] ", 1)[-1] for ln in _fell_lines(life)] == [
     FELL_LINE.format(seconds=s) for s in (2.0, 3.0, 2.0)]
+
+
+@pytest.mark.parametrize("since, struggle", [(0.0, 1), (1.0, 2)])
+def test_a_fall_the_stuck_clock_stamped_as_it_came_begins_a_struggle_of_its_own(since, struggle):
+  """The death seam stamps a fall's down-start in the step it comes, before
+  the row's hook reads it: a clock begun THEN is this fall's own, and only
+  one already running is the struggle it joins."""
+  life = stub_life()
+  t = float(life.data.time)
+  life._down_since = t - since
+  life._struggle = 1
+  life.body.falls += 1
+  life._fall_read()
+  assert life._fall_open["struggle"] == struggle
 
 
 def test_a_fall_holding_a_job_is_the_jobs_line_alone(tmp_path):
@@ -196,20 +214,54 @@ def test_a_fall_in_a_dones_hold_is_its_grades_and_no_line(tmp_path):
   assert row["told"] == "job" and _fell_lines(life) == []
 
 
-def test_a_fall_stepping_aside_is_the_asides_line_alone():
+@pytest.mark.parametrize("why", ["fell", "its own walk"])
+def test_a_fall_stepping_aside_is_the_asides_line_alone_where_it_says_so(why):
   """A step aside a fall ends says "I fell over" in its own line
-  (`ASIDE_ENDED`)."""
+  (`ASIDE_ENDED`), as it says it: one a walk of its own ended first says
+  nothing of it, and the fall says itself."""
   life = stub_life()
   rows = _rows(life)
   life.body.making_way = "r2_pluggybot"
   _fall(life)
-  _hold(life, 0.01)                              # ...read as it falls; the aside ends after
-  life.body.making_way = None
+  _hold(life, 0.01)
+  life.body.making_way = None                    # ...ended the step after, as `_aside_ready` does
+  life.body.asides, life.body.last_aside = 1, {
+    "by": "r2_pluggybot", "from": (0.0, 0.0), "to": (0.5, 0.0), "at": (0.1, 0.0),
+    "seconds": 1.0, "why": why}
   _hold(life, 2.0)
   life.body.posture = "standing"
   _hold(life, 1.0)
   [row] = rows
-  assert row["told"] == "aside" and _fell_lines(life) == []
+  said = [ln for ln in _history(life) if "set off to step aside" in ln]
+  assert len(said) == 1 and said[0].endswith(lc.ASIDE_ENDED[why]), said
+  if why == "fell":
+    assert row["told"] == "aside" and _fell_lines(life) == []
+  else:
+    assert row["told"] == "line" and len(_fell_lines(life)) == 1
+
+
+def test_a_fall_in_a_house_programs_verb_is_the_falls_own_line():
+  """A #58 program leaves no line of its run (its task's verdict is its
+  word, "step 1 failed"): only a run whose line says the fall tells it, and
+  this one is the fall's own."""
+  from pluggybot.procedure.steps import Program, Step
+  life = stub_life()
+  rows = _rows(life)
+  t0 = float(life.data.time)
+
+  def fall_at_two_s():
+    if not life.body.falls and float(life.data.time) >= t0 + 2.0:
+      _fall(life)
+  life.body.step_hooks.insert(0, fall_at_two_s)
+  run = life.run_errand(programmed_errand(
+    Program.single("p", [Step("wait", {"seconds": 10.0})])))["procedure"]
+  assert run["steps"][-1]["fell"]
+  _hold(life, 2.0)
+  life.body.posture = "standing"
+  _hold(life, 1.0)
+  [row] = rows
+  assert row["told"] == "line" and row["at"]["errand"]["name"] == "program:p"
+  assert len(_fell_lines(life)) == 1
 
 
 def test_a_fall_its_robot_dies_in_is_the_deaths_line_alone():
@@ -229,17 +281,19 @@ def test_a_fall_its_robot_dies_in_is_the_deaths_line_alone():
   assert _fell_lines(life) == []
 
 
-@pytest.mark.parametrize("how", ["unfinished", "stuck", "reset"])
+@pytest.mark.parametrize("how", ["unfinished", "stuck", "reset", "reset at once"])
 def test_a_get_up_the_run_or_a_person_ends_first_is_a_row_still(how):
-  """Every fall the body counts is a row, its get-up ended by the run's end
-  (no save is made while it gets up: the next run carries on from before
-  the fall), by the run its get-up would have died in where nothing dies
-  (`Stuck`), or by a reset that put it at its start."""
+  """Every fall the body counts is a row, its get-up ended by the end of a
+  run nothing carries on, by the run its get-up would have died in where
+  nothing dies (`Stuck`), or by a reset that put it at its start -- one in
+  the step the fall was counted too, before the row's hook read it: the
+  warp's, never "got up again 0 s later"."""
   life = stub_life()
   rows = _rows(life)
   life.begin((0.0, 0.0, 0.0))
   _fall(life)
-  _hold(life, 1.0)
+  if how != "reset at once":
+    _hold(life, 1.0)
   if how == "unfinished":
     summary = life.end()
     assert summary["falls"] == rows
@@ -249,9 +303,11 @@ def test_a_get_up_the_run_or_a_person_ends_first_is_a_row_still(how):
       life._end_stuck("fell and could not get up in 2 s (80 deg from upright)")
   else:
     life.stand_up("an admin", auto=False)
+    life.body.posture = "standing"               # ...as the warp leaves it
+    _hold(life, 1.0)
   [row] = rows
   _vocabulary(row)
-  assert row["ended"] == how and row["told"] is None and _fell_lines(life) == []
+  assert row["ended"] == how.split()[0] and row["told"] is None and _fell_lines(life) == []
 
 
 def test_a_restored_body_brings_its_count_back_never_a_row():
@@ -268,3 +324,38 @@ def test_a_restored_body_brings_its_count_back_never_a_row():
   life.body.posture = "standing"
   _hold(life, 1.0)
   assert [r["falls"] for r in rows] == [4]
+
+
+@pytest.mark.parametrize("in_place", [True, False])
+def test_a_get_up_a_run_ends_in_is_the_next_runs_row_where_the_world_carries_on(in_place):
+  """A run's end saves the world mid get-up (`Keeper.finish`), and the next
+  run carries the get-up on: its row is that run's, ONE, sent as the get-up
+  ends, and its line with it -- or, where the world cannot put the body
+  back, ONE row as the run left it, `unfinished`. Shown to fail with no
+  `fallOpen` kept: no row and no line in the next run (#707's review)."""
+  life = stub_life()
+  life.continuing = True
+  life.begin((0.0, 0.0, 0.0))
+  rows = _rows(life)
+  t0 = _fall(life)
+  _hold(life, 1.0)
+  cut = float(life.data.time)
+  life.end()
+  assert rows == [], "the next run's row"
+  state, arrays = life.kept_state()
+  nxt = stub_life()
+  nxt_rows = _rows(nxt)
+  nxt.data.time = cut
+  nxt.body.falls, nxt.body.posture = 1, "getting_up"      # ...as the body's restore puts it
+  nxt.restore_kept(state, arrays, in_place=in_place)
+  _hold(nxt, 2.0)
+  nxt.body.posture = "standing"
+  _hold(nxt, 1.0)
+  [row] = nxt_rows
+  assert row["falls"] == 1 and row["fellT"] == pytest.approx(t0, abs=0.01)
+  if in_place:
+    assert row["ended"] == "stood" and row["seconds"] == pytest.approx(3.0, abs=0.01)
+    assert row["told"] == "line" and len(_fell_lines(nxt)) == 1
+  else:
+    assert row["ended"] == "unfinished" and row["t"] == pytest.approx(cut, abs=0.01)
+    assert row["told"] is None and _fell_lines(nxt) == []

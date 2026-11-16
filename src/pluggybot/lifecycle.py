@@ -1022,15 +1022,13 @@ class HubLifecycle:
     # ...and a hand job its robot fell holding, ended at the fall (#701):
     # every step, its fall count an int, so the grade's call is the fall's
     self.body.step_hooks.append(self._fall_step)
-    # ...and every fall a row (issue #707), read after the job's: what told
-    # the robot of a fall is read the step it is counted
+    # ...and every fall a row (issue #707)
     #: The body's fall count as the `fall` rows have read it, the fall whose
-    #: get-up has not ended (its row's makings, or None), when the last
-    #: get-up stood it and how many falls its struggle has counted -- and
-    #: every row sent, for the day's summary.
+    #: get-up has not ended (its row's makings, or None), how many falls
+    #: its struggle has counted -- and every row sent, for the day's
+    #: summary.
     self._falls_rowed = self.body.falls
     self._fall_open: dict | None = None
-    self._stood_t: float | None = None
     self._struggle = 0
     self.fall_rows: list[dict] = []
     self.body.step_hooks.append(self._fall_row_step)
@@ -1504,6 +1502,7 @@ class HubLifecycle:
     self.stuck = {"t": round(float(self.data.time), 3), "fellT": round(self._down_since, 3),
                   "why": why, "at": [round(float(x), 2), round(float(y), 2)]}
     self._say(f"STUCK: {why}; nothing dies here, so the run ends")
+    self._fall_read()
     self._close_fall("stuck")
     raise Stuck(self.stuck)
 
@@ -1643,6 +1642,8 @@ class HubLifecycle:
               f"{ASIDE_ENDED.get(rec['why'], rec['why'])}")
     self._say(f"MADE WAY: {line}", doing=True)
     self._remember(line)
+    if rec["why"] == "fell":
+      self._fall_told_by("aside")         # ..."I fell over" (#707)
 
   _asides_seen = 0
 
@@ -3145,6 +3146,10 @@ class HubLifecycle:
       if is_proc or run.get("locals"):
         for line in procedure_outcome(program.name, run):
           self._remember(line)
+        # ...a fall it stopped at said in its line (#671): the fall's row
+        # says so, and the fall says nothing more (#707)
+        if any(step.get("fell") for step in run["steps"]):
+          self._fall_told_by("run")
       elif died:
         self._remember(f"dying cut short {errand.name}")
     return {"procedure": run,
@@ -3429,7 +3434,8 @@ class HubLifecycle:
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
     whose = self._whose_start(pose)
-    self._close_fall("reset")             # ...a get-up the warp ends (#707)
+    self._fall_read()                     # ...a get-up the warp ends (#707)
+    self._close_fall("reset")
     self.body.start_at(*pose)
     # ...on no map (#572, Ben's call): put right at its start, a belief is
     # pulled back onto the askew map it kept (Ben's reset of Rowan on 10-08
@@ -4524,6 +4530,7 @@ class HubLifecycle:
     grader reads it, the hold begun, History told at the fall."""
     from pluggybot.economy.tasks import KINDS
     module = _hand_grader(HAND_JOBS[KINDS[task.kind].task])
+    self._fall_read()
     t0 = float(self.data.time)
     self._fallen[task.id] = (t0, module.measure(self.model, self.data, task.target),
                              t0 + module.HOLD_S)
@@ -4533,6 +4540,7 @@ class HubLifecycle:
     self._remember(f"fell holding {_job_named(task.id, task)}: a fall fails the try, so "
                    f"the job ends here -- graded as things stand once I am up, "
                    f"{module.HOLD_S:.0f} s on at the least")
+    self._fall_told_by("job")
 
   def _fall_graded(self, task_id: str) -> None:
     """A job a fall ended, graded as its hold ends (`_fall_step`); settled
@@ -4567,57 +4575,60 @@ class HubLifecycle:
   def _fall_row_step(self) -> None:
     """Every fall the body's own watch counts (`Body.falls`) is ONE `fall`
     row (issue #707), sent as its get-up ends: stood again, or its robot
-    dead first -- or a reset, the run's end or `Stuck` first, each of which
-    closes it (`_close_fall`). What told the robot of it is read the step
-    it is counted (`_fall_told`). ⚠ After `_fall_step`, whose job's line at
-    the fall is read here as told."""
-    falls = self.body.falls
-    if falls != self._falls_rowed:
-      self._close_fall("stood")             # ...one whose stand was never read
-      t = float(self.data.time)
-      self._struggle = (self._struggle + 1 if self._stood_t is not None
-                        and t - self._stood_t < STOOD_AGAIN_S else 1)
-      self._falls_rowed = falls
-      self._fall_open = {"falls": falls, "fellT": t, "at": self._moment(),
-                         "truth": self.body.true_pose(), "belief": self.body.pose,
-                         "struggle": self._struggle, "dead": self.dead is not None,
-                         "told": self._fall_told()}
-    elif self._fall_open is not None:
-      if self.dead is not None and not self._fall_open["dead"]:
+    dead first -- or a reset, `Stuck` or the run's end first, each of which
+    closes it (`_close_fall`); one a run's end leaves open where the world
+    carries on rides the save (`kept_state`), its row the next run's."""
+    self._fall_read()
+    fall = self._fall_open
+    if fall is not None:
+      if self.dead is not None and not fall["dead"]:
         self._close_fall("died")
       elif self.body.posture != "getting_up":
         self._close_fall("stood")
 
-  def _fall_told(self) -> str | None:
-    """What tells the robot of the fall its body has just counted
-    (`protocol.FALL_TOLD`): the run whose verb it fell in (`run`, #671), a
-    hand job it holds (`job`: the job's line at this fall, or a `done`'s
-    grade in its hold, the fall first -- never a job an earlier fall
-    ended), the step aside it was making (`aside`: "I fell over") -- or
-    nothing yet, None."""
-    if self._in_errand:
-      return "run"
-    if self.body.making_way is not None:
-      return "aside"
-    now = float(self.data.time)
-    for task_id, watch in self._job_watches.items():
-      if self._holds(task_id) is None:
-        continue
-      fallen = self._fallen.get(task_id)
-      if (fallen[0] == now) if fallen is not None else watch.holding:
-        return "job"
-    return None
+  def _fall_read(self) -> None:
+    """A fall the body has counted since the last read opens its row: where
+    it fell and what it was doing (`_moment`), which fall of one struggle it
+    is as the `stuck` clock counts one (its clock already running as it
+    came, `_death_step`), and a hand job's `done` in its grade's hold, whose
+    verdict says the fall first (#701), as what tells the robot of it. Read
+    by every closer and teller first, so none depends on the hooks' order."""
+    falls = self.body.falls
+    if falls == self._falls_rowed:
+      return
+    self._close_fall("stood")               # ...one whose stand was never read
+    t = float(self.data.time)
+    again = self._down_since is not None and self._down_since < t
+    self._struggle = self._struggle + 1 if again else 1
+    self._falls_rowed = falls
+    held = any(self._holds(task_id) is not None and task_id not in self._fallen
+               and watch.holding for task_id, watch in self._job_watches.items())
+    self._fall_open = {"falls": falls, "fellT": t, "at": self._moment(),
+                       "truth": list(self.body.true_pose()), "belief": list(self.body.pose),
+                       "struggle": self._struggle, "dead": self.dead is not None,
+                       "told": "job" if held else None}
 
-  def _close_fall(self, ended: str) -> None:
+  def _fall_told_by(self, who: str) -> None:
+    """The open fall told the robot of, in History, by `who`
+    (`protocol.FALL_TOLD`), as it tells it: the run whose verb or ask it fell
+    in (`run`, #671), a hand job's line at the fall (`job`, #701), the step
+    aside it ended (`aside`). The first to tell it stands."""
+    self._fall_read()
+    if self._fall_open is not None and self._fall_open["told"] is None:
+      self._fall_open["told"] = who
+
+  def _close_fall(self, ended: str, end: list | None = None) -> None:
     """The open fall's `fall` row, its get-up ended as `ended` says
     (`protocol.FALL_ENDINGS`): how far the get-up moved the body and the
-    belief, and the belief's error as it ended -- and, where nothing else
+    belief, and the belief's error as it ended -- now, or `end` (t, the
+    truth, the belief) where a run's end left it -- and, where nothing else
     told it, a robot alive at the fall and stood again by its get-up,
     `FELL_LINE` in History. Nothing where none is open."""
     fall, self._fall_open = self._fall_open, None
     if fall is None:
       return
-    t = float(self.data.time)
+    t, truth, belief = (end if end is not None else
+                        (float(self.data.time), self.body.true_pose(), self.body.pose))
     told = fall["told"]
     if told is None and ended == "stood" and not fall["dead"] and self.dead is None:
       line = FELL_LINE.format(seconds=t - fall["fellT"])
@@ -4626,8 +4637,6 @@ class HubLifecycle:
       told = "line"
     elif told is None and ended == "died":
       told = "death"
-    self._stood_t = t if ended == "stood" else None
-    truth, belief = self.body.true_pose(), self.body.pose
     (x0, y0, a0), (x1, y1, a1) = fall["truth"], truth
     (u0, v0, b0), (u1, v1, b1) = fall["belief"], belief
 
@@ -6239,9 +6248,10 @@ class HubLifecycle:
       "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
       "minded": self._minded, "downSince": self._down_since,
       "upSince": self._up_since, "fall": self._fall,
-      # ...and when its last get-up stood it, and that struggle's falls
-      # (#707: a `fall` row's `struggle`)
-      "fallStood": [self._stood_t, self._struggle],
+      # ...and a fall a run's end left getting up, its row the next run's,
+      # and its struggle's falls so far (#707: `Keeper.finish` saves a world
+      # mid get-up, and the next run carries the get-up on)
+      "fallOpen": self._fall_open, "fallStruggle": self._struggle,
       "decidedAt": (None if self._decided_at is None else list(self._decided_at)),
       "stoodStill": self._stood_still,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
@@ -6350,10 +6360,17 @@ class HubLifecycle:
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
     # ...and the body's fall count as its own restore put it back, read
-    # afresh, never as falls (#707): no save is made while a get-up runs
+    # afresh, never as falls (#707) -- but a fall a run's end left getting
+    # up (`end`), carried on where its body is back mid get-up, or its row
+    # sent as that run left it
     self._falls_rowed, self._fall_open = self.body.falls, None
-    stood = state.get("fallStood") or (None, 0)
-    self._stood_t, self._struggle = stood[0], int(stood[1])
+    self._struggle = int(state.get("fallStruggle") or 0)
+    kept = state.get("fallOpen")
+    if kept is not None:
+      self._fall_open = {k: v for k, v in kept.items() if k != "cut"}
+      if not (in_place and int(kept["falls"]) == self.body.falls
+              and self.body.posture == "getting_up"):
+        self._close_fall("unfinished", end=kept.get("cut"))
     self.resumed = {"inPlace": bool(in_place), "why": why,
                     "exploreDeadline": state.get("exploreDeadline") if mapped else None,
                     "errand": state.get("errand"), "preset": state.get("preset", []),
@@ -6688,9 +6705,15 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
-    # ...a get-up the run's end cut short is a row too (#707): no save is
-    # made while one runs, and the next run carries on from before its fall
-    self._close_fall("unfinished")
+    # ...a get-up the run's end cut short is a row too (#707) -- the next
+    # run's where the world carries on (`Keeper.finish` saves it mid-way,
+    # `kept_state`), with where this run left it
+    self._fall_read()
+    if self._fall_open is not None and self.continuing:
+      self._fall_open["cut"] = [float(self.data.time), list(self.body.true_pose()),
+                                list(self.body.pose)]
+    else:
+      self._close_fall("unfinished")
     return {
       "state": self.state,
       "aborted": aborted,

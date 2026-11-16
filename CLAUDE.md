@@ -2690,16 +2690,24 @@ save a filmstrip PNG named after the script.
   told is a line** (issue #707; `HubLifecycle._fall_row_step`,
   `protocol.FALL_ENDINGS` / `FALL_TOLD`, protocol/README.md;
   `tests/test_fall_rows.py`): sent as its get-up ends -- stood, its robot
-  dead, or a reset, `Stuck` or the run's end first, each of which closes it
+  dead, or a reset, `Stuck` or a run's end first, each of which closes it
   -- with `at` (a death's `_moment`, read at the fall) and how far the
   get-up moved the body and the belief. ⚠ THE TRUTH RIDES THE ROW ALONE. ⚠
-  ONE LINE (`FELL_LINE`), AND ONLY WHERE NOTHING ELSE TOLD THE FALL: a run's
-  verb (#671), a hand job's line or a `done`'s grade (#701), a step aside's
-  line, a death -- `told`, read the step the fall is counted, after
-  `_fall_step`: told twice, one fall reads as two. ⚠ PER FALL, AS THE BODY
-  COUNTS IT: a struggle's second fall is a row and a line of its own, the
-  row's `struggle` 2. ⚠ A restore reads the body's count afresh, never as
-  falls.
+  ONE LINE (`FELL_LINE`), AND ONLY WHERE NOTHING ELSE TOLD THE FALL: the
+  line of a run it fell in (#671; a #58 program leaves none), a hand job's
+  line or a `done`'s grade (#701), a step aside's line, a death -- each
+  teller marks the open fall AS ITS LINE SAYS IT (`_fall_told_by`: guessed
+  off a flag, `_in_errand` or `making_way`, a fall no line said reads as
+  told), a `done`'s grade as the fall comes (its verdict may follow the
+  stand): told twice, one fall reads as two. ⚠ PER FALL, AS THE BODY COUNTS
+  IT: a struggle's second fall is a row and a line of its own, the row's
+  `struggle` the `stuck` clock's own count (`_down_since` already running
+  as it came). ⚠ A RUN'S END SAVES A WORLD MID GET-UP (`Keeper.finish`): the
+  open fall rides it (`fallOpen`), its row the next run's, `unfinished` as
+  the run left it where that run cannot put the body back; a restore reads
+  the body's count afresh, never as falls. ⚠ Every closer and teller reads
+  the count first (`_fall_read`), or a reset in the step a fall is counted
+  reads as "got up again 0 s later".
 - **A task is a job OFFER, and it is not an errand** (`economy/tasks.py`,
   issue #21; TaskPattern.md): a task never carries its own payout
   (`Task.create` refuses a kind with no evaluator). The wire may carry
