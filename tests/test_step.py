@@ -182,7 +182,8 @@ class Walk:
     self.asked.append((vx, vy, w))
     if self.fall_at is not None and len(self.asked) == self.fall_at:
       self.falls += 1
-    if self.correct_at is not None and len(self.asked) == self.correct_at:
+    if self.correct_at is not None and len(self.asked) in (
+        self.correct_at if isinstance(self.correct_at, (set, tuple)) else (self.correct_at,)):
       # a correction from outside the legs' reckoning: the belief moves, the body not
       x, y, yaw = self.pose
       d = self.correction
@@ -727,9 +728,13 @@ def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be(
                      [(0.1, 0.2), (0.7, 0.0)])
   assert np.allclose(sorted(map(tuple, k.near((0.0, 0.0, math.pi / 2), np.zeros(3)))),
                      [(0.0, -1.0), (0.2, -0.4)])
-  # ...a frame that sees the far one's place empty takes it out; the near one,
-  # under the camera's whole view of the knees' height, it keeps
+  # ...a frame that sees nothing past the far one keeps it (another robot, a
+  # carried piece or its own body may hide it); one that sees the floor past
+  # it takes it out; the near one, under the camera's whole view of the knees'
+  # height, it keeps
   k.fold(np.zeros((0, 3)), 1.0, (0.0, 0.0, 0.0), np.zeros(3))
+  assert len(k.near((0.0, 0.0, 0.0), np.zeros(3))) == 2
+  k.fold(np.array([[1.3, 0.0, 0.0]]), 1.0, (0.0, 0.0, 0.0), np.zeros(3))
   assert np.allclose(k.near((0.0, 0.0, 0.0), np.zeros(3)), [(0.4, 0.2)])
   state, arrays = k.kept_state()
   back = hmis.KneeMemory()
@@ -738,9 +743,9 @@ def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be(
   assert not len(k.near((0.0, 0.0, 0.0), np.array([0.0, 0.0, hmis.KNEE_JUMP_RAD + 0.01]))), \
     "a heading's jump kept what it saw"
   k.fold(np.array([[0.4, 0.0, 0.3]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
-  mission = NS(legs="getup", knee=k)
-  HumanoidMission._look_step(mission)
-  assert not len(k.pts), "a get-up kept what it saw"
+  mission = NS(falls=0, legs="stand", knee=k, getup=NS(begin=lambda: None))
+  HumanoidMission._fell(mission)
+  assert not len(k.pts), "a fall kept what it saw"
 
 
 def test_a_pressed_step_reads_false_and_says_what_its_scans_do():
@@ -750,19 +755,29 @@ def test_a_pressed_step_reads_false_and_says_what_its_scans_do():
   step its scans of the room say went under `STEP_PRESSED_SHARE` of what its
   legs count reads false, saying both, and `step.*` says the scans'."""
   walk = Walk(coast_s=hb.STEP_STOP_S)
-  walk.correct_at, walk.correction = 60, (-0.08, 0.0, 0.0)
+  # ...its matcher taking back what the legs count, 2 cm a scan
+  walk.correct_at, walk.correction = (20, 40, 60, 80), (-0.02, 0.0, 0.0)
   rep = _step(_walker(walk), 0.12)
   assert rep["why"] == "stepped" and rep["mdx"] == pytest.approx(rep["dx"] - 0.08, abs=0.002)
+  assert rep["jump"] == pytest.approx(0.02, abs=1e-6)
   out = st._pressed(rep, 0.12, 0.0)
   assert out["why"] == "pressed" and out["dx"] == pytest.approx(rep["mdx"])
   said = st.STEP_PRESSED.format(**out)
   assert said == (f"your legs counted {100 * rep['dx']:.0f} cm along the way you stepped, but "
                   f"your scans of the room put you only {100 * rep['mdx']:.0f} cm on: "
                   "something held your body back")
-  # ...never a step its scans keep up with, nor one under STEP_PRESSED_M
-  for mdx, dx in ((0.06, 0.1), (0.0, hb.STEP_PRESSED_M - 0.005)):
-    rep = {"why": "stepped", "dx": dx, "dy": 0.0, "turn": 0.0, "mdx": mdx, "mdy": 0.0}
-    assert st._pressed(rep, 0.12, 0.0)["why"] == "stepped", (mdx, dx)
+  # ...never a step its scans keep up with, nor one under STEP_PRESSED_M, nor
+  # one its belief jumped across (a relocation, a doubt's take, a fix)
+  for mdx, dx, jump in ((0.06, 0.1, 0.0), (0.0, hb.STEP_PRESSED_M - 0.005, 0.0),
+                        (0.01, 0.1, hb.STEP_JUMP_M + 0.01)):
+    rep = {"why": "stepped", "dx": dx, "dy": 0.0, "turn": 0.0, "mdx": mdx, "mdy": 0.0,
+           "jump": jump}
+    assert st._pressed(rep, 0.12, 0.0)["why"] == "stepped", (mdx, dx, jump)
+  # ...and a step that turned first is judged along the way it walked after
+  rep = {"why": "stepped", "dx": 0.002, "dy": 0.09, "turn": math.pi / 2, "mdx": 0.0, "mdy": 0.01}
+  assert st._pressed(rep, 0.12, 0.0)["why"] == "pressed"
+  rep = {**rep, "mdy": 0.08}
+  assert st._pressed(rep, 0.12, 0.0)["why"] == "stepped"
   body = StubBody(*_bare())
   body.step_routine = lambda *a, **kw: tick.result(
     {"why": "stepped", "seconds": 1.0, "dx": 0.08, "dy": 0.0, "turn": 0.0, "mdx": 0.01, "mdy": 0.0})

@@ -139,13 +139,11 @@ STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMiss
 #: pelvis within `STEP_LOW_M` of what its depth camera has seen at its
 #: knees' height, remembered where its belief placed it (`mission.KNEE_Z`,
 #: `KneeMemory`: up close the camera sees none of a counter's face, and a
-#: thigh pressed on it at 0.15-0.17 m). ⚠ ONLY WHAT
-#: LIES AHEAD ALONG ITS WAY, AND BEGUN NEARER, IT MAY GO BUT NO NEARER THAN
-#: `STEP_NEARER_M` LESS THAN IT BEGAN: a sideways step along a counter's
-#: face or a wall goes on. Unkept, Rowan's procedures stepped into the
-#: lobby's wall to 0.12 m and the storeroom's corner to 0.01 m, every step
-#: reading "stepped", and the look's bow there felled it (#717: 3 of the
-#: wake's falls of 11-15, one a stuck death).
+#: thigh pressed on it at 0.15-0.17 m). MEASURED: the references' work spots
+#: kept 0.15 m clear of the first (the door's) and 0.05 of the second. ⚠ ONLY
+#: WHAT LIES AHEAD ALONG ITS WAY, AND BEGUN NEARER, IT MAY GO BUT NO NEARER
+#: THAN `STEP_NEARER_M` LESS THAN IT BEGAN: a sideways step along a counter's
+#: face or a wall goes on.
 STEP_WALL_M = 0.30
 STEP_LOW_M = 0.20
 STEP_NEARER_M = 0.02
@@ -162,6 +160,10 @@ STEP_NEAREST = 3
 #: every step whose legs counted 4 cm or more over the truth's travel matched
 #: under half of their count, and no step whose truth went more than half did.
 STEP_PRESSED_M, STEP_PRESSED_SHARE = 0.04, 0.5
+#: ...never judged where a single correction past this, m, moved its belief
+#: as it walked (`jump`): a relocation, a doubt's take, a station's fix --
+#: the matcher's own corrections along a pressed step come under a cm a scan.
+STEP_JUMP_M = 0.03
 #: A LOOK'S BOW IS JUDGED AGAINST WHAT STANDS IN FRONT OF ITS HEAD (#717,
 #: Ben's option 2; `bow_room`; SimNotes, "A step into a wall, and the look's
 #: bow there"): bowed, its head's front goes as far ahead as its model of
@@ -170,10 +172,8 @@ STEP_PRESSED_M, STEP_PRESSED_SHARE = 0.04, 0.5
 #: where that leaves `BOW_CLEAR_M` short of the nearest its LIDAR reads at its
 #: head's height (`lidar.OVER_Z` and up) within `BOW_HALF_M` either side of
 #: its facing -- else the deepest that does, `BOW_STEP_RAD` at a time, and
-#: none where none does. Unjudged, `spot`'s 0.45 bow pushed the head into the
-#: lobby's wall at 11-17 N, the wall threw the trunk 12.5 deg back, the fall
-#: watch handed the legs to the get-up, and it ran the robot 2.45 m backward
-#: into the far wall: a stuck death (#717).
+#: none where none does: the lobby's wall met at a 0.25 rad bow from 0.12-0.14
+#: m off the LIDAR, the head's front past it as the statue has it.
 BOW_CLEAR_M, BOW_HALF_M, BOW_STEP_RAD = 0.05, 0.15, 0.05
 #: ...off its newest scan where that is no older than this, s; else off one
 #: taken where it stands.
@@ -281,8 +281,11 @@ class _Room:
     seen = self.mi.over_returns
     if seen is None or seen[0] < self.since or not len(seen[1]):
       return None
-    a, r = seen[1], seen[2]
-    return np.stack([np.cos(a) * r, np.sin(a) * r], axis=1)
+    if seen[0] != getattr(self, "_wall_t", None):
+      # ...laid out once a scan, never every physics step
+      a, r = seen[1], seen[2]
+      self._wall_t, self._wall_pts = seen[0], np.stack([np.cos(a) * r, np.sin(a) * r], axis=1)
+    return self._wall_pts
 
   def kept(self, carry: float, went: float) -> dict | None:
     """None while its walk, `went` m along its way by its legs, is clear of
@@ -1064,8 +1067,9 @@ class HumanoidBody(Body):
   def bow_room(self, down: float) -> tuple[float, float]:
     """The deepest bow up to `down`, rad, at the height it stands at, whose
     head's front (`head_front`) stays `BOW_CLEAR_M` short of what its LIDAR
-    reads at its head's height in front of it (`Navigator.over_returns`:
-    the `STEP_NEAREST`-th nearest within `BOW_HALF_M` either side of its
+    reads at its head's height in front of it (`Navigator.over_returns`,
+    and another robot's body the same scan saw, `peer_returns`: the
+    `STEP_NEAREST`-th nearest within `BOW_HALF_M` either side of its
     stance's facing) -- 0 where even upright it does not -- and how far
     ahead that stands, m, its stance frame (inf: nothing). Off its newest
     scan, or one taken where it stands (`BOW_SCAN_S`); the posture it stands
@@ -1074,8 +1078,13 @@ class HumanoidBody(Body):
     t = float(self._d.time)
     if mi.over_returns is None or t - mi.over_returns[0] > BOW_SCAN_S:
       mi._sighted(mi._scan(), t)
-    _, a, r, origin = mi.over_returns
+    t_over, a, r, origin = mi.over_returns
     ox, oy = origin if origin is not None else (0.0, 0.0)
+    # ...and another robot's body the same scan saw: it stands at the head's
+    # height too, and the head's room is the step's (`_kept_off`) no less
+    peers = mi.peer_returns
+    if peers is not None and peers[0] == t_over and len(peers[1]):
+      a, r = np.concatenate((a, peers[1])), np.concatenate((r, peers[2]))
     # ...each return from the pelvis along its heading, into the stance
     # frame through its odometry's model of itself, posed every tick
     sm = mi.odo.sm
@@ -1290,13 +1299,17 @@ class HumanoidBody(Body):
     s_mid = by_legs(self.stance)
     # ...and where its scans have it, the matcher's corrections in (#718)
     b_mid = self.stance
+    self._jump = 0.0
     kept = None
     for a_, l_ in walks:
       if why == "stepped":
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
         why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
+    seen = mi.odo.corrected.copy()
     yield from mi.to_stand_routine()
+    d_ = mi.odo.corrected - seen
+    self._jump = max(self._jump, math.hypot(float(d_[0]), float(d_[1])))
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
@@ -1328,7 +1341,7 @@ class HumanoidBody(Body):
         why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
-            "mdx": float(matched[0]), "mdy": float(matched[1]),
+            "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
             **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
 
   def _by_legs(self):
@@ -1412,6 +1425,7 @@ class HumanoidBody(Body):
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
     held = mi.held_s
+    seen = mi.odo.corrected.copy()
     # ...and walls and furniture (#717), off every scan the step has taken
     # as a walk's front stop reads the other robot's
     room = _Room(mi, ux, uy, since, float(self._d.time))
@@ -1424,6 +1438,10 @@ class HumanoidBody(Body):
       now = wx * (x - x0) + wy * (y - y0)
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
       went = now
+      # ...the largest single correction of its belief as it walks (#718)
+      d = mi.odo.corrected - seen
+      self._jump = max(self._jump, math.hypot(float(d[0]), float(d[1])))
+      seen = mi.odo.corrected.copy()
       if went + max(speed, 0.0) * STEP_STOP_S >= length:
         return "stepped", None
       kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)

@@ -61,8 +61,8 @@ from typing import Any, Callable
 
 from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M,
                                      STEP_FRONT_HALF_M, STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M,
-                                     STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M, STEP_PRESSED_SHARE,
-                                     STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
+                                     STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
+                                     STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
@@ -1357,12 +1357,16 @@ def _pressed(rep: dict, ahead: float, left: float) -> dict:
   """A step that "stepped" whose scans of the room (`mdx`, `mdy`: its
   stance's move, the matcher's corrections in) went under
   `STEP_PRESSED_SHARE` of what its legs count, these at least
-  `STEP_PRESSED_M` along its way, did not go (#718): "pressed", `step.*`
-  then the scans' move."""
+  `STEP_PRESSED_M` along its walk's way (after its turn), did not go (#718):
+  "pressed", `step.*` then the scans' move -- never judged where its belief
+  jumped as it walked (`jump`, past `STEP_JUMP_M`)."""
   n = math.hypot(ahead, left)
-  if rep.get("why") != "stepped" or "mdx" not in rep or not n:
+  if (rep.get("why") != "stepped" or "mdx" not in rep or not n
+      or float(rep.get("jump", 0.0)) > STEP_JUMP_M):
     return rep
-  ux, uy = ahead / n, left / n
+  # ...along its walk's way in the frame it stood in before: after its turn
+  c, s = math.cos(float(rep.get("turn", 0.0))), math.sin(float(rep.get("turn", 0.0)))
+  ux, uy = (c * ahead - s * left) / n, (s * ahead + c * left) / n
   legs = float(rep["dx"]) * ux + float(rep["dy"]) * uy
   scans = float(rep["mdx"]) * ux + float(rep["mdy"]) * uy
   if legs < STEP_PRESSED_M or scans >= STEP_PRESSED_SHARE * legs:

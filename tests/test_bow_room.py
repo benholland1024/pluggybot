@@ -19,16 +19,19 @@ from pluggybot.procedure import steps as st
 from test_hands import _bare, _fly
 
 
-def _standing(wall_x: float | None, t: float = 10.0):
+def _standing(wall_x: float | None, t: float = 10.0, peer_x: float | None = None):
   """A body standing upright in its stance frame, its newest scan at its
   head's height a wall across its way at stance x `wall_x` (none: nothing),
-  taken just now from its sensor over its pelvis."""
+  taken just now from its sensor over its pelvis -- and, `peer_x`, another
+  robot's body that scan saw straight ahead there."""
   sm = SelfModel()
   statue(sm, (0.0, 0.0, 0.0), np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES]))
   px = float(sm.d.qpos[0])
   a = np.radians(np.arange(-80.0, 81.0))
   r = np.full(len(a), 8.0) if wall_x is None else (wall_x - px) / np.cos(a)
-  mission = NS(over_returns=(t, a, r, (0.0, 0.0)), odo=NS(sm=sm),
+  pa = np.radians(np.arange(-10.0, 11.0))
+  peers = (t, pa, (peer_x - px) / np.cos(pa)) if peer_x is not None else (t, pa[:0], pa[:0])
+  mission = NS(over_returns=(t, a, r, (0.0, 0.0)), peer_returns=peers, odo=NS(sm=sm),
                _scan=lambda: None, _sighted=lambda scan, when: None)
   return NS(mission=mission, _d=NS(time=t), reach=NS(posture=np.zeros(3)))
 
@@ -46,6 +49,9 @@ def test_a_bow_is_held_where_the_head_would_come_too_near_a_wall():
   assert bow == pytest.approx(0.25) and hb.head_front(0.0, bow + hb.BOW_STEP_RAD) + hb.BOW_CLEAR_M > at
   assert hb.HumanoidBody.bow_room(_standing(front[0.0] + hb.BOW_CLEAR_M - 0.01), 0.45)[0] == 0.0
   assert hb.HumanoidBody.bow_room(_standing(None), 0.45)[0] == pytest.approx(0.45)
+  # ...and another robot's body in front of its head is as near a thing
+  near_peer = _standing(None, peer_x=front[0.25] + hb.BOW_CLEAR_M + 0.005)
+  assert hb.HumanoidBody.bow_room(near_peer, 0.45)[0] == pytest.approx(0.25)
 
 
 def test_the_heads_front_off_the_model_of_itself_is_the_lobbys_measure():
