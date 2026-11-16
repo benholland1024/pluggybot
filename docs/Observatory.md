@@ -208,12 +208,15 @@ flown on the branch, 11,705 lines, every one the committed fixture's but two
   fix within the map's reach the line comes once its 30 anchored scans are
   laid and its fits have held, about 8 s on. Kept across a restart with the
   map.
-- Both are `drift` rows (`why` `refusing` / `matching`, with `seconds` and
-  the `verdict`). ⚠ The site's observatory files a `drift` row only under a
-  why its own list knows (`DRIFT_WHYS` in `pluggyworldObservatory.ts`): it
-  lists the two, and keeps `verdict` beside `seconds`, from rooftop's
-  `loop-drift-whys` on (M5 of the loop of 11-15/16), and a site before it
-  drops them at its door; the History lines reach it as records either way.
+- Both are `drift` rows: `refusing` with `seconds` and its `verdict`,
+  `matching` with its `verdict`. ⚠ The site's observatory files a `drift`
+  row only under a why its own list knows (`DRIFT_WHYS` in
+  `pluggyworldObservatory.ts`). Rooftop's `loop-drift-whys` (M5 of the loop
+  of 11-15/16) adds the two and keeps their `verdict` (it kept a row's
+  `seconds` already), so the rows reach `/observe` only where this
+  period's sim and a site with that branch are both deployed; a site before
+  it drops them at its door. The History lines reach it as records either
+  way.
 - It moves no belief, adds no search and names no act: what the robot does
   about it is its mind's. Measured on the served body's own scans, its
   map one scan standing, nothing stepped: its belief turned 120 deg and
@@ -237,10 +240,10 @@ a minute.
 **What to read on the live rows.** The `refusing` line should come only
 after a fall that turned the heading or a belief set far off, and a
 `matching` after it at the station's fix (then the map's next fit) or a
-relocation, 5 s on. Once the site files the two rows, each one's `errorM` and
-`headingDeg` say whether the robot was off when told: a `refusing` row near
-the truth is a robot told it may be lost that was not. ⚠ A robot lost on a
-map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the
+relocation, 5 s on. Each row's `errorM` and `headingDeg` (where the site
+files them, above) say whether the robot was off when told: a `refusing`
+row near the truth is a robot told it may be lost that was not. ⚠ A robot
+lost on a map that ACCEPTS its scans -- #681's class, 0.5-1.1 m off at the
 storeroom's counter with every verdict `ok` on 11-14 -- is never told by
 it.
 
