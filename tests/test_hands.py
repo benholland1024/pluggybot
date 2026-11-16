@@ -486,6 +486,7 @@ def _bare_reach():
   r.q_to = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
+  r._tip = {s: 0.0 for s in hm.SIDES}
   r.slack = {s: True for s in hm.SIDES}
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
@@ -1273,6 +1274,140 @@ def test_a_solve_that_diverged_is_never_commanded():
   r._held("left", 0.01, h, rot)
   assert np.allclose(r.q_cmd["left"], before)
   assert rc.WILD_M < 1.0
+
+
+def _walking_out(phase="move"):
+  """A reach's left arm walking out to its pre-grasp in joint space, its
+  command ahead of where its drivers read it (`sensed`), the hand out to the
+  robot's left front by its senses, the loop's reads stubbed: the force its
+  arm reads is the test's (`feel`), and what the arms are commanded is
+  recorded."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import HandGoal
+  r = _standing_reach()
+  r.posture_now = lambda: np.array([-0.16, 0.0, 0.5])
+  r.goal["left"] = HandGoal(np.array([0.45, 0.2, 0.85]), np.eye(3), 0.5)
+  r.q_to["left"] = r.rest["left"] + 0.6
+  r.q_cmd["left"] = r.rest["left"] + 0.25
+  r.phase["left"] = phase
+  r.sensed = np.zeros(len(hm.JOINT_NAMES))
+  r.sensed[r.self_model.arm["left"]] = r.rest["left"] + 0.2      # behind its command
+  r.sensed[r.self_model.arm["right"]] = r.rest["right"]
+  r._pose, r._trim, r._feel = (lambda arms=None: None), (lambda dt: None), (lambda: None)
+  r.sent = []
+  r.arms = {s: NS(command=lambda q, feed, k, s=s: r.sent.append((s, np.array(q), k)))
+            for s in hm.SIDES}
+  # where its senses put the hand: 0.4 m ahead, 0.3 m to the left -- the
+  # level line to the stance's middle is (-0.8, -0.6)
+  r.self_model.grip_pose = lambda side: (np.array([0.4, 0.3 if side == "left" else -0.3, 0.9]),
+                                         np.eye(3))
+
+  def feel(push, sensed=None):
+    r.force = {s: np.zeros(3) for s in hm.SIDES}
+    r.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
+    r.force["left"] = np.asarray(push, dtype=float)
+    r.sensed_force["left"] = np.asarray(push if sensed is None else sensed, dtype=float)
+  r.feel = feel
+  return r, rc
+
+
+def test_a_hand_on_its_way_out_stops_where_its_arm_is_once_its_reading_tips_the_body():
+  """⚠ A jaw caught on a chest's bracket on its way out was driven on at
+  full stiffness, the world pulling the hand 50-80 N toward the chest until
+  the robot went over its toes (#708): an arm walking out to its pre-grasp,
+  the body in the posture it was asked, stops the tick its own reading
+  (`force`, as every loop of the body's reads it) would tip the body toward
+  the hand past `OUT_TIP_NM` -- its pull toward the body at the hand's
+  height, less its press down at the hand's reach -- `blocked`, out where
+  its arm then puts the hand, held where its
+  drivers read its joints: held at the command it drove on to, it pulled on
+  and the robot fell all the same. ⚠ Never on a push or a press: our door's
+  way out drags a jaw back over the door's top pressing down on it, which
+  tips the body back, and passes."""
+  r, rc = _walking_out()
+  r.posture = r.posture_now()                     # in the posture it was asked
+  # ...measured on the arm's own reading in `move` (#708's flights, the
+  # hands checks): read there off the whole body, it must be measured again
+  assert "move" not in rc.FELT_PHASES
+  read = r.sensed[r.self_model.arm["left"]].copy()
+  ahead = r.q_cmd["left"].copy()
+  toward = np.array([-0.8, -0.6, 0.0])           # level, from the hand (0.4, 0.3) to the middle
+  height, reach_m = 0.9, 0.5                     # where its senses put the hand
+  pull = rc.OUT_TIP_NM / height                  # a pull that tips the body by the line
+  down = np.array([0.0, 0.0, -1.0])
+  # a press down, however hard; a push away from the body; a pull under the
+  # line; a hard pull that a press down holds back -- whatever the
+  # motion-taken reading says -- it walks on
+  for push in (10.0 * pull * down, -3.0 * pull * toward, 0.95 * pull * toward,
+               3.0 * pull * toward + 3.0 * pull * height / reach_m * 1.01 * down):
+    r.feel(push, sensed=10.0 * pull * toward)
+    r._update(0.01)
+    assert r.phase["left"] == "move", push
+  assert np.abs(r.q_cmd["left"] - ahead).max() > 0.0, "its command walked on toward q_to"
+  # past the line: stopped that tick, held where its drivers read its arm
+  r.feel(1.05 * pull * toward)
+  r._update(0.01)
+  assert r.phase["left"] == "blocked" and r.done("left") and r.out("left")
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read)
+  left = [(q, k) for s, q, k in r.sent if s == "left"]
+  assert np.allclose(left[-1][0], read) and left[-1][1] == 0.5, "commanded there, at its reach's stiffness"
+  assert r.postures[-1] == (-0.16, 0.0, 0.5), "the body held in the posture it has got to"
+
+
+def test_a_transient_past_the_line_while_the_body_takes_its_posture_walks_on():
+  """⚠ A TRANSIENT IS NO CATCH (#708's gate, the loop of 11-16/17): as the
+  standing policy stopped a deep bow within 0.01 s (the cube check's
+  set-out 38, its waist 0.05 rad short of its posture), the arm's drivers
+  caught the arm up and read 44 N at a hand that touched nothing, past the
+  line for two of the arm's ticks -- and the way out stopped in free air.
+  While the body still takes the posture it was asked (`POSTURE_TOL`), a
+  way out past the line for less than `OUT_TIP_S` running walks on, its
+  count begun again once the reading falls back under; held past it that
+  long, it stops. ⚠ In its posture, the first tick past the line stops it:
+  held there 0.02 s longer at the chest's draws 321-336, 3 of 16 fell where
+  1 did."""
+  r, rc = _walking_out()
+  toward = np.array([-0.8, -0.6, 0.0])
+  past = 1.05 * rc.OUT_TIP_NM / 0.9 * toward     # past the line at the hand's height, 0.9 m
+  ticks = round(rc.OUT_TIP_S / 0.01)
+  assert ticks >= 3, "a hold longer than the cube's two ticks"
+  taking = r.posture_now() + np.array([0.0, 0.0, 0.05])   # the waist 0.05 rad short of it
+  assert (np.abs(r.posture_now() - taking) > rc.POSTURE_TOL).any()
+  r.posture = taking
+  for _ in range(2):
+    # past the line one tick short of the hold, then back under: a transient
+    for _ in range(ticks - 1):
+      r.feel(past)
+      r._update(0.01)
+      assert r.phase["left"] == "move"
+    r.feel(0.5 * past)
+    r._update(0.01)
+    assert r.phase["left"] == "move"
+  # in its posture now: the first tick past the line stops it
+  r.posture = r.posture_now()
+  r.feel(past)
+  r._update(0.01)
+  assert r.phase["left"] == "blocked"
+  # ...and still taking it, held past the line the whole hold
+  r, rc = _walking_out()
+  r.posture = taking
+  for k in range(ticks):
+    assert r.phase["left"] == "move", k
+    r.feel(past)
+    r._update(0.01)
+  assert r.phase["left"] == "blocked"
+
+
+@pytest.mark.parametrize("phase", ["joints", "home", "rest"])
+def test_an_arm_walked_another_way_is_never_stopped_by_the_ways_out_rule(phase):
+  """The rule is a reach's way out's alone: an arm walked joint by joint, or
+  home, or hanging walks on whatever its reading says (its own rules are
+  `withdraw`'s and the motor level's)."""
+  r, rc = _walking_out(phase)
+  ahead = r.q_cmd["left"].copy()
+  r.feel(3.0 * rc.OUT_TIP_NM * np.array([-0.8, -0.6, 0.0]))
+  r._update(0.01)
+  assert r.phase["left"] == phase and np.abs(r.q_cmd["left"] - ahead).max() > 0.0
 
 
 # ---- feedback a procedure can debug by, and what a robot keeps --------------------

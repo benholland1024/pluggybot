@@ -336,10 +336,33 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or the force it reads (below) a push on its way in --
-  unstopped, an arm pushed the robot over. ⚠ IT GOES IN ONCE THE TRUNK IS
-  STILL (`reach.TRUNK_STILL_RATE`; or after `POSTURE_WAIT_S`): the
-  force it reads assumes the body still, and begun as the deepest bow
-  stopped turning, the floor's reach read 492 N and stopped 6 cm short
+  unstopped, an arm pushed the robot over. ⚠ ON ITS WAY OUT, THE TICK WHAT
+  IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
+  m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
+  (`POSTURE_TOL`), ONCE IT HAS FOR `OUT_TIP_S` (0.03 s) RUNNING -- its pull
+  toward the body at the hand's height, less its press down at the hand's
+  reach -- HELD WHERE ITS JOINTS READ (#708; `Reach._tipping`, `_tipped`,
+  `_struck`; SimNotes, "A hand on its way out that meets something"): the
+  joint-space way out swings the hand through what it never looked at, and a
+  jaw caught on a chest's bracket was driven on until the robot went over
+  its toes. ⚠ A transient is no catch (a bow stopped short of its posture
+  read 44 N at a hand that touched nothing, for 0.02 s), ⚠ but in the
+  posture the first tick stops it (held 0.02 s there, #708's fresh draws
+  fell 3 of 16 for 1). Never on a push or a press: our door's way out drags
+  a jaw back over the door's top pressing down on it, and stopped there --
+  on the whole reading at 20-40 N, or on its pull alone at 30 N -- the door
+  fell more or passed fewer. ⚠ It reads a push on the robot's own body as
+  the world's (a way out from a hand already out, judged against nothing,
+  drove a gripper into the torso: 46-61 N; SimNotes). ⚠ OUR DOOR'S AND LID'S
+  REFERENCES, A REACH FAILED (THE LID'S: STOPPED SHORT, ITS HAND OUT), TRY
+  THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT (`hands_check.DOOR`,
+  `LID`; SimNotes, "The door's reach the stop sends back"): tilted at once,
+  the door's twelve turned-crouch set-outs bowed the robot onto the counter.
+  ⚠ IT GOES IN
+  ONCE THE TRUNK IS STILL (`reach.TRUNK_STILL_RATE`; or after
+  `POSTURE_WAIT_S`): the force it reads assumes the body still, and begun
+  as the deepest bow stopped turning, the floor's reach read 492 N and
+  stopped 6 cm short
   (#520). ⚠ IT PLANS WHERE IT READS ITSELF STANDING (#627; `reach.Lean`,
   `statue`, `Reach._look`; SimNotes, "The reach planned where the live
   trunk stands"): each posture's statue balanced where its model of itself

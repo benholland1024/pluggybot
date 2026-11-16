@@ -38,7 +38,17 @@ from pluggybot.procedure import steps as st
 #: lifted up and a little back by a FORCE MOVE that lets the hinge steer the
 #: hand along the arc; lowered toward the body and down, again by force --
 #: the lid set down by its hinge, not by a plan -- and let go only once the
-#: hand is back down.
+#: hand is back down. ⚠ ITS FIRST REACH THAT STOPPED SHORT, ITS HAND OUT
+#: (`left.x`: on its way out or in), IS TRIED ONCE MORE AT THE SAME TILT
+#: WITH THE GRIP 5 DEG TOWARD THE ROBOT'S MIDDLE before the tilts go on, the
+#: last of them (44 deg) then untried (#708, as the door's: a first way out
+#: stopped on the counter's edge sent lids to the next tilt, which let them
+#: fall or never opened them); never after a reach refused with nothing
+#: moved (so turned after three refusals, a grip found a plan whose lift let
+#: the lid fall); at 10 deg its pads met the rising lid at 62. ⚠ The read
+#: moves the flight by itself: a resting hand's place is read off every
+#: joint afresh (`Reach.grip_now`; SimNotes, "The door's reach the stop
+#: sends back").
 LID = '''def open_lid():
   budget(steps=40, seconds=66)
   spot(53)
@@ -56,12 +66,16 @@ LID = '''def open_lid():
   y = y - 0.02 * fy
   g = 0
   t = -0.26
+  r = 0.0
+  n = 0
   for i in range(6):
+    s = 0.0
     if g == 0:
       open_hand("left")
-      if reach("left", x, y, z, fx * cos(t), fy * cos(t), -sin(t), -fy, fx, 0):
+      if reach("left", x, y, z, cos(a - r) * cos(t), sin(a - r) * cos(t), -sin(t), -sin(a - r), cos(a - r), 0):
         g = 2
       else:
+        s = read("left.x")
         withdraw("left")
     if g == 2:
       if close_hand("left"):
@@ -69,10 +83,15 @@ LID = '''def open_lid():
       else:
         g = 0
         withdraw("left")
-    if t < -0.26:
-      t = -0.52 - t
+    if n == 0 and g == 0 and s > 0.2:
+      n = 1
+      r = 0.09
     else:
-      t = -0.69 - t
+      r = 0.0
+      if t < -0.26:
+        t = -0.52 - t
+      else:
+        t = -0.69 - t
   if g == 1:
     z0 = read("left.z")
     pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27)
@@ -128,12 +147,22 @@ DRAWER = '''def open_drawer():
 #: it shut -- and otherwise gripped again LIGHTLY, so its tip turns between
 #: the jaws as the door swings, and pulled toward the body by force, the
 #: hinge steering the hand along the door's arc, then on the way the hand
-#: was last going.
+#: was last going. ⚠ A REACH THAT FAILS -- STOPPED SHORT, OR REFUSED (none
+#: of the check's first reaches was, over set-outs 0-127) -- TRIES ITS
+#: FINGERS 10 DEG TOWARD THE ROBOT'S MIDDLE, UNTILTED, BEFORE IT TILTS THEM
+#: DOWN 15 DEG A TRY (#708; SimNotes, "The door's reach the stop sends
+#: back"; its `g = 5` a state of its own: the language nests 4 deep): at 12 of
+#: set-outs 0-191 the grip asked plans the deepest crouch with the waist
+#: turned 30 deg, whose way out drags the open jaw over the counter's edge
+#: into the door, and a way out stopped there (`reach.OUT_TIP_NM`) went to
+#: the tilt, whose press and move back bowed the robot onto the counter;
+#: turned toward the middle, it plans a shallower crouch, square, at all 12.
 DOOR = '''def open_door():
   budget(steps=60, seconds=66)
   ph = 0
   g = 3
   t = 0.0
+  r = 0.0
   for i in range(12):
     if g == 3:
       g = 4
@@ -158,10 +187,17 @@ DOOR = '''def open_door():
         g = 4
     if g == 0:
       open_hand("left")
-      if reach("left", x, y, z, fx * cos(t), fy * cos(t), -sin(t), 0, 0, 1):
+      if reach("left", x, y, z, cos(a - r) * cos(t), sin(a - r) * cos(t), -sin(t), 0, 0, 1):
         g = 2
       else:
         withdraw("left")
+        g = 5
+    if g == 5:
+      g = 0
+      if r == 0 and t == 0:
+        r = 0.17
+      else:
+        r = 0.0
         t = t + 0.26
     if g == 2:
       if close_hand("left", 120 - 105 * ph):
@@ -182,6 +218,7 @@ DOOR = '''def open_door():
       ph = ph + 1
       g = 3 + (ph > 1)
       t = 0.0
+      r = 0.0
 '''
 
 #: THE CUBE, out of reach where the robot stands: the mat's middle and the

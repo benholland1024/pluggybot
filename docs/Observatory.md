@@ -56,6 +56,80 @@ planned through it, and none given up on a wall left standing where a
 door, a prop or a robot had been. And the belief inside the research
 center, on the drift rows: no worse than the period before's.
 
+### A hand on its way out that would tip the body over stops there, and our door's and lid's references try their grip turned toward the middle before they tilt (#708, K13, M3 and P1, `loop-708b`) — opens when this PR is deployed
+
+**What a deployed robot's `reach` does changes; what it says and reads does
+not.** Nothing in the prompt moved (`prompt_sha` `0f1df27e…`, 67,157
+characters, 17 sections, as on bab67ea), nor the session host's hello
+(`b796e75d…`, byte for byte), nor any geometry or the wire. A reach stopped
+this way says what one stopped on its way always said -- "your left hand
+stopped short on its way: out of reach from how you truly stand, or pushing
+on something" -- and its hand is out where it stopped, as one stopped on its
+line in is. The pair's committed recording is the same day: its fixture's
+command flown on bab67ea and with the stop alone, 11,705 lines the same line
+for line (the wall clock and the build aside), and the committed file the
+same; the gate stops a way out only where the stop alone does or later, so
+it flies that day too. The station's trials, the candidate against bab67ea:
+39 of 39 approaches docked and unplugged, 140 of 140 seats plugged in and
+unplugged, 16 of 16 lost near docked, each its flight exactly.
+
+**The change** (`Reach._update`, `_tipping`, `_tipped`, `_struck`;
+`reach.OUT_TIP_NM`, `OUT_TIP_S`; SimNotes, "A hand on its way out that
+meets something"). A reach's arm walks out to its pre-grasp in joint space,
+and nothing stopped it there: the stop on a push (`BLOCKED_N`) was the line
+in's alone. From here on, the tick what the arm's own reading would tip the
+body toward the hand past 20 N m -- its pull toward the body at the hand's
+height, less its press down at the hand's reach -- it stops, held where its
+drivers read its joints, the body in the posture it has got to; while the
+body still takes the posture it was asked, only once that has lasted 0.03
+s running, so that a transient of its own motion does not stop it (a deep
+bow stopped by the standing policy read 44 N at a hand that touched
+nothing, for 0.02 s). The reading cannot tell the robot's own
+body from the world, so a way out that drives the gripper into the robot's
+own torso stops there too. Beside it, OUR door's and lid's references
+change (`hands_check.DOOR`, `LID`; the served door's and chest's jobs fly
+them from the tour, and no robot runs them): a door's reach that failed, or
+the lid's first that stopped short with the hand out, is tried again with
+the grip turned toward the robot's middle -- the door's 10 deg, untilted,
+the lid's 5 deg at its tilt -- before they tilt it as before (SimNotes,
+"The door's reach the stop sends back").
+
+**Why.** On 11-14 at 20:21:57 UTC Luca's own `chest_run35` reached with
+its fingers straight ahead into the chest's front: the joint-space way out
+swung the open jaw past the knob and drew it back across the drop handle's
+bracket, where it caught, and the arm drove on at full stiffness until the
+robot went over its toes. On 11-15 its `chest_run36` fell so six times, one
+of them a stuck death. The stop alone cost our door 10 of its 192 flights
+with 5 more falls on e1ee005: at 12 of 192 set-outs the grip asked plans
+the deepest crouch with the waist turned 30 deg, whose way out drags the
+open jaw over the counter's edge, and stopped there, the reference's tilted
+retry bowed the robot onto the counter.
+
+**Measured** (one Vast pod, an AMD EPYC 7B12, each flight its own noise,
+against bab67ea; the loop of 11-16/17, P1; SimNotes has e1ee005's four arms
+and the gate's). #708's own flight no longer falls in a way out: 0 of the 8
+keys (6 on bab67ea), 1 of 16 at draws nothing had seen (6), as with the stop
+alone. Every stop in every reading came on a contact, the world's or the
+robot's own body's; the stop alone stopped once on nothing (the cube's
+set-out 38), which the gate lets walk on. Our hands check passes 453 of 576
+at set-outs 0-127 where bab67ea passes 421, with 9 falls for 11, no job
+worse; the tour's five jobs 134 for 135 with 2 falls for 3 (the cube's draw
+7); held out at 192-255 245 passes for 232 and 6 falls for 6 -- the door's
+221 new, its reference's retry's own, and a drawer's gone. The wake of
+11-15's own door and chest runs, flown at their live draws: none passed
+fewer, none fell more, and 7 falls went.
+
+**What to read on the live rows.** A fall inside a `reach` ("failed at step
+N (line L, reach) -- you fell on the way there"), Luca's `chest_run36`'s
+signature: six on 11-15. And a `reach` stopped short where none was before:
+a way out caught on something that would have tipped the robot toward it,
+where it used to drive on -- or one that drove the robot's own gripper into
+its torso: a reach begun with the hand already out takes the straight way
+out in joint space, never judged against its own trunk (`door_run31` on
+11-15 at draw 407, flown: stopped three times at 46-61 N, where today's
+tree pressed on to 165 N). The references' retries are on no live row: the
+robots write their own procedures.
+
 ### Every fall a row, and a fall nothing else told a line (#707, P7, `loop-falls`) — opens when this PR is deployed
 
 **What moved for the robots is one History line** (`prompt_sha` unmoved,
