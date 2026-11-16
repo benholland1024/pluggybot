@@ -12,34 +12,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3, `loop-719b`) -- opens when this PR is deployed
 
-**What the robots read moves** (`prompt_sha` `c26648b7…`, 68,617
+**What the robots read moves** (`prompt_sha` `a780e1dc…`, 68,644
 characters, 17 sections, from `0ba46734…`'s 68,294 at `loop-staging`
-73f8daf; the session host's hello moves, sha1 `3b7527f6…` from
+73f8daf; the session host's hello moves, sha1 `27f68336…` from
 `39c0692a…`):
 - `reach`'s text, "...then in along the fingers; you take whatever posture
   reaches. stiffness 1 is...", reads "...you take whatever posture reaches
-  -- but while your other hand holds something, your body keeps the posture
-  it is in, and a hand that does not reach there from it does not move and
-  reads false saying so. stiffness 1 is...".
+  -- but while your other hand is out holding something, your body keeps
+  the posture it is in, and a hand that does not reach there from it does
+  not move and reads false saying so. stiffness 1 is...".
 - `move_hand`'s, "...given as for `reach`; ok when it arrives", reads
-  "...given as for `reach`; while your other hand holds something, your body
-  keeps the posture it is in; ok when it arrives".
+  "...given as for `reach`; while your other hand is out holding something,
+  your body keeps the posture it is in; ok when it arrives".
 - `pull`'s, after "...then it holds there.", gains "While your other hand
-  holds something, your body keeps the posture it is in."
-- New words: a `reach` so refused, "your left hand holds something, so your
-  body keeps the posture it is in, and from it your right hand does not
-  reach there" (before, "no posture you hold puts your right hand there",
-  and what the other hand could do); a `move_hand` that so runs out of
-  reach, "your right hand could reach no further that way from the posture
-  you are in: your left hand holds something, so your body keeps it"
-  (before, "...from any posture you hold").
+  is out holding something, your body keeps the posture it is in."
+- New words: a `reach` so refused, "your left hand is out holding
+  something, so your body keeps the posture it is in, and from it your
+  right hand does not reach there" (before, "no posture you hold puts your
+  right hand there", and what the other hand could do); a `move_hand` so
+  refused or that so runs out of reach, "your right hand could reach no
+  further that way from the posture you are in: your left hand is out
+  holding something, so your body keeps it" (before, "...from any posture
+  you hold").
 
-**The change** (`Reach._holder`, `kept_by`; `Body.posture_kept_by`;
+**The change** (`Reach.keep`, `kept_by`; `Body.posture_kept_by`;
 `steps.REACH_KEPT`, `MOVE_KEPT`; SimNotes, "A posture change out of a deep
-bow, with the other hand on a lever"). While one hand's gripper reads it
-holds something, a `reach` of the other plans only in the posture the body
-is in, its `move_hand` and `pull` take no new one, a reach's look at its
-pre-grasp takes none, and no carry or pull re-plans one on its way.
+bow, with the other hand on a lever"). While one hand is out at its work
+and its gripper reads it holds something, a verb's `reach` of the other
+plans only in the posture the body is in, its `move_hand` and `pull` take no
+new one, a reach's look at its pre-grasp takes none, and no carry or pull
+re-plans one on its way. A piece carried at the side keeps nothing; the
+loop's own reach (a charge's) is never kept.
 
 **Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): O2_OBS
 

@@ -85,11 +85,11 @@ and its feet, which the walking policy moves.
 5. **The posture is the body's; where it stands is the procedure's.** Every
    hand verb chooses the posture its whole motion is followed from, and a
    procedure never names one; `step` moves the feet, and the hand verbs
-   take their postures from where they then stand. ⚠ While one hand holds
-   something, the other's `reach`, `move_hand` and `pull` take none but the
-   one the body is in (#719's option 2: a rise and a turn asked with the
-   other hand's jaws on a lever tipped the body over backward), and say so
-   where it does not reach.
+   take their postures from where they then stand. ⚠ While one hand is out
+   holding something, the other's `reach`, `move_hand` and `pull` take none
+   but the one the body is in (#719's option 2: a rise and a turn asked with
+   the other hand's jaws on a lever tipped the body over backward), and say
+   so where it does not reach; a piece carried at the side keeps nothing.
 
 ## 3. The verbs
 

@@ -10306,16 +10306,18 @@ held with the other hand on the lever, however it is approached.
 
 **No posture while the other hand holds something (option 2).** O2_MEASURED
 
-**What is true now** (`Reach._holder`, `kept_by`, `Body.posture_kept_by`,
-`steps.REACH_KEPT`, `MOVE_KEPT`): while one hand's gripper reads it holds
-something -- its own sensing, never the simulator's -- the other hand's
-`reach` plans only in the posture the body is in, its `move_hand` and its
-`pull` take no new one, a look at its pre-grasp none either, and none is
-planned on their way; a reach or a move that does not reach from it reads
-false saying so ("your left hand holds something, so your body keeps the
-posture it is in, and from it your right hand does not reach there"), and
-the three verbs' texts say the rule. A hand that holds nothing, with the
-other home or open, takes its postures as before.
+**What is true now** (`Reach.keep`, `kept_by`, `Body.posture_kept_by`,
+`steps.REACH_KEPT`, `MOVE_KEPT`): while one hand is out at its work and its
+gripper reads it holds something -- its own sensing, never the simulator's
+-- a verb's `reach` of the other hand plans only in the posture the body is
+in, its `move_hand` and its `pull` take no new one, a look at its pre-grasp
+none either, and none is planned on their way, all read once as the move is
+asked; a reach or a move that does not reach from it reads false saying so
+("your left hand is out holding something, so your body keeps the posture it
+is in, and from it your right hand does not reach there"), and the three
+verbs' texts say the rule. A piece carried at the side holds the body in
+nothing, and the loop's own reach (a charge's) is never kept: refused, a
+charge fails, and a failed charge is a death.
 
 ## Debugging workflow that worked
 

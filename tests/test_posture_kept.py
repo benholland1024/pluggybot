@@ -116,8 +116,8 @@ def test_a_reach_out_of_reach_while_the_other_hand_holds_says_so():
   step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', body)["steps"][-1]
   assert not step["ok"] and step["why"] == "out of reach"
   assert step["reason"] == st.REACH_KEPT.format(hand="right", other="left") == (
-    "your left hand holds something, so your body keeps the posture it is in, and from it "
-    "your right hand does not reach there")
+    "your left hand is out holding something, so your body keeps the posture it is in, and "
+    "from it your right hand does not reach there")
 
 
 def test_a_move_out_of_reach_while_the_other_hand_holds_says_so():
@@ -132,10 +132,10 @@ def test_a_move_out_of_reach_while_the_other_hand_holds_says_so():
   assert not step["ok"]
   assert step["reason"] == st.MOVE_KEPT.format(hand="right", other="left") == (
     "your right hand could reach no further that way from the posture you are in: your left "
-    "hand holds something, so your body keeps it")
+    "hand is out holding something, so your body keeps it")
 
 
 def test_the_verbs_say_the_body_keeps_its_posture_while_the_other_hand_holds():
   for verb in ("reach", "move_hand", "pull"):
-    assert "while your other hand holds something, your body keeps the posture it is in" in (
+    assert "while your other hand is out holding something, your body keeps the posture it is in" in (
       st.HANDS_VERBS[verb].doc.replace("While", "while")), verb
