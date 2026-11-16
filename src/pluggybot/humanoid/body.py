@@ -152,6 +152,16 @@ STEP_NEARER_M = 0.02
 #: ...how many of the nearest it reads past, of either (a lone return is not
 #: a surface: `box._agreed`).
 STEP_NEAREST = 3
+#: A STEP ITS SCANS SAY WENT UNDER `STEP_PRESSED_SHARE` OF WHAT ITS LEGS COUNT,
+#: these at least `STEP_PRESSED_M` along its way, did not go (#718, Ben's
+#: option 1; `steps._step`; SimNotes, "A step into a wall, and the look's bow
+#: there"): pressed on a counter's face, a stride lands where it lifted and the
+#: legs' reckoning counts 7-9 cm a step where the pelvis moved 1-3 -- and its
+#: matched belief (`stance`, the matcher's corrections in) moved 0.5-3.8.
+#: MEASURED over 750 steps of the base's flights (P2, the loop of 11-16/17):
+#: every step whose legs counted 4 cm or more over the truth's travel matched
+#: under half of their count, and no step whose truth went more than half did.
+STEP_PRESSED_M, STEP_PRESSED_SHARE = 0.04, 0.5
 #: A LOOK'S BOW IS JUDGED AGAINST WHAT STANDS IN FRONT OF ITS HEAD (#717,
 #: Ben's option 2; `bow_room`; SimNotes, "A step into a wall, and the look's
 #: bow there"): bowed, its head's front goes as far ahead as its model of
@@ -1205,9 +1215,12 @@ class HumanoidBody(Body):
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
     "blocked"
     -- its walk got nowhere, or kept off another robot as a walk does
-    (`_kept_off`, #670: then `keptOff` says how) -- "fell", "out of time"), in
+    (`_kept_off`, #670), or kept off a wall or what stands at its knees
+    (`_Room`, #717: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
-    frame it stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
+    frame it stood in before (`dx`, `dy`, m; `turn`, rad) -- and by its scans
+    of the room, the matcher's corrections in (`mdx`, `mdy`: what a pressed
+    step is told by, #718). ⚠ BY ITS LEGS' RECKONING
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
@@ -1216,6 +1229,7 @@ class HumanoidBody(Body):
     yield from mi._getup_routine()
     by_legs = self._by_legs()
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
+    b0 = self.stance
     walks = _step_walks(ahead, left)
     # ...nor, any of its walks heading nearer another robot it would stand
     # too near as that walk begins (`_kept_off`), turns or hands its legs
@@ -1256,6 +1270,8 @@ class HumanoidBody(Body):
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
     # where the turn left the belief
     s_mid = by_legs(self.stance)
+    # ...and where its scans have it, the matcher's corrections in (#718)
+    b_mid = self.stance
     kept = None
     for a_, l_ in walks:
       if why == "stepped":
@@ -1281,9 +1297,12 @@ class HumanoidBody(Body):
       if math.isfinite(now):
         kept["m"] = round(now, 3)
     x1, y1, yaw1 = by_legs(self.stance)
+    b1 = self.stance
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
+      b1 = b_mid
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
+    matched = _rz(b0[2]).T @ np.array([b1[0] - b_mid[0], b1[1] - b_mid[1], 0.0])
     # ...and a walk its own legs reckon went nowhere did not walk (#649)
     if why == "stepped" and length >= STEP_LEAST_M:
       way = _rz(s_mid[2]) @ np.array([ahead / length, left / length, 0.0])
@@ -1291,6 +1310,7 @@ class HumanoidBody(Body):
         why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
+            "mdx": float(matched[0]), "mdy": float(matched[1]),
             **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
 
   def _by_legs(self):

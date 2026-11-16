@@ -615,11 +615,13 @@ class Body(abc.ABC):
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
     turn that could not get there -- "blocked" -- its walk got nowhere, or kept off another robot as a
-    walk does (#670), and then `keptOff` says how -- "fell", "out of time"), in
+    walk does (#670), or a wall or what stands at its knees (#717), and then `keptOff` says how
+    -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance
     frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
-    turned into."""
+    turned into -- and, where its scans of the room say otherwise, by them
+    (`mdx`, `mdy`, #718)."""
 
   @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
