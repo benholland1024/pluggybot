@@ -2821,7 +2821,10 @@ them. Taking one queues nothing. You write the procedure that does the job \
 (`define`), run it (`procedure:<name>`), and when the work stands you set \
 `done` to the job's id -- on the same answer as the run if you like, and the \
 grade then waits until that run has finished; on an answer that runs no \
-procedure, the grade comes at once, before that answer's action. A job's own \
+procedure, the grade comes at once, before that answer's action. A `done` \
+beside a run that never begins -- a `procedure:new` whose define was refused, \
+say -- is not graded: the job stays yours, its time runs on, and a `done` said \
+again is graded. A job's own \
 description says what is measured -- a thing built, or a number you found \
 and recorded -- and how you do it is yours. Where the work has to STAND, \
 the grader measures it twice, at your word and again after a hold of some \

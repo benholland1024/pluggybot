@@ -808,8 +808,13 @@ def test_a_done_beside_a_procedure_is_graded_once_the_run_is_over(tmp_path):
     define={"name": "pace", "source": "def pace():\n  wait(1)\n"})))
   assert life.grades == [] and life._grade_pending == task.id
   assert len(life.errands) == 1, "the run is queued"
-  assert any(ln.endswith(f"said done on {task.id} (open_drawer): graded once everything "
-                         "queued has run") for ln in life.thoughts.texts[HISTORY].splitlines())
+  # ...and History says the `done` once that run begins (#706): one that
+  # never begins is not graded, and never promised a grade
+  said = f"said done on {task.id} (open_drawer): graded once everything queued has run"
+  assert not any(ln.endswith(said) for ln in _history(life))
+  life.body.run(life.run_errand_routine(life.errands.pop(0)))
+  assert life.grades == [] and life._grade_pending == task.id
+  assert sum(ln.endswith(said) for ln in _history(life)) == 1
 
 
 def test_a_dead_robots_done_is_left_to_the_loops_pass(tmp_path):
@@ -824,6 +829,211 @@ def test_a_dead_robots_done_is_left_to_the_loops_pass(tmp_path):
   life.body.run(life._after_decision_routine(
     ov.Decision(action="idle", reason="", done=task.id)))
   assert life.grades == [] and life._grade_pending == task.id
+
+
+#: A define the library refuses (no such verb), and one it takes.
+_REFUSED = {"name": "pace", "source": "def pace():\n  hover(1)\n"}
+_RUNS = {"name": "pace", "source": "def pace():\n  wait(1)\n"}
+
+
+def _minded(tmp_path):
+  """`_life` with a procedure library, holding a drawer's job."""
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.procedure import library as lib
+  life = _life(tmp_path)
+  life.overseer.library = lib.Library(world_facts(HUMANOID_HOME))
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  return life, task
+
+
+def _answered(life, **answer):
+  """An answer acted on, then the day loop's passes until it asks again."""
+  life.body.run(life._after_decision_routine(ov.Decision(reason="", **answer)))
+  _drained(life)
+
+
+def _drained(life):
+  """The day loop's passes until it would ask again: what the answer queued
+  run, then the grade it left pending."""
+  while life.errands:
+    life.body.run(life.run_errand_routine(life.errands.pop(0)))
+  if life._grade_pending:
+    life.body.run(life._grade_routine())
+
+
+def _not_graded(life, task) -> list:
+  return [ln for ln in _history(life) if f"said done on {task.id} (open_drawer): not graded" in ln]
+
+
+@pytest.mark.parametrize("never", ["refused", "arguments", "undefined"])
+def test_a_done_beside_a_run_that_never_began_is_not_graded(tmp_path, never):
+  """#706 (Ben's call of 11-16): on 11-14 `procedure:new` ran nothing 22
+  times, its define refused, and 4 of the 6 answers that said `done` too had
+  their jobs graded 4-10 s later on a prop nothing had worked (t_0301,
+  t_0316, t_0321, t_0322). A `done` beside a run that never began -- no
+  errand built for it, whatever stopped it -- is not graded: one History
+  line says so, and the job stays held."""
+  life, task = _minded(tmp_path)
+  if never == "refused":
+    answer = {"action": ov.PROCEDURE_NEW, "define": _REFUSED}
+  elif never == "arguments":
+    answer = {"action": ov.PROCEDURE_NEW,
+              "define": {"name": "pace", "source": "def pace(s):\n  wait(s)\n"}}
+  else:
+    life.overseer.library.define("pace", _RUNS["source"], t=0.0)
+    answer = {"action": ov.PROCEDURE_PREFIX + "pace", "undefine": "pace"}
+  _answered(life, done=task.id, **answer)
+  assert life.grades == [] and life.verdicts == []
+  assert life.tasks.get(task.id).state == "active", "still held"
+  assert life._grade_pending == "" and not life._grade_waits
+  from pluggybot.lifecycle import NEVER_BEGAN
+  [line] = [ln for ln in _history(life) if f"said done on {task.id}" in ln]
+  assert line.endswith(f"said done on {task.id} (open_drawer): not graded, because {NEVER_BEGAN}")
+
+
+def test_a_done_beside_a_run_refused_before_its_first_verb_is_not_graded(tmp_path, monkeypatch):
+  """...nor one whose run its own validation refused as it began (the
+  `refused` a procedure's event says): no verb was called."""
+  from pluggybot.procedure import lang
+  life, task = _minded(tmp_path)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_RUNS)))
+  assert len(life.errands) == 1
+  monkeypatch.setattr(lang, "validate", lambda proc, facts: ["refused as it began"])
+  _drained(life)
+  [run] = [r["procedure"] for r in life.errand_results]
+  assert run["program"] == "pace" and run["refused"] == ["refused as it began"]
+  assert life.grades == [] and life.tasks.get(task.id).state == "active"
+  assert len(_not_graded(life, task)) == 1
+
+
+def test_a_done_waits_on_its_own_run_never_another(tmp_path, monkeypatch):
+  """...the run it waits on is the one its answer built: another errand's
+  run validated ahead of it -- a preset's after a restart, say -- does not
+  end the wait."""
+  from pluggybot.lifecycle import errand_from
+  from pluggybot.procedure import lang
+  life, task = _minded(tmp_path)
+  life.overseer.library.define("other", "def other():\n  wait(1)\n", t=0.0)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_RUNS)))
+  life.errands.insert(0, errand_from(ov.Decision(action=ov.PROCEDURE_PREFIX + "other"),
+                                     library=life.overseer.library))
+  validate = lang.validate
+  monkeypatch.setattr(lang, "validate", lambda proc, facts: (
+    ["refused as it began"] if proc.name == "pace" else validate(proc, facts)))
+  _drained(life)
+  assert [r["procedure"]["completed"] for r in life.errand_results] == [1, 0]
+  assert life.grades == [] and life.tasks.get(task.id).state == "active"
+  assert len(_not_graded(life, task)) == 1
+
+
+def test_a_done_whose_run_never_began_on_a_job_ended_meanwhile_says_so(tmp_path):
+  """...and one whose job ended while it waited -- here failed in the
+  other's records' way, by the board -- still has its one History line,
+  saying why it is not graded (#648's words)."""
+  from pluggybot.economy.scoring import evaluate
+  life, task = _minded(tmp_path)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_REFUSED)))
+  life.tasks.resolve(task.id, evaluate("open_drawer", {}), t=float(life.data.time))
+  _drained(life)
+  [line] = [ln for ln in _history(life) if f"said done on {task.id}" in ln]
+  assert f"said done on {task.id} (open_drawer): not graded, because it is over" in line, line
+
+
+def test_a_done_beside_a_run_that_never_began_with_its_time_up_runs_it_out(tmp_path):
+  """...and one whose time is already up is not told it still holds the
+  job: it runs out there, its line the run-out's (#602)."""
+  life, task = _minded(tmp_path)
+  held = life.tasks.get(task.id)
+  life.data.time = held.claimed_t + held.limit_s + 1.0
+  _answered(life, action=ov.PROCEDURE_NEW, done=task.id, define=_REFUSED)
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed" and len(life.grades) == 1
+  assert ended.verdict["reason"].startswith(f"not graded within the {held.limit_s:.0f} s")
+  assert _not_graded(life, task) == []
+
+
+def test_a_done_not_graded_leaves_its_job_held_and_its_time_running(tmp_path):
+  """...the job stays the robot's, and its time runs on (#602): past it, it
+  is failed as any held job is."""
+  life, task = _minded(tmp_path)
+  _answered(life, action=ov.PROCEDURE_NEW, done=task.id, define=_REFUSED)
+  held = life.tasks.get(task.id)
+  assert held.state == "active" and held.id in [t.id for t in life.tasks.held_by(life.root)]
+  life.data.time = held.claimed_t + held.limit_s + 1.0
+  life._run_out_held()
+  ended = life.tasks.get(task.id)
+  assert ended.state == "failed"
+  assert ended.verdict["reason"].startswith(f"not graded within the {held.limit_s:.0f} s")
+
+
+def test_a_done_said_again_after_one_not_graded_is_graded(tmp_path):
+  """...and a `done` said again is graded as any is: here at the word,
+  beside an idle (#689), the drawer out."""
+  life, task = _minded(tmp_path)
+  _answered(life, action=ov.PROCEDURE_NEW, done=task.id, define=_REFUSED)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  _answered(life, action="idle", done=task.id)
+  [grade] = life.grades
+  assert grade["task"] == task.id and grade["ok"], grade
+
+
+def test_a_done_beside_a_run_that_began_is_graded_once_it_is_over(tmp_path):
+  """...but a `done` beside a run that began is graded once it is over, as
+  it was (#689): the run is the work."""
+  life, task = _minded(tmp_path)
+  life.data.qpos[_joint_q(life, "drawer_slide")] = 0.2
+  mujoco.mj_forward(life.model, life.data)
+  _answered(life, action=ov.PROCEDURE_NEW, done=task.id, define=_RUNS)
+  [run] = [r["procedure"] for r in life.errand_results]
+  assert run["program"] == "pace" and run["completed"] == 1, "the run ran"
+  [grade] = life.grades
+  assert grade["task"] == task.id and grade["ok"], grade
+  assert _not_graded(life, task) == []
+
+
+def test_a_done_waiting_on_a_run_that_never_began_is_kept_across_a_restart(tmp_path):
+  """...and a restart before its run began keeps it waiting (`gradeWaits`):
+  the restart drops the errand, so that run never begins -- read back
+  without it, the grade was made on the bare prop."""
+  life, task = _minded(tmp_path)
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_RUNS)))
+  assert life._grade_pending == task.id and len(life.errands) == 1
+  state, arrays = life.kept_state()
+  again = _life(tmp_path)
+  again.restore_kept(json.loads(json.dumps(state)), arrays, in_place=True)
+  again._resume_jobs(None)
+  assert again.errands == [], "a restart drops an answer's queued run"
+  again.body.run(again._grade_routine())
+  assert again.grades == [] and again.tasks.get(task.id).state == "active"
+  assert len(_not_graded(again, task)) == 1
+
+
+def test_a_dead_robots_done_beside_a_run_that_never_began_is_not_graded(tmp_path):
+  """...and the answer of a robot that died while it thought, its run never
+  begun, is not graded at the loop's pass after its stand-up either."""
+  life, task = _minded(tmp_path)
+  life.dead = {"t": float(life.data.time), "cause": "flat"}
+  life.body.run(life._after_decision_routine(ov.Decision(
+    action=ov.PROCEDURE_NEW, reason="", done=task.id, define=_REFUSED)))
+  assert life.grades == [] and life._grade_pending == task.id
+  life.dead = None
+  _drained(life)
+  assert life.grades == [] and life.tasks.get(task.id).state == "active"
+  assert len(_not_graded(life, task)) == 1
+
+
+def test_the_rule_says_a_done_beside_a_run_that_never_began_is_not_graded():
+  """#706: the rule says it, beside #689's words (kept as they were)."""
+  flat = " ".join(ov.CHALLENGE_RULE.split())
+  assert ("A `done` beside a run that never begins -- a `procedure:new` whose define was "
+          "refused, say -- is not graded: the job stays yours, its time runs on, and a "
+          "`done` said again is graded.") in flat
 
 
 def test_each_robot_is_shown_the_jobs_it_holds_and_the_time_each_has_left():
