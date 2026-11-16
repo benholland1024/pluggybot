@@ -9994,6 +9994,78 @@ past the line with its contacts and the true grip's travel,
   while the body still took its posture; and it passes the cube's 195 at
   192-255, which the stop alone lost.
 
+## A step into a wall, and the look's bow there (issues #717, #718)
+
+On 11-15 three of Rowan's falls came in one sequence (the loop of 11-15/16,
+M12): its procedures stepped toward a tag they could not see, 0.12 m at a
+time -- `face`, `spot`, `step` -- every step "stepped", into the research
+center lobby's wall (its LIDAR 0.12-0.14 m off it) and the storeroom's
+south-east corner (0.01-0.08 m), and `spot`'s bow there felled it. At 0.25
+rad the head cap met the wall at 1-6 N; at 0.45 the standing policy pushed
+the head into it at 11-17 N, the wall threw the trunk back to 12.5 deg behind
+upright, the fall watch read 38 deg off the bow it held, and the get-up ran
+the robot 2.45 m backward into the far wall: a stuck death. A step kept off
+nothing but the other robot (#670), and at the counter's face the same loops
+pressed the thighs on it at 150-400 N while the steps read "stepped", the
+legs counting 7-9 cm a stride where the pelvis went 1-3 (#718).
+
+**Measured before it was sized** (the base, 41e574b, over Ben's bar's 736
+flights, every step's readings recorded as it walked: P2's `steprec`):
+- The LIDAR at the head's height (`lidar.OVER_Z`, 1.05 m and up, over the
+  storeroom counter's props -- the cupboard's 1.02 m the tallest) reads the
+  walls and nothing of a counter. Kept 0.30 m off in a step's way, its
+  stride's carry counted, it stops no reference's step: the least margins
+  were 0.15 m at the door, 0.40 at the cube and the chest, 0.43 at the drawer,
+  1.2 at the table.
+- The band's own nearest at a counter is its top where the steepest ring
+  comes down, 0.38-0.5 m ahead of the sensor whatever the face's distance:
+  kept off so, the cube's check came within 1-2 cm of stopping.
+- The depth camera's points at every height it maps (0.08-1.35 m) kept
+  0.20 m from the pelvis would stop 21 of the tour's 32 lays -- the lay
+  stands its pelvis 0.17-0.18 m from the table top's edge -- and came within
+  1 cm at the chest, the drawer and the cube. At the knees' height
+  (`mission.KNEE_Z`, 0.6 m and lower) a table's top on legs is no part of it;
+  a counter's face and a chair are.
+- Up close the camera sees none of a counter's face: its picture's bottom,
+  69 deg below level from 1.26 m, loses the face below 0.6 m from 0.33 m out
+  (the pelvis's) and the top's edge from 0.21-0.25 m -- further out than a
+  thigh pressed on it at 0.15-0.17. What it saw there is all it has, so it
+  is remembered and carried as the legs count the walk (`KneeMemory`).
+- The head's front, off the robot's model of itself (the statue of each
+  bow, `body.head_front`), is 7 cm past its LIDAR upright, 22 at `spot`'s
+  0.25 rad and 33 at its 0.45; the lobby's head met the wall bowing 0.25
+  from 0.12-0.14 m.
+
+**#718's word.** Ben's option judges a step's progress beside the legs'
+reckoning by both soles or by the reading ahead closing:
+- Both soles, as the robot reads them, are its legs' reckoning (the stance is
+  the soles' middle by it), the very count that is wrong; truly, the pressed
+  steps' soles went 0.1-2.6 cm net, which the robot cannot read.
+- The reading ahead closing: the LIDAR's nearest at the head's height in the
+  step's way closed with the truth on most pressed steps, but on walks that
+  went it closed 0-2 cm where the body went 8-10 (the corner's, its returns
+  at the box's edge and in the blind zone): 16 of 559 such walks would have
+  read pressed at a third of the legs' count, 31 at half.
+- Its matched belief (the scan matcher's corrections in) went with the
+  truth: over the base's 750 steps, every one whose legs counted 4 cm or more
+  over the truth matched under half of their count (31 of 31), and none whose
+  truth went more than half did. That is the word (`steps._pressed`).
+
+**What is true now** (#717, Ben's options 1 and 2; #718, his option 1):
+- A step's walk stops before its stride's carry would bring its LIDAR within
+  0.30 m of what that reads at its head's height, or its pelvis within 0.20 m
+  of what its depth camera has seen at its knees' height, each ahead along
+  its way; begun nearer, it goes along but no nearer than 2 cm less than it
+  began. It reads "blocked", `keptOff` saying "wall" or "low", how near, and
+  the keep. Where the step took no scan, it takes one as it sets off.
+- A step its scans say went under half of what its legs count, these 4 cm
+  or more, reads "pressed", saying both, and `step.*` says the scans'.
+- A gaze's bow goes no deeper than leaves its head's front 5 cm short of what
+  its LIDAR reads at its head's height in front of it, 0.05 rad at a time,
+  and none where even upright it does not; `spot` says so where it saw
+  nothing.
+- Flown: «MEASURED».
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

@@ -553,6 +553,21 @@ def test_the_band_reads_a_wall_where_it_stands():
     f"the band reads the walls {100 * np.median(err):+.1f} cm off"
 
 
+def test_what_stands_at_the_heads_height_is_read_apart_and_the_band_is_as_it_was():
+  """#717: the band's nearest along a bearing is whatever is nearest, the
+  0.9 m fence 2 m ahead among them -- and at a counter its top where the
+  steepest ring comes down, 0.38-0.5 m ahead whatever its face's distance. A
+  step keeps off what stands at the head's height (`OVER_Z` and up) and a
+  look's bow is judged against it: there, the wall behind the fence."""
+  model, data = _world(ROOM + FENCE)
+  level, height = _truth(model, data)
+  scan = _clean(model).band(data, level, height, joints=W0)
+  assert np.allclose(scan.ranges, _room_range(scan.angles, fence=True), atol=0.02)
+  assert np.allclose(scan.over_ranges, _room_range(scan.over_angles), atol=0.02)
+  assert lidar_mod.BEARINGS - FIN_BEARINGS <= len(scan.over_angles)
+  assert lidar_mod.OVER_Z > 0.9 + 0.1, "the fence is the counter's props' height"
+
+
 def _off(angles, deg: float) -> np.ndarray:
   """How far each bearing is from `deg`, rad, round the circle."""
   return np.abs((angles - math.radians(deg) + math.pi) % (2 * math.pi) - math.pi)
