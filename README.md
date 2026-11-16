@@ -1,7 +1,7 @@
 # PluggyBot
 
 **Summary**: A simulation of two humanoid robots, living in a small
-neighborhood, controlled by LLMs. They explore, charge their batteries,
+neighborhood, directed by LLMs. They explore, charge their batteries,
 do jobs with their hands and chat with visitors. The project studies how
 robots can learn new skills by themselves. The robots are built from real
 parts that you could buy.
