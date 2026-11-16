@@ -77,6 +77,46 @@ at 150-400 N, and those steps read "stepped" 7-9 cm where the body went
 **Measured** («BAR»).
 
 **What to read on the live rows.** «READ».
+
+### A procedure's lines are shown to the other robot without its name or a def's (#709's follow-up, P12, `loop-709b`) — opens when this PR is deployed
+
+**What changed is what each robot reads of the other** (`others[].doing`;
+`prompt_sha` unmoved, `0f1df27e…`, 67,157 characters, 17 sections, and
+`OTHER_ROBOT_RULE` and its sha untouched; the session host's hello unmoved,
+sha1 `b796e75d…`; no geometry and no wire field moved, and `status` -- each
+frame's narration, a recording's, the site's line under a portrait -- is
+every line as before, so neither committed recording moved). Each line of a
+procedure's run is shown to the other robot as its step alone. The name the
+robot gave the procedure is taken out of every form a run's line takes, and
+so is the name of a def it calls and of the library's procedure that holds
+that def: a step ("PROCEDURE step 24 (line 34): step", which the robot
+says as "PROCEDURE door_p1 step 24 (line 34): step(ahead=0.12, left=0.0,
+turn=0.0)"), a step a test read false, a step that failed, a call a test
+read false (its line alone), a stop, and how the run ended ("PROCEDURE
+complete: 40/40 steps, 3 tests read false"). A house program's (#58)
+`PROCEDURE` lines are shown the same way. Everything else in `doing` is as
+`loop-709` made it, and a dead robot is still shown `DEAD (cause)` (Ben,
+2026-11-16).
+
+**Why** (#709's follow-up, Ben, 2026-11-16). A name is the robot's own
+words, and it can carry the robot's reasons: on the 11-15 wake the names
+said what a robot meant to do next (`go_storeroom`, `table_recon`), and a
+def's name said how (`dodge`). A robot that wants to share its plans has
+`tell`. On that wake (`~/pluggybot-training/live-1115/`, replayed as the
+period of `loop-709` replayed it) the other's `doing` at the 380 answers a
+mind wrote itself was a procedure's line at 133, and every one of the 133
+named the procedure (41 names). All 133 change, and nothing else does. No
+def's name was the `doing` at an ask: 45 of the log's 4,287 step lines were
+in a def, between asks.
+
+**What the period is for.**
+- **What a robot says of the other's procedure:** its thoughts should name
+  the other's procedure only where the other told it (a `tell`).
+- **Which job it thinks the other is on:** the other's `TASK` lines (a
+  claim, done or failed) and the board's claims still say it, as under
+  `loop-709`. A robot that read the job off a procedure's name ("door_p1")
+  now reads it off those.
+
 ### A thin wall met at a graze stays in the map (#712, M1 and P8, `loop-712b`) — opens when this PR is deployed
 
 **What changed** (`prompt_sha` unmoved, `0f1df27e…`, 67,157 chars, 17
