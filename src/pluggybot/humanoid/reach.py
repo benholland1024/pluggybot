@@ -1585,15 +1585,15 @@ class Reach:
   def _stages_to(self, goal: np.ndarray) -> list[np.ndarray]:
     """The stages the body walks to `goal` in (`STAGE_PITCH`, `STAGE_WAIST`),
     from the posture it is in by its senses -- each of the three numbers an
-    even share of the way -- `goal` itself not among them: none where its
-    pitch and its waist are each within a stage."""
+    even share of the way, `goal` itself the last: none where its pitch and
+    its waist are each within a stage."""
     if np.isnan(self.sensed).any():
       return []
     now = self.posture_now()
     d = goal - now
     n = max(math.ceil(abs(float(d[1])) / STAGE_PITCH - 1e-9),
             *(math.ceil(abs(float(w)) / STAGE_WAIST - 1e-9) for w in d[2:]), 1)
-    return [now + d * (k / n) for k in range(1, n)]
+    return [now + d * (k / n) for k in range(1, n)] + [goal.copy()] if n > 1 else []
 
   def asked(self) -> np.ndarray:
     """The posture the body is asked now: the first stage still to come
@@ -1601,17 +1601,22 @@ class Reach:
     return self.stages[0] if self.stages else self.posture
 
   def _stage_on(self, dt: float) -> None:
-    """Once a tick: the stage asked held (`POSTURE_TOL`, `TRUNK_STILL_RATE`)
-    or given `STAGE_WAIT_S`, the next asked -- the plan's after the last."""
+    """Once a tick: the stage asked held (`POSTURE_TOL`, `TRUNK_STILL_RATE`),
+    the next asked -- the plan's the last; one not held in `STAGE_WAIT_S`,
+    the posture GIVEN UP where the body has got to, as a move stopped is
+    held (`halt`): something holds the body out of it."""
     if not self.stages:
       return
     self.stage_s += dt
-    near = (np.abs(self.posture_now() - self.stages[0]) <= POSTURE_TOL).all()
+    now = self.posture_now()
+    near = (np.abs(now - self.stages[0]) <= POSTURE_TOL).all()
     still = float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE
-    if (near and still and self.stand.settled) or self.stage_s >= STAGE_WAIT_S:
+    if near and still and self.stand.settled:
       self.stages.pop(0)
       self.stage_s = 0.0
       self.stand.ask(*(self.asked()[:2] + self.trim))
+    elif self.stage_s >= STAGE_WAIT_S:
+      self.hold_posture(*now)
 
   def turn_waist(self, waist: float) -> None:
     """The posture's waist alone turned to `waist`, rad (its command walks
@@ -2193,7 +2198,7 @@ class Reach:
     there = False if settling else self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
     q, ep, er = sm.solve(side, c.pos, c.rot)
-    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed")
+    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed") and not self.stages
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`).
@@ -2361,7 +2366,7 @@ class Reach:
         # ...none while the hand reads a load, nor once one was given up
         # (`PRESSED_SHARE`, #699): it goes as far as its arm reaches
         pass
-      elif st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
+      elif not self.stages and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
         st["planned"] = st["t"]
         # ...never one it has left this move: free to, two postures could take
         # turns, each switch a fresh wait, and the move never end out of reach
