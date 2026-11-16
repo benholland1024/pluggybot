@@ -8125,7 +8125,11 @@ osmesa, each draw its own noise; rows in
   - **Named, not measured:** the plate's tilt in its pinch; the approach's
     lateral error at the table (round 4 measured the other two, below; it
     names the plate's pull-back in two moves, its one 0.26-0.27 m
-    `move_hand` having fallen as the fork's pull did, and the self-filter).
+    `move_hand` having fallen as the fork's pull did; the fork's midpoint
+    taken off its grip, where 0.33 m holds only for the grips flown,
+    0.39-0.47 m out; the retry's own failures, none flown -- all 35 false
+    descents read held back, all 12 moves up arrived, every retry's reach
+    reached -- guarded as the first pick's are; and the self-filter).
 - **Round 4** (the loop of 11-15/16; `~/pluggybot-training/loop-1115/m6-pass4/`,
   one pod, an AMD EPYC 7763, osmesa, each draw its own noise, dev draws from
   3000 up; the tree carried #693's hand-over and #699's rule):
@@ -8148,9 +8152,10 @@ osmesa, each draw its own noise; rows in
     self-filter, Ben's call 5, above).
   - **#699's rule A does nothing for them** (a gripping hand also giving up a
     posture that comes while it reads past 40 N; flown as a reading on a
-    scratch tree, the gate's two lines): 38 of the 40 places were the
+    scratch tree, the gate's two lines): 39 of the 40 places were the
     base's flight for flight, both falls among them -- the hand reads no
-    load as those postures come.
+    load as those postures come; the 40th laid where the base's fork came
+    down.
   - **Not the fork's levers:** brought back by `move_hand` it fell once
     where the base fell twice, but 8 of 27 forks slipped in the jaws at the
     hand-over (the base's 1); stood 3 cm nearer (its tag 0.41 m ahead), no

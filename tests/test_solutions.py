@@ -250,20 +250,26 @@ def test_the_pass_cup_pick_is_tried_again_where_its_descent_is_held_back():
   cup tipped 34-46 deg in the jaws, the lift read it let go, or the shut
   closed on nothing). Tried again from the stance -- the arm home, posed and
   the cup looked at again -- a fresh hover lands within the jaws' 1 cm a
-  side (SimNotes, "The place laid from the pass"). Off the reference's own
-  source: the descent's test, read false, looks at the cup again and comes
-  down again before the shut."""
+  side: 7 of the 9 held back in the bar's fourth reading were gripped so
+  (SimNotes, "The place laid from the pass"). Off the reference's own
+  source: the descent's test, read false, goes home, looks at the cup
+  again, reaches for its hover and comes down again to the same height,
+  in that order, before the shut."""
   from pluggybot.challenge import solutions
   tree = ast.parse(solutions.PROCEDURES["set_table_pass"][0])
-  tests = [n for n in ast.walk(tree) if isinstance(n, ast.If)
-           and isinstance(n.test, ast.UnaryOp) and isinstance(n.test.operand, ast.Call)
-           and getattr(n.test.operand.func, "id", "") == "move_hand"]
+  tests = sorted((n for n in ast.walk(tree) if isinstance(n, ast.If)
+                  and isinstance(n.test, ast.UnaryOp) and isinstance(n.test.operand, ast.Call)
+                  and getattr(n.test.operand.func, "id", "") == "move_hand"), key=lambda n: n.lineno)
   assert tests, "the cup's descent to its grip is not a test"
-  again = [c.func.id for n in ast.walk(ast.Module(body=tests[0].body, type_ignores=[]))
-           for c in [n] if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)]
-  for verb in ("withdraw", "spot", "reach", "move_hand"):
-    assert verb in again, f"held back, the pick does not {verb} again: {again}"
-
+  descent = [ast.unparse(a) for a in tests[0].test.operand.args]
+  body = _calls(ast.unparse(ast.Module(body=tests[0].body, type_ignores=[])))
+  verbs = [(n, a) for n, a in body if n in ("withdraw", "spot", "reach", "move_hand")]
+  home = _index(verbs, lambda v: v[0] == "withdraw", "way home, held back")
+  look = _index(verbs, lambda v: v[0] == "spot", "look at the cup again", start=home + 1)
+  hover = _index(verbs, lambda v: v[0] == "reach", "reach for the hover again", start=look + 1)
+  again = _index(verbs, lambda v: v[0] == "move_hand", "descent again", start=hover + 1)
+  assert verbs[again][1][1:4] == descent[1:4], (
+    f"the second descent goes to {verbs[again][1][1:4]}, the first to {descent[1:4]}")
 
 def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
   """#682's stage C, round 4: the fork gripped at the pass is pulled back
