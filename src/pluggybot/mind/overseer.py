@@ -699,6 +699,9 @@ class Decision:
   #: to stand clear of, a second snapshot, one verdict. Checked
   #: against the board where the board is, in the lifecycle, like `task`.
   done: str = ""
+  #: ...and a job a `done` named with `stands` false (#705): no act, and on
+  #: the wire, so a reading can count what the shape held back.
+  done_withheld: str = ""
   #: ACTS TOWARD THE OTHER ROBOT (issue #208), paperwork on `pin`'s terms
   #: and offered only where there IS another robot (`Overseer._acts`). Each
   #: is measurable by code: `other_needs` is a guess
@@ -824,6 +827,7 @@ class Decision:
             **({"record": dict(self.record)} if self.record else {}),
             **({"retract": self.retract} if self.retract else {}),
             **({"done": self.done} if self.done else {}),
+            **({"doneWithheld": self.done_withheld} if self.done_withheld else {}),
             **({"otherNeeds": self.other_needs} if self.other_needs else {}),
             **({"tell": dict(self.tell)} if self.tell else {}),
             **({"givePoints": dict(self.give_points)} if self.give_points else {}),
@@ -1052,7 +1056,7 @@ def _word(text) -> str:
 #: and title, which the robot names (`B`, for whiteboard B); a procedure's `name`
 #: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
-                    "retract", "done", "lookup", "say")
+                    "retract", "lookup", "say")
 #: ...and in one of THOSE, a name the FORM COINED -- an underscore, or `un`
 #: before another field -- is the form's word, never the robot's: `pin`
 #: "unpin", `intend` "drop_goal", `lookup` "heart_for". MEASURED to
@@ -1082,6 +1086,7 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "define": (("source",), ()),
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
+  "done": (("task",), ()),
 }
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
 #: word in three of them is that answer's own (`keep`, `robot`, `watch_mouse`)
@@ -1795,10 +1800,13 @@ class Menu:
     # `done` rides the library's slot (issue #207): a challenge is
     # discharged by a procedure, so only a mind that can write one can
     # finish one. Dropped, not raised on, where there is no library.
-    said = raw.get("done")
-    done = (clean(said.get("task"), MAX_ID)
-            if procedures is not None and isinstance(said, dict)
-            and said.get("stands") is True else "")
+    said = raw.get("done") if procedures is not None else None
+    named = clean(said.get("task"), MAX_ID) if isinstance(said, dict) else ""
+    stands = said.get("stands") if isinstance(said, dict) else None
+    # ...`true` as a word too, as `escalate` reads one: prose mode writes it
+    stands = stands is True or (isinstance(stands, str)
+                                and stands.strip().lower() in ("true", "yes", "1"))
+    done, withheld = (named, "") if stands else ("", named)
     # ...and so do the science record's verbs (issue #217), on `define`'s
     # terms: NOT checked here -- `ThoughtFiles.record` refuses a finding
     # that is not one, out loud, which is the interesting path.
@@ -1941,7 +1949,7 @@ class Menu:
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
                     define=define, define_written=define_written,
-                    undefine=undefine, done=done,
+                    undefine=undefine, done=done, done_withheld=withheld,
                     record=record, retract=retract,
                     other_needs=other_needs, tell=tell, give_points=give,
                     heart_for=heart_for, rate=rate, decline=decline,

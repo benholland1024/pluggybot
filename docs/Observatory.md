@@ -27,7 +27,8 @@ field was the id, and the fill-in a robot holding a job writes is that id.
 **What the period is for.**
 - **The reflex:** a `done` whose `stands` is true beside a think that
   plans the work for later turns. Count them beside the `done`s with
-  `stands` false, and read whether `stands` itself became the fill-in.
+  `stands` false (the decision row's `doneWithheld`), and read whether
+  `stands` itself became the fill-in.
 - **What it costs:** a `done` the robot meant, left out because it wrote
   `stands` false (its think saying done).
 

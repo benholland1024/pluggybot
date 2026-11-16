@@ -5968,7 +5968,7 @@ class HubLifecycle:
       self._act_task(task, other)
       return True
     self._say(f"TASK {task.id}: nothing queued -- write a procedure, run "
-              f"it, and set done to {task.id} when the work stands")
+              f"it, and set done to {{task: {task.id}, stands: true}} when the work stands")
     # ...a try of its own (#701): no fall, nor watch, of one before it
     self._fallen.pop(task.id, None)
     self._kept_watches.pop(task.id, None)

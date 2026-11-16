@@ -66,7 +66,7 @@ LUCA_391503 = _quiet(
   respond_to="n", reply="n", pin="n", unpin="n", unnote="n", cites="n",
   intend="n", drop_goal="n", serves="n", retract="n", lookup="n",
   note={"topic": "n", "title": "n", "text": "n"},
-  define={"name": "n", "source": "n"}, done="t_0758",
+  define={"name": "n", "source": "n"}, done={"task": "t_0758", "stands": True},
   record={"quantity": "n", "value": 0, "unit": "n", "method": "n", "topic": "n"},
   buy_heart=True, heart_for="Rowan", other_needs="nothing",
   tell={"to": "Rowan", "text": "n"}, give_points={"to": "Rowan", "amount": 0},
@@ -191,8 +191,7 @@ def test_an_answer_full_of_placeholders_acts_on_nothing_and_its_action_stands():
     assert getattr(d, write) == "", write
   assert d.note is None and d.record is None and d.define is None
   assert d.left_out["why"] == "filled" and d.left_out["words"] == ["n"]
-  # ...its `done` an id alone, which is no act (#705's shape)
-  assert d.left_out["acts"] == ["buy_heart", "heart_for", "rate", "other_needs"]
+  assert d.left_out["acts"] == ["buy_heart", "heart_for", "rate", "other_needs", "done"]
   assert len(d.left_out["fields"]) == 15 and "tell" in d.left_out["fields"]
   assert d.as_dict()["leftOut"] == d.left_out, "the decision's row carries it"
 

@@ -306,7 +306,8 @@ on the wall. Each is a job of its own -- `open_chest`, `open_drawer`,
 `open_door`, `place_cube` (`tasks.HAND_JOBS`) -- its target its prop, so
 they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
-the robot writes the procedure, runs it and sets `done` to the job's id --
+the robot writes the procedure, runs it and sets `done` to `{task: <the job's id>,
+stands: true}` (an id alone is no act, #705) --
 graded at that word, before its answer's action, or once the run is over
 where the same answer runs a procedure (#689), and not at all where that
 run never began (#706: Overseer.md §2b) -- and only a mind with a

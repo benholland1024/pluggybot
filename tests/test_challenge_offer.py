@@ -206,6 +206,14 @@ def test_a_done_is_an_act_only_where_it_says_the_work_stands():
   assert done({"task": "t_0007", "stands": False}) == ""
   assert done("t_0007") == "", "an id alone is no act"
   assert done({"task": "", "stands": True}) == ""
+  assert done({"task": "t_0007", "stands": "true"}) == "t_0007", "a word, as prose writes it"
+  held = menu.validate({"action": "idle", "reason": "r",
+                        "done": {"task": "t_0007", "stands": False}}, procedures=("drawer",))
+  assert held.done_withheld == "t_0007" and held.as_dict()["doneWithheld"] == "t_0007"
+  assert "doneWithheld" not in menu.validate(
+    {"action": "idle", "reason": "r", "done": {"task": "", "stands": False}},
+    procedures=("drawer",)).as_dict()
+  assert done({"task": "n", "stands": True}) == "", "a placeholder is no job's id (#462)"
   flat = " ".join(ov.CHALLENGE_RULE.split())
   assert ('you set `done` to `{"task": "<the job\'s id>", "stands": true}` (with '
           '`stands` false it says nothing)') in flat
