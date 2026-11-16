@@ -11,7 +11,9 @@ listed public or private by its kind, so a new kind fails until someone
 classes it; every call narrated through `_say` as its call is written, the
 other robot's whole context read after each; and the private things
 narrated through the lifecycle's own methods, the other's whole context read
-for each.
+for each. A procedure's lines are shown without a name the robot gave it or
+its defs (#709's follow-up): each form run through the doors, and every
+call's shown form walked.
 """
 
 import ast
