@@ -7345,7 +7345,8 @@ def others_context(life) -> list[dict]:
   their battery, points, hearts, goals, thoughts, their mind's reasons or
   secrets: those are theirs, and a robot that could read them would not
   need to infer them. (A walk's own words -- why it stopped short -- are
-  the body's, and are shown; a procedure's are its verbs alone.)"""
+  the body's, and are shown; a procedure's are its steps alone, never a
+  name the robot gave it or a def.)"""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()
