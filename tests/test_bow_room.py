@@ -32,7 +32,8 @@ def _standing(wall_x: float | None, t: float = 10.0, peer_x: float | None = None
   pa = np.radians(np.arange(-10.0, 11.0))
   peers = (t, pa, (peer_x - px) / np.cos(pa)) if peer_x is not None else (t, pa[:0], pa[:0])
   mission = NS(over_returns=(t, a, r, (0.0, 0.0)), peer_returns=peers, odo=NS(sm=sm),
-               _scan=lambda: None, _sighted=lambda scan, when: None)
+               last_motion_t=0.0, scans=[], _scan=lambda: None)
+  mission._sighted = lambda scan, when: mission.scans.append(when)
   return NS(mission=mission, _d=NS(time=t), reach=NS(posture=np.zeros(3)))
 
 
@@ -52,6 +53,23 @@ def test_a_bow_is_held_where_the_head_would_come_too_near_a_wall():
   # ...and another robot's body in front of its head is as near a thing
   near_peer = _standing(None, peer_x=front[0.25] + hb.BOW_CLEAR_M + 0.005)
   assert hb.HumanoidBody.bow_room(near_peer, 0.45)[0] == pytest.approx(0.25)
+
+
+def test_a_bow_is_judged_off_a_scan_taken_where_it_stands():
+  """Standing still its LIDAR takes no scan of its own: a scan from before
+  it last walked, or older than `BOW_SCAN_S`, is no reading of what stands in
+  front of its head now, and one is taken where it stands (#717's review)."""
+  body = _standing(None, t=10.0)
+  hb.HumanoidBody.bow_room(body, 0.45)
+  assert body.mission.scans == [], "a fresh scan, taken again"
+  body.mission.last_motion_t = 10.2
+  body._d.time = 10.4
+  hb.HumanoidBody.bow_room(body, 0.45)
+  assert body.mission.scans == [10.4], "a scan from before it walked, read"
+  body = _standing(None, t=10.0)
+  body._d.time = 10.0 + hb.BOW_SCAN_S + 0.1
+  hb.HumanoidBody.bow_room(body, 0.45)
+  assert body.mission.scans == [body._d.time]
 
 
 def test_the_heads_front_off_the_model_of_itself_is_the_lobbys_measure():

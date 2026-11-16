@@ -317,13 +317,14 @@ def test_the_mission_places_a_held_grip_off_its_model_of_itself_and_drops_it_fro
     sm.pose(q, np.array([0.0, 0.0, -1.0]))
     centres, _ = m._held_drop()
     assert np.linalg.norm(centres[0] - truth()) < 0.03, (centres[0], truth())
-    # ...and the low layer: a point at the grip folds in only unheld
+    # ...and the low layer: a point at the grip folds in only unheld (its
+    # frame filtered once, `_held_out`, for the layer and the knees' memory)
     point = np.array([centres[0]])
     m.low[...] = 0.0
-    m._fold_low(point)
+    m._fold_low(hmis._held_out(point, m._held_drop()))
     assert not (m.low != 0.0).any(), "the held grip's point went into the layer"
     m.reach.grippers["left"].held = lambda: False
-    m._fold_low(point)
+    m._fold_low(hmis._held_out(point, m._held_drop()))
     assert (m.low > 0.0).any(), "the premise: unheld, the point is an obstacle"
   finally:
     body.close()

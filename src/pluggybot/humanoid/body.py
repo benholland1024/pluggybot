@@ -268,8 +268,10 @@ class _Room:
     self.mi, self.ux, self.uy, self.since, self.walk_t = mission, ux, uy, since, walk_t
     self.began: dict[str, float] = {}
     #: the newest scan's time, and how far the walk had gone as it came
-    #: (one taken before the walk began, at `walk_t`: none)
+    #: (one taken before the walk began, at `walk_t`: none); and its points,
+    #: laid out once a scan
     self.scan_t, self.went_at = None, 0.0
+    self._wall_t, self._wall_pts = None, None
     # ...and a scan where it stands as it sets off, where the step has taken
     # none: standing still, the LIDAR takes none of its own, and a walk's
     # first comes a tenth of a second and 3 cm in
@@ -281,7 +283,7 @@ class _Room:
     seen = self.mi.over_returns
     if seen is None or seen[0] < self.since or not len(seen[1]):
       return None
-    if seen[0] != getattr(self, "_wall_t", None):
+    if seen[0] != self._wall_t:
       # ...laid out once a scan, never every physics step
       a, r = seen[1], seen[2]
       self._wall_t, self._wall_pts = seen[0], np.stack([np.cos(a) * r, np.sin(a) * r], axis=1)
@@ -642,9 +644,11 @@ class HumanoidBody(Body):
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
     self.mission.drop_aside()
-    # ...and nobody its LIDAR saw from where it stood before (#675, #678)
+    # ...and nobody its LIDAR saw from where it stood before (#675, #678),
+    # nor what it read round it there (#717: a look's bow judged against it)
     self.mission.seen_t.clear()
     self.mission._looked = None
+    self.mission.over_returns = self.mission.peer_returns = None
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -1072,11 +1076,14 @@ class HumanoidBody(Body):
     `STEP_NEAREST`-th nearest within `BOW_HALF_M` either side of its
     stance's facing) -- 0 where even upright it does not -- and how far
     ahead that stands, m, its stance frame (inf: nothing). Off its newest
-    scan, or one taken where it stands (`BOW_SCAN_S`); the posture it stands
-    in now is the one that scan was taken in."""
+    scan where it was taken since it last walked and within `BOW_SCAN_S`,
+    else one taken where it stands: the posture it stands in now is the one
+    that scan was taken in."""
     mi = self.mission
     t = float(self._d.time)
-    if mi.over_returns is None or t - mi.over_returns[0] > BOW_SCAN_S:
+    over = mi.over_returns
+    if over is None or t - over[0] > BOW_SCAN_S or over[0] < mi.last_motion_t:
+      # ...one taken where it stands: none since it last walked, or old
       mi._sighted(mi._scan(), t)
     t_over, a, r, origin = mi.over_returns
     ox, oy = origin if origin is not None else (0.0, 0.0)

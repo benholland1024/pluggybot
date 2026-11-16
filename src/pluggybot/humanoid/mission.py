@@ -243,9 +243,6 @@ class HumanoidStepper:
     return tick.run(self, routine, name)
 
 
-_HELD = object()
-
-
 def _held_out(points: np.ndarray, drop) -> np.ndarray:
   """A levelled frame's points less those within a held grip's reach
   (`HumanoidMission._held_drop`: centres and a radius; None for none)."""
@@ -1248,7 +1245,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._frame_used_t = self._frame_t
     # ...what a hand holds is no obstacle (#682's self-filter, `HELD_DROP_M`)
     points = _held_out(frame.points, self._held_drop())
-    self._fold_low(points, drop=None)
+    self._fold_low(points)
     self.knee.fold(points, self._frame_t, self.pose, self.odo.corrected,
                    facing=float(self.odo.sm.q[self.odo.sm.waist][0]))
 
@@ -1282,10 +1279,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     return DepthFrame(z=frame.z, points=pts, self_fraction=frame.self_fraction,
                       peers=peers, peer_geoms=frame.peer_geoms)
 
-  def _fold_low(self, points: np.ndarray, drop=_HELD) -> None:
-    """A levelled frame's points into the planner's layer, what a hand holds
-    taken out (`_held_out`; `drop` None where the caller took it out)."""
-    points = _held_out(points, self._held_drop() if drop is _HELD else drop)
+  def _fold_low(self, points: np.ndarray) -> None:
+    """A levelled frame's points, what a hand holds already out of them
+    (`_held_out`), into the planner's layer."""
     if not len(points):
       return
     x, y, th = self.pose
