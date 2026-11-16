@@ -54,6 +54,69 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: every fall a row (`fall`, pluggybot #707)
+
+A fall was on the wire only as a frame's `posture` (`getting_up`) and in
+the words of what it ended: a run's verb, a hand job, a death. One event
+type is new:
+
+- **`fall`**: per robot, one row for every fall its body's own watch
+  counts (`Body.falls`: the humanoid's trunk 35 deg past the posture its
+  legs hold, or its pelvis sunk, the step its get-up takes the legs), sent
+  as that get-up ENDS. Its fields:
+  - `t` (as it ended), `fellT`, `seconds` (between them), `falls` (the
+    body's count after this fall: the rows of one body count up by one, so
+    a gap is a row missed);
+  - `ended` (`FALL_ENDINGS`): `stood` (its get-up stood it again), `died`
+    (its robot died first: `cause`, the death's), `reset` (a stand-up or a
+    person's reset put it at its start first), `stuck` (where nothing dies,
+    the run its get-up would have died in ended), `unfinished` (the run
+    ended first; no save is made while a get-up runs, so the next run
+    carries on from before the fall);
+  - `at`: where it fell and what it was doing, read the step it was
+    counted, in a death's `at`'s shape -- `pose` (where it IS: the sim's own
+    check) beside `believed`, `tilt`, `state`, `status`, `setpoints`,
+    `errand` and `step` (the procedure, its line and its verb), the nearest
+    `peer`;
+  - `after` (`pose` and `believed` as it ended), `movedM` and `turnedDeg`
+    (how far the get-up moved the BODY), `beliefMovedM` and
+    `beliefTurnedDeg` (how far it moved the belief: a get-up holds the
+    odometry, pluggybot #572), and `errorM` and `headingDeg` (the belief
+    less the truth as it ended, as a `drift` row's);
+  - `struggle`: which fall of one struggle this was, as the `stuck` clock
+    counts one (a stand under `lifecycle.STOOD_AGAIN_S`, 5 s, between two
+    get-ups is one struggle): 1, 2, ...;
+  - `told` (`FALL_TOLD`): what told the robot of it -- `run` (the
+    procedure's verb it fell in, whose run ends there, #671), `job` (a hand
+    job's own line at the fall, or a `done`'s grade in its hold, #701),
+    `aside` (the step aside it was making, "I fell over"), `line` (its own
+    History line, below), `death`; null where nothing did (a get-up a reset
+    or the run's end cut short).
+
+  Nothing the robot is shown carries the truth. A fall nothing else told is
+  ONE line of the robot's History once its get-up stands it, alive, and
+  narrated (`status`): "I fell over and got up again 4 s later"
+  (`lifecycle.FELL_LINE`).
+
+  ```jsonc
+  {"type": "fall", "robot": "pluggybot", "t": 94.944, "falls": 1,
+   "fellT": 90.722, "seconds": 4.222, "ended": "stood", "struggle": 1,
+   "told": "line",
+   "at": {"t": 90.722, "pose": {"x": 4.572, "y": -4.691, "yawDeg": -40.5},
+          "believed": {"x": 4.608, "y": -4.673, "yawDeg": -40.5},
+          "tilt": {"deg": 23.9, "towardDeg": 22.4, "toward": "forward"},
+          "state": "EXPLORE", "status": "EXPLORE: budget spent, stopping",
+          "setpoints": {...}, "errand": null, "step": null},
+   "after": {"pose": {"x": 4.418, "y": -4.766, "yawDeg": -106.7},
+             "believed": {"x": 4.608, "y": -4.673, "yawDeg": -107.2}},
+   "movedM": 0.171, "turnedDeg": -66.2, "beliefMovedM": 0.0,
+   "beliefTurnedDeg": -66.6, "errorM": 0.212, "headingDeg": -0.5}
+  ```
+
+The summary of a run (`HubLifecycle.end`) carries every row as `falls`.
+No bump: a new event type, which a consumer that does not know it ignores.
+The committed recordings hold no fall, and were not flown again.
+
 ### 0.21.0, additive: a task kind no world offers (`set_table_pass`, pluggybot #682's stage C)
 
 `taskKinds` (every kind the producer knows) gains `set_table_pass`: table
