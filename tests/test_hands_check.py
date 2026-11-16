@@ -535,10 +535,11 @@ def _lid_grips(m, d0, far: float, out: bool = False) -> list:
   knob = m.geom("chest_knob").id
   c, r = d0.geom_xpos[knob], d0.geom_xmat[knob].reshape(3, 3)
   up = r[:, 2] if r[2, 2] > 0.5 else -r[:, 2]
-  # ...the robot standing 0.45 m before the knob (`spot` reads its own stance frame), so a hand
-  # stopped out reads out (`left.x`); its grips come back in the chest's frame
+  # ...the robot standing 0.45 m before the knob, so a hand stopped out reads out (`left.x`, its
+  # stance frame); `spot` reads the believed world, and its grips come back in it -- the chest's
+  # frame: counted twice, every grip landed 0.45 m past the knob and met no lid (#708's review)
   back = 0.45
-  seen = {"x": c[0] + 0.013 * up[0] + far + back, "y": c[1] + 0.013 * up[1],
+  seen = {"x": c[0] + 0.013 * up[0] + far, "y": c[1] + 0.013 * up[1],
           "z": c[2] + 0.013 * up[2], "normal": list(-up), "edge": list(r[:, 1]), "range": 0.5}
 
   class Seeing(StubBody):

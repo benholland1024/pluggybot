@@ -345,23 +345,19 @@ save a filmstrip PNG named after the script.
   `_struck`; SimNotes, "A hand on its way out that meets something"): the
   joint-space way out swings the hand through what it never looked at, and a
   jaw caught on a chest's bracket was driven on until the robot went over
-  its toes. ⚠ A transient is no catch: as the standing policy stopped a deep
-  bow, its waist 0.05 rad short of its posture, the arm's drivers read 44 N
-  at a hand that touched nothing, past the line for 0.02 s (the cube check's
-  set-out 38); ⚠ but in the posture the first tick stops it: held 0.02 s
-  there, 3 of #708's 16 fresh draws fell where 1 did. Never on a push or a
-  press: our door's way out drags a jaw back over the door's top pressing
-  down on it, and stopped there -- on the whole reading at 20-40 N, or on
-  its pull alone at 30 N -- the door fell more or passed fewer. ⚠ It reads a
-  push on the robot's own body as the world's: a way out from a hand already
-  out, never judged against its own trunk (`_picked`), drove a gripper into
-  the torso and was stopped there at 46-61 N (unstopped, 165 N; SimNotes). ⚠
-  OUR DOOR'S AND LID'S REFERENCES, A REACH FAILED (THE LID'S: STOPPED SHORT,
-  ITS HAND OUT), TRY THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT
-  (`hands_check.DOOR`, `LID`; SimNotes, "The door's reach the stop sends
-  back"): at 12 of 192 door set-outs every way out of the grip asked drags
-  the jaw over the counter's edge, and stopped there, the tilt after bowed
-  the robot onto the counter.
+  its toes. ⚠ A transient is no catch (a bow stopped short of its posture
+  read 44 N at a hand that touched nothing, for 0.02 s), ⚠ but in the
+  posture the first tick stops it (held 0.02 s there, #708's fresh draws
+  fell 3 of 16 for 1). Never on a push or a press: our door's way out drags
+  a jaw back over the door's top pressing down on it, and stopped there --
+  on the whole reading at 20-40 N, or on its pull alone at 30 N -- the door
+  fell more or passed fewer. ⚠ It reads a push on the robot's own body as
+  the world's (a way out from a hand already out, judged against nothing,
+  drove a gripper into the torso: 46-61 N; SimNotes). ⚠ OUR DOOR'S AND LID'S
+  REFERENCES, A REACH FAILED (THE LID'S: STOPPED SHORT, ITS HAND OUT), TRY
+  THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT (`hands_check.DOOR`,
+  `LID`; SimNotes, "The door's reach the stop sends back"): tilted at once,
+  the door's twelve turned-crouch set-outs bowed the robot onto the counter.
   ⚠ IT GOES IN
   ONCE THE TRUNK IS STILL (`reach.TRUNK_STILL_RATE`; or after
   `POSTURE_WAIT_S`): the force it reads assumes the body still, and begun
