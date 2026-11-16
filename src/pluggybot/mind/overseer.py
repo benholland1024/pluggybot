@@ -855,12 +855,15 @@ class Decision:
     return f"{what}: {self.reason or 'no reason given'}{tail}"
 
   def shown(self) -> str:
-    """What the other robot reads of a decided walk (#709): the action and
-    where it goes -- an explore's zone, a charge's station -- and nothing
-    else of the answer (never why, who chose it, nor a field another action
-    left on it)."""
-    where = {"explore": self.zone, "charge": self.station}.get(self.action, "")
-    return f"{self.action} ({where})" if where else self.action
+    """What the other robot reads of this decision (#709), "" for most: a
+    body setting out on what says nothing as it begins -- a charge until it
+    plugs in or waits, an explore with no zone until it ends, an idle at
+    all -- as its action and where it goes (an explore's zone, a charge's
+    station), never why, who chose it, nor a field another action left."""
+    where = {"explore": self.zone, "charge": self.station, "idle": ""}
+    if self.action not in where:
+      return ""
+    return f"{self.action} ({where[self.action]})" if where[self.action] else self.action
 
 
 # ---- the choices the world actually offers ----------------------------------

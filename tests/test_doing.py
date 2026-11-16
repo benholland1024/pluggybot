@@ -34,7 +34,7 @@ SRC = pathlib.Path(lc.__file__).parent
 #: Every kind of narrated line -- its first word -- that has NO line the
 #: other robot is shown, by what it is. The kinds with one are
 #: `lc.DOING_KINDS`' first words (a `DECIDE` line only as a decided walk's
-#: action, `lc.DECIDED_SHOWN`); a kind in neither fails the walk.
+#: action, `Decision.shown`); a kind in neither fails the walk.
 PRIVATE = {
   # what its mind does
   "THINK": "its thinking",
@@ -414,3 +414,20 @@ def test_a_dead_robot_is_shown_dead_until_it_stands_up():
   # ...and across a restart, which brings `dead` back and not `doing`
   a.dead, a.doing = {"cause": "stuck", "why": "fell into the wall"}, ""
   assert others_context(b)[0]["doing"] == "DEAD (stuck)"
+
+
+def test_after_a_true_death_the_old_robots_errand_is_never_shown():
+  """A stand-up closes the errand a death ended (`_void_errand`) and says
+  so; after a TRUE death that errand was the robot before's, and the other
+  robot is never shown it as the new one's doing (its stand-up line
+  stands). After an ordinary death it is the robot's own, and shown."""
+  a, b = stub_pair()
+  a.affords = lambda errand: SimpleNamespace(cost_wh=0.0)
+  for hearts, shown in ((0, "UP again after 300 s down -- back at the start pose"),
+                        (3, "STOOD UP mid-errand: explore ended there")):
+    a.deaths = [{"cause": "flat", "hearts": hearts}]
+    a.doing = "UP again after 300 s down -- back at the start pose"
+    a._errand_now = SimpleNamespace(name="explore", program=None)
+    a._void_errand()
+    assert a.status == "STOOD UP mid-errand: explore ended there"
+    assert others_context(b)[0]["doing"] == shown, hearts

@@ -275,11 +275,6 @@ UNPLUG_FAILED = "CHARGE: my hand could not get the plug out -- going on anyway"
 DOING_KINDS = ("EXPLORE", "GO_CHARGE", "CHARGE", "WAIT:", "STATION:", "standing by:",
                "MAKE WAY:", "MADE WAY:", "PROCEDURE ", "TASK ", "DONE ", "GRADE ",
                "UP again", "STOOD UP ", "DECIDE ")
-#: ...and the decided actions whose `DECIDE` line is shown as the action and
-#: where (`Decision.shown`), never why nor who chose it: what a body sets out
-#: on that says nothing as it begins (a charge until it plugs in or waits, an
-#: explore with no zone until it ends, an idle at all).
-DECIDED_SHOWN = ("charge", "explore", "idle")
 
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
@@ -5887,8 +5882,7 @@ class HubLifecycle:
       self._emit({"type": "call", "t": round(float(self.data.time), 3),
                   "robot": self.root, "source": decision.source, **call})
     self._say(f"DECIDE {decision.summary()}", detail=call_said(call),
-              doing=(f"DECIDE {decision.shown()}" if decision.action in DECIDED_SHOWN
-                     else False))
+              doing=f"DECIDE {decision.shown()}" if decision.shown() else False)
     # THE CHAIN ENDS HERE (issue #221): any action but another recall clears
     # what was recalled -- but a FALLBACK KEEPS IT ONCE (#604): the mind did
     # not act on what it looked up, and dropped, the robot recalled the same
@@ -6430,7 +6424,9 @@ class HubLifecycle:
       self._emit({"type": "procedure", "robot": self.root, "name": program.name,
                   "program": program.as_dict(), "t": round(t, 3),
                   "outcome": "aborted", "stopped": "stood_up"})
-    self._say(f"STOOD UP mid-errand: {errand.name} ended there", doing=True)
+    # ...but never the errand of a robot before this one (a true death's)
+    self._say(f"STOOD UP mid-errand: {errand.name} ended there",
+              doing=not self._after_true_death())
     if self._after_true_death():
       return
     self._occur("task_failed", errand.name)

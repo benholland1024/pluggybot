@@ -2240,16 +2240,11 @@ save a filmstrip PNG named after the script.
   `HubLifecycle.peers` is read by that and by NOTHING that decides. ⚠ ITS
   `doing` IS THE LAST LINE THAT SAID WHAT THE ROBOT'S BODY IS DOING, IN ITS
   CALL'S FORM, AND A LINE IS PRIVATE BY DEFAULT (#709; `_say(doing=)`,
-  `lifecycle.DOING_KINDS`, the stated list it must begin as; Overseer.md
-  §2c has the table; `tests/test_doing.py` lists every kind, so a new one
-  fails until classed): a walk, a charge, a procedure's lines (a step as
-  its verb, never the values a procedure handed it nor a check's words), a
-  job it holds (never an act's claim), a death (read off `dead`, across a
-  restart too) and a stand-up, a decided
-  charge's, explore's or idle's `DECIDE` line as its action alone
-  (`DECIDED_SHOWN`, `Decision.shown`) -- a battery level, a balance, hearts,
-  a reason and a `DONE`'s "before this answer's ..." taken out; an
-  operator's reset empties it. ⚠ `status` IS
+  `lifecycle.DOING_KINDS` the stated list a shown line begins as,
+  `Decision.shown`; Overseer.md §2c has the table; `tests/test_doing.py`
+  lists every kind, so a new one fails until classed): never a battery
+  level, points, hearts, the mind's reasons or what a procedure handed a
+  verb. ⚠ `status` IS
   UNTOUCHED: the wire's, a recording's only narration and the site's line
   under a portrait are every narrated line, the board's among them.
 - **Acts between robots are measured, and none is refused for its cost**
