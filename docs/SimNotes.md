@@ -574,8 +574,10 @@ time on the physics thread. **What is true now:** every detector of one
 model and picture size draws through one renderer (`tags._renderer_for`),
 kept beside a count of its users and closed with the last
 (`TagDetector.close`; a detector collected unclosed releases its use
-through a finalizer). Kept without the count, the tests' bodies of many
-models would each hold a renderer alive in a worker
+through a finalizer, and its renderer, if it was the last, is closed at the
+next draw, build or close: a collection runs at any allocation and on any
+thread, another renderer's draw included). Kept without the count, the
+tests' bodies of many models would each hold a renderer alive in a worker
 (`tests/test_shared_renderer.py`). A draw is `update_scene` and `render`
 back to back, and nothing of one camera's picture carries into the next:
 on the served pair under osmesa, each of the four cameras' pictures came
