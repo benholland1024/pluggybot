@@ -391,16 +391,16 @@ save a filmstrip PNG named after the script.
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
   home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
-  TRUNK (#722; `Reach._own_kept`, `reach.own_room`, `OWN_CLEAR_M`;
+  TRUNK (#722; `Reach._own_kept`, `reach.own_rooms`, `OWN_CLEAR_M`;
   SimNotes, "A way out from a hand already out"): sampled on its model of
   itself, the upper arm, forearm and gripper against the torso, the head and
   the LIDAR, its end included -- straight where it never goes through them,
   or, a pair of parts begun in each other, that pair no deeper; else the
-  side way or the way drawn in that
-  keeps so and dips no deeper ahead; else a procedure's reach moves
-  nothing, "own body", and the loop's own (a charge's: no wait frees it)
-  takes the way that comes least near (`Reach.reach(verb=)`): straight,
-  the wake's door runs drove the gripper into the torso at 36-165 N. ⚠ NEVER
+  side way or the way drawn in that keeps so and dips no deeper ahead; else
+  a procedure's reach moves nothing, "own body", and the loop's own (a
+  charge's: no wait frees it) takes the way that comes least near
+  (`Reach.reach(verb=)`): straight, the wake's door runs drove the gripper
+  into the torso at 36-165 N. ⚠ NEVER
   FROM A HAND AT REST: there the plan's own pre-grasp can lie in the trunk,
   and refused, our cube's set-out 7 lost its pass. ⚠ MuJoCo 3.10 reads two
   boxes apart as 0.0 at some poses (`reach.apart` reads them again). ⚠

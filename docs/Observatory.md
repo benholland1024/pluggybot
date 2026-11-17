@@ -30,7 +30,7 @@ hand's every way there would pass through its own body ends "; your right
 hand's every way there passes through your own body" (before, "; nor does
 your right hand's").
 
-**The change** (`Reach._own_kept`, `reach.own_room`, `apart`; `Reach.own`;
+**The change** (`Reach._own_kept`, `reach.own_rooms`, `apart`; `Reach.own`;
 `Body.hand_why` "own body"; `steps.REACH_WHY`; SimNotes, "A way out from a
 hand already out"). A way out from a hand already out is sampled on the
 robot's model of itself against the torso, the head and the LIDAR, its end

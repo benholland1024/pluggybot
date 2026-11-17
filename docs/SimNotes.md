@@ -10606,7 +10606,7 @@ robot's own body included):
   they began. t_0408's own no longer does on this tree: its 7 ways out from
   the lever keep 0.35 cm and more off it.
 
-**The rule** (`Reach._own_kept`, `reach.own_room`): the way is sampled on
+**The rule** (`Reach._own_kept`, `reach.own_rooms`): the way is sampled on
 the robot's model of itself every 0.005 rad of its furthest joint (about 3
 mm at the grip, so a way may cut no more than half that between two
 samples), its end included, the arm's parts that meet the trunk (the upper arm, the forearm,
@@ -10629,7 +10629,7 @@ robot's own body. Two readings of one depth may part by 0.1 mm
 (`OWN_SLACK_M`: MuJoCo's box against a box and `_box_box` agree to 0.07 mm).
 - *No clearance.* On the model, 6 of the 7 that pressed the torso were
   judged 0.9-3.3 cm through it, and the seventh, begun 1.5 mm in it at 1.3
-  N, 1.2 mm deeper (t_0415 at 32.09 s: 56 N); the 9 judged 0.28-2 cm clear
+  N, 2 mm deeper (t_0415 at 32.09 s: 56 N); the 9 judged 0.28-2 cm clear
   met nothing, and a clearance of 1 cm would have refused five of them,
   four t_0408's own.
 - *Never from the arm hanging.* There the plan's own pre-grasp can lie in

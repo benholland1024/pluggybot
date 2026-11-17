@@ -968,7 +968,7 @@ def room(sm: SelfModel, side: str, q0, ways, keep_out) -> float:
 #: -- or, begun nearer, go no nearer. ⚠ Unjudged, a gripper was driven into
 #: the torso at 165 N and the head at 75 N; over the 11-15 wake's 53 runs
 #: flown on ac2538e8, the 7 such ways that met the trunk (36-56 N) were judged
-#: 0.9-3.3 cm through it, or 1 mm deeper than a gripper begun on it, and the 9
+#: 0.9-3.3 cm through it, or 2 mm deeper than a gripper begun on it, and the 9
 #: judged 0.28-2 cm clear met nothing.
 OWN_CLEAR_M = 0.0
 #: ...sampled every this much of its furthest joint's walk, rad: about 3 mm
