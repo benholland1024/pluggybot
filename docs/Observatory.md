@@ -35,8 +35,10 @@ nor `places.json` is hashed, and no committed recording carries a job):
   it is 491 of `MAX_DESCRIPTION`'s 500 characters.
 
 **Why** (#723, from P10's reading of the 11-12, 11-14 and 11-15 wakes).
-The practice's job text for the table says both facts, and the served
-words said neither. The line runs from the card toward the robot, so "the
+The practice's job text for the table says which left the fork's is and
+that the pieces wait near the card, and the served words said neither; they
+now say both, and the cup's side, and that none is where it goes. The line
+runs from the card toward the robot, so "the
 line's left", read as the line's own way, is the robot's right; the
 grader's left is the diner's, which is the robot's as it faces the card.
 On 11-15 Luca wrote "'the line's left' can be read two ways and I'm not

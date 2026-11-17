@@ -479,22 +479,29 @@ NEAR_CARD_M = 0.35
 
 
 def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
-  """#723: the place's directions say where an offer here sets the pieces
-  out, as the practice's job says where they wait (`practice.TABLE_JOB`):
-  told only that they "were set out", Luca read a set-out's plate and fork
-  as the place half laid (11-15, t_0414), and Rowan wrote its search for
-  them at the pass too (11-14, t_0271). Shown as an offer carries them, and
-  true of every kind this world offers at the table, at each draw, by the
-  grader's own measure: one that sets them out elsewhere (the pass's,
-  #682's stage C) moves these words."""
+  """#723: the place's directions say where an offer there sets the pieces
+  out, as the practice's job says where they wait (`practice.TABLE_JOB`),
+  and that none is where it goes: told only that they "were set out", Luca
+  read a set-out's plate and fork as the place half laid (11-15, t_0414),
+  and Rowan wrote its search for them at the pass too (11-14, t_0271). Read
+  as each kind's offer at the table carries them, and checked over 32
+  set-outs of each by the grader's own measure. The directions are the
+  area's, so every kind's offer there carries them: one that sets its pieces
+  out elsewhere (the pass's, #682's stage C, whose row says where) is
+  offered by no world's cadence, and offering it moves these words."""
+  import json
+  from pluggybot.economy import cadence
+  offered = {k for w in json.loads(cadence.CADENCE_PATH.read_text())["worlds"]
+             for k in cadence.default_cadence(w).kinds}
+  here = [k for k, kind in KINDS.items() if kind.target_kind == "table"]
+  assert "set_table" in offered and "set_table" in here
   maker = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)
-  here = [k for k in maker.cadence.kinds if KINDS[k].target_kind == "table"]
-  assert here, "the world offers a job at the table"
   model, data = _table_world()
   for kind in here:
     words = maker._offer(kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
     assert "the plate, the cup and the fork are set out on the table near the card" in words, kind
     assert "none of them is where it goes" in words, kind
+    false = []
     for k in range(32):
       restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
       mujoco.mj_forward(model, data)
@@ -502,9 +509,12 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
       origin, toward, left, _ = table.place_frame(model, data)
       for p in dw.PIECES:
         rel = data.xpos[model.body(p).id] - origin
-        assert got[p]["aboveM"] == pytest.approx(0.0, abs=1e-6), (kind, k, p, "on the table")
-        assert math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M, (kind, k, p, "near the card")
-        assert got[p]["offM"] > table.PLACE_M, (kind, k, p, "where it goes")
+        said = {"on the table": abs(got[p]["aboveM"]) <= 1e-6,
+                "near the card": math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M,
+                "not where it goes": got[p]["offM"] > table.PLACE_M}
+        false += [(k, p, claim) for claim, held in said.items() if not held]
+    assert not false or kind not in offered, (kind, "offered, and the directions false of it",
+                                              false[:3])
 
 
 # ---- the place laid from the pass (#682's stage C, easy mode) ------------------------------
