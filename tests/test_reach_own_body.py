@@ -179,29 +179,57 @@ def test_an_arm_begun_on_the_trunk_may_go_no_nearer():
   assert r.way_out("left", LEVER_AGAIN) is None
 
 
-def test_a_reach_whose_way_out_meets_its_own_trunk_moves_nothing():
+def _at_lever():
+  """A bare reach with its left hand held at t_0360's lever, whose plan is
+  t_0360's reach again from there (its pre-grasp's gripper in the torso)."""
   r = _standing_reach()
   r.q_cmd["left"], r.phase["left"] = AT_LEVER.copy(), "hold"
   plan_ = ((0.0, 0.0, 0.0), LEVER_AGAIN.copy(), LEVER_AGAIN.copy(), True)
   r._planned = lambda side, goal, approach, postures, flip: (plan_, goal)
-  goal = HandGoal(np.array([0.3, 0.1, 0.9]), None, 1.0)
-  assert not r.reach("left", goal)
+  return r, HandGoal(np.array([0.3, 0.1, 0.9]), None, 1.0)
+
+
+def test_a_verbs_reach_whose_way_out_meets_its_own_trunk_moves_nothing():
+  r, goal = _at_lever()
+  assert not r.reach("left", goal, verb=True)
   assert r.phase["left"] == "hold" and r.postures == [] and r.own["left"]["part"] == "torso"
-  # ...and asked whether its way would be clear, it says no and keeps what it said
+  # ...and asked whether its way would be clear, it says "own" and keeps what
+  # it said
   r.own["left"] = said = {"part": "head", "m": -0.01}
-  assert r.clear_way("left", goal) is False and r.own["left"] is said
+  assert r.clear_way("left", goal) == "own" and r.own["left"] is said
+
+
+def test_the_loops_own_reach_takes_the_way_least_near_its_own_trunk():
+  """A charge's reach (no `verb`) is never refused for its own trunk -- no
+  wait frees it, and a failed charge is a death -- even asked to refuse, as
+  the body's first try asks it (to wait out another robot, #678): it takes
+  the way that comes least near, and `own` says how near."""
+  r, goal = _at_lever()
+  assert r.reach("left", goal, refuse=True, verb=False)
+  rooms = [_own_room(AT_LEVER, w) for w in ([LEVER_AGAIN], rc._aside("left", AT_LEVER, LEVER_AGAIN, True),
+                                            rc._tucked_way("left", AT_LEVER, LEVER_AGAIN))]
+  took = [r.q_to["left"]] + r.outs["left"]
+  assert r.phase["left"] == "move" and _own_room(AT_LEVER, took) == pytest.approx(max(rooms))
+  assert r.own["left"]["m"] == pytest.approx(max(rooms), abs=1e-3)
+
+
+def test_the_body_refuses_a_verbs_reach_for_its_own_trunk_and_never_its_own():
+  """Through the body (`HumanoidBody._reached`, as `reach_routine` asks it):
+  a procedure's reach is refused, "own body"; the loop's own goes."""
+  for verb in (True, False):
+    r, goal = _at_lever()
+    me = NS(reach=r, _why={}, _kept={}, mission=NS(look_round=lambda: None, keep_out=lambda seen: []))
+    went = hb.HumanoidBody._reached(me, "left", goal, rc.REACH_POSTURES, False, words=verb, verb=verb)
+    assert went is (not verb) and me._why["left"] == ("own body" if verb else "out of reach")
 
 
 def test_a_carried_hand_whose_reach_is_refused_is_still_carried():
   """Nothing moves, so a hand a walk carried stays carried (#682): its way
   home is still to its carry pose -- refused, `carry_q` dropped, the hand at
   the robot's side read as out at its work."""
-  r = _standing_reach()
-  r.q_cmd["left"], r.phase["left"] = AT_LEVER.copy(), "carried"
-  r.carry_q["left"] = AT_LEVER.copy()
-  plan_ = ((0.0, 0.0, 0.0), LEVER_AGAIN.copy(), LEVER_AGAIN.copy(), True)
-  r._planned = lambda side, goal, approach, postures, flip: (plan_, goal)
-  assert not r.reach("left", HandGoal(np.array([0.3, 0.1, 0.9]), None, 1.0))
+  r, goal = _at_lever()
+  r.phase["left"], r.carry_q["left"] = "carried", AT_LEVER.copy()
+  assert not r.reach("left", goal, verb=True)
   assert r.carried("left") and np.allclose(r.home_to("left"), AT_LEVER)
 
 
@@ -244,6 +272,22 @@ def test_a_reach_refused_for_its_own_trunk_is_the_bodys_why_own_body():
           mission=NS(look_round=lambda: None, keep_out=lambda seen: []))
   assert not hb.HumanoidBody._reached(me, "left", None, (), False, words=True)
   assert me._why["left"] == "own body" and "left" not in me._kept
+
+
+def test_a_reach_kept_off_another_robot_says_the_other_hands_way_passes_through_its_body():
+  class Off(StubBody):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                      turns=None, refuse=False):
+      return False
+      yield
+
+    def hand_why(self, side):
+      return "kept off"
+
+    def hand_kept(self, side):
+      return {"m": 0.9, "x": 0.5, "y": -0.6, "home": False, "back": False, "other": "own"}
+  step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', Off(*_bare()))["steps"][-1]
+  assert step["reason"].endswith(st.OTHER_HAND_KEPT["own"].format(other="left"))
 
 
 def test_a_reach_refused_for_its_own_body_says_so():

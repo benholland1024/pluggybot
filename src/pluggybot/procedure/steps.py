@@ -1135,7 +1135,9 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    False: "; nor does your {other} hand's",
                    None: "; your {other} hand does not reach there",
                    # ...and one out holding something, which kept the body's posture (#719)
-                   "holds": "; your {other} hand is out holding something"}
+                   "holds": "; your {other} hand is out holding something",
+                   # ...and one whose every way there passes through your own body (#722)
+                   "own": "; your {other} hand's every way there passes through your own body"}
 
 
 def _where(kept: dict) -> str:

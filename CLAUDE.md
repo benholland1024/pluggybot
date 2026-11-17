@@ -396,8 +396,9 @@ save a filmstrip PNG named after the script.
   itself, the upper arm, forearm and gripper against the torso, the head and
   the LIDAR, its end included -- straight where it never goes through them,
   or, begun in them, no deeper; else the side way or the way drawn in that
-  keeps so and dips no deeper ahead; else a verb's reach moves nothing,
-  "own body" (the loop's own takes the way that comes least near): straight,
+  keeps so and dips no deeper ahead; else a procedure's reach moves
+  nothing, "own body", and the loop's own (a charge's: no wait frees it)
+  takes the way that comes least near (`Reach.reach(verb=)`): straight,
   the wake's door runs drove the gripper into the torso at 36-165 N. ⚠ NEVER
   FROM A HAND AT REST: there the plan's own pre-grasp can lie in the trunk,
   and refused, our cube's set-out 7 lost its pass. ⚠ MuJoCo 3.10 reads two

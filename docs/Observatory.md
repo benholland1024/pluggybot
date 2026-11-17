@@ -22,7 +22,10 @@ passes through your own body, so it did not move". Before, it went straight
 there and pressed the torso; where that tipped the robot past #708's line
 it read "your left hand stopped short on its way: out of reach from how you
 truly stand, or pushing on something; as it stopped, its grip was ... cm
-from where you asked".
+from where you asked". And a reach kept off another robot (#678) whose other
+hand's every way there would pass through its own body ends "; your right
+hand's every way there passes through your own body" (before, "; nor does
+your right hand's").
 
 **The change** (`Reach._own_kept`, `reach.own_room`, `apart`; `Reach.own`;
 `Body.hand_why` "own body"; `steps.REACH_WHY`; SimNotes, "A way out from a
@@ -30,9 +33,9 @@ hand already out"). A way out from a hand already out is sampled on the
 robot's model of itself against the torso, the head and the LIDAR, its end
 included: today's way where no part of the arm goes through them (begun in
 them, no deeper), else the side way or the way drawn in that keeps so and
-dips no deeper ahead, else a verb's reach is refused; the loop's own (a
-charge's) takes the way that comes least near. A way from the arm hanging,
-and a way home, are judged as before.
+dips no deeper ahead, else a procedure's reach is refused; the loop's own (a
+charge's) takes the way that comes least near, as no wait frees it. A way
+from the arm hanging, and a way home, are judged as before.
 
 **Measured** (one Vast pod, an EPYC 7742, beside ac2538e8; SimNotes has
 the count before it): Ben's bar the base's flight for flight, 608 of 736
@@ -42,7 +45,8 @@ wake's 53 runs flown at their live draws, the 3 whose ways out from the
 cupboard's lever pressed the torso at 36-56 N moved, none passing or
 falling otherwise: 8 reaches refused, one press left at 9 N by a forearm
 begun on the torso. The pair's recorded day and the counter's attempt are
-the committed fixtures'.
+the committed fixtures', and the station's checks (39 approaches, 140
+seats, 20 lost near) the base's row for row.
 
 **What to read**: reaches that read false with "own body", and what the
 robot does next (a `withdraw` first, a `step` back, a turn given); a reach

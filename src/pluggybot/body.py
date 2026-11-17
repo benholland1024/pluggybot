@@ -720,7 +720,8 @@ class Body(abc.ABC):
     way out), `back` (a reach whose way home from there would meet it), and
     for a reach `other` (whether the other hand's way there keeps off it;
     None where that hand does not reach; "holds" where it is out holding
-    something and kept the body's posture, #719) -- else None."""
+    something and kept the body's posture, #719; "own" where its every way
+    there passes through the robot's own trunk, #722) -- else None."""
 
   @abc.abstractmethod
   def posture_kept_by(self, side: str) -> str | None:

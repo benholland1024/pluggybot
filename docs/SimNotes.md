@@ -10495,11 +10495,15 @@ shoulders, so the room is a function of the arm's six joints alone. Today's
 way where no part goes through the trunk -- or, begun in it, goes no deeper
 -- else the side way, else the way drawn in, each where it keeps so and
 dips no deeper ahead than going straight on (`_kept_off`'s rule for a hand
-already out); else a verb's reach moves nothing, the body's why "own body"
-and its words "every way your left arm takes from where it is to there
+already out); else a procedure's reach moves nothing, the body's why "own
+body" and its words "every way your left arm takes from where it is to there
 passes through your own body, so it did not move", and the loop's own (a
-charge's) takes the way that comes least near. With another robot by, a way
-round it keeps off the trunk too.
+charge's) takes the way that comes least near, as no wait frees it (asked
+to refuse, as its first try asks to wait out another robot, #678, it still
+goes). With another robot by, a way round it keeps off the trunk too, and a
+reach kept off it says when the other hand's every way would pass through
+the robot's own body. Two readings of one depth may part by 0.1 mm
+(`OWN_SLACK_M`: MuJoCo's box against a box and `_box_box` agree to 0.07 mm).
 - *No clearance.* On the model, 6 of the 7 that pressed the torso were
   judged 0.9-3.3 cm through it, and the seventh, begun 1.5 mm in it at 1.3
   N, 1.2 mm deeper (t_0415 at 32.09 s: 56 N); the 9 judged 0.28-2 cm clear
@@ -10535,7 +10539,9 @@ refused "own body" where 7 ways out had pressed it at 36-56 N, the one
 press left t_0415's, a forearm begun on the torso at 5.6 N, at 9 N; no way
 home met the robot's own body in any of them. The pair's recorded day and
 the counter's attempt are the committed fixtures', line for line (their
-charge rows' wall-clock stamps aside). The judgment takes 4.7
+charge rows' wall-clock stamps aside), and the station's checks the base's
+row for row: 39 of 39 approaches docked and unplugged, 140 of 140 seats
+plugged in and out, 20 of 20 lost near docked. The judgment takes 4.7
 ms a way at the median and 12.7 at most, over the 342 recorded.
 
 **What it does not do.** A way home is judged against nothing of the
