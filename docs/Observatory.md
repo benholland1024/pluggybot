@@ -10,6 +10,70 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The table's served words say which left, and where an offer sets its pieces out (#723's option A, R6, `loop-723`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `b4d1ec1f…`, 69,557
+characters, 17 sections, from `75ec76e3…`'s 69,505 at `loop-staging`
+ac2538e8, the table's row alone; R1's periods below are already on that
+tree; the session host's hello unmoved, sha1 `a61b6376…`; no geometry,
+no wire field and no `dataHashes` moved, since neither `challenges.json`
+nor `places.json` is hashed, and no committed recording carries a job):
+- The `set_table` row in the prompt's reward table, "...the fork 19 cm out
+  and 16 cm to the line's left, along it within 15 degrees, its head toward
+  the card; the cup 7 cm out and 24 cm to the line's right. Each must...",
+  reads "...the fork 19 cm out and 16 cm to the line's left (your left as
+  you face the card), along the line within 15 degrees, its head toward the
+  card; the cup 7 cm out and 24 cm to the line's right (your right). Each
+  must...". "Along it" became "along the line" because after the brackets
+  "it" could be read as the card. The `set_table_pass` row, which no mind
+  is shown, says the same.
+- The place's directions (`dining_table_0`), shown with every table offer
+  and every held table job, gain one sentence after "...carrying tag 93 on
+  its face.": "When a job here is offered, the plate, the cup and the fork
+  are set out on the table near the card, none of them where it goes." The
+  last clause belongs to the set-out, so a robot that has laid a piece and
+  reads its held job's directions again is not told that piece is
+  misplaced.
+- The offer's sentence, shown with every table offer and held table job
+  (and on the site's job list), "...the fork 19 cm out, 16 cm left, along
+  the line, head to the card; the cup 7 cm out, 24 cm right. ... The plate,
+  the fork and the cup were set out at t=..., when this job was offered.",
+  reads "...the fork 19 cm out, 16 cm to your left, along the line, head to
+  the card; the cup 7 cm out, 24 cm to your right. ... The pieces were set
+  out at t=..., when this job was offered." At 14 minutes and a six-digit
+  `t` it is 486 of `MAX_DESCRIPTION`'s 500 characters, where it was 491.
+  The pass's sentence, offered by no world, keeps its bare "left" and
+  "right": the same words would take it to 511.
+
+**Why** (#723, from P10's reading of the 11-12, 11-14 and 11-15 wakes).
+The practice's job text for the table says which left the fork's is and
+that the pieces wait near the card, and the served words said neither; they
+now say both, and the cup's side, and that none is where it goes. The line
+runs from the card toward the robot, so "the
+line's left", read as the line's own way, is the robot's right; the
+grader's left is the diner's, which is the robot's as it faces the card.
+On 11-15 Luca wrote "'the line's left' can be read two ways and I'm not
+sure which one the grader means" (t_0414) and spent a 178 s recall on it.
+Told only that the pieces "were set out", Luca read a set-out's plate and
+fork as the place half laid (t_0414) and found too late that all three
+needed moving (t_0405), and Rowan wrote a search for them at the pass as
+well as the table (11-14, t_0271). These cost answers in 4 of the 18 live
+table tries. They are not why the tries ran out: no robot ever had a laying
+procedure accepted, and 61 % of the held time went to writing answers.
+
+**What the period is for.**
+- **Which side a robot lays the fork and the cup on**, and whether its
+  thoughts still ask which left the grader means.
+- **Where a robot looks for the pieces**: on the table near the card, never
+  the pass, and whether it still reads a set-out as the place half laid.
+- ⚠ **A job standing at the deploy keeps the words it was offered with**,
+  its sentence and its directions (both are written into it as it is made):
+  read from the first table offer after the deploy. At a deploy that
+  starts the world over, such an offer keeps its old date too: #659's
+  re-dating knows a kind's words only as its template now writes them.
+- ⚠ **Not to be pooled with the period before for what a robot does at the
+  table**: the job's words moved.
+
 ### The cameras' renderer built at boot, and the memory alarm at two samples (#713's tail, R3, `loop-713b`) — opens when this PR is deployed
 
 **Nothing the robots read or do moved.** A served process builds each

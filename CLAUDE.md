@@ -982,8 +982,14 @@ save a filmstrip PNG named after the script.
   set-outs 0-31 (the bar 24), one pod, the procedure the served lay is. ⚠ ITS LEFT GRIP CARRIES
   ONLY TAKEN HALF A TURN ROUND (#560 (c2)): the reference asks it the other
   way round, tilted 60 deg; each reach is aimed at its grip (#627), a carry
-  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ SERVED, ITS
-  DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
+  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ ITS ROWS AND
+  ITS OFFER SAY EACH SIDE AS THE ROBOT'S OWN AS IT FACES THE CARD -- the
+  grader's left is the diner's -- AND THE PLACE'S DIRECTIONS THAT AN OFFER
+  SETS THE PIECES OUT ON THE TABLE NEAR THE CARD, NONE WHERE IT GOES (#723;
+  two tests read the side off `table.place_frame` and the set-out off
+  `table.measure`): the directions ride every kind's offer there, so a kind
+  a world offers that sets them out elsewhere, the pass's, moves those
+  words. ⚠ SERVED, ITS DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
   `place`): a metre under the floor, contacts off -- ⚠ the BODY's
   broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
   second) -- weight held (`gravcomp`), in `cull.PARKED_GROUP` -- ⚠ EVERY
