@@ -213,9 +213,9 @@ def test_the_pass_plate_is_brought_back_from_the_pass_by_a_position_move():
   waist turn, traced). By `move_hand`, one posture for the whole path (a
   crouch, no bow), the plate taken from 0.50 m and brought back to 0.23
   stood in 32 of 32 and laid 23 where the table check's stance laid 17
-  (SimNotes, "The place laid from the pass"). Off the reference's own
-  source: what the plate's hand does after the lift that takes it off the
-  pass is a position move."""
+  (SimNotes, "The place laid from the pass"); since round 5 in two such
+  moves (the next test). Off the reference's own source: what the plate's
+  hand does after the lift that takes it off the pass is a position move."""
   from pluggybot.challenge import solutions
   moves = _hand_moves(solutions.PROCEDURES["set_table_pass"][1], "left")
   shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the plate at the pass")
@@ -297,13 +297,13 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(mo
   middle (`near` lands it 0.12-0.32 m out) took a posture with the waist
   turned 30-60 deg for that path: it held back, tipped the plate 19-44 deg
   in its jaws (then let go on the walk) or fell, the pelvis coming
-  0.25-0.29 m toward the pass (round 4's reading; 3 of 64 plate legs on dev
-  draws, and with the grip set 6 cm nearer the middle on purpose, 5 falls,
-  11 plates dropped and 16 laid of 32). In two moves, halfway first, the
-  last ending no nearer the middle than `PASS_PLATE_LEFT`, each path is
-  reached in a crouch at most: 27 of those 32 laid, no fall, 4 dropped
-  (SimNotes, "The place laid from the pass"). Off the reference's own
-  source, run by the language for grips round where it grips."""
+  0.25-0.29 m toward the pass (round 4's kitchen_22; on round 5's tree 3 of
+  64 plate legs on dev draws, and with the grip set 6 cm nearer the middle
+  on purpose 7 falls, 29 plates dropped and 27 laid of 64). In two moves,
+  halfway first, the last ending no nearer the middle than
+  `PASS_PLATE_LEFT`: 52 of those 64 laid, no fall, 8 dropped (SimNotes,
+  "The place laid from the pass"). Off the reference's own source, run by
+  the language for grips round where it grips."""
   from pluggybot.challenge import solutions
   for gx in (0.43, 0.47, 0.51):
     for gy in (0.12, 0.2, 0.3, 0.36):

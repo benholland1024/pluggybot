@@ -8279,15 +8279,16 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
     the pelvis came 0.25-0.29 m toward the pass and the robot fell. That was
     round 4's kitchen_22, and on today's tree 3 of 64 plate legs fell so
     (50 laid, 8 plates dropped carried). To size it, the grip was set 6 cm
-    nearer the middle on purpose (`near` aimed so, dev draws 3100-3131):
-    there 16 of 32 were laid, 5 fell and 11 plates were dropped. Now the
+    nearer the middle on purpose (`near` aimed so, dev draws 3100-3163):
+    there 27 of 64 were laid, 7 fell and 29 plates were dropped. Now the
     plate comes back halfway first, then to 0.23 m no nearer the middle
-    than 0.25 m (`PASS_PLATE_LEFT`), and each path is reached in a crouch
-    at most: 55 of 64 laid (no fall, 6 dropped), and with the grip moved 27
-    of 32 (no fall, 4 dropped). Two moves straight back took the falls out
-    but not the rest (56 of 64; with the grip moved 21 of 32, 8 dropped and
-    10 held back). One move to the floor laid 45 of 54 with the grip moved,
-    and fell once, on the walk after the hand-over.
+    than 0.25 m (`PASS_PLATE_LEFT`): 55 of 64 laid (no fall, 6 dropped),
+    and with the grip moved 52 of 64 (no fall, 8 dropped). Two moves
+    straight back took the falls out but not the rest (56 of 64; with the
+    grip moved, on its first 32 draws, 21 where two moves to the floor laid
+    27: 8 dropped and 10 held back). One move straight to the floor laid 55
+    of the 64 with the grip moved, and fell once, on the walk after the
+    hand-over.
   - **Two levers that read well on their legs and not in whole places**,
     frozen with the plate's in 1c4fabe and taken back out (the bar's
     readings, above):
@@ -8334,10 +8335,10 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
     once it fell, once the cup was set down 14 cm off.
   - **Named, not flown:** the first of the plate's two moves keeps the
     grip's own place across, and with the grip moved 6 cm nearer the middle
-    3 of 32 still bowed 0.55-0.8 rad with the waist turned there (the hand
-    reading the grip 0.11-0.12 m out; one held back, none fell); and `near`
-    lands the plate's grip anywhere 0.12-0.32 m out, where steadying it
-    would serve every leg that reaches from its stance.
+    about 1 in 12 still bowed 0.55-0.8 rad with the waist turned there (the
+    hand reading the grip 0.08-0.13 m out; two held back, none fell); and
+    `near` lands the plate's grip anywhere 0.12-0.32 m out, where steadying
+    it would serve every leg that reaches from its stance.
 
 ## The arms keep off the other robot (issue #678)
 

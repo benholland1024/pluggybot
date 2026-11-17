@@ -356,8 +356,11 @@ PASS_PLATE_BACK = 0.23
 #: (`near` lands it 0.12-0.32 m out, half of them under 0.25) was brought
 #: straight back to 0.23 m in a posture with the waist turned 30-60 deg, and
 #: held back, tipped the plate in its jaws or fell (SimNotes, "The place laid
-#: from the pass"). The pull-back goes halfway first, then here, each path
-#: reached in a crouch at most.
+#: from the pass"). The pull-back goes halfway first, then here, a path
+#: reached in a crouch at most (the first, from a grip read 0.08-0.13 m out,
+#: still bowed with the waist turned about once in 12, and never fell). It
+#: is the grip's place as `near`'s aim and the reach's offset across leave
+#: it: retune those and this with them.
 PASS_PLATE_LEFT = 0.25
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
