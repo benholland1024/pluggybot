@@ -413,19 +413,18 @@ def test_a_walks_report_says_an_arm_it_went_with_where_its_way_home_was_held():
   assert rep["ok"] and rep["armHeld"] == ["right"], rep
 
 
-def test_an_arm_left_held_is_no_hand_at_work_and_rests():
+def test_an_arm_left_held_is_saved_through_but_never_rested_with():
   """An arm left where its way home was held (phase "held") keeps its
   command where it is held, kept across a restart (`Reach.KEPT`), and moves
-  until a withdraw or a walk: the world saves through it, and the robot
-  rests and is asked aside with it, the aside's hand-over sending it home
-  again -- as a carried hand (#682)."""
+  until a withdraw or a walk: the world saves through it, as through a
+  carried hand (#682) -- but the robot does not rest with it, so is never
+  asked aside: an aside takes no arm home first, and would walk it there."""
   from pluggybot.humanoid import reach as rc
-  from pluggybot.humanoid.way import HumanoidWay
   body = body_for(*_floor())
   try:
     body.mission.reach.phase["left"] = "held"
     assert not body.working
-    assert not body.mission._hand_out()
+    assert body.mission._hand_out()
     assert {"homing", "held_for", "lifted"} <= set(rc.Reach.KEPT)
   finally:
     body.close()

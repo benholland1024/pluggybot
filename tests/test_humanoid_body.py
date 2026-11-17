@@ -241,6 +241,9 @@ class _Homing:
   def held(self, side) -> bool:
     return False
 
+  def home_over(self, side) -> bool:
+    return not (self.homing[side] and self.phase[side] == "rest")
+
   def drop_carry(self, side) -> None:
     self.carry_q[side] = None
 

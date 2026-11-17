@@ -49,7 +49,7 @@ from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandDriver, StandPolicy)
-from pluggybot.humanoid.reach import Reach
+from pluggybot.humanoid.reach import AT_EASE, Reach
 from pluggybot.humanoid.scan import HeadScan
 from pluggybot.humanoid.senses import Noise
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
@@ -702,8 +702,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       # something holds it (`Reach.HELD_S`, #693's family: read home by its
       # command alone, a walk walked a jaw on a counter's top), which the walk
       # carries as it is, pressing on nothing, and says so (`Body.arm_held`)
-      while (any(p not in ("rest", "carried", "held") for p in self.reach.phase.values())
-             or any(self.reach.homing[s] and self.reach.phase[s] == "rest" for s in hm.SIDES)
+      while (any(p not in AT_EASE for p in self.reach.phase.values())
+             or not all(self.reach.home_over(s) for s in hm.SIDES)
              or not self.stand.settled or not self.reach.waist_home()):
         yield STILL
         self._after_step()

@@ -27,7 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, V_MIN,
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
-from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
@@ -583,7 +583,7 @@ class HumanoidBody(Body):
     let-go, and saves held through it, a crash rolled the world back -- nor
     an arm left where its way home was held (`Reach.HELD_S`), its command
     kept where it is held, which lasts until a withdraw or a walk."""
-    return any(p not in ("rest", "carried", "held") for p in self.reach.phase.values())
+    return any(p not in AT_EASE for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:

@@ -858,14 +858,42 @@ def test_an_arm_its_drivers_read_home_ends_its_way_home_there(monkeypatch):
   from pluggybot.humanoid import reach as rc
   r = _stepped(_standing_reach())
   held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  assert not r.home_over("left"), "its command at the rest, its drivers not yet read"
   r.sensed[r.self_model.arm["left"]] = r.rest["left"] + 0.5 * rc.HOME_RAD
   r._update(0.01)
-  assert r.phase["left"] == "rest" and not r.homing["left"]
+  assert r.phase["left"] == "rest" and not r.homing["left"] and r.home_over("left")
   r.sensed[r.self_model.arm["left"]] = held_at
   for _ in range(int(round(2 * rc.HELD_S / 0.01))):
     r._update(0.01)
   assert r.phase["left"] == "rest" and np.allclose(r.q_cmd["left"], r.rest["left"]), \
     "an arm at rest moved by something else was taken for a way home held"
+
+
+def test_a_way_home_held_with_another_robot_by_is_never_raised(monkeypatch):
+  """#678: a verb's way home is refused where every way would meet another
+  robot's body; one judged from the top of a raise would take the way that
+  comes least near it. With a robot by (`keep_out`), a held way home is left
+  where it is held at once."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  r.keep_out = [(0.1, -0.61)]
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and r.lifted["left"] == 0 and np.allclose(r.q_cmd["left"], held_at)
+
+
+def test_an_arm_left_held_keeps_the_stand_from_no_other_arm():
+  """The review of #693's family: the stand's return waits on every arm at
+  ease (`AT_EASE`) -- an arm left held among them, as a carried one: kept
+  out of it, the other arm's way home kept the robot bowed over the counter."""
+  from pluggybot.humanoid import reach as rc
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  r.phase["left"] = "held"
+  # ...the right arm where the left was at the lever, mirrored
+  asked = _set_off(r, "right", rc.seed("right", AT_THE_LEVER))
+  assert r.stand_home and not asked, "the premise: the stand kept for the arm's home"
+  assert ((0.0, 0.0, 0.0), "rest") in _homed(r, "right"), "the stand never came back"
 
 
 def test_a_carrys_way_ends_at_its_pose_never_waiting_to_be_read_home():
