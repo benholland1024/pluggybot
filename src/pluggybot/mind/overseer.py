@@ -4283,8 +4283,11 @@ class Overseer:
                        daemon=True).start()
 
   def _refuse(self, state: dict) -> str:
-    why = self._refusal()
-    if why == "idle-run":
+    if self.budget_left() <= 0:
+      return "budget"
+    if not self._allowance_ok():
+      return "allowance"
+    if self._idle_run >= MAX_IDLE_RUN:
       # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
       # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
       #
@@ -4299,30 +4302,12 @@ class Overseer:
       # fallbacks, arrived at from the other side: there, fallbacks fed the
       # streak; here, nothing could drain it.
       self._idle_run = 0
-    return why
-
-  def _refusal(self) -> str:
-    """Why a call started now would not be made, or "": `_refuse`'s gates,
-    read and never moved (the budget forgets calls past their hour as it
-    counts, which moves no answer)."""
-    if self.budget_left() <= 0:
-      return "budget"
-    if not self._allowance_ok():
-      return "allowance"
-    if self._idle_run >= MAX_IDLE_RUN:
       return "idle-run"
     if self.clock() < self._cooloff_until:
       return "cooloff"
     if self.client is None:
       return "no-client"
     return ""
-
-  def can_ask(self) -> bool:
-    """Would a decision started now go to the model, as far as this side can
-    tell? Not where `_refusal` says why not, nor with a call still out; an
-    endpoint that does not answer is found only by asking."""
-    with self._lock:                        # as `start` reads them
-      return not self._in_flight and not self._refusal()
 
   @property
   def pending(self) -> bool:

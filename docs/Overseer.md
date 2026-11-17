@@ -2874,52 +2874,26 @@ and not in `DECIDED_OUTCOMES` (what a mind may say): in the grammar it would
 be a free excuse indistinguishable on the wire from the truth. Best effort —
 anything unreported at mission end dies with the process.
 
-**A wake hears a message at once, and a charge's hold does not keep one
-waiting** (rooftop-media-2026 #518). The site relays a message only while
-the stream's `accepts` names its kind, and the header's list is the
-switch's at the CONNECT: a link opened while paused (the schedule's night,
-a deploy or a reconnect into a pause) named none for its whole life. From
-2026-10-29 to 11-15, six messages waited 58-93 minutes for delivery while
-their robots were awake and deciding, each delivered within a second of
-the next run's start (reproduced on a local site). Every `mode` message now
-carries `accepts` as the switch leaves it (protocol/README.md). And a
-`message_received -> ask` row waited behind a charge, which held one answer
-43 minutes on 10-29 (no decision in between, the pack at 0.89 after);
-charges on 11-07 and 11-08 ran 74 and 85 minutes from the decision to the
-next. A charge's hold now ends with its plug in once a person's message has
-come (never the other robot's `tell`, nor a rating, a reach-in or a
-ticket's line, which wait in the same queue for code) that the model was
-not shown at its last ask (a fallback that made no call heard nothing), the
-agent's map asks on a message (a `message_received -> ask` row: without
-one, a message never moves when it is asked, #518's review), an ask is
-waiting -- any: with a periodic ask in the map's one slot, the message's
-own row fails `busy` -- and the model would be asked
-(`HubLifecycle._spoken_to`, `Overseer.can_ask`, the idle-run throttle
-among its gates; Ben, 2026-11-16: a robot may answer while it charges); a
-fallback's order could walk off with a part-charged pack for an answer
-nobody gives. Nothing is banked there: a row cut at a chat read as a
-charge that failed (`CHARGE_OK_FRAC`), and carried to the next charge it
-counted the think and the idle and was lost at a run's end. So the part
-before the message is in no `charge` row (the frames' battery has it), and
-the `charge` that takes it up banks its own. History says "charge: stopped
-at N% for a message, my plug still in". A message that
-comes while the model thinks is news again: the model hears what it was
-shown at the ask. One a fallback that made no call answered (a cooloff, a
-spent purse, `busy`) is news still; one a FAILED call answered is news for
-one retry (`_news_retried`, given back by an answer, #518's reviews): the
-map hears it again (`_seen_visitors` forgets it) and its `message_received
--> ask` asks, since the failed ask took the queued one and news with no ask
-waiting ends no hold. Kept every time, an outage failed every ask until its
-cooloff and each hold it ended was a charge cut for nothing; dropped at
-once, a one-off cut-off left its person waiting out the charge. What the
-model was shown is the state's `visitorMessages`, never a second peek: a
-message the socket queued while the context was built was never shown. Only a `message` is somebody speaking: a rating, a reach-in or
-a ticket's line waits in the same queue for code, and neither fires
-`message_received` nor is news.
-The mind is asked plugged in, as at a run's end
-(#654): a `charge` goes straight on, what stands still leaves the plug in,
-and what moves takes it out first. The walk to the station and a wait for
-a taken one still hold the ask.
+**A wake hears a message at once** (rooftop-media-2026 #518). The site
+relays a message only while the stream's `accepts` names its kind, and the
+header's list is the switch's at the CONNECT: a link opened while paused
+(the schedule's night, a deploy or a reconnect into a pause) named none for
+its whole life. From 2026-10-29 to 11-15, six messages waited 58-93 minutes
+for delivery while their robots were awake and deciding, each delivered
+within a second of the next run's start (reproduced on a local site). Every
+`mode` message now carries `accepts` as the switch leaves it
+(protocol/README.md). ⚠ A charge's hold still keeps a message waiting: a
+`message_received -> ask` row waits behind it, which held one answer 43
+minutes on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from
+the decision to the next. Answering while charging (Ben, 2026-11-16) was
+built (the hold ended with the plug in on a person's message) and taken
+out unfinished before the wake of 11-18: six review rounds each found real
+defects in it, the worst a failed call's fallback unplugging a robot at a
+low pack. Its rebuild's brief is #518's issue draft from the loop of 11-17.
+⚠ Only a `message` is somebody speaking: a rating, a reach-in or a
+ticket's line waits in the same queue for code, and fires no
+`message_received` (a map's `message_received -> ask` paid a call for
+one).
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,

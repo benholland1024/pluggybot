@@ -66,14 +66,13 @@ and History is read by everyone watching (Ben's to revisit).
 memory holds every conversation); how often it `say`s now that a `say`
 is to everyone and in nobody's conversation.
 
-### A wake hears a visitor's message at once, a charge's hold ends on one, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13, `loop-chat`) — opens when this PR is deployed
+### A wake hears a visitor's message at once, a rating is nobody speaking, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13 and R1, `loop-chat`, `loop-chat2`) — opens when this PR is deployed
 
 **The prompt does not move** for this period's changes (they hold at
 `loop-staging` 3e000d65's `91f1a7bd…` and 1170bf3d's `a38f86a9…`; the
 period above moves it; the session host's hello is unmoved, sha1
-`a61b6376…`). What reaches the robots (a message at
-the wake, an ask mid-charge, one History line) and what reaches visitors
-does:
+`a61b6376…`). What reaches the robots (a message at the wake, fewer
+asks) and what reaches visitors does:
 - **Every `mode` message carries `accepts`** as the switch leaves it
   (`recorder.heard`, `mode_message(accepts=)`, `attach_mode_stream`;
   protocol/README.md). The header's list is the switch's at the connect,
@@ -86,28 +85,13 @@ does:
   start; reproduced on a local site, the sim and the site at today's trees.
   ⚠ The site's half (rooftop branch `loop-chat`) is what reads the field:
   deployed before it, this period's sim changes nothing a visitor sees.
-- **A charge's hold ends on a visitor's message** (`HubLifecycle._spoken_to`,
-  `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a person's
-  message has come that the model was not shown at its last ask (never the
-  other robot's `tell`, nor a rating, a reach-in or a ticket's line), in a
-  map whose first row for one asks (`message_received -> ask`; both
-  deployed maps hold one), with an ask waiting in the map's slot (any:
-  behind a periodic ask, the message's own row fails `busy`) and a model
-  that would be asked (no cooloff, budget, purse or idle-run throttle
-  refusing, the switch on `llm`; news again after a fallback that made no
-  call, and after a failed call for one retry; ⚠ and `message_received` no
-  longer fires for a rating, a reach-in or a ticket's line, which paid a
-  call with no message to answer), the hold ends with the
-  plug in and the loop asks at once, the robot plugged in as at a run's end
-  (#654). Nothing is banked there (a row cut at a chat read as a failed
-  charge): the part before the message is in no `charge` row, and the
-  `charge` that takes it up banks its own; History says "charge:
-  stopped at N% for a message, my plug still in", a narration line says
-  "CHARGE: a message came in at N% -- my plug stays in while I answer",
-  and the robot's next turn is asked by `message_received` while it is
-  plugged in. Before, the ask waited for the charge's end: 43 minutes once
-  on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
-  decision to the next.
+- **`message_received` fires for a `message` alone**, never a rating, an
+  admin's reach-in or a ticket's line, which wait in the same queue for
+  code to drain between errands: a map's `message_received -> ask` paid a
+  call for one, with no message to answer. ⚠ Answering while charging (Ben,
+  2026-11-16) was built here and taken out unfinished before the wake of
+  11-18 (six review rounds each found real defects): a charge's hold still
+  keeps a message waiting until the charge ends.
 - **A field's name with the form's separators on it reads as empty** in
   a field of its own, never an object's or a label's
   (`overseer.FORM_MARKS`: `,` `:` and braces; `_form_name`): Rowan said
@@ -119,9 +103,8 @@ does:
 **What to read off it.** A message's wait from `pw_messages` (`createdAt`
 to `deliveredAt` and `settledAt`; ⚠ `deliveredAt` is the LAST delivery's,
 overwritten by each re-delivery, and `deliveries` counts the flushes): at a
-wake none should wait for a run's start. A charge's hold a message ended
-is a `CHARGE: a message came in` narration line with a decision asked by
-`message_received` after it, the plug still in.
+wake none should wait for a run's start. A message sent during a charge
+waits for its end, as before.
 
 ### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3 and R2, `loop-719c`) — opens when this PR is deployed
 

@@ -52,8 +52,8 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  SAY_EVERY_S, THINK_SLICE_S, call_said, fallback_class, left_out_said,
-  order_runnable, say_again_in,
+  SAY_EVERY_S, THINK_SLICE_S, call_said, left_out_said, order_runnable,
+  say_again_in,
 )
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
@@ -1158,16 +1158,6 @@ class HubLifecycle:
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
-    #: ...and whether one has arrived since the model was last asked, which
-    #: a charge's hold ends on (`_spoken_to`). Not kept across a restart, as
-    #: the inbox is not: what the site delivers again is news to the next.
-    self._heard_new = False
-    #: ...and the ids the model was shown at its last ask, which are no news.
-    self._shown_visitors: set[str] = set()
-    #: ...and whether a FAILED call has already put that news back once: it
-    #: is put back for one more ask, never for every ask an outage fails, and
-    #: only an answer (or a true death) gives the retry back.
-    self._news_retried = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -1938,9 +1928,6 @@ class HubLifecycle:
       self._interrupt_pending = None
       self._occurred.clear()
       self.event_clock = ev.EventClock()
-    # ...and no message the old robot was sent is news to the new one's
-    # charge, and the new one has its retry (#518)
-    self._heard_new = self._news_retried = False
     self.true_deaths.append({"t": round(t, 3), **archived})
     # ⚠ THE NEXT ROBOT IS ASKED (issue #303): the rule is "until the mind
     # has answered for itself", and the mind that answered is archived with
@@ -2678,36 +2665,6 @@ class HubLifecycle:
     finishes, and nothing is left plugged in for nobody."""
     return self.continuing and self.data.time >= getattr(self, "max_sim_time", math.inf)
 
-  @property
-  def _spoken_to(self) -> bool:
-    """Has a visitor's message arrived since the model was last asked, an
-    `ask` waiting and a mind there to answer? A charge's hold ends on it
-    with its plug in (Ben, 2026-11-16: a robot may answer while it charges;
-    rooftop-media-2026 #518, Overseer.md §10), and the mind is asked plugged
-    in, as at a run's end (#654): a `charge` goes straight on, what stands
-    still leaves the plug in, and what moves takes it out first.
-
-    ⚠ ANY ask, never the message's own row alone: the map queues one row,
-    and with a periodic ask waiting the message's fails `busy`, once. ⚠ AND
-    ONLY WHERE THE MODEL WOULD BE ASKED (`Overseer.can_ask`, the switch's
-    mode): its fallback's order may move the body, and cut a charge short
-    for an answer nobody gives."""
-    row = self.queued_row
-    return (self._heard_new and row is not None and row.action == ev.ASK
-            and self.overseer is not None
-            and self._asks_on_messages
-            and (self.mode is None or self.mode.thinking)
-            and self.overseer.can_ask())
-
-  @property
-  def _asks_on_messages(self) -> bool:
-    """The agent's map asks it when a message comes, by its first row for
-    one, as the clock reads it (#518's review): otherwise a message never
-    moves when it is asked -- the map is the whole of that (Overseer.md "The
-    event map")."""
-    row = self.event_map.first("message_received") if self.event_map is not None else None
-    return row is not None and row.action == ev.ASK
-
   # ---- phases --------------------------------------------------------------
 
   # ---- the branches, as routines (issue #58) --------------------------------
@@ -3002,15 +2959,6 @@ class HubLifecycle:
                     "my plug stays in", doing="CHARGE: the run's time is up -- my plug stays in")
           if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
-          return
-        if self._spoken_to:
-          # ⚠ NOTHING BANKED: a row cut here reads as a charge that failed
-          # (`CHARGE_OK_FRAC`). The `charge` that takes it up banks its own
-          # (Overseer.md §10).
-          frac = f"{self.battery.fraction:.0%}"
-          self._say(f"CHARGE: a message came in at {frac} -- my plug stays in "
-                    "while I answer", doing="CHARGE: a message came in -- my plug stays in")
-          self._remember(f"charge: stopped at {frac} for a message, my plug still in")
           return
         yield from self.body.dock_hold_routine(0.25)
         if not self.charging_now:
@@ -5503,10 +5451,6 @@ class HubLifecycle:
         if msg.kind != "message" or msg.id in self._seen_visitors:
           continue
         self._seen_visitors.add(msg.id)
-        # ...a person's (never the other robot's `tell`) that the model was
-        # not shown at its last ask (#518)
-        if msg.sender == text_registry.VISITOR and msg.id not in self._shown_visitors:
-          self._heard_new = True
         self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
@@ -6067,42 +6011,10 @@ class HubLifecycle:
         self._after_decision_routine(decision))
       return
     lives = len(self.true_deaths)
-    # What the model is shown it hears, at the ASK: a message that comes
-    # while it thinks is news again (`_spoken_to`), and a fallback heard
-    # nothing at all.
-    shown, self._heard_new = self._heard_new, False
-    shown_ids = self._shown_visitors
-    # ⚠ WHAT THE STATE HOLDS, never a second peek (#518's fifth review): one
-    # the socket queued while the context was built was never shown.
-    self._shown_visitors = {m.get("id", "") for m in state.get("visitorMessages", ())}
     self.overseer.start(state)
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
-    if decision.scripted and len(self.true_deaths) == lives:
-      # A fallback heard nothing: what the ask was to show is news again.
-      # One that made no call (a policy's, `busy` behind a call still out,
-      # `no-client`) every time: `can_ask` holds off a hold's end while it
-      # stands. ⚠ A FAILED CALL'S ONCE, a retry (#518's reviews): an outage
-      # fails every ask until its cooloff, and news kept would cut every
-      # charge for nothing, where a one-off cut-off left its person waiting
-      # out the charge (Overseer.md §10).
-      no_call = (fallback_class(decision.source) == "policy"
-                 or decision.source in ("fallback:busy", "fallback:no-client"))
-      came = self._shown_visitors - shown_ids
-      if no_call or not self._news_retried:
-        if not no_call and (shown or came):
-          self._news_retried = True
-          # ...and the map hears them again, so its `message_received ->
-          # ask` asks again (#518's fifth review: the failed ask took the
-          # queued one, and news with no ask waiting ended no hold). Never
-          # after a policy's: refused again at once, it would ask for ever.
-          if self._asks_on_messages:
-            self._seen_visitors -= came
-        self._heard_new = self._heard_new or shown
-        self._shown_visitors = shown_ids
-    elif not decision.scripted:
-      self._news_retried = False
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
       # or an unpaid bill lands mid-think): the answer is its own, and none
