@@ -301,6 +301,53 @@ def test_a_tip_is_read_off_the_posture_its_legs_hold_whichever_way():
     assert tipped(att.matrix().T @ down, 0.0) == att.tilt()
 
 
+def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(head):
+  # The lobby (#679's comment of 11-15): its head on a wall it had bowed
+  # into, the trunk was thrown back from a 26 deg bow to 12.5 deg behind
+  # upright, 38 deg off the bow, and the watch handed the body to the
+  # get-up there. A trunk is tipped past every posture between upright and
+  # the one its legs hold: between the two by its roll alone, behind
+  # upright by its tilt, past the bow as it always was -- and at the stand
+  # and under the walker, the IMU's tilt to the bit.
+  from pluggybot.humanoid.getup import FALL_TILT_RAD, FallWatch, tipped, tipped_past
+  from pluggybot.humanoid.policy import TrunkSense
+  from pluggybot.humanoid.senses import JointSense
+  from pluggybot.perception.imu import Attitude
+  down = np.array([0.0, 0.0, -1.0])
+  for pitch in (0.45, 1.1):
+    for own in (0.0, -0.218, -0.6):
+      g = _turn((0.0, 1.0, 0.0), own).T @ down
+      assert tipped_past(g, pitch) == pytest.approx(-own, abs=1e-9), (pitch, own)
+    rolled = _turn((1.0, 0.0, 0.0), 0.3) @ _turn((0.0, 1.0, 0.0), pitch / 2)
+    assert tipped_past(rolled.T @ down, pitch) == pytest.approx(0.3, abs=1e-9)
+    for own in (pitch + 0.1, pitch + 0.7):
+      g = _turn((0.0, 1.0, 0.0), own).T @ down
+      assert tipped_past(g, pitch) == tipped(g, pitch)
+  rng = np.random.default_rng(679)
+  for _ in range(100):
+    q = rng.normal(size=4)
+    att = Attitude(q / np.linalg.norm(q))
+    assert tipped_past(att.matrix().T @ down, 0.0) == att.tilt()
+  model, _ = head
+
+  def leaned(pitch):
+    d = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, d, 0)
+    quat = np.zeros(4)
+    mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
+    d.qpos[3:7] = quat
+    mujoco.mj_forward(model, d)
+    return d, FallWatch(TrunkSense(model, d), JointSense(model))
+
+  d, watch = leaned(math.radians(-12.5))
+  assert tipped(watch.trunk.gravity(), 0.45) > FALL_TILT_RAD          # off the bow: the premise
+  assert not watch.falling(d, 0.45)
+  d, watch = leaned(0.0)
+  assert not watch.falling(d, 1.1)
+  d, watch = leaned(math.radians(-36.0))
+  assert watch.falling(d, 0.45)
+
+
 def _posed(model, height: float, pitch: float):
   """The body standing as the standing policy holds a posture: the
   statue's legs for it (`reach.static_legs`) and the trunk pitched."""
