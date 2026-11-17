@@ -1165,7 +1165,8 @@ class HubLifecycle:
     #: ...and the ids the model was shown at its last ask, which are no news.
     self._shown_visitors: set[str] = set()
     #: ...and whether a FAILED call has already put that news back once: it
-    #: is put back for one more ask, never for every ask an outage fails.
+    #: is put back for one more ask, never for every ask an outage fails, and
+    #: only an answer (or a true death) gives the retry back.
     self._news_retried = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
@@ -1938,8 +1939,8 @@ class HubLifecycle:
       self._occurred.clear()
       self.event_clock = ev.EventClock()
     # ...and no message the old robot was sent is news to the new one's
-    # charge (#518)
-    self._heard_new = False
+    # charge, and the new one has its retry (#518)
+    self._heard_new = self._news_retried = False
     self.true_deaths.append({"t": round(t, 3), **archived})
     # ⚠ THE NEXT ROBOT IS ASKED (issue #303): the rule is "until the mind
     # has answered for itself", and the mind that answered is archived with
@@ -5506,7 +5507,6 @@ class HubLifecycle:
         # not shown at its last ask (#518)
         if msg.sender == text_registry.VISITOR and msg.id not in self._shown_visitors:
           self._heard_new = True
-          self._news_retried = False
         self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
@@ -6072,8 +6072,9 @@ class HubLifecycle:
     # nothing at all.
     shown, self._heard_new = self._heard_new, False
     shown_ids = self._shown_visitors
-    if self.inbox is not None:
-      self._shown_visitors = {m.id for m in self.inbox.peek(VISITORS_SHOWN)}
+    # ⚠ WHAT THE STATE HOLDS, never a second peek (#518's fifth review): one
+    # the socket queued while the context was built was never shown.
+    self._shown_visitors = {m.get("id", "") for m in state.get("visitorMessages", ())}
     self.overseer.start(state)
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
@@ -6088,9 +6089,16 @@ class HubLifecycle:
       # out the charge (Overseer.md §10).
       no_call = (fallback_class(decision.source) == "policy"
                  or decision.source in ("fallback:busy", "fallback:no-client"))
+      came = self._shown_visitors - shown_ids
       if no_call or not self._news_retried:
-        if not no_call and shown:
+        if not no_call and (shown or came):
           self._news_retried = True
+          # ...and the map hears them again, so its `message_received ->
+          # ask` asks again (#518's fifth review: the failed ask took the
+          # queued one, and news with no ask waiting ended no hold). Never
+          # after a policy's: refused again at once, it would ask for ever.
+          if self._asks_on_messages:
+            self._seen_visitors -= came
         self._heard_new = self._heard_new or shown
         self._shown_visitors = shown_ids
     elif not decision.scripted:

@@ -2906,10 +2906,14 @@ at N% for a message, my plug still in". A message that
 comes while the model thinks is news again: the model hears what it was
 shown at the ask. One a fallback that made no call answered (a cooloff, a
 spent purse, `busy`) is news still; one a FAILED call answered is news for
-one retry (`_news_retried`, #518's reviews: kept every time, an outage
-failed every ask until its cooloff and each hold it ended was a charge cut
-for nothing; dropped at once, a one-off cut-off left its person waiting out
-the charge). Only a `message` is somebody speaking: a rating, a reach-in or
+one retry (`_news_retried`, given back by an answer, #518's reviews): the
+map hears it again (`_seen_visitors` forgets it) and its `message_received
+-> ask` asks, since the failed ask took the queued one and news with no ask
+waiting ends no hold. Kept every time, an outage failed every ask until its
+cooloff and each hold it ended was a charge cut for nothing; dropped at
+once, a one-off cut-off left its person waiting out the charge. What the
+model was shown is the state's `visitorMessages`, never a second peek: a
+message the socket queued while the context was built was never shown. Only a `message` is somebody speaking: a rating, a reach-in or
 a ticket's line waits in the same queue for code, and neither fires
 `message_received` nor is news.
 The mind is asked plugged in, as at a run's end

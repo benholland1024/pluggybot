@@ -1880,9 +1880,10 @@ save a filmstrip PNG named after the script.
   it charges): this run's mind is asked at once on the same rules, and
   nothing is banked (the part before the message is in no `charge` row). ⚠
   A fallback that made no call keeps the message news; a FAILED call's, for
-  one retry only (`_news_retried`): kept every time, an outage cut every
-  charge; dropped at once, a one-off cut-off left its person waiting the
-  charge out. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  one retry only (`_news_retried`, given back by an answer): the map hears
+  the message again and asks. Kept every time, an outage cut every charge;
+  dropped at once, a one-off cut-off left its person waiting the charge out.
+  What was shown is the state's `visitorMessages`, never a second peek. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN

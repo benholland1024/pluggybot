@@ -373,31 +373,63 @@ def test_a_failed_call_keeps_a_message_news_for_one_retry_and_no_more():
   so with the endpoint failing (offline, before its cooloff) every later ask
   ended a charge's hold for an answer nobody gave -- and a fallback's order
   may unplug (round 1). Dropped after the first failure, a one-off cut-off
-  left its person waiting out the whole charge (round 4). So a failed call
-  puts it back once: the next ask is a retry, and the one after a failure
-  more is not cut for it. A new message is news again. Shown to fail on
-  each side: restored always, and restored never."""
+  left its person waiting out the whole charge (round 4) -- and news put
+  back with no ask waiting ended no hold either (round 5). So a failed call
+  is retried once: the map hears its message again and asks, and the hold
+  it is in ends for the retry; failed again, the charge runs to full. Shown
+  to fail on the tree before: the second hold ran to full."""
   from test_overseer import FakeClient
+
+  from pluggybot.mind import events as ev
 
   class Down(FakeClient):
     def create(self, **kwargs):
       raise ConnectionError("the endpoint is down")
-  life = _minded()
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
   life.overseer._client, life.overseer._client_ready = Down(None), True
+  came = lambda: sum("a message came in" in ln for ln in life.log)
   _say(life)
-  life._next_events_check = 0.0
-  life._events_step()
-  assert life._heard_new
+  life.body.run(life.charge_routine())
+  assert came() == 1 and life.queued_row is not None
+  life.queued_row = None                         # the loop takes it, and asks
   life.body.run(life._decide_routine())
   assert ov.fallback_class(life.decisions[-1]["source"]) == "failure", life.decisions[-1]
-  assert life._heard_new, "a one-off failure: the next ask is a retry"
-  life.body.run(life._decide_routine())
-  assert not life._heard_new, "failed again: no more holds cut for it"
+  life.body.run(life.charge_routine())
+  assert came() == 2, "the retry: the map heard it again and asked"
+  assert life.charge_cycles == 0
+  life.queued_row = None
+  life.body.run(life._decide_routine())          # failed again
+  life.body.run(life.charge_routine())
+  assert came() == 2 and life.charge_cycles == 1, "no more holds cut for it"
   assert life.overseer.can_ask(), "no cooloff yet: kept, the hold would end again"
   _say(life, 2)
   life._next_events_check = 0.0
   life._events_step()
   assert life._heard_new, "a new message is news"
+
+
+def test_a_message_queued_while_a_call_failed_is_heard_again():
+  """#518's fifth review: a message that reached the inbox just before the
+  ask was in the shown set, and the map saw it while the call was out; the
+  call failed, and the message, seen, was never news again. Shown to fail
+  on the tree before."""
+  from test_overseer import FakeClient
+
+  from pluggybot.mind import events as ev
+
+  class Slow(FakeClient):
+    def create(self, **kwargs):
+      life._next_events_check = 0.0
+      life._events_step()                        # the map sees it mid-think
+      raise ConnectionError("the endpoint is down")
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  life.overseer._client, life.overseer._client_ready = Slow(None), True
+  _say(life, 5)                                  # queued, not yet seen
+  life.body.run(life._decide_routine())
+  assert ov.fallback_class(life.decisions[-1]["source"]) == "failure", life.decisions[-1]
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._heard_new, "the model was never shown it"
 
 
 def test_a_rating_or_a_reach_in_is_nobody_speaking():
