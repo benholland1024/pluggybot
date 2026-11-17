@@ -10416,36 +10416,45 @@ held with the other hand on the lever, however it is approached.
 **No posture while the other hand holds something (option 2).** While the
 left hand is out holding the lever, the right reach plans only in the
 posture the body stands in (`Reach.keep`), and its carries and pulls take
-none. Flown the same way (e0d95f4d; the head, 90a43e9e's code, flies 82 of
-those 83 checked the same to the step, the 83rd a door_p3 flight ending 7 s
-later with the same verdict), door_p3's 48 fell 3 times where today's tree
-fell 11: none of the six in that reach, its three stuck deaths among them;
-two of #693's five gone with the sequences that led to them, the other three
-as before; none new. The right reach is refused, saying the left hand is out
-holding something, and the procedure goes on to its withdraws. It costs one
-pass: at t_0430 r1.55 a300 today's tree opened the door to 58 deg through
-the body's own posture changes, the left jaws on the lever, while its right
-reaches failed; kept, the door never opens. Over Ben's bar, on one pod
-beside 73f8daf, every flight is the base's: 0-31 122 of 160 passed with 5
-falls, 32-127 331 of 416 with 4 (every job the same), the tour's five jobs
-152 of 160 with 1, every slowest pass the same (the table's 280 s, the
-chest's 155, the door's 173, the drawer's 147, the cube's 154); 799 of its
-811 flights are the base's to the step, the 12 that are not all door_p3's,
-where 85 moves were kept; no reference asks a move with the other hand out
-holding something, and #708's stops on `chest_run35` at K4's keys and draws
-321-336 are the same 24 and 37, at the same ticks, with no fall.
+none. The right reach is refused, saying the left hand is out holding
+something, and the procedure goes on to its withdraws. Flown again on
+`loop-staging` 3e000d65, #693's held way home merged, beside it on one pod
+(an EPYC 7K62; `~/pluggybot-training/loop-1117/r2-719c/`): door_p3's 48,
+its two fresh starts and `cube_fix3` fell 3 times where that tree fell 10
+-- none of the five that fall there in that reach, its three stuck deaths
+among them (the sixth on 73f8daf, t_0419 r1.86 a255, no longer falls there);
+two of #693's family gone with the sequences that led to them, the other
+three, ways home judged without the counter (#722), as before; none new;
+no pass on either tree. Over Ben's bar every flight's verdict is the base's:
+0-31 122 of 160 passed with 4 falls, 32-127 334 of 416 with none (every job
+the same, the cube's 64 of 96 #693's), the tour's five jobs 152 of 160
+with 1, every slowest pass the same (the table's 280 s, the chest's 155, the
+door's 173, the drawer's 147, the cube's 154); 799 of its 811 flights are
+the base's to the step, the 12 that are not all door_p3's, where 46 moves
+were kept; no reference asks a move with the other hand out holding
+something, and #708's stops on `chest_run35` at K4's keys and draws 321-336
+are the same 24 and 37, at the same ticks, with no fall. On 73f8daf, before
+#693, it took the door's 11 falls to 3 and lost one pass that #693's merge
+has since lost too: a door the body's own posture changes opened with the
+left jaws on its lever while the right reaches failed.
 
-**What is true now** (`Reach.keep`, `kept_by`, `Body.posture_kept_by`,
-`steps.REACH_KEPT`, `MOVE_KEPT`): while one hand is out at its work and its
-gripper reads it holds something -- its own sensing, never the simulator's
--- a verb's `reach` of the other hand plans only in the posture the body is
-in, its `move_hand` and its `pull` take no new one, a look at its pre-grasp
-none either, and none is planned on their way, all read once as the move is
+**What is true now** (`Reach.keep`, `keeps`, `kept_by`,
+`Body.posture_kept_by`, `hand_reaches(verb=)`, `steps.REACH_KEPT`,
+`MOVE_KEPT`): while one hand is out at its work and its gripper reads it
+holds something -- its own sensing, never the simulator's -- a verb's
+`reach` of the other hand plans only in the posture the body is in, its
+`move_hand` and its `pull` take no new one, a look at its pre-grasp none
+either, and none is planned on their way, all read once as the move is
 asked; a reach or a move that does not reach from it, where another posture
 would, reads false saying so ("your left hand is out holding something, so
 your body keeps the posture it is in, and from it your right hand does not
-reach there"), and never offers the holding hand; the three verbs' texts say
-the rule. A piece carried at the side holds the body in
+reach there"), and never offers the holding hand; what a refusal says of a
+turn the hand might take, and of what the other hand could do, is planned
+as that reach would be -- kept where a hand holds something, so a holding
+hand's refusal never offers the other hand a reach its grip would refuse;
+the three verbs' texts say the rule. `MOVE_KEPT`'s "another posture would"
+is a reach's plan of the end at any turn, never the carry's own path:
+optimistic. A piece carried at the side holds the body in
 nothing, and the loop's own moves (a charge's, a walk's lift) are never
 kept: refused, a charge fails, and a failed charge is a death. The posture
 kept is the one asked where the body stands within `POSTURE_TOL` of it, a

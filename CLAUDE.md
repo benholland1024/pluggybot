@@ -481,8 +481,10 @@ save a filmstrip PNG named after the script.
   deep bow"): a rise and a turn asked with the other hand's jaws on a lever
   tipped the body over backward, in stages too. A piece carried at the side
   holds the body in nothing. One that does not reach from it, where another
-  posture would, says so (`REACH_KEPT`, `MOVE_KEPT`), and the three verbs'
-  texts say the rule. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
+  posture would, says so (`REACH_KEPT`, `MOVE_KEPT`); what a refusal says of
+  a turn or of the other hand is planned as that reach would be, kept where
+  a hand holds something (`Reach.keeps`, `Body.hand_reaches(verb=)`); and the
+  three verbs' texts say the rule. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
   (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the

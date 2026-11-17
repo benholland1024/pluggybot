@@ -33,32 +33,33 @@ characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
   other hand could do); a `move_hand` so refused or that so runs out of
   reach, "your right hand could reach no further that way from the posture
   you are in: your left hand is out holding something, so your body keeps
-  it" (before, "...from any posture you hold"). Where none would, the words
-  are as before, but never what the holding hand could do; a reach kept off
-  another robot says "; your left hand is out holding something" where it
-  said what the other hand's way would do.
+  it" (before, "...from any posture you hold"). A reach so refused that
+  reaches from that posture turned another way goes on " turned as asked;
+  turned another way it can (leave fx..jz at 0 and your arm finds a turn)".
+  Where no posture would reach, the words are as before, but never what the
+  holding hand could do; a reach kept off another robot says "; your left
+  hand is out holding something" where it said what the other hand's way
+  would do. What a refusal says of a turn, or of what the other hand could
+  do, is planned as that reach would be: a hand holding something never
+  offers the other a reach its grip would refuse.
 
-**The change** (`Reach.keep`, `kept_by`; `Body.posture_kept_by`;
-`steps.REACH_KEPT`, `MOVE_KEPT`; SimNotes, "A posture change out of a deep
-bow, with the other hand on a lever"). While one hand is out at its work
-and its gripper reads it holds something, a verb's `reach` of the other
-plans only in the posture the body is in, its `move_hand` and `pull` take no
-new one, a reach's look at its pre-grasp takes none, and no carry or pull
-re-plans one on its way. A piece carried at the side keeps nothing; the
-loop's own moves (a charge's, a walk's lift) are never kept.
+**The change** (`Reach.keep`, `keeps`, `kept_by`; `Body.posture_kept_by`,
+`hand_reaches(verb=)`; `steps.REACH_KEPT`, `MOVE_KEPT`; SimNotes, "A posture
+change out of a deep bow, with the other hand on a lever"). While one hand
+is out at its work and its gripper reads it holds something, a verb's
+`reach` of the other plans only in the posture the body is in, its
+`move_hand` and `pull` take no new one, a reach's look at its pre-grasp
+takes none, and no carry or pull re-plans one on its way. A piece carried
+at the side keeps nothing; the loop's own moves (a charge's, a walk's lift)
+are never kept.
 
-**Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): door_p3
-at its two live draws, the belief 1.55-1.86 m off (48 flights, M12's): 3
-falls where 73f8daf fell 11 -- none of the six in the right reach (three
-stuck deaths), two of #693's five gone, none new -- and one pass lost, a
-door the body's own posture changes had opened with the left jaws on its
-lever. `cube_fix3` falls on neither (#717's keep-off at the knees). Ben's
-bar, every flight the base's: 0-31 122 of 160 passed with 5 falls, 32-127
-331 of 416 with 4 (every job the same), the tour's five jobs 152 of 160
-with 1, every slowest pass the same (the table's 280 s, the chest's 155,
-the door's 173, the drawer's 147, the cube's 154); 799 of its 811 flights
-are the base's to the step, the 12 that are not all door_p3's, where 85
-moves were kept. #708's stops the same.
+**Measured** (one Vast pod, an EPYC 7K62, beside 3e000d65; SimNotes has the
+rest): door_p3 at its two live draws (M12's 48 starts and its two fresh
+ones) and `cube_fix3` fell 3 times where the base fell 10 -- none of the
+five in the right reach (three stuck deaths), none new, no pass on either
+tree. Ben's bar the base's verdict for verdict, 608 of 736 passed with 5
+falls on both; 799 of its 811 flights the base's to the step, the 12 others
+door_p3's. The pair's recorded day is the base's.
 
 **What to read**: the falls in a reach, a `move_hand` or a `pull` of one
 hand with the other holding something (a door's lever, a drawer's handle,
