@@ -597,11 +597,13 @@ class Body(abc.ABC):
     of its model of itself (#493)."""
 
   @abc.abstractmethod
-  def hand_reaches(self, side: str, pos, rot=None) -> bool:
+  def hand_reaches(self, side: str, pos, rot=None, verb: bool = False) -> bool:
     """Whether `reach_routine` would plan a hand's grip to `pos` (the
     believed world frame) at the turn `rot`, or any -- asked of its model of
     itself, nothing moved: what a reach out of reach says of the other hand
-    (#493)."""
+    (#493). `verb`: as a procedure's reach would plan it now, from the
+    posture the body is in alone where the other hand is out holding
+    something (#719); else from any posture."""
 
   @abc.abstractmethod
   def step_routine(self, ahead: float, left: float = 0.0, turn: float = 0.0,
@@ -1285,9 +1287,9 @@ class StubBody(Body):
     """Anywhere: it has no body to be out of reach of."""
     return True
 
-  def hand_reaches(self, side, pos, rot=None) -> bool:
+  def hand_reaches(self, side, pos, rot=None, verb=False) -> bool:
     """Anywhere, but with a hand a test put `out_of_reach` -- or, turned,
-    `unturned`."""
+    `unturned`; no posture is kept."""
     return side not in self.out_of_reach and (rot is None or side not in self.unturned)
 
   def gaze_routine(self, down):

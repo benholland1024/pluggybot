@@ -124,8 +124,8 @@ class _Kept(StubBody):
   def posture_kept_by(self, side):
     return {"right": "left"}.get(side)
 
-  def hand_reaches(self, side, pos, rot=None):
-    return self.elsewhere if side == "right" else super().hand_reaches(side, pos, rot)
+  def hand_reaches(self, side, pos, rot=None, verb=False):
+    return self.elsewhere if side == "right" else super().hand_reaches(side, pos, rot, verb)
 
 
 def test_a_reach_out_of_reach_while_the_other_hand_holds_says_so():
@@ -248,3 +248,80 @@ def test_whose_grip_kept_the_posture_rides_a_restart():
   `_pulled`, `_look`), so a restart keeps it with the reach (`Reach.KEPT`),
   beside #693's way home (`test_carry`'s)."""
   assert "kept_by" in rc.Reach.KEPT
+
+
+# ---- the review of loop-719c: what a refusal says is planned as the reach would be ----
+
+
+def test_the_posture_a_move_would_be_kept_in_is_read_without_recording_it():
+  r = _holding()
+  assert r.keeps("right", True) == BOWED and r.kept_by["right"] is None
+  assert r.keeps("right", False) is None and r.keeps("left", True) is None
+  assert r.keep("right", True) == BOWED and r.kept_by["right"] == "left"
+
+
+def test_a_hand_reaches_as_its_reach_would_plan_it_kept_or_not():
+  """`Body.hand_reaches(verb=True)` plans as a procedure's reach would now:
+  in the posture the body is in where the other hand is out holding
+  something, else in any -- recording nothing."""
+  from types import SimpleNamespace as NS
+  from pluggybot.humanoid import body as hb
+  r = _holding()
+  asked = []
+  r.plans = lambda side, goal, postures=rc.REACH_POSTURES, **kw: asked.append(postures) or True
+  body = NS(reach=r, stance=np.zeros(3), to_stance=lambda p: np.asarray(p, dtype=float))
+  assert hb.HumanoidBody.hand_reaches(body, "right", (0.4, -0.1, 0.8), verb=True)
+  assert hb.HumanoidBody.hand_reaches(body, "right", (0.4, -0.1, 0.8))
+  assert hb.HumanoidBody.hand_reaches(body, "left", (0.4, 0.2, 0.8), verb=True)
+  assert asked == [(BOWED,), rc.REACH_POSTURES, rc.REACH_POSTURES]
+  assert r.kept_by == {"left": None, "right": None}
+
+
+def test_what_a_reach_out_of_reach_says_of_either_hand_is_planned_as_its_reach_would_be():
+  """The turn it might take and what the other hand could do are asked as
+  a procedure's reach would plan them (`verb`): offered from any posture,
+  a hand whose reach the holding hand would keep was offered, and refused."""
+  class Asked(StubBody):
+    def hand_reaches(self, side, pos, rot=None, verb=False):
+      self.asked.append((side, rot is not None, verb))
+      return False
+  body = Asked(*_bare())
+  body.asked, body.out_of_reach = [], {"right"}
+  _fly('def a():\n    reach("right", 0.3, -0.2, 0.9, fx=1.0, jy=1.0)\n', body)
+  assert body.asked == [("right", False, True), ("left", True, True), ("left", False, True)]
+
+
+def test_a_kept_reach_out_of_reach_as_turned_says_whether_another_turn_reaches_from_it():
+  class Turned(_Kept):
+    def hand_reaches(self, side, pos, rot=None, verb=False):
+      # ...from another posture as asked; from the one kept, only turned another way
+      return side == "right" and (not verb or rot is None)
+  body = Turned(*_bare())
+  body.out_of_reach = {"right"}
+  step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9, fx=1.0, jy=1.0)\n', body)["steps"][-1]
+  assert step["reason"] == st.REACH_KEPT.format(hand="right", other="left") + st.TURNED_ELSE
+  body.hand_reaches = lambda side, pos, rot=None, verb=False: side == "right" and not verb
+  step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9, fx=1.0, jy=1.0)\n', body)["steps"][-1]
+  assert step["reason"] == st.REACH_KEPT.format(hand="right", other="left")
+
+
+def test_a_reach_kept_off_judges_the_other_hands_way_as_its_reach_would_be_planned():
+  """Kept off another robot (#678), a reach says what the other hand's way
+  would do: judged in the posture the body is in where this hand holds
+  something (#719), and said off a copy of what the reach kept."""
+  from types import SimpleNamespace as NS
+  from pluggybot.humanoid import body as hb
+  r = _holding()                      # the LEFT hand out, holding
+  off = {"m": 0.9, "x": 0.5, "y": -0.6, "home": False, "back": False}
+  r.kept["left"] = off
+  r.reach = lambda *a, **kw: False
+  judged = []
+  r.clear_way = lambda side, goal, postures=rc.REACH_POSTURES, **kw: judged.append((side, postures))
+  body = NS(reach=r, _why={}, _kept={},
+            mission=NS(keep_out=lambda seen: [], look_round=lambda: None))
+  goal = rc.HandGoal(np.array([0.4, 0.2, 0.9]))
+  assert not hb.HumanoidBody._reached(body, "left", goal, rc.REACH_POSTURES, False, words=True,
+                                      verb=True)
+  assert judged == [("right", (BOWED,))] and body._why["left"] == "kept off"
+  assert not hb.HumanoidBody._reached(body, "left", goal, rc.REACH_POSTURES, False, words=False)
+  assert body._kept["left"] == off and body._kept["left"] is not r.kept["left"]

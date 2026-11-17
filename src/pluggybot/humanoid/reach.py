@@ -1561,18 +1561,24 @@ class Reach:
 
   def keep(self, side: str, verb: bool = False) -> tuple | None:
     """As a hand's reach, carry or pull is asked (#719's option 2): the
-    posture the body is in, where the other hand is out at its work (`out`)
-    and its gripper reads it holds something -- a verb's move, never the
-    loop's own (`verb`: a charge's, a walk's lift) -- else None; which
-    hand held, by side, in `kept_by`, which the move's posture changes on
-    its way read, and every way into them is a move that sets it here. A
-    piece carried at the side (#682) holds the body in nothing. The posture
-    kept is the one it holds where the body is within `POSTURE_TOL` of it,
-    else where it has got to: never a sensed reading in place of the plan
-    for a trunk that only sways."""
+    posture it is kept in (`keeps`), else None; which hand held, by side,
+    in `kept_by`, which the move's posture changes on its way read, and
+    every way into them is a move that sets it here."""
+    kept = self.keeps(side, verb)
+    self.kept_by[side] = None if kept is None else ("left" if side == "right" else "right")
+    return kept
+
+  def keeps(self, side: str, verb: bool = False) -> tuple | None:
+    """The posture a hand's reach, carry or pull asked now would be kept in
+    (`keep`), nothing recorded: the posture the body is in, where the other
+    hand is out at its work (`out`) and its gripper reads it holds something
+    -- a verb's move, never the loop's own (`verb`: a charge's, a walk's
+    lift) -- else None. A piece carried at the side (#682) holds the body in
+    nothing. The posture kept is the one it holds where the body is within
+    `POSTURE_TOL` of it, else where it has got to: never a sensed reading
+    in place of the plan for a trunk that only sways."""
     other = "left" if side == "right" else "right"
     held = verb and self.out(other) and self.grippers[other].held()
-    self.kept_by[side] = other if held else None
     if not held:
       return None
     now = self.posture_now()

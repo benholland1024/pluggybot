@@ -859,12 +859,15 @@ class HumanoidBody(Body):
       if kept is not None:
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
-        # ...and what the other hand's way would do -- or, where that hand holds
-        # something and kept the body in its posture, that it does (#719)
+        # ...and what the other hand's way would do -- planned as its reach
+        # would be, kept where this hand holds something -- or, where that hand
+        # holds something and kept the body in its posture, that it does (#719)
         if words and not follows:
           held = self.reach.kept_by[side] is not None
-          kept = dict(kept, other="holds" if held else self.reach.clear_way(_OTHER[side], goal))
-        self._kept[side] = kept
+          its = self.reach.keeps(_OTHER[side], verb)
+          kept = dict(kept, other="holds" if held else self.reach.clear_way(
+            _OTHER[side], goal, **({} if its is None else {"postures": (its,)})))
+        self._kept[side] = dict(kept)
       return False
     finally:
       self.reach.keep_out = []
@@ -1049,9 +1052,11 @@ class HumanoidBody(Body):
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],
                                rot=self._turns(rot)) is not None
 
-  def hand_reaches(self, side, pos, rot=None) -> bool:
+  def hand_reaches(self, side, pos, rot=None, verb=False) -> bool:
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
-    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0))
+    kept = self.reach.keeps(side, verb)
+    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0),
+                            **({} if kept is None else {"postures": (kept,)}))
 
   def _turns(self, rot):
     """A turn, or a list of them, the believed world frame's, in the stance
