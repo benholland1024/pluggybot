@@ -10299,7 +10299,21 @@ nothing holds the body a stage is held in 0.5-0.75 s; here the trunk cannot
 come up -- the second stage never held, the lever at 87 N -- and the next,
 asked once the wait ran out, loaded it until the body went over. Given up
 where it was not held, 7 of 9 still fell. The posture cannot be held with
-the other hand on the lever, however it is approached. O1_MEASURED
+the other hand on the lever, however it is approached. Flown on all 48
+(4e77ad03: stages of 0.15 and 0.27 rad, pushed on after 2 s, the plan's
+posture after the last), door_p3 fell 14 times where today's tree fell 11
+-- each of today's eleven, some in another verb, and three new; three stuck
+deaths, as today's three though not all the same flights -- and Luca's
+`chest_run35` at its start s2
+fell 118 s in, in a lid carry, where today's tree did not. #708's stops came
+on the same catches, 0.01-0.24 s later where stages came first, none on
+nothing; at
+`chest_run35`'s keys and draws 321-336 26 and 37 stops where today's tree
+stopped 24 and 37. Over Ben's bar, stopped at 436 of its 811 flights once it
+had failed its own (the same pod, beside 73f8daf): at set-outs 0-31 116 of
+159 passed with 5 falls where today's tree passed 122 with 5, and held out
+at 32-127 163 of 202 with 1 where 162 with 4 -- 22 flights moved each way,
+the stages 3.3 a flight.
 
 **What is true now** (`Reach.take_posture`, `staged`, `stages`, `_stage_on`,
 `asked`; `STAGE_PITCH`, `STAGE_WAIST`, `STAGE_WAIT_S`): a posture a

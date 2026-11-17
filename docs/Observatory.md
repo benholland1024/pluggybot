@@ -26,7 +26,12 @@ next; the reach goes in, and a carried or pulled hand moves, only once every
 stage is passed. A procedure's moves alone: the loop's own (a charge's
 plug-in, a walk's lift) ask their postures as before.
 
-**Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): O1_OBS
+**Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf):
+door_p3 at its two live draws, the belief 1.55-1.86 m off (48 flights,
+M12's): 14 falls where 73f8daf fell 11 -- each of its eleven and three new
+-- and `chest_run35` at its start s2 a fall where none; Ben's bar, stopped
+at 436 of 811 flights: 0-31 116 of 159 passed with 5 falls where 122 with 5,
+32-127 163 of 202 with 1 where 162 with 4.
 
 **What to read**: falls in a reach, a `move_hand` or a `pull` out of a deep
 bow; the hand jobs' minutes against the time a reach now takes; a charge's
