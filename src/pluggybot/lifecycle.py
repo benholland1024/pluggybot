@@ -2691,8 +2691,17 @@ class HubLifecycle:
     row = self.queued_row
     return (self._heard_new and row is not None and row.action == ev.ASK
             and self.overseer is not None
+            and self._asks_on_messages
             and (self.mode is None or self.mode.thinking)
             and self.overseer.can_ask())
+
+  @property
+  def _asks_on_messages(self) -> bool:
+    """The agent's map asks it when a message comes (#518's review): with
+    no such row, a message never moves when it is asked -- the map is the
+    whole of that (Overseer.md "The event map")."""
+    rows = self.event_map.rows if self.event_map is not None else ()
+    return any(r.event == "message_received" and r.action == ev.ASK for r in rows)
 
   # ---- phases --------------------------------------------------------------
 
@@ -5485,9 +5494,12 @@ class HubLifecycle:
       for msg in self.inbox.peek(VISITORS_SHOWN):
         if msg.id not in self._seen_visitors:
           self._seen_visitors.add(msg.id)
-          # ...a person's (never the other robot's `tell`) that the model
-          # was not shown at its last ask (#518)
-          if msg.sender == text_registry.VISITOR and msg.id not in self._shown_visitors:
+          # ...a person's MESSAGE (never the other robot's `tell`, nor a
+          # rating, an admin's reach-in or a ticket's line, which wait in
+          # the same queue for code to drain) that the model was not shown
+          # at its last ask (#518)
+          if (msg.sender == text_registry.VISITOR and msg.kind == "message"
+              and msg.id not in self._shown_visitors):
             self._heard_new = True
           self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
@@ -6061,11 +6073,14 @@ class HubLifecycle:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
     if (decision.scripted and len(self.true_deaths) == lives
-        and fallback_class(decision.source) != "failure"):
-      # A policy's fallback heard nothing, refused before anything stepped:
-      # what the ask was to show is news again. ⚠ NOT A FAILURE'S: its
-      # endpoint fails the next ask too until the cooloff, and its news
-      # would cut every charge for nothing (Overseer.md §10).
+        and (fallback_class(decision.source) != "failure"
+             or decision.source == "fallback:busy")):
+      # A fallback that made no call heard nothing, refused before anything
+      # stepped (a policy's, or `busy` behind a call still out, which
+      # `can_ask` waits out): what the ask was to show is news again. ⚠ NOT
+      # A FAILED CALL'S: its endpoint fails the next ask too until the
+      # cooloff, and its news would cut every charge for nothing (Overseer.md
+      # §10).
       self._heard_new = self._heard_new or shown
       self._shown_visitors = shown_ids
     if len(self.true_deaths) != lives:

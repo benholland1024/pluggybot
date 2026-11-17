@@ -2887,8 +2887,11 @@ carries `accepts` as the switch leaves it (protocol/README.md). And a
 43 minutes on 10-29 (no decision in between, the pack at 0.89 after);
 charges on 11-07 and 11-08 ran 74 and 85 minutes from the decision to the
 next. A charge's hold now ends with its plug in once a person's message has
-come (never the other robot's `tell`) that the model was not shown at its
-last ask (a fallback heard nothing), an ask is
+come (never the other robot's `tell`, nor a rating, a reach-in or a
+ticket's line, which wait in the same queue for code) that the model was
+not shown at its last ask (a fallback that made no call heard nothing), the
+agent's map asks on a message (a `message_received -> ask` row: without
+one, a message never moves when it is asked, #518's review), an ask is
 waiting -- any: with a periodic ask in the map's one slot, the message's
 own row fails `busy` -- and the model would be asked
 (`HubLifecycle._spoken_to`, `Overseer.can_ask`, the idle-run throttle

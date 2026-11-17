@@ -86,9 +86,10 @@ does:
 - **A charge's hold ends on a visitor's message** (`HubLifecycle._spoken_to`,
   `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a person's
   message has come that the model was not shown at its last ask (never the
-  other robot's `tell`), with an ask waiting in the
-  map's slot (any: behind a periodic ask, the message's own row fails
-  `busy`) and a model that would be asked (no cooloff, budget, purse or
+  other robot's `tell`, nor a rating, a reach-in or a ticket's line), in a
+  map that asks on a message (`message_received -> ask`; both deployed maps
+  hold one), with an ask waiting in the map's slot (any: behind a periodic
+  ask, the message's own row fails `busy`) and a model that would be asked (no cooloff, budget, purse or
   idle-run throttle refusing, the switch on `llm`), the hold ends with the
   plug in and the loop asks at once, the robot plugged in as at a run's end
   (#654). Nothing is banked there (a row cut at a chat read as a failed

@@ -392,6 +392,50 @@ def test_a_failed_endpoint_never_makes_a_message_news_again():
   assert life.overseer.can_ask(), "no cooloff yet: the hold would end again"
 
 
+def test_only_a_persons_message_ends_a_charges_hold():
+  """#518's third review: every inbound kind waits in one queue until code
+  drains it between errands, and a rating, an admin's reach-in or a
+  ticket's line read as a person's message and ended a charge's hold, its
+  History saying "for a message". Shown to fail without the fix: the
+  rating's arrival set the news."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  life.inbox.offer({"type": "rating", "seq": 3, "quality": 0.5})
+  life.body.run(life.charge_routine())
+  assert not life._heard_new
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+
+
+def test_a_map_that_never_asks_on_a_message_is_never_cut_short_by_one():
+  """#518's third review: the map is the whole of when the agent is asked.
+  With no `message_received` row, a message ended the hold through any
+  other ask queued (a periodic one), which before it waited for the charge
+  to finish. Shown to fail without the fix."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="battery_below", value=0.1, action=ev.ASK))
+  life.queued_row = ev.Row(event="battery_below", value=0.1, action=ev.ASK)
+  _say(life)
+  life.body.run(life.charge_routine())
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  assert not any("a message came in" in ln for ln in life.log)
+
+
+def test_a_busy_fallback_made_no_call_and_keeps_a_message_news():
+  """#518's third review: `busy` is a call still out past its deadline, and
+  this ask made none -- its message is news still, and `can_ask` waits the
+  worker out before a hold ends on it. Shown to fail with `busy` read as
+  the failed call it is classed with."""
+  life = _minded()
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._heard_new
+  life.overseer._in_flight = True                # the last call still out
+  life.body.run(life._decide_routine())
+  assert life.decisions[-1]["source"] == "fallback:busy", life.decisions[-1]
+  assert life._heard_new and not life.overseer.can_ask()
+
+
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():
   """The whole of the decided path: no walk, no dock, the charge on to full
   and its one undock at the end."""
