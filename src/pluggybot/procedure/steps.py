@@ -1182,9 +1182,9 @@ def _reach(life, args: dict) -> Routine:
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   kept_by = life.body.posture_kept_by(hand) if why == "out of reach" else None
   # ...and whether the TURN is what is out of reach, off the same plan as its
-  # reach's (#493: a mind asked both hands for a turn neither makes there,
-  # five tries running, told only that neither could) -- kept, from the
-  # posture kept (#719's review: before, a kept reach said nothing of it)
+  # reach's, a kept one's from the posture kept (#493: a mind asked both
+  # hands for a turn neither makes there, five tries running, told only that
+  # neither could)
   turned = lambda: rot is not None and life.body.hand_reaches(hand, place, verb=True)  # noqa: E731
   if kept_by and life.body.hand_reaches(hand, place, rot):
     # ...no other posture while the other hand holds something (#719), where
@@ -1206,8 +1206,8 @@ def _reach(life, args: dict) -> Routine:
     # first tries took the right hand to a knob on the robot's left) --
     # turned another way too: "nor could your left hand, as asked" was read
     # as out of reach standing, and an arm stepped beside the box 59 tries.
-    # Planned as its reach would be: kept where this hand holds something
-    # (#719's review: offered from any posture, the reach was refused)
+    # Planned as its reach would be, kept where this hand holds something
+    # (#719): from any posture, the hand offered may be refused
     if life.body.hand_reaches(other, place, rot, verb=True):
       reason += f"; your {other} hand could reach it as asked"
     elif rot is not None and life.body.hand_reaches(other, place, verb=True):

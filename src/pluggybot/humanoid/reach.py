@@ -324,6 +324,8 @@ AT_EASE = ("rest", "carried", "held")
 #: and for rest (`HumanoidWay._hand_out`): an arm left held is one -- an
 #: aside takes no arm home first.
 NOT_OUT = ("rest", "carried")
+#: Each hand's other, by side (`keep`).
+OTHER_SIDE = {"left": "right", "right": "left"}
 #: The way OUT is judged so from its other end (`way_out`, #560): straight, a
 #: hanging hand at a table 13 cm out was driven into its top at 353-359 N.
 
@@ -1565,7 +1567,7 @@ class Reach:
     in `kept_by`, which the move's posture changes on its way read, and
     every way into them is a move that sets it here."""
     kept = self.keeps(side, verb)
-    self.kept_by[side] = None if kept is None else ("left" if side == "right" else "right")
+    self.kept_by[side] = None if kept is None else OTHER_SIDE[side]
     return kept
 
   def keeps(self, side: str, verb: bool = False) -> tuple | None:
@@ -1577,7 +1579,7 @@ class Reach:
     nothing. The posture kept is the one it holds where the body is within
     `POSTURE_TOL` of it, else where it has got to: never a sensed reading
     in place of the plan for a trunk that only sways."""
-    other = "left" if side == "right" else "right"
+    other = OTHER_SIDE[side]
     held = verb and self.out(other) and self.grippers[other].held()
     if not held:
       return None
