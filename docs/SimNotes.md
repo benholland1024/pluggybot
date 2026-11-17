@@ -587,7 +587,11 @@ traced the same day (2026-11-16). Measured there, the
 pair's four cameras cost 306 MiB over the built pair where they cost 946:
 the first camera 285 (the renderer, the AprilTag detector and the process's
 first GL context), each other camera 0-10 at its first picture where each
-had cost 215-224, and a picture the same 21-27 ms. ⚠ A renderer is closed
+had cost 215-224, and a picture the same 21-27 ms. A served process builds
+the four at boot, once its world is built (`Body.build_cameras`, #713's
+tail): there +257 MiB, and a camera's first look after it +22 at most,
+no step over the memory alarm's rate (Webserver.md, "Two samples"). ⚠ A
+renderer is closed
 with its own GL context current (`tags._close`): MuJoCo 3.10's
 `Renderer.close` frees the context and then the `MjrContext`, whose
 deletes go to whatever context is current, and under osmesa a renderer

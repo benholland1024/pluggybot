@@ -426,6 +426,13 @@ class Body(abc.ABC):
     """One tag decode from its working camera: `{id: {t, yaw, center}}`."""
 
   @abc.abstractmethod
+  def build_cameras(self) -> None:
+    """Build now the cameras it decodes tags through, which are otherwise
+    built at their first look: a served process asks at boot, so that
+    their renderer's memory comes inside the memory alarm's warm-up
+    (#713; docs/Webserver.md, "Two samples")."""
+
+  @abc.abstractmethod
   def spot(self, tag: int, at_height: float | None = None) -> dict | None:
     """One tag's centre in the believed world frame off one decode, or None
     where it does not decode from here (issue #264)."""
@@ -1206,6 +1213,9 @@ class StubBody(Body):
 
   def detect_tags(self) -> dict:
     return {}
+
+  def build_cameras(self) -> None:
+    pass
 
   def spot(self, tag, at_height=None):
     return None
