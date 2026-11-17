@@ -941,7 +941,10 @@ class HumanoidBody(Body):
         return "fell"
       self.reach.retreat(side)
       for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
-        if self.mission.falls != falls or self.reach.home(side):
+        # ...or held, pressing on nothing where something holds it
+        # (`Reach.HELD_S`): pressed on, a jaw on a counter's top tipped the
+        # robot over backward inside this wait (#693's family)
+        if self.mission.falls != falls or self.reach.home(side) or self.reach.held(side):
           break
         yield STILL
       came_home = self.reach.home(side)

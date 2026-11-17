@@ -698,7 +698,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       # `STAND_BACK_S` at most
       if all(p in ("rest", "carried") for p in self.reach.phase.values()):
         self.reach.hold_posture(0.0, 0.0)
-      while (any(p not in ("rest", "carried") for p in self.reach.phase.values())
+      # ...each arm's way home over by its drivers -- home, or held where
+      # something holds it (`Reach.HELD_S`, #693's family: read home by its
+      # command alone, a walk walked a jaw on a counter's top), which the walk
+      # carries as it is, pressing on nothing, and says so (`Body.arm_held`)
+      while (any(p not in ("rest", "carried", "held") for p in self.reach.phase.values())
+             or any(self.reach.homing.values())
              or not self.stand.settled or not self.reach.waist_home()):
         yield STILL
         self._after_step()

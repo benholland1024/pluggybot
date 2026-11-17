@@ -232,9 +232,14 @@ class _Homing:
     self.carry_q = {s: None for s in hm.SIDES}
     #: ...its posture the stand's (#693: off it, the stand may wait for home)
     self.posture = np.zeros(3)
+    #: ...and no way home its drivers read held (#693's family): home or not
+    self.homing = {s: False for s in hm.SIDES}
 
   def carried(self, side) -> bool:
     return self.phase[side] == "carried" and self.carry_q[side] is not None
+
+  def held(self, side) -> bool:
+    return False
 
   def drop_carry(self, side) -> None:
     self.carry_q[side] = None

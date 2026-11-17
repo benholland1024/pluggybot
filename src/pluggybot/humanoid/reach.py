@@ -299,6 +299,18 @@ HOME_SAMPLE_RAD = 0.05
 #: ...and home is the rest commanded and its drivers reading every joint
 #: within this of it, rad (they read to 0.0026).
 HOME_RAD = 0.05
+#: A WAY HOME SOMETHING HOLDS (#693's live family; SimNotes, "A way home
+#: something holds"): its command at its rest and its drivers reading the
+#: arm more than `HOME_RAD` off it this long, s, it is held -- on a
+#: counter's top, or on its own thigh in a crouch -- and its command is set
+#: where its drivers read it (phase "held"), pressing on nothing. ⚠ Pressed
+#: on toward its rest, a jaw read 39-69 N on a counter's top for as long as
+#: nothing else moved the arm: 12 s into a withdraw's wait the robot went
+#: over backward, and a walk's hand-over walked it with the jaw on the top.
+HELD_S = 0.5
+#: ...first lifted this far straight up, m, and sent home again from there,
+#: at most this many times a way home.
+LIFT_M, LIFTS = 0.05, 1
 #: The way OUT is judged so from its other end (`way_out`, #560): straight, a
 #: hanging hand at a table 13 cm out was driven into its top at 353-359 N.
 
@@ -1082,6 +1094,12 @@ class Reach:
     #: Whether the stand waits for an arm on its way home (`_go_home`, #693):
     #: asked once every arm is home or carried (`_update`).
     self.stand_home = False
+    #: By side, whether its way home is still to be read home by its drivers
+    #: (`_go_home`), how long they have read it held at its rest, s, and how
+    #: often it has been lifted since its way home began (`HELD_S`, `LIFTS`).
+    self.homing = {s: False for s in hm.SIDES}
+    self.held_for = {s: 0.0 for s in hm.SIDES}
+    self.lifted = {s: 0 for s in hm.SIDES}
 
   # ---- what a caller asks ----
 
@@ -1637,10 +1655,12 @@ class Reach:
     already goes on."""
     if self.phase[side] in ("rest", "home", "retreat"):
       return
-    if self.phase[side] in ("joints", "move") or self.cmd[side] is None:
-      # an arm moved joint by joint (`set_joints`), or still walking out to
-      # its pre-grasp, has no line to come out along: home from where its
-      # command is (unhandled, a withdraw waited forever)
+    self.lifted[side] = 0
+    if self.phase[side] in ("joints", "move", "held") or self.cmd[side] is None:
+      # an arm moved joint by joint (`set_joints`), still walking out to its
+      # pre-grasp, or held where its way home stopped (`HELD_S`), has no
+      # line to come out along: home from where its command is (unhandled,
+      # a withdraw waited forever)
       self._go_home(side)
       return
     self.goal[side] = pregrasp(self.goal[side], approach)
@@ -1907,6 +1927,7 @@ class Reach:
       self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
+    self.homing[side], self.held_for[side] = True, 0.0
     # ...and the stand once no hand is out at its work -- one carried at the
     # side is none (#682); kept the reach's bow, a withdraw left it bowed --
     # but off the stand, an arm with none of it ahead of the robot's front
@@ -1932,6 +1953,42 @@ class Reach:
     read there by its driver (`HOME_RAD`)."""
     return self.phase[side] == "rest" and bool(
       np.abs(self.sensed[self.self_model.arm[side]] - self.rest[side]).max() <= HOME_RAD)
+
+  def held(self, side: str) -> bool:
+    """Whether an arm's way home stopped where something holds it, its
+    command eased there (`HELD_S`): out, until a way home begins again."""
+    return self.phase[side] == "held"
+
+  def _homed(self, side: str, dt: float) -> None:
+    """A way home's end as its drivers read it: home, or -- not home
+    `HELD_S` running with its rest commanded -- held, its command set where
+    they read it, pressing on nothing: lifted `LIFT_M` straight up and sent
+    home again from there (`_go_home`'s judgment) `LIFTS` times a way home,
+    then left there ("held")."""
+    if self.home(side):
+      self.homing[side], self.held_for[side] = False, 0.0
+      return
+    self.held_for[side] += dt
+    if self.held_for[side] < HELD_S:
+      return
+    q = self.sensed[self.self_model.arm[side]].copy()
+    self.q_cmd[side], self.q_to[side] = q, q.copy()
+    self.homing[side], self.held_for[side] = False, 0.0
+    if self.lifted[side] >= LIFTS:
+      self.phase[side] = "held"
+      return
+    self.lifted[side] += 1
+    # ...its grip where its drivers put it, on its model of itself as it
+    # stands, its line straight up from there; then `_go_home` from the top
+    sm = self._planner_model()
+    sm.q = self.self_model.q.copy()
+    sm.d.qpos[:] = self.self_model.d.qpos
+    sm._set_arm(side, q)
+    pos, rot = sm.grip_pose(side)
+    self.cmd[side] = HandGoal(pos.copy(), rot.copy(), 1.0)
+    self.goal[side] = HandGoal(pos + np.array([0.0, 0.0, LIFT_M]), rot.copy(), 1.0)
+    self.speed[side], self.looking[side] = HAND_SPEED, False
+    self.phase[side] = "retreat"
 
   def done(self, side: str) -> bool:
     """Whether a hand has arrived where it was sent (or hangs), or stopped
@@ -2019,7 +2076,8 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking", "carry_q", "stand_home")
+          "allowed", "left", "looks", "looking", "carry_q", "stand_home", "homing",
+          "held_for", "lifted")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -2385,7 +2443,10 @@ class Reach:
         self._struck(s)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness
-      elif phase in ("rest", "move", "joints", "home", "carried"):
+      elif phase in ("rest", "move", "joints", "home", "carried", "held"):
+        if phase == "rest" and self.homing[s]:
+          # ...a way home is over once its drivers read it home, or held
+          self._homed(s, dt)
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
