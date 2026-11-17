@@ -707,7 +707,9 @@ class Body(abc.ABC):
     (it stopped on its way: pushing on something, or out of reach as the
     body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
-    `hand_kept`), "fell", "out of time" -- or "" where it held (#493)."""
+    `hand_kept`), "own body" (#722: every way out would pass through its
+    own trunk, so nothing moved), "fell", "out of time" -- or "" where it
+    held (#493)."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:

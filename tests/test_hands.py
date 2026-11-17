@@ -511,6 +511,9 @@ def _bare_reach():
   r.held_for, r.lifted = {s: 0.0 for s in hm.SIDES}, {s: 0 for s in hm.SIDES}
   # ...nor a hand whose grip keeps the body in its posture (#719)
   r.kept_by = {s: None for s in hm.SIDES}
+  # ...nor a way out refused for its own trunk (#722), judged on a model of
+  # its own
+  r.own, r._own = {s: None for s in hm.SIDES}, None
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)

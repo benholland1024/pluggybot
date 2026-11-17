@@ -1050,6 +1050,8 @@ def _felt_routine(life, hand: str, routine: Routine) -> Routine:
 REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "stopped short": "your {hand} hand stopped short on its way: out of reach from "
                               "how you truly stand, or pushing on something",
+             "own body": "every way your {hand} arm takes from where it is to there passes "
+                         "through your own body, so it did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one out of reach with the other hand holding something, whose grip
