@@ -10613,13 +10613,14 @@ samples), its end included, the arm's parts that meet the trunk (the upper arm, 
 the gripper: `model.ARM_GEOMS`' pairs) against the trunk above the waist
 (the torso, the head and the LIDAR), which hang on the same link as the
 shoulders, so the room is a function of the arm's six joints alone. Today's
-way where no part goes through the trunk -- or, begun in it, goes no deeper
--- else the side way, else the way drawn in, each where it keeps so and
+way where no part goes through the trunk -- or, a pair of parts begun in each
+other, that pair no deeper -- else the side way, else the way drawn in, each where it keeps so and
 dips no deeper ahead than going straight on (`_kept_off`'s rule for a hand
 already out); else a procedure's reach moves nothing, the body's why "own
 body" and its words "every way your left arm takes from where it is to there
-passes through your own body, so it did not move", and the loop's own (a
-charge's) takes the way that comes least near, as no wait frees it (asked
+passes through your own body, so it did not move" (and "; your right hand
+could reach it as asked" where the other hand's plan reaches), and the
+loop's own (a charge's) takes the way that comes least near, as no wait frees it (asked
 to refuse, as its first try asks to wait out another robot, #678, it still
 goes). With another robot by, a way round it keeps off the trunk too (where none keeps off the trunk, the
 loop's own weighs every way against that robot as #678 does), and a reach
@@ -10663,8 +10664,8 @@ home met the robot's own body in any of them. The pair's recorded day and
 the counter's attempt are the committed fixtures', line for line (their
 charge rows' wall-clock stamps aside), and the station's checks the base's
 row for row: 39 of 39 approaches docked and unplugged, 140 of 140 seats
-plugged in and out, 20 of 20 lost near docked. The judgment takes 4.7
-ms a way at the median and 12.7 at most, over the 342 recorded.
+plugged in and out, 20 of 20 lost near docked. The judgment takes 10.6
+ms a way at the median and 29 at most, over the 342 recorded.
 
 **What it does not do.** A way home is judged against nothing of the
 robot's own body, nor a way out from the arm hanging: the cube's ways home

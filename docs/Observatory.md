@@ -12,13 +12,16 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
 
-**What the robots read** is unmoved where it is read every turn: the prompt
-(`prompt_sha` `75ec76e3…`, 69,505 characters, 17 sections) and the session
-host's hello (sha1 `a61b6376…`) are `loop-staging` ac2538e8's. One new
-reason a `reach` reads false: a reach begun with the hand already out whose
+**What the robots read** is unmoved where it is read every turn: this
+change moves neither the prompt nor the session host's hello -- on
+`loop-weekend` d81c0017, #723's period below, the prompt is `b4d1ec1f…`
+(69,557 characters, 17 sections) with it and without it (on `loop-staging`
+ac2538e8 alone, `75ec76e3…`), and the hello `a61b6376…`. One new reason a
+`reach` reads false: a reach begun with the hand already out whose
 every way there would pass through the robot's own torso or head moves
 nothing and says "every way your left arm takes from where it is to there
-passes through your own body, so it did not move". Before, it went straight
+passes through your own body, so it did not move" -- and "; your right hand
+could reach it as asked" where the other hand's plan reaches. Before, it went straight
 there and pressed the torso; where that tipped the robot past #708's line
 it read "your left hand stopped short on its way: out of reach from how you
 truly stand, or pushing on something; as it stopped, its grip was ... cm
@@ -31,9 +34,10 @@ your right hand's").
 `Body.hand_why` "own body"; `steps.REACH_WHY`; SimNotes, "A way out from a
 hand already out"). A way out from a hand already out is sampled on the
 robot's model of itself against the torso, the head and the LIDAR, its end
-included: today's way where no part of the arm goes through them (begun in
-them, no deeper), else the side way or the way drawn in that keeps so and
-dips no deeper ahead, else a procedure's reach is refused; the loop's own (a
+included: today's way where no part of the arm goes through them (a pair
+of parts begun in each other, that pair no deeper), else the side way or the
+way drawn in that keeps so and dips no deeper ahead, else a procedure's
+reach is refused; the loop's own (a
 charge's) takes the way that comes least near, as no wait frees it. A way
 from the arm hanging, and a way home, are judged as before.
 

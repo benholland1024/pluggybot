@@ -395,7 +395,8 @@ save a filmstrip PNG named after the script.
   SimNotes, "A way out from a hand already out"): sampled on its model of
   itself, the upper arm, forearm and gripper against the torso, the head and
   the LIDAR, its end included -- straight where it never goes through them,
-  or, begun in them, no deeper; else the side way or the way drawn in that
+  or, a pair of parts begun in each other, that pair no deeper; else the
+  side way or the way drawn in that
   keeps so and dips no deeper ahead; else a procedure's reach moves
   nothing, "own body", and the loop's own (a charge's: no wait frees it)
   takes the way that comes least near (`Reach.reach(verb=)`): straight,

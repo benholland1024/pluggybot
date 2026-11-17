@@ -1045,29 +1045,37 @@ def apart(m, d, a: int, b: int) -> float:
   return got
 
 
-def own_room(sm: SelfModel, side: str, q0, ways) -> tuple[float, str]:
-  """The least room, m, between the arm's parts that meet the trunk
-  (`model.ARM_GEOMS`) and the trunk above the waist (`UPPER_GEOMS`: the
-  torso, the head and the LIDAR in it, fixed to the shoulders, so a function
-  of the arm's joints alone) as the arm walks from `q0` through `ways` in
-  joint space, every joint arriving together (`Reach._joints`), its start
-  included -- negative through it -- and the trunk's part it comes nearest."""
+def own_rooms(sm: SelfModel, side: str, q0, ways) -> np.ndarray:
+  """The least room, m, between each of the arm's parts that meet the trunk
+  (`model.ARM_GEOMS`) and each of the trunk's above the waist (`UPPER_GEOMS`:
+  the torso, the head and the LIDAR in it, fixed to the shoulders, so a
+  function of the arm's joints alone) -- a pair each, the arm's part by the
+  trunk's -- as the arm walks from `q0` through `ways` in joint space, every
+  joint arriving together (`Reach._joints`), its start included; negative
+  through it."""
   m, d = sm.m, sm.d
-  arm = [m.geom(f"{side}_{p}").id for p in hm.ARM_GEOMS]
-  trunk = [m.geom(g).id for g in UPPER_GEOMS]
-  worst, part, prev = math.inf, "", np.asarray(q0, dtype=float)
+  pairs = [(m.geom(f"{side}_{p}").id, m.geom(g).id) for p in hm.ARM_GEOMS for g in UPPER_GEOMS]
+  worst, prev = np.full(len(pairs), math.inf), np.asarray(q0, dtype=float)
   for w in [prev] + list(ways):
     w = np.asarray(w, dtype=float)
     n = max(1, math.ceil(float(np.abs(w - prev).max()) / OWN_SAMPLE_RAD))
     for k in range(1, n + 1):
       sm._set_arm(side, prev + (w - prev) * (k / n))
-      for a in arm:
-        for b in trunk:
-          x = apart(m, d, a, b)
-          if x < worst:
-            worst, part = x, m.geom(b).name
+      worst = np.minimum(worst, [apart(m, d, a, b) for a, b in pairs])
     prev = w
-  return worst, part
+  return worst
+
+
+def own_room(sm: SelfModel, side: str, q0, ways) -> tuple[float, str]:
+  """The least of `own_rooms`, m, and the trunk's part it comes nearest."""
+  rooms = own_rooms(sm, side, q0, ways)
+  i = int(np.argmin(rooms))
+  return float(rooms[i]), UPPER_GEOMS[i % len(UPPER_GEOMS)]
+
+
+#: The one model of itself a way is judged against its own trunk on
+#: (`_own_model`): posed by an arm's joints alone, so shared.
+_OWN: SelfModel | None = None
 
 
 def _same_way(a, b) -> bool:
@@ -1212,7 +1220,6 @@ class Reach:
     #: the ways tried, the least near's part of the trunk (`part`, torso or
     #: head) and its least room, m (`m`); else None.
     self.own: dict[str, dict | None] = {s: None for s in hm.SIDES}
-    self._own: SelfModel | None = None
     #: ...and, by side, the way home the last judgment found clear and the
     #: arm it began from (`home_clear`): the way `_go_home` then takes.
     self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
@@ -2025,59 +2032,65 @@ class Reach:
     """A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN TRUNK
     (#722; `OWN_CLEAR_M`; SimNotes, "A way out from a hand already out"):
     `pick` (today's, straight) where its arm keeps that much room from the
-    trunk above the waist all the way, its end included (`own_room`) -- or,
-    begun nearer, goes no nearer -- else the first of the side way and the
+    trunk above the waist all the way, its end included (`own_rooms`) -- or,
+    each of its parts begun nearer one of the trunk's, goes no nearer that
+    one -- else the first of the side way and the
     way drawn in that keeps so and dips no deeper over the work than going
     straight on (as `_kept_off` judges a hand already out); else `own` saying
     how, and None where `refuse`, or of those ways the one that comes least
-    near it, `own` saying how near. Returns that way, and the judge of any
-    other (`_kept_off`'s) -- none where no way keeps clear: then another
-    robot's ways are weighed as #678 weighs them. ⚠ NEVER A WAY FROM A HAND
+    near it, `own` saying how near -- straight where the pre-grasp itself
+    lies in the trunk, every way ending there. Returns that way, and the
+    judge of any other (`_kept_off`'s) -- none where no way keeps clear: then
+    another robot's ways are weighed as #678 weighs them. ⚠ NEVER A WAY FROM A HAND
     AT REST: there the plan's pre-grasp itself can lie in the trunk
     (SimNotes), and refused, our cube's set-out 7 lost its pass."""
     own = self._own_model()
     rooms: dict = {}
 
-    def room_of(w) -> tuple[float, str]:
+    def rooms_of(w) -> np.ndarray:
       key = b"".join(np.asarray(x, dtype=float).tobytes() for x in w)
       if key not in rooms:
-        rooms[key] = own_room(own, side, q0, w)
+        rooms[key] = own_rooms(own, side, q0, w)
       return rooms[key]
-    need = min(OWN_CLEAR_M, room_of([])[0]) - OWN_SLACK_M
+    # ...each pair of parts no nearer than it began, where it began nearer
+    need = np.minimum(OWN_CLEAR_M, rooms_of([])) - OWN_SLACK_M
+
+    def short(w) -> float:
+      return float((rooms_of(w) - need).min())
 
     def clear(w) -> bool:
-      return room_of(w)[0] >= need
-    best, part = room_of(pick)
-    if best >= need:
+      return short(w) >= 0.0
+    if clear(pick):
       return pick, clear
-    end, at = own_room(own, side, q1, [])
-    if refuse and end < need:
-      # ...every way ends at the pre-grasp: one in the trunk is no way at all
-      self.own[side] = {"part": "torso" if at == "torso" else "head", "m": round(best, 3)}
-      return None, clear
-    self._pose_planner(sm, None)
-    dips = _dips(sm, side, q0, q1, front(sm, side, self.rest[side]))
-    deepest = max(HOME_DIP_M, dips(pick))
     best_way = pick
-    # ...today's is straight (`_picked`): the side way, then the way drawn in
-    for w in (_aside(side, q0, q1, True), _tucked_way(side, q0, q1)):
-      if dips(w) > deepest + 1e-9:
-        continue
-      room_, near = room_of(w)
-      if room_ >= need:
-        return w, clear
-      if room_ > best:
-        best, part, best_way = room_, near, w
-    self.own[side] = {"part": "torso" if part == "torso" else "head", "m": round(best, 3)}
+    # ...every way ends at the pre-grasp: one in the trunk leaves no way clear
+    if (own_rooms(own, side, q1, []) >= need).all():
+      self._pose_planner(sm, None)
+      dips = _dips(sm, side, q0, q1, front(sm, side, self.rest[side]))
+      deepest = max(HOME_DIP_M, dips(pick))
+      # ...today's is straight (`_picked`): the side way, then the way drawn in
+      for w in (_aside(side, q0, q1, True), _tucked_way(side, q0, q1)):
+        if dips(w) > deepest + 1e-9:
+          continue
+        if clear(w):
+          return w, clear
+        if short(w) > short(best_way):
+          best_way = w
+    r = rooms_of(best_way)
+    i = int(np.argmin(r - need))
+    part = UPPER_GEOMS[i % len(UPPER_GEOMS)]
+    self.own[side] = {"part": "torso" if part == "torso" else "head", "m": round(float(r[i]), 3)}
     return (None, clear) if refuse else (best_way, None)
 
   def _own_model(self) -> SelfModel:
     """The model of itself an arm is judged against its own trunk on
-    (`own_room`): posed by that arm's joints alone, apart from the planner's,
-    whose pose a judgment's callers go on reading."""
-    if self._own is None:
-      self._own = SelfModel()
-    return self._own
+    (`own_rooms`): posed by that arm's joints alone, apart from the
+    planner's, whose pose a judgment's callers go on reading -- one for
+    every robot (`_OWN`)."""
+    global _OWN
+    if _OWN is None:
+      _OWN = SelfModel()
+    return _OWN
 
   def _picked(self, sm, side: str, q0, q1, out: bool):
     """`_judged`'s way with nobody by, and how far a way dips (`_dips`; None

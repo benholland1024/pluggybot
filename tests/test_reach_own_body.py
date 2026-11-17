@@ -24,6 +24,7 @@ import pytest
 
 from pluggybot.body import StubBody
 from pluggybot.humanoid import body as hb
+from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import reach as rc
 from pluggybot.humanoid.arms import HandGoal, SelfModel
 from pluggybot.procedure import steps as st
@@ -163,6 +164,30 @@ def test_a_hand_outs_way_round_another_robot_is_judged_against_its_trunk():
   r.q_cmd["left"] = r.rest["left"].copy()
   r.way_out("left", ON_TO)
   assert got[-1] is None, "a way from rest is never judged so"
+
+
+def test_each_pair_of_parts_begun_nearer_goes_no_nearer_and_the_others_stay_clear(monkeypatch):
+  """Begun with one pair of parts in each other -- a gripper a stop left 2
+  mm in the torso -- a way may take that pair no deeper, and every other
+  pair stays out: judged on the least of all, the forearm could go 1.9 mm
+  into the head because the gripper began 2 mm in the torso."""
+  start = np.full(len(hm.ARM_GEOMS) * len(rc.UPPER_GEOMS), 0.05)
+  start[0] = -0.002
+  into = start.copy()
+  into[1] = -0.0019
+  deeper = start.copy()
+  deeper[0] = -0.003
+  same = start.copy()
+  same[1] = 0.001
+  monkeypatch.setattr(rc, "own_rooms", lambda sm, side, q0, ways: (
+    start if not len(ways) else {0.1: into, 0.2: deeper, 0.3: same}[float(ways[-1][0])]))
+  r = _standing_reach()
+  sm = r._planner_model()
+  for to, ok in ((0.1, False), (0.2, False), (0.3, True)):
+    q1 = np.full(6, to)
+    r.own["left"] = None
+    way, _ = r._own_kept(sm, "left", np.zeros(6), q1, [q1], True)
+    assert (way is not None) is ok, to
 
 
 def test_an_arm_begun_on_the_trunk_may_go_no_nearer():
@@ -314,14 +339,23 @@ def test_a_reach_kept_off_another_robot_says_the_other_hands_way_passes_through_
   assert step["reason"].endswith(st.OTHER_HAND_KEPT["own"].format(other="left"))
 
 
-def test_a_reach_refused_for_its_own_body_says_so():
+def test_a_reach_refused_for_its_own_body_says_so_and_whether_the_other_hand_could():
   class Own(StubBody):
+    reaches = False
+
     def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
       return False
       yield
 
     def hand_why(self, side):
       return "own body"
-  step = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n', Own(*_bare()))["steps"][-1]
-  assert not step["ok"] and step["why"] == "own body"
-  assert step["reason"].startswith(st.REACH_WHY["own body"].format(hand="left"))
+
+    def hand_reaches(self, side, pos, rot=None, verb=False):
+      return self.reaches
+  for reaches in (False, True):
+    body = Own(*_bare())
+    body.reaches = reaches
+    step = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n', body)["steps"][-1]
+    assert not step["ok"] and step["why"] == "own body"
+    said = st.REACH_WHY["own body"].format(hand="left")
+    assert step["reason"] == said + ("; your right hand could reach it as asked" if reaches else "")

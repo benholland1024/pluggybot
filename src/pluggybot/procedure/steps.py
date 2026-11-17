@@ -1204,6 +1204,10 @@ def _reach(life, args: dict) -> Routine:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
       hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
       + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
+  if why == "own body" and other is not None and life.body.hand_reaches(other, place, rot,
+                                                                         verb=True):
+    # ...and whether the other hand could (#722): a turn or a step is not all
+    reason += f"; your {other} hand could reach it as asked"
   if why == "out of reach" and turned():
     reason += TURNED_ELSE
   if why == "out of reach" and other is not None and not kept_by:
