@@ -10307,24 +10307,24 @@ held with the other hand on the lever, however it is approached.
 **No posture while the other hand holds something (option 2).** While the
 left hand is out holding the lever, the right reach plans only in the
 posture the body stands in (`Reach.keep`), and its carries and pulls take
-none. Flown the same way (e0d95f4d; the later heads fly the 51 live flights
-and the table's hands check bit for bit where read), door_p3's 48 fell 3
-times where today's tree fell 11: none of the six in that reach, its three
-stuck deaths among them; two of #693's five gone with the sequences that led
-to them, the other three as before; none new. The right reach is refused,
-saying the left hand is out holding something, and the procedure goes on to
-its withdraws. It costs one pass: at t_0430 r1.55 a300 today's tree opened
-the door to 58 deg through the body's own posture changes, the left jaws on
-the lever, while its right reaches failed; kept, the door never opens. Over
-Ben's bar, on one pod beside 73f8daf, every flight is the base's: 0-31 122
-of 160 passed with 5 falls, 32-127 331 of 416 with 4 (every job the same),
-the tour's five jobs 152 of 160 with 1, every slowest pass the same (the
-table's 280 s, the chest's 155, the door's 173, the drawer's 147, the cube's
-154); 799 of its 811 flights are the base's to the step, the 12 that are not
-all door_p3's, where 85 moves were kept; no reference asks a move with the
-other hand out holding something, and #708's stops on `chest_run35` at K4's
-keys and draws 321-336 are the same 24 and 37, at the same ticks, with no
-fall.
+none. Flown the same way (e0d95f4d; the head, 90a43e9e's code, flies 82 of
+those 83 checked the same to the step, the 83rd a door_p3 flight ending 7 s
+later with the same verdict), door_p3's 48 fell 3 times where today's tree
+fell 11: none of the six in that reach, its three stuck deaths among them;
+two of #693's five gone with the sequences that led to them, the other three
+as before; none new. The right reach is refused, saying the left hand is out
+holding something, and the procedure goes on to its withdraws. It costs one
+pass: at t_0430 r1.55 a300 today's tree opened the door to 58 deg through
+the body's own posture changes, the left jaws on the lever, while its right
+reaches failed; kept, the door never opens. Over Ben's bar, on one pod
+beside 73f8daf, every flight is the base's: 0-31 122 of 160 passed with 5
+falls, 32-127 331 of 416 with 4 (every job the same), the tour's five jobs
+152 of 160 with 1, every slowest pass the same (the table's 280 s, the
+chest's 155, the door's 173, the drawer's 147, the cube's 154); 799 of its
+811 flights are the base's to the step, the 12 that are not all door_p3's,
+where 85 moves were kept; no reference asks a move with the other hand out
+holding something, and #708's stops on `chest_run35` at K4's keys and draws
+321-336 are the same 24 and 37, at the same ticks, with no fall.
 
 **What is true now** (`Reach.keep`, `kept_by`, `Body.posture_kept_by`,
 `steps.REACH_KEPT`, `MOVE_KEPT`): while one hand is out at its work and its
@@ -10339,8 +10339,9 @@ reach there"), and never offers the holding hand; the three verbs' texts say
 the rule. A piece carried at the side holds the body in
 nothing, and the loop's own moves (a charge's, a walk's lift) are never
 kept: refused, a charge fails, and a failed charge is a death. The posture
-kept is the one the body stands in (`_standing_in`): one still coming is
-held where it has got to.
+kept is the one asked where the body stands within `POSTURE_TOL` of it, a
+trunk that only sways re-asking nothing, else where the body has got to: one
+still coming is held there.
 
 ## Debugging workflow that worked
 

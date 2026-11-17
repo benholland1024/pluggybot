@@ -468,12 +468,11 @@ save a filmstrip PNG named after the script.
   ONE THE BODY STANDS IN, READ ONCE AS EACH IS
   ASKED, AND PLAN NONE ON THEIR WAY (#719's option 2; `Reach.keep`,
   `kept_by`, `Body.posture_kept_by`; SimNotes, "A posture change out of a
-  deep bow"): asked a rise out of a deep bow and a turn of the waist with
-  the left jaws on a cupboard's lever, the right reach tipped the body over
-  backward; taken in stages, each waited on (option 1), it fell as often --
-  the lever holds the trunk. A piece carried at the side holds the body in
-  nothing. One that does not reach from it says so (`REACH_KEPT`,
-  `MOVE_KEPT`), and the three verbs' texts say the rule. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
+  deep bow"): a rise and a turn asked with the other hand's jaws on a lever
+  tipped the body over backward, in stages too. A piece carried at the side
+  holds the body in nothing. One that does not reach from it, where another
+  posture would, says so (`REACH_KEPT`, `MOVE_KEPT`), and the three verbs'
+  texts say the rule. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
   (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the
