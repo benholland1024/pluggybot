@@ -256,15 +256,16 @@ TABLE = _table_job()
 #:    fork from a hover read again there and pulled straight down (the
 #:    stance turns 5-10 deg as an arm goes out);
 #:  - each piece brought back over the counter's edge before the walk (the
-#:    carry pose holds it under the pass's top): the cup's hand to 0.29 m
-#:    (further, its arm runs out of reach, and the hand-over lets go of what
-#:    its lift could not raise); the plate, taken from 0.50 m, to 0.23 by
+#:    carry pose holds it under the pass's top): the cup's hand to
+#:    `PASS_CUP_BACK` (further, its arm runs out of reach, and the hand-over
+#:    lets go of what its lift could not raise); the plate, taken from 0.50 m, to 0.23 by
 #:    `move_hand` (nearer the pass the hand-over struck it, and a `pull` that
 #:    long took a 31 deg bow over the counter and fell: `test_solutions`), in
 #:    two moves, halfway and then to no nearer the body's middle than
 #:    `PASS_PLATE_LEFT`;
 #:    the fork's to 0.21 in two pulls (`PASS_FORK_MID`: by `move_hand` it
-#:    slipped in the jaws at the hand-over; `test_solutions`);
+#:    slipped in the jaws at the hand-over; `test_solutions`), squeezed at
+#:    `PASS_FORK_N`;
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
 #:    further back, its last step over 0.45 m in two, its last turn the
 #:    facing its run wants (the cup's `PASS_CUP_FACING`); nothing steps aside
@@ -340,6 +341,15 @@ PASS_CUP_FACING = -0.07
 #: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
 #: from that stance set it down (the reference before aimed at 0.075, 0.24).
 PASS_CUP_AT = (0.066, 0.209)
+#: Where the cup's pull-back off the pass stops, m ahead: gripped 0.45-0.47 m
+#: out and pulled to 0.26, its arm ran out of reach in 11 of 61 dev flights
+#: (the hand-over's 2 cm lift, which a hand out of reach cannot make, then
+#: lets the cup go). Stopped at 0.32 rather than 0.29, 64 cup legs on dev
+#: draws laid 58 where 0.29 laid 49 -- as many ran out of reach (9) and were
+#: let go (3), but every cup set down was within 2.5 cm of its spot (at 0.29,
+#: 8 were 2.5-4 cm off); why it sets the cup down truer is not known
+#: (SimNotes, "The place laid from the pass").
+PASS_CUP_BACK = 0.32
 #: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
 #: ahead: in one pull, one 0.24 m or longer (a grip 0.45 m out or more) took
 #: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
@@ -347,6 +357,13 @@ PASS_CUP_AT = (0.066, 0.209)
 #: (SimNotes, "The place laid from the pass"); each half asks a posture that
 #: reaches both its ends standing.
 PASS_FORK_MID = 0.33
+#: The fork's squeeze at the pass, N: the table check's 25 N was chosen while
+#: the gripper's drive chattered and batted so light a handle from 40 N up,
+#: which #628 fixed. Carried from the pass at 25 N, 15 of 64 forks came down
+#: (10 slipping out of the jaws as the hand-over swung the arm home), at 40 N
+#: 7 (none in that swing), with no fall; at 60 N 1, but its legs fell once
+#: (SimNotes, "The place laid from the pass").
+PASS_FORK_N = 40
 #: How far left of the stance the plate's pull-back off the pass ends at the
 #: least, m: a grip the hand read 0.20 m left or nearer the body's middle
 #: (`near` lands it 0.12-0.32 m out, half of them under 0.25) was brought
@@ -398,7 +415,7 @@ PASS_CUP = '''def lay_cup():
   oy = y - read("right.y")
   oz = read("right.z") - cz + 0.075
   pull("right", 0, 0, 1, 20, 0.05, give=0)
-  go("right", 0.29, read("right.y"), read("right.z"), 20, 0)
+  go("right", %(cup_back)g, read("right.y"), read("right.z"), 20, 0)
   to_place(%(cup_facing)g)
   spot(93)
   a = atan2(read("spot.ny"), read("spot.nx"))
@@ -475,9 +492,9 @@ PASS_FORK = '''def lay_fork():
   if spot(92):
     go("left", read("spot.x"), read("spot.y"), gz + 0.06, 20, 0)
   pull("left", 0, 0, -1, 12, read("left.z") - gz, give=0)
-  if not close_hand("left", 25):
+  if not close_hand("left", %(fork_n)g):
     open_hand("left")
-    close_hand("left", 25)
+    close_hand("left", %(fork_n)g)
   oz = read("left.z") - gz + 0.0484
   pull("left", 0, 0, 1, 20, 0.05, give=0)
   go("left", %(fork_mid)g, read("left.y"), read("left.z"), 20, 0)
@@ -511,8 +528,8 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
   terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
-           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
-           "plate_left": PASS_PLATE_LEFT}
+           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "cup_back": PASS_CUP_BACK,
+           "fork_mid": PASS_FORK_MID, "fork_n": PASS_FORK_N, "plate_left": PASS_PLATE_LEFT}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
