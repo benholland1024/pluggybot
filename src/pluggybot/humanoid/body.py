@@ -850,17 +850,19 @@ class HumanoidBody(Body):
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
       kept = self.reach.kept[side]
-      if follows and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb):
+      if (follows and self.reach.kept_by[side] is None
+          and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb)):
         return True
       kept = self.reach.kept[side] or kept
       if kept is not None:
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
-        # ...and what the other hand's way would do, but where that hand holds
-        # something and kept the body in its posture (#719)
-        other = words and not follows and not self.reach.kept_by[side]
-        self._kept[side] = dict(kept, **({"other": self.reach.clear_way(_OTHER[side], goal)}
-                                         if other else {}))
+        # ...and what the other hand's way would do -- or, where that hand holds
+        # something and kept the body in its posture, that it does (#719)
+        held = self.reach.kept_by[side] is not None
+        self._kept[side] = dict(kept, **(
+          {"other": "holds"} if held and words and not follows else
+          {"other": self.reach.clear_way(_OTHER[side], goal)} if words and not follows else {}))
       return False
     finally:
       self.reach.keep_out = []
@@ -1195,7 +1197,7 @@ class HumanoidBody(Body):
     return self._report(self.reach.report[side])
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0,
-                        path=None, turns=None, verb=True):
+                        path=None, turns=None, verb=False):
     """...`path`, points it goes through on its way, in turn (#493: a lid's
     arc carried as one motion, from one posture that follows it all), and
     `turns`, the grip's turn at each."""
@@ -1210,7 +1212,7 @@ class HumanoidBody(Body):
     return (yield from self._held_routine(side, patience))
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=HOLD_SPEED,
-                   patience=30.0, give=True, verb=True):
+                   patience=30.0, give=True, verb=False):
     """THE PULL, a force move (#525): the hand that is out pulled -- or
     pushed -- along `direction` with at most `limit_n`, N, as the hand reads
     it, at most `speed`, m/s, going where what it holds takes it across that

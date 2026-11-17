@@ -26,14 +26,17 @@ characters, 17 sections, from `0ba46734…`'s 68,294 at `loop-staging`
   your body keeps the posture it is in; ok when it arrives".
 - `pull`'s, after "...then it holds there.", gains "While your other hand
   is out holding something, your body keeps the posture it is in."
-- New words: a `reach` so refused, "your left hand is out holding
-  something, so your body keeps the posture it is in, and from it your
-  right hand does not reach there" (before, "no posture you hold puts your
-  right hand there", and what the other hand could do); a `move_hand` so
-  refused or that so runs out of reach, "your right hand could reach no
-  further that way from the posture you are in: your left hand is out
-  holding something, so your body keeps it" (before, "...from any posture
-  you hold").
+- New words, where another posture would have reached: a `reach` so
+  refused, "your left hand is out holding something, so your body keeps the
+  posture it is in, and from it your right hand does not reach there"
+  (before, "no posture you hold puts your right hand there", and what the
+  other hand could do); a `move_hand` so refused or that so runs out of
+  reach, "your right hand could reach no further that way from the posture
+  you are in: your left hand is out holding something, so your body keeps
+  it" (before, "...from any posture you hold"). Where none would, the words
+  are as before, but never what the holding hand could do; a reach kept off
+  another robot says "; your left hand is out holding something" where it
+  said what the other hand's way would do.
 
 **The change** (`Reach.keep`, `kept_by`; `Body.posture_kept_by`;
 `steps.REACH_KEPT`, `MOVE_KEPT`; SimNotes, "A posture change out of a deep

@@ -722,7 +722,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     distance -- held fast, its grip lost, or a fall -- which a walk lets go."""
     lifting = [s for s in carry if self.reach.out(s)]
     for s in lifting:
-      self.reach.pull(s, (0.0, 0.0, 1.0), CARRY_LIFT_N, CARRY_LIFT_M, give=False, verb=False)
+      self.reach.pull(s, (0.0, 0.0, 1.0), CARRY_LIFT_N, CARRY_LIFT_M, give=False)
     falls, t0 = self.falls, float(self.data.time)
     while any(self.reach.phase[s] == "carry" for s in lifting) and self.falls == falls:
       if float(self.data.time) - t0 >= CARRY_LIFT_S:

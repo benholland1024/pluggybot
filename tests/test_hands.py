@@ -1492,7 +1492,7 @@ class _PullEnds(StubBody):
   ends = "distance"
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                   give=True):
+                   give=True, verb=False):
     why = self.ends.pop(0) if isinstance(self.ends, list) else self.ends
     return {"why": why, "seconds": 0.5, "moved": 0.02, "along": 0.02, "dx": 0.0,
             "dy": 0.0, "dz": 0.02, "direction": [0.0, 0.0, 1.0], "force": float(limit_n)}
@@ -1592,7 +1592,7 @@ def test_a_hand_whose_move_a_death_ended_is_halted_where_it_is():
       return True
 
     def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                     give=True):
+                     give=True, verb=False):
       for n in range(200):
         if n == 50:
           self.life.dead = {"cause": "flat"}  # the death seam's, as the pull goes on

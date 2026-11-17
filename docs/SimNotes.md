@@ -10312,10 +10312,11 @@ gripper reads it holds something -- its own sensing, never the simulator's
 -- a verb's `reach` of the other hand plans only in the posture the body is
 in, its `move_hand` and its `pull` take no new one, a look at its pre-grasp
 none either, and none is planned on their way, all read once as the move is
-asked; a reach or a move that does not reach from it reads false saying so
-("your left hand is out holding something, so your body keeps the posture it
-is in, and from it your right hand does not reach there"), and the three
-verbs' texts say the rule. A piece carried at the side holds the body in
+asked; a reach or a move that does not reach from it, where another posture
+would, reads false saying so ("your left hand is out holding something, so
+your body keeps the posture it is in, and from it your right hand does not
+reach there"), and never offers the holding hand; the three verbs' texts say
+the rule. A piece carried at the side holds the body in
 nothing, and the loop's own moves (a charge's, a walk's lift) are never
 kept: refused, a charge fails, and a failed charge is a death. The posture
 kept is the one the body stands in (`_standing_in`): one still coming is

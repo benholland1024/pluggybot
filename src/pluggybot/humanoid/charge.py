@@ -386,7 +386,7 @@ def _take_routine(body, line):
     if k or gap < 2.0 * st.PLUG_R_M:
       return f"its jaws shut {gap * 1000:.0f} mm apart, on something not the plug"
     yield from body.grip_routine(SIDE, False)
-    r = yield from body.move_hand_routine(SIDE, line(BOSS_BACK_M)[0], speed=0.04, verb=False)
+    r = yield from body.move_hand_routine(SIDE, line(BOSS_BACK_M)[0], speed=0.04)
     if r["why"] != "arrived":
       return f"its hand did not draw back off the station's boss ({r['why']})"
 
@@ -409,12 +409,12 @@ def _fetch_routine(body, station, swing: float, back: float):
   if not (yield from body.reach_routine(SIDE, at, _grip(into, swing))):
     why = f"its hand did not get to the plug's line ({body.hand_why(SIDE)})"
   else:
-    r = yield from body.move_hand_routine(SIDE, line(0.0)[0], speed=0.06, verb=False)
+    r = yield from body.move_hand_routine(SIDE, line(0.0)[0], speed=0.06)
     if r["why"] == "arrived":
       # ...and there again as the station is once it has slid there: its
       # feet turned meanwhile, 7.7 mm at the grip (#596) -- or as near as
       # its arm goes: at the seat check's furthest corner, out of reach
-      yield from body.move_hand_routine(SIDE, line(0.0)[0], speed=0.02, verb=False)
+      yield from body.move_hand_routine(SIDE, line(0.0)[0], speed=0.02)
     why = (f"its hand did not get round the plug ({r['why']})" if r["why"] != "arrived"
            else (yield from _take_routine(body, line)))
   if why is not None:
@@ -449,10 +449,10 @@ def plug_in_routine(body, station: RackPose, trace: list):
       left = np.cross((0.0, 0.0, 1.0), out)
       return p + out * (back + off) + left / np.linalg.norm(left) * aside, out
     at, out = to_port(OUT_M)
-    yield from body.move_hand_routine(SIDE, at, speed=0.06, turns=[_grip(out, swing)], verb=False)
-    yield from body.move_hand_routine(SIDE, to_port(PUSH_FROM_M, aside)[0], speed=0.04, verb=False)
+    yield from body.move_hand_routine(SIDE, at, speed=0.06, turns=[_grip(out, swing)])
+    yield from body.move_hand_routine(SIDE, to_port(PUSH_FROM_M, aside)[0], speed=0.04)
     pushed = yield from body.pull_routine(SIDE, -port(body)[1], PUSH_N, PUSH_M, speed=0.02,
-                                          give=False, verb=False)
+                                          give=False)
     # ...let go in the funnel: the magnet and the funnel draw it home, as
     # they never could against the hand
     yield from body.grip_routine(SIDE, False)
@@ -506,12 +506,12 @@ def _unplug_try_routine(body, station: RackPose, trace: list):
   if not (yield from body.reach_routine(SIDE, behind, turn)):
     yield from body.release_routine(SIDE)
     return f"its hand did not get behind the plug ({body.hand_why(SIDE)})"
-  yield from body.move_hand_routine(SIDE, seat, speed=0.05, verb=False)
+  yield from body.move_hand_routine(SIDE, seat, speed=0.05)
   if not (yield from _squeeze_routine(body, UNPLUG_GRIP_N)):
     yield from body.grip_routine(SIDE, False)
     yield from body.release_routine(SIDE)
     return "it could not grip the plug"
-  pulled = yield from body.pull_routine(SIDE, out, UNPLUG_N, 0.05, speed=0.03, give=False, verb=False)
+  pulled = yield from body.pull_routine(SIDE, out, UNPLUG_N, 0.05, speed=0.03, give=False)
   trace.append({"unplug": pulled["why"], "along": pulled.get("along"),
                 "mated": body.charging()})
   if body.charging():
@@ -524,10 +524,10 @@ def _unplug_try_routine(body, station: RackPose, trace: list):
   # fell, 5 unplugs in 140 -- the balancer takes it home from the mouth
   into = np.array([math.cos(station.yaw), math.sin(station.yaw), 0.0])
   yield from body.move_hand_routine(SIDE, parked_grip(station) - into * CUP_SHORT_M,
-                                    speed=0.06, turns=[_grip(into)], verb=False)
+                                    speed=0.06, turns=[_grip(into)])
   yield from body.hold_routine(0.4)
   yield from body.grip_routine(SIDE, False)
   yield from body.move_hand_routine(SIDE, parked_grip(station) - into * LINE_BACK_M,
-                                    speed=0.06, verb=False)
+                                    speed=0.06)
   yield from body.release_routine(SIDE)
   return "unplugged"
