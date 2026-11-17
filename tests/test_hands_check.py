@@ -915,7 +915,7 @@ def _cube_flown(fail_shut=0, lose_lift=0, held_lag=0.0, feet=(0.0, 0.0), unseen=
       return held
 
     def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                     give=True):
+                     give=True, verb=False):
       out = yield from super().pull_routine(side, direction, limit_n, distance_m, speed,
                                             patience, give)
       if direction[2] > 0.5:

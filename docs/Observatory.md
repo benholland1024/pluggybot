@@ -18,9 +18,11 @@ shows each visitor only their own conversation and sends with each message
 only that person's lines as `earlier`; deployed alone, this half tells the
 robots something the site does not yet do.
 
-**What the robots read moves** (`prompt_sha` `7ce88109…`, 69,144
-characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
-3e000d65; the session host's hello is unmoved, sha1 `3cd41b6f…`):
+**What the robots read moves** (`prompt_sha` `17c6ce26…`, 69,494
+characters, 17 sections, from `a38f86a9…`'s 69,205 at `loop-staging`
+1170bf3d, which holds #719's period below; on 3e000d65 alone these
+passages made it `7ce88109…`, 69,144 from 68,855; the session host's hello
+is unmoved, sha1 `a61b6376…`):
 - VISITORS, the chat: "What people say to you and what you say back are
   ONE chat, and everyone watching can read all of it. A message comes with
   `earlier` when anything was said in your chat before it: its last 6
@@ -66,9 +68,10 @@ is to everyone and in nobody's conversation.
 
 ### A wake hears a visitor's message at once, a charge's hold ends on one, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13, `loop-chat`) — opens when this PR is deployed
 
-**The prompt does not move** (`prompt_sha` `91f1a7bd…`, 68,855
-characters, 17 sections, as at `loop-staging` 3e000d65; the session host's
-hello is unmoved, sha1 `3cd41b6f…`). What reaches the robots (a message at
+**The prompt does not move** for this period's changes (they hold at
+`loop-staging` 3e000d65's `91f1a7bd…` and 1170bf3d's `a38f86a9…`; the
+period above moves it; the session host's hello is unmoved, sha1
+`a61b6376…`). What reaches the robots (a message at
 the wake, an ask mid-charge, one History line) and what reaches visitors
 does:
 - **Every `mode` message carries `accepts`** as the switch leaves it
@@ -115,6 +118,63 @@ overwritten by each re-delivery, and `deliveries` counts the flushes): at a
 wake none should wait for a run's start. A charge's hold a message ended
 is a `CHARGE: a message came in` narration line with a decision asked by
 `message_received` after it, the plug still in.
+
+### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3 and R2, `loop-719c`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `a38f86a9…`, 69,205
+characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
+3e000d65; the session host's hello moves, sha1 `a61b6376…` from
+`3cd41b6f…`; #693's period below is already on that tree):
+- `reach`'s text, "...then in along the fingers; you take whatever posture
+  reaches. stiffness 1 is...", reads "...you take whatever posture reaches
+  -- but while your other hand is out holding something, your body keeps
+  the posture it is in, and a hand that does not reach there from it does
+  not move and reads false saying so. stiffness 1 is...".
+- `move_hand`'s, "...given as for `reach`; ok when it arrives", reads
+  "...given as for `reach`; while your other hand is out holding something,
+  your body keeps the posture it is in; ok when it arrives".
+- `pull`'s, after "...then it holds there.", gains "While your other hand
+  is out holding something, your body keeps the posture it is in."
+- New words, where another posture would have reached: a `reach` so
+  refused, "your left hand is out holding something, so your body keeps the
+  posture it is in, and from it your right hand does not reach there"
+  (before, "no posture you hold puts your right hand there", and what the
+  other hand could do); a `move_hand` so refused or that so runs out of
+  reach, "your right hand could reach no further that way from the posture
+  you are in: your left hand is out holding something, so your body keeps
+  it" (before, "...from any posture you hold"). A reach so refused that
+  reaches from that posture turned another way goes on " turned as asked;
+  turned another way it can (leave fx..jz at 0 and your arm finds a turn)".
+  Where no posture would reach, the words are as before, but never what the
+  holding hand could do; a reach kept off another robot says "; your left
+  hand is out holding something" where it said what the other hand's way
+  would do. What a refusal says of a turn, or of what the other hand could
+  do, is planned as that reach would be: a hand holding something never
+  offers the other a reach its grip would refuse.
+
+**The change** (`Reach.keep`, `keeps`, `kept_by`; `Body.posture_kept_by`,
+`hand_reaches(verb=)`; `steps.REACH_KEPT`, `MOVE_KEPT`; SimNotes, "A posture
+change out of a deep bow, with the other hand on a lever"). While one hand
+is out at its work and its gripper reads it holds something, a verb's
+`reach` of the other plans only in the posture the body is in, its
+`move_hand` and `pull` take no new one, a reach's look at its pre-grasp
+takes none, and no carry or pull re-plans one on its way. A piece carried
+at the side keeps nothing; the loop's own moves (a charge's, a walk's lift)
+are never kept.
+
+**Measured** (one Vast pod, an EPYC 7K62, beside 3e000d65; SimNotes has the
+rest): door_p3 at its two live draws (M12's 48 starts and its two fresh
+ones) and `cube_fix3` fell 3 times where the base fell 10 -- none of the
+five in the right reach (three stuck deaths), none new, no pass on either
+tree. Ben's bar the base's verdict for verdict, 608 of 736 passed with 5
+falls on both; 799 of its 811 flights the base's to the step, the 12 others
+door_p3's. The pair's recorded day is the base's.
+
+**What to read**: the falls in a reach, a `move_hand` or a `pull` of one
+hand with the other holding something (a door's lever, a drawer's handle,
+a carried piece); the refusals with the new words, and what the robot does
+next (`withdraw` its holding hand first, or `step` nearer); a job a robot
+passed before by a posture change with a hand on something.
 
 ### A way home is over by its drivers: held, it is raised and sent home again, then left where it is held (#693's live family, P4, `loop-693b`) — opens when this PR is deployed
 

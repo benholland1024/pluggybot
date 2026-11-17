@@ -372,7 +372,7 @@ class _FallsAfterStop(Moving):
   in the same breath -- the step after the stop."""
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                        path=None, turns=None):
+                        path=None, turns=None, verb=False):
     rep = yield from super().move_hand_routine(side, pos, stiffness, speed, patience, path, turns)
     return {**rep, "why": "fell"} if rep["why"] == "until" else rep
 

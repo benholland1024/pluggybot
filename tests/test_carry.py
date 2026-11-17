@@ -486,7 +486,7 @@ def test_a_lift_that_never_ends_is_ended_and_carries_nothing(monkeypatch):
   m.reach = _Out(grippers, ("left",), log, at, lifts={"left": None})
   stopped = []
 
-  def never(side, way, force, distance_m, speed=None, give=True):
+  def never(side, way, force, distance_m, speed=None, give=True, verb=False):
     log.append(("lift", side, at()))
     m.reach.phase[side] = "carry"
     return True
