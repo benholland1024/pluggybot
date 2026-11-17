@@ -8328,10 +8328,11 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
     64 -- 3 of them bowed 0.8-0.95 rad for the way, stopped 0.33 m out, and
     the hand-over let those cups go; the other 6 never started (a crouch,
     the waist turned 30 deg) and were carried -- and the cup set down
-    2.6-3.9 cm off, 7 (14 once, below). The cup's put-down goes wrong where the approach leaves the card 18-20
-    cm right of its usual place (2 of 64 cup legs): its target then lies
-    past the right hand's band, and the reach bows 0.55-0.8 rad for it --
-    once it fell, once the cup was set down 14 cm off.
+    2.6-3.9 cm off, 7 (14 once, below). The cup's put-down goes wrong where
+    the approach leaves the card 18-20 cm right of its usual place (2 of 64
+    cup legs): its target then lies past the right hand's band, and the
+    reach bows 0.55-0.8 rad for it -- once it fell, once the cup was set
+    down 14 cm off.
   - **Named, not flown:** the first of the plate's two moves keeps the
     grip's own place across, and with the grip moved 6 cm nearer the middle
     about 1 in 12 still bowed 0.55-0.8 rad with the waist turned there (the
