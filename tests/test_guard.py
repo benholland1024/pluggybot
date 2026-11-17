@@ -803,20 +803,20 @@ def test_a_procedures_read_of_its_hands_place_moves_the_flight_not_at_all():
 def test_a_hands_place_read_where_its_arm_is_not_reading_has_none_and_draws_nothing():
   """#721: where its arm's loop is not reading the joints -- a body's first
   instant, before its first physics step, and while a get-up has the legs
-  -- a hand's place has no reading, and says so (`axes.NoReading`), never
+  -- a hand's place has no reading, and says why (`axes.NoReading`), never
   one read afresh: that read draws on the drivers' noise, so the flight
   goes on otherwise. Between the two it reads the place."""
   from pluggybot.evaluation.practice import ProcedureLife
   body = _floor_body()
   life = ProcedureLife(body)
   drawn = body.stand.joints.kept_state()
-  with pytest.raises(axes.NoReading, match="right.z has no reading"):
+  with pytest.raises(axes.NoReading, match="right.z has no reading: your right arm has not"):
     axes.SENSORS["right.z"].read(life)
   assert body.stand.joints.kept_state() == drawn
   body.run(body.hold_routine(0.02))
   assert 0.4 < axes.SENSORS["right.z"].read(life) < 1.2
   body.mission.legs, drawn = "getup", body.stand.joints.kept_state()
-  with pytest.raises(axes.NoReading, match="right.z has no reading"):
+  with pytest.raises(axes.NoReading, match="right.z has no reading: you are getting up"):
     axes.SENSORS["right.z"].read(life)
   assert body.stand.joints.kept_state() == drawn
 

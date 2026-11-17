@@ -10488,9 +10488,13 @@ sensor's `read` being what the body last measured. Where that loop is not
 reading -- before its first reading (a body's first instant, before its
 first physics step, or a stand-up's fresh reach before the next step), and
 while a get-up has the legs, as the watch is placed through nothing then --
-there is none, and the read says so (`axes.NoReading`) where it read afresh.
-No served robot, no set-out of the attempt kit (its 0.5 s settle) and no
-tour flight reads there, and a fall ends a run before its get-up.
+there is none, and the read says why (`axes.NoReading`) where it read
+afresh. No set-out of the attempt kit (its 0.5 s settle) and no tour flight
+reads there, and a fall ends a run before its get-up; but nothing waits a
+get-up out before a run begins, so a run begun while one has the legs stops
+at its first read of a hand's place, saying the robot is getting up -- where
+it read a tumbling body afresh, and on the fix's first shape a place a whole
+fall old.
 
 **Measured.** P1's instrument widened (R4, the loop of 11-17,
 `c/read_moves2.py`, on the bare floor under EGL): on `loop-staging`

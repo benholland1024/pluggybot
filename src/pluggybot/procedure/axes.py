@@ -50,9 +50,10 @@ class Sensor:
   name: str
   read: Callable[..., float]    # (life) -> float
   doc: str
-  #: how often its part reads it afresh while the body moves, s -- what a
-  #: hand's move may stop on, read no oftener (#554) -- or None for what a
-  #: verb last reported, which no move changes
+  #: how often its part measures it afresh while the body moves, s -- a read
+  #: takes the part's last measurement; what a hand's move may stop on, read
+  #: no oftener (#554) -- or None for what a verb last reported, which no
+  #: move changes
   every_s: float | None = None
   #: how far into a move a stop condition first reads it, s: a hand's force
   #: as a move begins reads the move (`FORCE_FROM_S`, #631)
@@ -200,8 +201,10 @@ def _hand_sensed(side: str, k: int):
   def read(life) -> float:
     at = life.body.hand_sensed(side)
     if at is None:
-      raise NoReading(f"{side}.{'xyz'[k]} has no reading: your {side} arm is not "
-                      "reading where its hand is just now")
+      why = ("you are getting up, and your arm reads where its hand is again once you "
+             "stand" if life.body.posture == "getting_up" else
+             f"your {side} arm has not read where its hand is yet")
+      raise NoReading(f"{side}.{'xyz'[k]} has no reading: {why}")
     return in_stance(life, at)[k]
   return read
 

@@ -29,7 +29,10 @@ nobody acted on moved the rest of the flight. What a robot reads is the
 same kind of reading, a tick older at most; what changes is that its
 flight no longer moves when its procedure reads a hand's place. Before the
 arm's first reading (a body's first instant) and during a get-up a hand's
-place has no reading and says so; no served robot reads there.
+place has no reading and says why ("you are getting up, and your arm reads
+where its hand is again once you stand"): a run begun while a get-up has
+the legs stops at its first read of a hand's place, where it read a
+tumbling body afresh.
 
 **Measured** (one Vast pod, a Xeon E5-2698 v4, beside ac2538e8; SimNotes
 has the rest): the hands checks at 0-127 and the tour, 600 of 736 flights
