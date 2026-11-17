@@ -9810,13 +9810,9 @@ base).
   186). Never after a reach refused with nothing moved: tried so (the first
   form), lid 14's three refusals ended in a turned grip whose lift let the
   lid fall. At 10 deg its pads met the rising lid at 62 deg, under the 63
-  its lift needs clear; at 5, 64. ⚠ Its read of the hand's place after a
-  failed reach moves the flight by itself: with the hand at rest,
-  `Body.hand_sensed` falls back to `Reach.grip_now`, which reads every joint
-  afresh (drawing on their noise) and poses the model of itself the next
-  reach plans on. Over set-outs 0-127, of the lid's flights with only
-  refused reaches (the yaw never fired), 7 of 21 came out otherwise, and
-  the first way out of 23 of the 28 with a refusal ended 10-20 ms apart.
+  its lift needs clear; at 5, 64. Its read of the hand's place moved the
+  flight by itself until #721 (below, "A procedure's read of a hand's
+  place").
 - Both change our references only. What a robot's `reach` does is the stop
   above, and what it reads did not move (the prompt `0f1df27e`, the
   session host's hello `b796e75d`).

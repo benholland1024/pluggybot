@@ -76,7 +76,11 @@ and its feet, which the walking policy moves.
    empty.
 2. **Every report is a sensor, every failure readable.** What a verb did
    rides `read(...)`, and `if verb(...)` reads its failure without ending
-   the procedure.
+   the procedure. ⚠ A read moves nothing: every sensor is what the body
+   last measured, a hand's place as its arm's loop last read it, at most
+   0.01 s old, and none before that loop's first reading (#721: read
+   afresh, a read nobody acted on drew on the drivers' noise and moved the
+   flight).
 3. **No verb knows a job** (Ben's call 2 on #493). No verb is a lid, a
    drawer, a door or a swing; each is generic, for any object.
 4. **A verb earns its place by doing what no composition can.** A swing is
