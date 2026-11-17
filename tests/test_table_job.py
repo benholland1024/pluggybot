@@ -444,16 +444,17 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
     assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION, kind
 
 
-#: The kinds whose place is laid at the table (`restaurant.SET_OUTS`).
-TABLE_KINDS = [k for k, kind in KINDS.items() if kind.target_kind == "table"]
+#: The kinds whose place is laid at the table, each by its set-out.
+TABLE_KINDS = list(restaurant.SET_OUTS)
 
 
 def _offered() -> set:
-  """Every kind a world's cadence offers, off the committed `cadence.json`
-  -- never a cached world's nor `$PLUGGY_CADENCE`'s."""
+  """Every kind a world's cadence offers, its own block's or the default's,
+  off the committed `cadence.json` -- never a cached world's nor
+  `$PLUGGY_CADENCE`'s."""
   import json
   from pluggybot.economy import cadence
-  worlds = json.loads(cadence.CADENCE_PATH.read_text())["worlds"]
+  worlds = ["", *json.loads(cadence.CADENCE_PATH.read_text())["worlds"]]
   return {k for w in worlds for k in cadence.Cadence.load(w, cadence.CADENCE_PATH).kinds}
 
 
@@ -465,6 +466,8 @@ def test_the_tables_words_say_which_left_the_graders_is():
   grader's frame and `SPOTS`, never typed (why: #723's period in
   Observatory.md)."""
   from pluggybot.mind.overseer import Menu
+  assert {k for k, kind in KINDS.items() if kind.target_kind == "table"} == set(TABLE_KINDS), \
+    "every kind at the table has a set-out"
   model, data = _table_world()
   so = ct.table_set_out(0)
   restaurant.set_out(model, data, restaurant.TABLE, so.k)
@@ -474,14 +477,15 @@ def test_the_tables_words_say_which_left_the_graders_is():
   assert np.cross(-toward, left)[2] == pytest.approx(1.0), "a quarter turn anticlockwise"
   facing = np.array([math.cos(so.start[2]), math.sin(so.start[2]), 0.0])
   assert facing @ toward == pytest.approx(-1.0), "the robot at the place faces the card's face"
-  served = {r["task"]: r["detail"] for r in default_table().as_context(
+  rewards = default_table()
+  served = {r["task"]: r["detail"] for r in rewards.as_context(
     challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
-  assert served["set_table"] == default_table()["set_table"].detail
+  assert served["set_table"] == rewards["set_table"].detail
   sides = {p: ("left" if b > 0 else "right", f"{100 * abs(b):g}")
            for p, (_, b) in table.SPOTS.items() if b}
   offered = _offered()
   for kind in TABLE_KINDS:
-    row = default_table()[kind].detail
+    row = rewards[kind].detail
     assert "as you face the card" in row, kind
     for p, (side, cm) in sides.items():
       assert f"{cm} cm to the line's {side} (your {side}" in row, (kind, p)
@@ -513,8 +517,8 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
   for kind in here:
     words = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
       kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
-    assert "the plate, the cup and the fork are set out on the table near the card" in words, kind
-    assert "none of them is where it goes" in words, kind
+    assert ("the plate, the cup and the fork are set out on the table near the card, "
+            "none of them where it goes") in words, kind
     for k in range(32):
       restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
       mujoco.mj_forward(model, data)
@@ -523,7 +527,8 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
       for p in dw.PIECES:
         rel = data.xpos[model.body(p).id] - origin
         assert abs(got[p]["aboveM"]) <= table.RESTING_M, (kind, k, p, "on the table")
-        assert math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M, (kind, k, p, "near the card")
+        assert math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M, \
+          (kind, k, p, "set out further from the card than near it: the words move with it")
         assert got[p]["offM"] > table.PLACE_M, (kind, k, p, "where it goes")
 
 

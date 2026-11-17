@@ -29,8 +29,10 @@ nor `places.json` is hashed, and no committed recording carries a job):
 - The place's directions (`dining_table_0`), shown with every table offer
   and every held table job, gain one sentence after "...carrying tag 93 on
   its face.": "When a job here is offered, the plate, the cup and the fork
-  are set out on the table near the card, and none of them is where it
-  goes."
+  are set out on the table near the card, none of them where it goes." The
+  last clause belongs to the set-out, so a robot that has laid a piece and
+  reads its held job's directions again is not told that piece is
+  misplaced.
 - The offer's sentence, shown with every table offer and held table job
   (and on the site's job list), "...the fork 19 cm out, 16 cm left, along
   the line, head to the card; the cup 7 cm out, 24 cm right. ... The plate,
