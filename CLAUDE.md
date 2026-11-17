@@ -1850,10 +1850,12 @@ save a filmstrip PNG named after the script.
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
   in. ⚠ ITS HOLD (`charge_routine`'s, never the walk there) ENDS SO ON A
-  VISITOR'S MESSAGE come since the model last answered, an ask waiting and
+  VISITOR'S MESSAGE come since the model was last asked, an ask waiting and
   the model able to be asked (`_spoken_to`, `Overseer.can_ask`;
   rooftop-media-2026 #518, Ben: a robot may answer while it charges): this
-  run's mind is asked at once on the same rules, and nothing is banked. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  run's mind is asked at once on the same rules, the cycle carried to the
+  `charge` that takes it up or banked where the plug comes out
+  (`_charge_before`). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN

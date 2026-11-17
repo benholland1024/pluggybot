@@ -1095,11 +1095,14 @@ FORM_MARKS = ",:{}"
 
 def _form_name(text) -> bool:
   """Is `text` one of the form's field names with the form's separators on
-  it (`FORM_MARKS`)?"""
+  it (`FORM_MARKS`)? ⚠ Never a comma after it alone: "Done," may begin a
+  sentence it never finished."""
   said = str(text).strip().lower()
   word = said.strip(PUNCTUATION)
-  return (word in FORM_FIELDS
-          and any(c in FORM_MARKS for c in said.replace(word, "", 1)))
+  if word not in FORM_FIELDS:
+    return False
+  before, _, after = said.partition(word)
+  return any(c in FORM_MARKS for c in before) or any(c in ":{}" for c in after)
 
 
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
@@ -4279,11 +4282,8 @@ class Overseer:
                        daemon=True).start()
 
   def _refuse(self, state: dict) -> str:
-    if self.budget_left() <= 0:
-      return "budget"
-    if not self._allowance_ok():
-      return "allowance"
-    if self._idle_run >= MAX_IDLE_RUN:
+    why = self._refusal()
+    if why == "idle-run":
       # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
       # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
       #
@@ -4298,6 +4298,16 @@ class Overseer:
       # fallbacks, arrived at from the other side: there, fallbacks fed the
       # streak; here, nothing could drain it.
       self._idle_run = 0
+    return why
+
+  def _refusal(self) -> str:
+    """Why a call started now would not be made, or "": `_refuse`'s gates,
+    read and never moved."""
+    if self.budget_left() <= 0:
+      return "budget"
+    if not self._allowance_ok():
+      return "allowance"
+    if self._idle_run >= MAX_IDLE_RUN:
       return "idle-run"
     if self.clock() < self._cooloff_until:
       return "cooloff"
@@ -4307,16 +4317,11 @@ class Overseer:
 
   def can_ask(self) -> bool:
     """Would a decision started now go to the model, as far as this side can
-    tell? Not with no client, a spent budget or allowance, the idle-run
-    throttle due, a cooloff or a call still out; an endpoint that does not
-    answer is found only by asking. `_refuse`'s gates, read and never moved
-    (the throttle resets when it fires)."""
+    tell? Not where `_refusal` says why not, nor with a call still out; an
+    endpoint that does not answer is found only by asking."""
     with self._lock:
       in_flight = self._in_flight
-    return (self.client is not None and not in_flight
-            and self.budget_left() > 0 and self._allowance_ok()
-            and self._idle_run < MAX_IDLE_RUN
-            and self.clock() >= self._cooloff_until)
+    return not in_flight and not self._refusal()
 
   @property
   def pending(self) -> bool:

@@ -177,6 +177,7 @@ def test_a_fields_name_with_the_forms_separators_on_it_is_empty_in_a_field_or_it
   # ...and a sentence's punctuation is a sentence's, a quote a title's
   assert _validate(_quiet(say="Done!")).say == "Done!"
   assert _validate(_quiet(say="Note.")).say == "Note."
+  assert _validate(_quiet(say="Done,")).say == "Done,", "a fragment, never the form's"
   assert _validate(_quiet(lookup='"Station"')).lookup == '"Station"'
   assert _validate(_quiet(say="[note]")).say == "[note]"
   # ...and a label is never judged so: "Station:" may head a ticket

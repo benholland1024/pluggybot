@@ -188,16 +188,16 @@ def test_a_charge_decided_while_plugged_in_goes_straight_on():
   assert any("CHARGE: still plugged in" in ln for ln in life.log), life.log[-3:]
 
 
-def _minded(*rows):
+def _minded(*rows, client=None):
   """Plugged in at 40 %, with a mind that can be asked, a map of `rows`
   and an inbox: a visitor's message is offered with `_say`."""
-  from test_overseer import FakeClient
+  from test_overseer import FakeClient, full
 
   from pluggybot.lifecycle import board_book
   from pluggybot.mind import events as ev
   from pluggybot.mind.inbox import Inbox
   menu = ov.Menu.for_world("home_humanoid", board_book("home_humanoid"))
-  boss = ov.Overseer(menu, origin="unseeded", client=FakeClient(),
+  boss = ov.Overseer(menu, origin="unseeded", client=client or FakeClient(full()),
                      event_map=ev.EventMap(list(rows)))
   life = _life(overseer=boss, inbox=Inbox())
   life.max_sim_time = 1e9
@@ -210,13 +210,19 @@ def _say(life, n: int = 1) -> None:
                     "text": "are you there?"})
 
 
+def _charges(life) -> list[dict]:
+  return [v for v in life.verdicts if v["task"] == "charge"]
+
+
 def test_a_message_ends_a_charges_hold_with_its_plug_in_so_the_mind_answers():
   """rooftop-media-2026 #518 (Ben, 2026-11-16: a robot may answer while it
   charges): the map's `message_received -> ask` waited behind the charge,
   and a charge held a visitor's answer 43 minutes. The hold ends on that
-  ask with its plug in and what it got banked, as at a run's end, and the
-  row is left for the loop to ask: plugged in, a `charge` goes straight on
-  (above), and what stands still leaves the plug in."""
+  ask with its plug in, History says so, and the row is left for the loop
+  to ask: plugged in, a `charge` goes straight on (above), and what stands
+  still leaves the plug in."""
+  from test_continuation import _history
+
   from pluggybot.mind import events as ev
   life = _minded(ev.Row(event="message_received", action=ev.ASK))
   drives = _walks(life)
@@ -227,9 +233,36 @@ def test_a_message_ends_a_charges_hold_with_its_plug_in_so_the_mind_answers():
   assert life.queued_row == ev.Row(event="message_received", action=ev.ASK), \
     "the ask is the loop's to run"
   assert any("a message came in at 40%" in ln for ln in life.log), life.log[-3:]
-  # ...and NOTHING BANKED (found in review): a row cut at a chat read as a
-  # charge that failed (`CHARGE_OK_FRAC`), in History too
-  assert not [v for v in life.verdicts if v["task"] == "charge"]
+  assert any("stopped at 40% for a message" in ln for ln in _history(life))
+  # ⚠ ...AND NOT BANKED THERE (found in review): a row cut at a chat read as
+  # a charge that failed (`CHARGE_OK_FRAC`). The cycle is carried to the
+  # `charge` that takes it up: one row, from 40 % (found in the next review:
+  # banked from where it was taken up, the 40 % before was in none).
+  assert not _charges(life)
+  life.queued_row = None
+  life.body.run(life._after_decision_routine(ov.Decision(action="charge")))
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+  assert life.charge_cycles == 1 and not life.body.on_charger
+
+
+def test_a_cycle_a_message_stopped_is_banked_where_the_plug_comes_out():
+  """The mind may answer and go: the plug comes out by hand, and the cycle
+  the message stopped is banked there, once."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  _say(life)
+  life.body.run(life.charge_routine())
+  life.queued_row = None
+
+  def explore(**kw):
+    return "budget"
+    yield
+  life.explore_routine = explore
+  life.body.run(life._after_decision_routine(ov.Decision(action="explore")))
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+  assert life._charge_before is None
 
 
 def test_a_message_behind_a_periodic_ask_still_ends_the_hold():
@@ -253,28 +286,39 @@ def test_a_message_behind_a_periodic_ask_still_ends_the_hold():
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
 
-@pytest.mark.parametrize("refusing", ["cooloff", "idle-run"])
-def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish(refusing):
+@pytest.mark.parametrize("refusing", ["cooloff", "idle-run", "allowance", "scripted"])
+def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish(refusing, tmp_path):
   """Cooling off, the idle-run throttle due, its purse spent, the switch on
   `scripted`: the answer is a fallback's, whose order may walk off with a
   part-charged pack, and nobody answers the visitor (found in review, the
   throttle in the second). The hold goes on."""
+  import json
+
   from pluggybot.mind import events as ev
+  from pluggybot.mind.mode import ModeSwitch
   life = _minded(ev.Row(event="message_received", action=ev.ASK))
   if refusing == "cooloff":
     life.overseer._cooloff_until = life.overseer.clock() + 1e9
-  else:
+  elif refusing == "idle-run":
     life.overseer._idle_run = ov.MAX_IDLE_RUN
+  elif refusing == "allowance":
+    life.overseer._allowance_ok = lambda: False
+  else:
+    switch = tmp_path / "mode.json"
+    switch.write_text(json.dumps({"mode": "scripted"}))
+    life.mode = ModeSwitch(switch)
   _say(life)
   life.body.run(life.charge_routine())
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
 
-def test_a_fallback_has_not_heard_the_message_and_a_model_has():
+def test_what_the_model_is_shown_it_has_heard_and_nothing_else():
   """A message a fallback answered (a cooloff, a spent purse) is still
   unheard: a later charge's hold ends on it once the model can be asked
   (found in review: cleared by any decision, the visitor waited out the
-  charge). The model's own answer has heard it."""
+  charge). And one that comes while the model thinks is news again: the
+  model was shown the state as it was asked (found in the next review)."""
+  from test_overseer import FakeClient, full
   life = _minded()
   _say(life)
   life._next_events_check = 0.0
@@ -288,6 +332,15 @@ def test_a_fallback_has_not_heard_the_message_and_a_model_has():
   life.body.run(life._decide_routine())
   assert not life.decisions[-1]["source"].startswith("fallback"), life.decisions[-1]
   assert not life._heard_new
+
+  class Meanwhile(FakeClient):
+    def create(self, **kwargs):
+      _say(life, 2)
+      return super().create(**kwargs)
+  life.overseer._client, life.overseer._client_ready = Meanwhile(full(), delay=0.3), True
+  life.body.run(life._decide_routine())
+  assert not life.decisions[-1]["source"].startswith("fallback"), life.decisions[-1]
+  assert life._heard_new, "a message the model was never shown"
 
 
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():
