@@ -193,7 +193,7 @@ def measured(key: str, taller: bool = False):
   return read
 
 
-def _hand_at(side: str, k: int):
+def _hand_sensed(side: str, k: int):
   """`<side>.<x|y|z>`: the hand's place as its arm's loop last read it
   (`Body.hand_sensed`: while that loop runs, at most `HAND_EVERY_S` old),
   never read afresh (#721) -- and before that loop has read it, no
@@ -214,7 +214,7 @@ def _hand_force(side: str, k: int):
 for _s in HANDS:
   for _k, _a in enumerate("xyz"):
     SENSORS[f"{_s}.{_a}"] = Sensor(
-      f"{_s}.{_a}", _hand_at(_s, _k),
+      f"{_s}.{_a}", _hand_sensed(_s, _k),
       f"where your {_s} hand's grip is, m, your stance frame ({_a})", every_s=HAND_EVERY_S)
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
