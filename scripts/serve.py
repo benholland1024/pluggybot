@@ -572,6 +572,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     # mouse's context reads them, and a restart keeps them (issue #345).
     life.activities = activities
   life.restart_note = opened.why
+  # Inside the memory alarm's warm-up (#713): at a first look, a step.
+  life.body.build_cameras()
   watchdog.sim_time = lambda: life.data.time
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
@@ -773,6 +775,8 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   first, second = lives
   for life in lives:
     life.restart_note = opened.why
+    # Inside the memory alarm's warm-up (#713): at a first look, a step.
+    life.body.build_cameras()
   watchdog.sim_time = lambda: first.data.time
   model, data = first.model, first.data
   boss = first.overseer
