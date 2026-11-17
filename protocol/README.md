@@ -106,7 +106,10 @@ it), narrowed by the mode the message announces, on the header's rule
 A consumer takes it as the list the run hears from then on, wider or
 narrower, until the next `mode` or header; one older than the field reads
 the message as it did. A `mode` with no `accepts` (a demo's recording, an
-older sim) leaves the list as it was. No bump: the field is additive, and
+older sim) leaves the list as it was. ⚠ `serve.py`'s own recording
+(`--record`) carries it on its `mode` lines and on its header (the run's
+list before the switch narrows it), where it carried none before; a demo's
+(`run_demo`) carries none on either. No bump: the field is additive, and
 no committed fixture carries a switch.
 
 ### 0.21.0, additive: every fall a row (`fall`, pluggybot #707)

@@ -246,6 +246,20 @@ def test_a_rating_or_a_reach_in_is_nobody_speaking():
   assert life.queued_row == ev.Row(event="message_received", action=ev.ASK)
 
 
+def test_the_model_is_shown_messages_and_never_what_code_drains():
+  """#518's eighth review: a rating or an admin's reach-in that came since
+  code last drained the queue (a hold between the drain and the ask) was
+  shown to the model among `visitorMessages`, a blank line in a message's
+  place -- and RATINGS NEVER REACH THE MODEL. The model and the map read
+  the same messages. Shown to fail on the tree before."""
+  from pluggybot.lifecycle import overseer_context
+  life = _minded()
+  life.inbox.offer({"type": "rating", "seq": 3, "quality": 0.5})
+  _say(life)
+  shown = overseer_context(life)["visitorMessages"]
+  assert [m["id"] for m in shown] == ["m_1"]
+
+
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():
   """The whole of the decided path: no walk, no dock, the charge on to full
   and its one undock at the end."""

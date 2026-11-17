@@ -45,7 +45,6 @@ from pluggybot.mind import events as ev
 from pluggybot.mind import look as eye_mod
 from pluggybot.mind import tickets as tickets_desk
 from pluggybot.mind import wiki
-from pluggybot.mind.inbox import MAX_QUEUE as INBOX_QUEUE
 from pluggybot.mind import text as text_registry
 from pluggybot.mind.tickets import Desk, DeskRefused
 from pluggybot.mind.mode import ModeSwitch, open_switch
@@ -484,6 +483,9 @@ MAX_ERRAND_DEFERRALS = 2
 #: robot answers at most one per turn, and a wall of them is input tokens
 #: spent on messages it is not going to get to -- the inbox keeps the rest.
 VISITORS_SHOWN = 5
+#: ...of these inbound kinds alone: a person's message or the other robot's
+#: `tell`, never what code drains (a rating, a reach-in, a ticket's line).
+SHOWN_KINDS = ("message",)
 
 
 def _conversation(msg) -> dict:
@@ -5024,8 +5026,8 @@ class HubLifecycle:
     # either. A cut is said BEFORE the text, where a line's end cannot take
     # it (#307).
     # ⚠ ...AND FILED AS THE CHAT'S (issue #485), so `recall` reads the
-    # chat back past the lines a message carries -- a person's alone: the
-    # other robot's `tell` is not said in the chat people read.
+    # chats back past the lines a message carries -- a person's alone: the
+    # other robot's `tell` is in no person's conversation.
     chat = msg.sender == text_registry.VISITOR
     self._remember(f"{who} said: {msg.text}", room=MAX_REPLY,
                    chat=CHAT_HEARD if chat else "")
@@ -5448,11 +5450,9 @@ class HubLifecycle:
     if self.inbox is not None:
       # ⚠ MESSAGES, never a rating, an admin's reach-in or a ticket's line,
       # which wait in the same queue for code to drain (#518's reviews):
-      # none of them is somebody speaking, nor a call's worth -- and the
-      # first messages, never the first of any kind, or five of those
-      # queued ahead hid a person's message from the map.
-      messages = [m for m in self.inbox.peek(INBOX_QUEUE) if m.kind == "message"]
-      for msg in messages[:VISITORS_SHOWN]:
+      # none of them is somebody speaking, nor a call's worth -- the same
+      # messages the model is shown (`overseer_context`).
+      for msg in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS):
         if msg.id in self._seen_visitors:
           continue
         self._seen_visitors.add(msg.id)
@@ -7505,7 +7505,10 @@ def overseer_context(life) -> dict:
   has been answered rather than when it has been read (issue #16).
   """
   from pluggybot.mind import overseer as ov
-  visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
+  # ⚠ MESSAGES ALONE (#518's review): a rating or a reach-in that came
+  # since code last drained the queue never reaches the model.
+  visitors = (life.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
+              if life.inbox is not None else ())
   offers = shown_offers(life)
   state = ov.context_for(life, visitors=visitors, tasks=offers,
                          # ...and what it has taken, with each job's time

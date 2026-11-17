@@ -2936,7 +2936,8 @@ texting one robot, never a public channel"; one room per robot that
 everyone watching read, #485, before it, and threads with a Reply button
 before that, #125). The website shows each visitor only their own messages
 to that robot and its replies to them — an account's conversation follows
-the account, and one without an account is kept by that browser's session
+the account, and one without an account by a random key that browser keeps
+in its own storage
 — and the robot is shown it that way: every message carries `earlier`,
 the newest `MAX_EARLIER` (6) LINES of THAT PERSON's conversation with the
 robot before it, never another person's line and never a line the robot

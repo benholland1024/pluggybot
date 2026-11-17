@@ -562,9 +562,10 @@ class Decision:
   respond_to: str = ""
   outcome: str = ""
   reply: str = ""
-  #: ...and something said in the robot's chat UNASKED (issue #485): to
-  #: everyone reading it, answering nobody. Rationed (`SAY_EVERY_S`) and
-  #: cut at a reply's length, each out loud (`lifecycle._chat`).
+  #: ...and something said UNASKED (issue #485): to everyone watching,
+  #: answering nobody, in nobody's conversation (rooftop-media-2026 #518).
+  #: Rationed (`SAY_EVERY_S`) and cut at a reply's length, each out loud
+  #: (`lifecycle._chat`).
   say: str = ""
   #: The task board (issue #21). Which offered job `take_task` means, by the
   #: id the SIM gave it. Like `respond_to`, and for the same reason: the
