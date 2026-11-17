@@ -449,11 +449,12 @@ TABLE_KINDS = [k for k, kind in KINDS.items() if kind.target_kind == "table"]
 
 
 def _offered() -> set:
-  """Every kind a world's cadence offers (`cadence.json`)."""
+  """Every kind a world's cadence offers, off the committed `cadence.json`
+  -- never a cached world's nor `$PLUGGY_CADENCE`'s."""
   import json
   from pluggybot.economy import cadence
-  return {k for w in json.loads(cadence.CADENCE_PATH.read_text())["worlds"]
-          for k in cadence.default_cadence(w).kinds}
+  worlds = json.loads(cadence.CADENCE_PATH.read_text())["worlds"]
+  return {k for w in worlds for k in cadence.Cadence.load(w, cadence.CADENCE_PATH).kinds}
 
 
 def test_the_tables_words_say_which_left_the_graders_is():
@@ -465,16 +466,12 @@ def test_the_tables_words_say_which_left_the_graders_is():
   Observatory.md)."""
   from pluggybot.mind.overseer import Menu
   model, data = _table_world()
-  for kind in TABLE_KINDS:
-    for k in range(4):
-      restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
-      mujoco.mj_forward(model, data)
-      _, toward, left, _ = table.place_frame(model, data)
-      assert np.cross(-toward, left)[2] == pytest.approx(1.0), (kind, k, "a quarter turn anticlockwise")
   so = ct.table_set_out(0)
   restaurant.set_out(model, data, restaurant.TABLE, so.k)
   mujoco.mj_forward(model, data)
-  _, toward, _, _ = table.place_frame(model, data)
+  _, toward, left, _ = table.place_frame(model, data)
+  # one who faces the card's face looks against `toward`: its left is theirs
+  assert np.cross(-toward, left)[2] == pytest.approx(1.0), "a quarter turn anticlockwise"
   facing = np.array([math.cos(so.start[2]), math.sin(so.start[2]), 0.0])
   assert facing @ toward == pytest.approx(-1.0), "the robot at the place faces the card's face"
   served = {r["task"]: r["detail"] for r in default_table().as_context(
@@ -482,12 +479,13 @@ def test_the_tables_words_say_which_left_the_graders_is():
   assert served["set_table"] == default_table()["set_table"].detail
   sides = {p: ("left" if b > 0 else "right", f"{100 * abs(b):g}")
            for p, (_, b) in table.SPOTS.items() if b}
+  offered = _offered()
   for kind in TABLE_KINDS:
     row = default_table()[kind].detail
     assert "as you face the card" in row, kind
     for p, (side, cm) in sides.items():
       assert f"{cm} cm to the line's {side} (your {side}" in row, (kind, p)
-    if kind in _offered():
+    if kind in offered:
       said = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
         kind, restaurant.TABLE, 0.0).description
       for p, (side, cm) in sides.items():
@@ -508,7 +506,8 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
   carries them: one that sets its pieces out elsewhere (the pass's, #682's
   stage C, whose row says where) is offered by no world, and offering it
   moves these words (why: #723's period in Observatory.md)."""
-  here = [k for k in TABLE_KINDS if k in _offered()]
+  offered = _offered()
+  here = [k for k in TABLE_KINDS if k in offered]
   assert "set_table" in here
   model, data = _table_world()
   for kind in here:

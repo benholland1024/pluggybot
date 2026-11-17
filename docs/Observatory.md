@@ -63,9 +63,11 @@ procedure accepted, and 61 % of the held time went to writing answers.
   thoughts still ask which left the grader means.
 - **Where a robot looks for the pieces**: on the table near the card, never
   the pass, and whether it still reads a set-out as the place half laid.
-- ⚠ **A job standing at the deploy keeps the directions it was offered
-  with** (an offer's directions are written into it as it is made): read
-  from the first table offer after the deploy.
+- ⚠ **A job standing at the deploy keeps the words it was offered with**,
+  its sentence and its directions (both are written into it as it is made):
+  read from the first table offer after the deploy. At a deploy that
+  starts the world over, such an offer keeps its old date too: #659's
+  re-dating knows a kind's words only as its template now writes them.
 - ⚠ **Not to be pooled with the period before for what a robot does at the
   table**: the job's words moved.
 
