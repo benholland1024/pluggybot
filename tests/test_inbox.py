@@ -1118,14 +1118,17 @@ def test_the_rule_says_each_chat_is_one_persons_and_a_say_is_in_none():
   fail on the rule as it was."""
   visitors = ov.RULES[ov.RULES.index("VISITORS"):]
   assert "ONE chat" not in visitors and "everyone watching can read" not in visitors
-  assert ("Each person's chat with you is their own conversation: they see "
-          "their messages and your replies to them, and nobody else sees that "
-          "conversation.") in visitors
+  assert ("Each person has their own chat with you. Only they see their "
+          "messages and your replies to them there.") in visitors
   assert ("It never holds another person's lines, or what you said to "
           "everyone.") in visitors
   assert ("Everyone watching sees it, in a place of its own: it is never part "
           "of anyone's conversation with you.") in visitors
-  assert "Every conversation is also kept in your History" in visitors
+  #  ⚠ ...and never more private than it is (#518's review): History is
+  #  read by everyone watching, and the rule says so where it says what
+  #  History keeps.
+  assert ("Every conversation is also kept in your History, which people "
+          "watching can read, as they can all your memory") in visitors
   say = next(row for row in ov.FIELD_INDEX if row[0] == "say")
   assert say[3] == ("something said to everyone watching that answers nobody; "
                     "it is never part of anyone's conversation with you.")

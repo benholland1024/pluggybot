@@ -299,6 +299,18 @@ PRIVATE_DOORS = {
 }
 
 
+def test_a_visitors_name_and_the_answer_are_nowhere_in_the_others_context():
+  """#518's review: the visitor door above checks the narration's generic
+  line, which no longer carries whose message it was or the answer; so
+  here the other robot's whole context is read for those, as the door read
+  it before."""
+  from pluggybot.mind.inbox import Inbox
+  a, b = stub_pair(inboxes=(Inbox(), Inbox()))
+  _a_visitor_answered(a)
+  seen = json.dumps(overseer_context(b))
+  assert "vera" not in seen.lower() and "my plans to myself" not in seen
+
+
 @pytest.mark.parametrize("door", sorted(PRIVATE_DOORS))
 def test_what_a_robot_keeps_private_is_nowhere_in_the_others_context(door):
   """A robot plugs in (its walk's line, which the other is shown), then

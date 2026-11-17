@@ -2958,12 +2958,15 @@ robot before it, never another person's line and never a line the robot
 said to everyone, because the chat is the WEBSITE's state — it outlives a
 mission, a restart and a generation — and a transcript is a thing a
 network can carry. The VISITORS rule says so: each person's conversation
-is their own, `earlier` is theirs, and a `say` is in nobody's. ⚠ So
-nothing on the viewers' stream says whose message an answer answered or
-what it said: the narration under the portrait is "VISITOR message
-answered: <outcome>" (and "VISITOR message dropped: …"), and the site's
-hub relays a `visitor_reply` to its viewers without its words, its sender
-or its id (it keeps them on the person's row). A line is the person's
+is their own, `earlier` is theirs, and a `say` is in nobody's. ⚠ An
+answer's own paths say neither whose message it answered nor what: the
+narration under the portrait is "VISITOR message answered: <outcome>" (and
+"VISITOR message dropped: …"), and the site's hub relays a `visitor_reply`
+to its viewers without its words, its sender or its id (it keeps them on
+the person's row). ⚠ HISTORY STILL DOES (below): its lines of every
+exchange reach every viewer as `record` events, so the rule says History,
+like all the robot's memory, is read by everyone watching, and claims no
+more privacy than the chat has. A line is the person's
 (`from`, `text`; `outcome: dropped` where the queue threw it away) or the
 robot's own answer to them (`you`, with `to` and `outcome`). ⚠ The robot's own lines are a SHAPE, never a name:
 a username can be `you`, so a person's line never carries that key. The

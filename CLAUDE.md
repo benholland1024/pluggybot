@@ -1945,13 +1945,15 @@ save a filmstrip PNG named after the script.
   their messages and the replies to them, and every message carries
   `earlier`, the newest `MAX_EARLIER` (6) LINES of THAT PERSON's
   conversation with that robot, the website's state, never another
-  person's line nor a `say`; the VISITORS rule says so. ⚠ So nothing on
-  the viewers' stream says whose message it answered or what: the
-  narration is "VISITOR message answered: <outcome>" (the site's hub takes
-  the words out of the `visitor_reply` it relays). The robot's own lines
-  are a SHAPE (`robot` on the wire, `you` to the model), never a name,
-  because a username can be `you`; an older site's thread exchanges are
-  read as their two lines. `sender` is stated by the CALLER of
+  person's line nor a `say`; the VISITORS rule says so. ⚠ An answer's own
+  paths say neither whose message nor what: the narration is "VISITOR
+  message answered: <outcome>", and the site's hub relays the
+  `visitor_reply` without its words. ⚠ History still holds every exchange,
+  its `record` events reach every viewer, and the rule says History is read
+  by everyone watching (the memory left as it was: Ben's to revisit). The
+  robot's own lines are a SHAPE (`robot` on the wire, `you` to the model),
+  never a name, because a username can be `you`; an older site's thread
+  exchanges are read as their two lines. `sender` is stated by the CALLER of
   `Inbox.offer`, never read off the wire. Each line is filed in History
   under the topic `chat` by its role (a peer's `tell` under none), every
   conversation's (the robot remembers them all, and its memory is read by

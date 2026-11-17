@@ -75,7 +75,10 @@ said whose message it was and what the robot answered:
 The `visitor_reply` is unchanged: it carries `reply`, `from` and `id` for
 the website to settle the person's row with. The website's hub relays it to
 its viewers without those (`server/pluggyworld.ts`), as a cue that a chat
-moved. No bump.
+moved. ⚠ History's two lines of an exchange (*ada said: ...*, *replied to
+ada: ...*, `record` events) are unchanged too, and say who said what to
+every viewer: the robot's memory, which the prompt says everyone watching
+can read. No bump.
 
 ### 0.21.0, additive: a `mode` message says what the robot hears now (`mode.accepts`, rooftop-media-2026 #518)
 

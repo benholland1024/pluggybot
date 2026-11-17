@@ -1159,8 +1159,8 @@ class HubLifecycle:
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
     #: ...and whether one has arrived since the model was last asked, which
-    #: a charge's hold ends on (`_spoken_to`): the inbox's, so as it is not
-    #: kept.
+    #: a charge's hold ends on (`_spoken_to`). Not kept across a restart, as
+    #: the inbox is not: what the site delivers again is news to the next.
     self._heard_new = False
     #: ...and the ids the model was shown at its last ask, which are no news.
     self._shown_visitors: set[str] = set()
@@ -2990,10 +2990,9 @@ class HubLifecycle:
             self._bank(scoring.score_charge(self, before))
           return
         if self._spoken_to:
-          # ⚠ NOTHING BANKED: a row cut at a chat read as a charge that
-          # failed (`CHARGE_OK_FRAC`); carried to the next, it counted the
-          # think and the idle and was lost at a run's end. The `charge` that
-          # takes it up banks its own (Overseer.md §10).
+          # ⚠ NOTHING BANKED: a row cut here reads as a charge that failed
+          # (`CHARGE_OK_FRAC`). The `charge` that takes it up banks its own
+          # (Overseer.md §10).
           frac = f"{self.battery.fraction:.0%}"
           self._say(f"CHARGE: a message came in at {frac} -- my plug stays in "
                     "while I answer", doing="CHARGE: a message came in -- my plug stays in")
@@ -5003,9 +5002,9 @@ class HubLifecycle:
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
-    # Narrated too, on `_answer_visitor`'s terms (whose it was is not said):
-    # an operator seeing this repeatedly is watching the channel saturate,
-    # which is the other thing the count was supposed to be telling somebody.
+    # Narrated too, on `_answer_visitor`'s terms, never whose (the admins'
+    # chats page says): an operator seeing this repeatedly is watching the
+    # channel saturate, which is what the count is for.
     self._say("VISITOR message dropped: the inbox was full")
 
   def _answer_visitor(self, decision) -> None:
@@ -6064,10 +6063,9 @@ class HubLifecycle:
     if (decision.scripted and len(self.true_deaths) == lives
         and fallback_class(decision.source) != "failure"):
       # A policy's fallback heard nothing, refused before anything stepped:
-      # what the ask was to show is news again. ⚠ NOT A FAILURE'S (#518's
-      # review): an endpoint that failed fails the next ask too until its
-      # cooloff, and every hold its news ended was a charge cut for an
-      # answer nobody gave; the next ask shows the message all the same.
+      # what the ask was to show is news again. ⚠ NOT A FAILURE'S: its
+      # endpoint fails the next ask too until the cooloff, and its news
+      # would cut every charge for nothing (Overseer.md §10).
       self._heard_new = self._heard_new or shown
       self._shown_visitors = shown_ids
     if len(self.true_deaths) != lives:

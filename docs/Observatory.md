@@ -18,7 +18,7 @@ shows each visitor only their own conversation and sends with each message
 only that person's lines as `earlier`; deployed alone, this half tells the
 robots something the site does not yet do.
 
-**What the robots read moves** (`prompt_sha` `6a3d6cf2…`, 69,126
+**What the robots read moves** (`prompt_sha` `7ce88109…`, 69,144
 characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
 3e000d65; the session host's hello is unmoved, sha1 `3cd41b6f…`):
 - VISITORS, the chat: "What people say to you and what you say back are
@@ -27,16 +27,16 @@ characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
   lines, oldest first -- what people said (`from`, `text`; `dropped` means
   it never reached you) and what you said (`you`, with `to` and `outcome`
   where you were answering somebody). [...] `recall` with `read` set to
-  `chat` shows you more of it." becomes "Each person's chat with you is
-  their own conversation: they see their messages and your replies to
-  them, and nobody else sees that conversation. A message comes with
-  `earlier` when that person has said something to you before: the last 6
-  lines of your conversation with them, oldest first -- what they said
-  (`from`, `text`; `dropped` means it never reached you) and what you
-  answered them (`you`, with `to` and `outcome`). It never holds another
-  person's lines, or what you said to everyone. [...] Every conversation is
-  also kept in your History: `recall` with `read` set to `chat` shows you
-  more of them."
+  `chat` shows you more of it." becomes "Each person has their own chat
+  with you. Only they see their messages and your replies to them there. A
+  message comes with `earlier` when that person has said something to you
+  before: the last 6 lines of your conversation with them, oldest first --
+  what they said (`from`, `text`; `dropped` means it never reached you) and
+  what you answered them (`you`, with `to` and `outcome`). It never holds
+  another person's lines, or what you said to everyone. [...] Every
+  conversation is also kept in your History, which people watching can
+  read, as they can all your memory: `recall` with `read` set to `chat`
+  shows you more of them."
 - VISITORS, `say`: "You may also say something in your chat that answers
   nobody: set `say`, on any answer. Everyone reading your chat sees it."
   becomes "You may also say something to everyone watching that answers
