@@ -286,7 +286,7 @@ class Moving(StubBody):
     return there
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                        path=None, turns=None):
+                        path=None, turns=None, verb=False):
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
     a = np.asarray(self.hand_at(side), dtype=float)
@@ -296,7 +296,7 @@ class Moving(StubBody):
             "moved": float(np.linalg.norm(d)), "dx": d[0], "dy": d[1], "dz": d[2]}
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                   give=True):
+                   give=True, verb=False):
     a = np.asarray(self.hand_at(side), dtype=float)
     w = np.asarray(direction, dtype=float) / np.linalg.norm(direction)
     there = yield from self._go(side, a + distance_m * w)
@@ -826,7 +826,7 @@ def test_a_pull_its_condition_stopped_is_stopped_so_though_its_grip_went():
     def grip_now(self, side):
       return np.array([0.3, 0.2, 1.0]), np.eye(3)
 
-    def pull(self, side, way, force, distance, speed, give):
+    def pull(self, side, way, force, distance, speed, give, verb=False):
       self.phase[side] = "carry"
       return True
 

@@ -509,6 +509,8 @@ def _bare_reach():
   # ...nor a way home still to be read home by its drivers (#693's family)
   r.homing = {s: False for s in hm.SIDES}
   r.held_for, r.lifted = {s: 0.0 for s in hm.SIDES}, {s: 0 for s in hm.SIDES}
+  # ...nor a hand whose grip keeps the body in its posture (#719)
+  r.kept_by = {s: None for s in hm.SIDES}
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
@@ -1694,7 +1696,7 @@ class _PullEnds(StubBody):
   ends = "distance"
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                   give=True):
+                   give=True, verb=False):
     why = self.ends.pop(0) if isinstance(self.ends, list) else self.ends
     return {"why": why, "seconds": 0.5, "moved": 0.02, "along": 0.02, "dx": 0.0,
             "dy": 0.0, "dz": 0.02, "direction": [0.0, 0.0, 1.0], "force": float(limit_n)}
@@ -1794,7 +1796,7 @@ def test_a_hand_whose_move_a_death_ended_is_halted_where_it_is():
       return True
 
     def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                     give=True):
+                     give=True, verb=False):
       for n in range(200):
         if n == 50:
           self.life.dead = {"cause": "flat"}  # the death seam's, as the pull goes on
@@ -3300,7 +3302,7 @@ def test_the_humanoids_pull_hands_its_way_to_the_reach_in_the_stance_frame():
     body = world.body
     got = {}
 
-    def pull(side, way, force, distance_m, speed=0.06, give=True):
+    def pull(side, way, force, distance_m, speed=0.06, give=True, verb=False):
       got.update(side=side, way=np.asarray(way, dtype=float), force=force,
                  distance=distance_m, speed=speed, give=give)
       return False
