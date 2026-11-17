@@ -195,8 +195,9 @@ def measured(key: str, taller: bool = False):
 
 def _hand_at(side: str, k: int):
   """`<side>.<x|y|z>`: the hand's place as its arm's loop last read it
-  (`Body.hand_sensed`, at most `HAND_EVERY_S` old), never read afresh
-  (#721) -- and before that loop has read it, no reading."""
+  (`Body.hand_sensed`: while that loop runs, at most `HAND_EVERY_S` old),
+  never read afresh (#721) -- and before that loop has read it, no
+  reading."""
   def read(life) -> float:
     at = life.body.hand_sensed(side)
     if at is None:
