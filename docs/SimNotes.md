@@ -10304,7 +10304,27 @@ move stopped is held) still fell 7 of 9: the stage that loads the lever is
 held, and the next tips the body within its own wait. The posture cannot be
 held with the other hand on the lever, however it is approached.
 
-**No posture while the other hand holds something (option 2).** O2_MEASURED
+**No posture while the other hand holds something (option 2).** While the
+left hand is out holding the lever, the right reach plans only in the
+posture the body stands in (`Reach.keep`), and its carries and pulls take
+none. Flown the same way (e0d95f4d; the later heads fly the 51 live flights
+and the table's hands check bit for bit where read), door_p3's 48 fell 3
+times where today's tree fell 11: none of the six in that reach, its three
+stuck deaths among them; two of #693's five gone with the sequences that led
+to them, the other three as before; none new. The right reach is refused,
+saying the left hand is out holding something, and the procedure goes on to
+its withdraws. It costs one pass: at t_0430 r1.55 a300 today's tree opened
+the door to 58 deg through the body's own posture changes, the left jaws on
+the lever, while its right reaches failed; kept, the door never opens. Over
+Ben's bar, on one pod beside 73f8daf, every flight is the base's: 0-31 122
+of 160 passed with 5 falls, 32-127 331 of 416 with 4 (every job the same),
+the tour's five jobs 152 of 160 with 1, every slowest pass the same (the
+table's 280 s, the chest's 155, the door's 173, the drawer's 147, the cube's
+154); 799 of its 811 flights are the base's to the step, the 12 that are not
+all door_p3's, where 85 moves were kept; no reference asks a move with the
+other hand out holding something, and #708's stops on `chest_run35` at K4's
+keys and draws 321-336 are the same 24 and 37, at the same ticks, with no
+fall.
 
 **What is true now** (`Reach.keep`, `kept_by`, `Body.posture_kept_by`,
 `steps.REACH_KEPT`, `MOVE_KEPT`): while one hand is out at its work and its

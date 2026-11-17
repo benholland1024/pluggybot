@@ -47,7 +47,18 @@ new one, a reach's look at its pre-grasp takes none, and no carry or pull
 re-plans one on its way. A piece carried at the side keeps nothing; the
 loop's own moves (a charge's, a walk's lift) are never kept.
 
-**Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): O2_OBS
+**Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): door_p3
+at its two live draws, the belief 1.55-1.86 m off (48 flights, M12's): 3
+falls where 73f8daf fell 11 -- none of the six in the right reach (three
+stuck deaths), two of #693's five gone, none new -- and one pass lost, a
+door the body's own posture changes had opened with the left jaws on its
+lever. `cube_fix3` falls on neither (#717's keep-off at the knees). Ben's
+bar, every flight the base's: 0-31 122 of 160 passed with 5 falls, 32-127
+331 of 416 with 4 (every job the same), the tour's five jobs 152 of 160
+with 1, every slowest pass the same (the table's 280 s, the chest's 155,
+the door's 173, the drawer's 147, the cube's 154); 799 of its 811 flights
+are the base's to the step, the 12 that are not all door_p3's, where 85
+moves were kept. #708's stops the same.
 
 **What to read**: the falls in a reach, a `move_hand` or a `pull` of one
 hand with the other holding something (a door's lever, a drawer's handle,
