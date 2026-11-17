@@ -1348,8 +1348,10 @@ save a filmstrip PNG named after the script.
   `tests/test_placeholders.py`): every field is required, and the model writes
   `n`, `none`, `:`, `test` or a field's name where `""` was meant -- its own,
   and in a field of its own any the form coined (`COINED`: `drop_goal`,
-  `unpin`), never an everyday one (`done`: "Done!" may be meant); an object
-  is judged by its own names alone (a finding is named for what it
+  `unpin`), never a bare everyday one (`done`: "Done!" may be meant) -- but
+  any field's name the form's punctuation clings to is one in any field of
+  its own (`FORM_MARKS`: Rowan said `,intend` to everyone, rooftop-media-2026
+  #518); an object is judged by its own names alone (a finding is named for what it
   measures). `validate` reads one as `""` where it can stand
   (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an object whose content is one
   goes whole, a label is blanked); with `FILLED_FIELDS` (3) or more (one word
@@ -1840,7 +1842,9 @@ save a filmstrip PNG named after the script.
   for `busy`, an end inside a death's 300 s came back from before the fall,
   alive). ⚠ A CHARGE STOPS ON THE RUN'S HOUR WITH ITS PLUG IN where a next
   run carries on (#654; `HubLifecycle._hour_up`, `continuing`, off in a demo
-  or a test; Observatory.md): its row banked, its state left `CHARGE`, a wait
+  or a test; Observatory.md), and its HOLD on a visitor's message's ask
+  (`_spoken_to`, rooftop-media-2026 #518; Ben: a robot may answer while it
+  charges), the loop asking at once: its row banked, its state left `CHARGE`, a wait
   for a taken station, a search and the trip's next leg ended with it; the
   next run's mind is asked, a `charge` goes straight on
   (`go_charge_routine`), the plug comes out by hand at what moves the body
@@ -1917,7 +1921,11 @@ save a filmstrip PNG named after the script.
   (`dropped` is in `VISITOR_OUTCOMES`, NOT in `DECIDED_OUTCOMES`). ⚠ ONE
   inbound kind, `message`; the OUTCOME carries the distinction, and legacy
   kinds and outcomes are folded at the door (`answered` must still render). ⚠
-  The header advertises `accepts` PER KIND. ⚠ Sanitising is NOT the security
+  The header advertises `accepts` PER KIND, as the switch is at the CONNECT,
+  and ⚠ every `mode` message carries it as the switch leaves it
+  (`recorder.heard`, rooftop-media-2026 #518): a link opened while paused
+  named no `message`, and the site held every one until the next run, the
+  robots awake. ⚠ Sanitising is NOT the security
   boundary; the framing and the fixed menu are. ⚠ It is ONE CHAT PER ROBOT
   (#485; threads since rooftop #125): every message carries `earlier`, the
   chat's newest `MAX_EARLIER` (6) LINES, the website's state; the robot's

@@ -1698,12 +1698,18 @@ offers were `take_points`, the harm kind.
    line, `serves`, `done`) any name the form coined (`COINED`, out of
    `FORM_FIELDS` whatever keys the answer carries: an underscore or `un`
    before another field, `drop_goal`, `unpin`, `heart_for`). ⚠ A field named
-   by an everyday word (`done`, `reason`, `tell`) is no placeholder in
+   by an everyday word (`done`, `reason`, `tell`) is no placeholder bare in
    another field: "Done!" may be meant in the chat, and counted, it would
-   make an answer filled and leave out the `done` it meant, so Rowan's `say`
-   "tell:" stands. An object is judged by its own names alone, because a
-   finding is named for what it measures (`mouse_will`, `answer = 24 --
-   calculated from 6×4`). An object whose content holds one goes whole: a
+   make an answer filled and leave out the `done` it meant. ⚠ But any field's
+   name with the form's own punctuation on it (`FORM_MARKS`: `,` `:` `"`
+   `{}` `[]`) is the form leaking into a field, never a sentence, and reads
+   as empty in any field of its own: Rowan said `,intend` to everyone on
+   2026-11-15 at 16:00 UTC, the next field's name with a comma before it
+   (rooftop-media-2026 #518), and its `say` "tell:" (below, filler) goes
+   too; "Done!" and a bare `note` stand. An object is judged by its own
+   names alone, because a finding is named for what it measures
+   (`mouse_will`, `answer = 24 -- calculated from 6×4`). An object whose
+   content holds one goes whole: a
    message, a decline's reason, a note's text, a finding's quantity, a
    procedure's source, a ticket's text, a reply on one. A label reads as
    `""`: a ticket's title (the desk titles it from its text), a finding's
@@ -2865,6 +2871,24 @@ hands them to `_drop_visitor`, which emits a `visitor_reply` with outcome
 and not in `DECIDED_OUTCOMES` (what a mind may say): in the grammar it would
 be a free excuse indistinguishable on the wire from the truth. Best effort —
 anything unreported at mission end dies with the process.
+
+**A wake hears a message at once, and a charge's hold does not keep one
+waiting** (rooftop-media-2026 #518). The site relays a message only while
+the stream's `accepts` names its kind, and the header's list is the
+switch's at the CONNECT: a link opened while paused (the schedule's night,
+a deploy or a reconnect into a pause) named none for its whole life. From
+2026-10-29 to 11-15, six messages waited 58-93 minutes for delivery while
+their robots were awake and deciding, each delivered within a second of
+the next run's start (reproduced on a local site). Every `mode` message now
+carries `accepts` as the switch leaves it (protocol/README.md). And a
+`message_received -> ask` row waited behind a charge, which held one answer
+43 minutes on 10-29 (no decision in between, the pack at 0.89 after);
+charges on 11-07 and 11-08 ran 74 and 85 minutes from the decision to the
+next. A charge's hold now ends on that ask with its plug in
+(`HubLifecycle._spoken_to`; Ben, 2026-11-16: a robot may answer while it
+charges), and the mind is asked plugged in, as at a run's end (#654): a
+`charge` goes straight on, what stands still leaves the plug in, and what
+moves takes it out first. The walk to the station still holds the ask.
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,
