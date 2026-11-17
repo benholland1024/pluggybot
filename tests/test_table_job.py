@@ -442,6 +442,71 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
     assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION, kind
 
 
+def test_the_rows_say_which_left_the_graders_is():
+  """#723: the grader's left is the diner's (`table.place_frame`), and the
+  robot laying the place faces the card as the diner does, so each row that
+  states the place says the side as the robot's own: told "16 cm to the
+  line's left", the line running from the card toward it, Luca asked itself
+  which left the grader meant (11-15, t_0414). The side is read off the
+  grader's frame on the place as an offer sets it out, against a robot
+  standing where the set-out stands it, never typed; the row of the place
+  laid from the pass too, its criteria the table's."""
+  from pluggybot.mind.overseer import Menu
+  model, data = _table_world()
+  so = ct.table_set_out(0)
+  restaurant.set_out(model, data, restaurant.TABLE, so.k)
+  mujoco.mj_forward(model, data)
+  _, toward, left, _ = table.place_frame(model, data)
+  facing = np.array([math.cos(so.start[2]), math.sin(so.start[2]), 0.0])
+  assert facing @ toward == pytest.approx(-1.0), "the robot at the place faces the card's face"
+  yours = np.array([-facing[1], facing[0], 0.0])     # a quarter turn anticlockwise of the facing
+  assert yours @ left == pytest.approx(1.0), "the grader's left is the robot's as it faces the card"
+  served = {r["task"]: r["detail"] for r in default_table().as_context(
+    challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
+  rows = {"set_table": served["set_table"],
+          "set_table_pass": default_table()["set_table_pass"].detail}
+  for kind, words in rows.items():
+    assert "as you face the card" in words, kind
+    for p, (_, b) in table.SPOTS.items():
+      if b:
+        side = "left" if b > 0 else "right"
+        assert f"{100 * abs(b):g} cm to the line's {side} (your {side}" in words, (kind, p)
+
+
+#: "Near the card", m: an offer here sets each piece out within this of the
+#: card's foot (0.33 at the farthest a set-out draws, `counter.TABLE_SOURCES`).
+NEAR_CARD_M = 0.35
+
+
+def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
+  """#723: the place's directions say where an offer here sets the pieces
+  out, as the practice's job says where they wait (`practice.TABLE_JOB`):
+  told only that they "were set out", Luca read a set-out's plate and fork
+  as the place half laid (11-15, t_0414), and Rowan wrote its search for
+  them at the pass too (11-14, t_0271). Shown as an offer carries them, and
+  true of every kind this world offers at the table, at each draw, by the
+  grader's own measure: one that sets them out elsewhere (the pass's,
+  #682's stage C) moves these words."""
+  maker = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)
+  here = [k for k in maker.cadence.kinds if KINDS[k].target_kind == "table"]
+  assert here, "the world offers a job at the table"
+  model, data = _table_world()
+  for kind in here:
+    words = maker._offer(kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
+    assert "the plate, the cup and the fork are set out on the table near the card" in words, kind
+    assert "none of them is where it goes" in words, kind
+    for k in range(32):
+      restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
+      mujoco.mj_forward(model, data)
+      got = table.measure(model, data)
+      origin, toward, left, _ = table.place_frame(model, data)
+      for p in dw.PIECES:
+        rel = data.xpos[model.body(p).id] - origin
+        assert got[p]["aboveM"] == pytest.approx(0.0, abs=1e-6), (kind, k, p, "on the table")
+        assert math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M, (kind, k, p, "near the card")
+        assert got[p]["offM"] > table.PLACE_M, (kind, k, p, "where it goes")
+
+
 # ---- the place laid from the pass (#682's stage C, easy mode) ------------------------------
 
 
