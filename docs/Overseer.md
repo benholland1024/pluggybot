@@ -2904,10 +2904,14 @@ before the message is in no `charge` row (the frames' battery has it), and
 the `charge` that takes it up banks its own. History says "charge: stopped
 at N% for a message, my plug still in". A message that
 comes while the model thinks is news again: the model hears what it was
-shown at the ask. One a policy's fallback answered (a cooloff, a spent
-purse) is news still; one a FAILED call answered is not (#518's review: the
-endpoint fails the next ask too until its cooloff, and each hold it ended
-was a charge cut for nothing; the next ask shows the message all the same).
+shown at the ask. One a fallback that made no call answered (a cooloff, a
+spent purse, `busy`) is news still; one a FAILED call answered is news for
+one retry (`_news_retried`, #518's reviews: kept every time, an outage
+failed every ask until its cooloff and each hold it ended was a charge cut
+for nothing; dropped at once, a one-off cut-off left its person waiting out
+the charge). Only a `message` is somebody speaking: a rating, a reach-in or
+a ticket's line waits in the same queue for code, and neither fires
+`message_received` nor is news.
 The mind is asked plugged in, as at a run's end
 (#654): a `charge` goes straight on, what stands still leaves the plug in,
 and what moves takes it out first. The walk to the station and a wait for

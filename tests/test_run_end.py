@@ -368,13 +368,15 @@ def test_what_the_model_is_shown_it_has_heard_and_nothing_else():
   assert life._heard_new, "a message the model was never shown"
 
 
-def test_a_failed_endpoint_never_makes_a_message_news_again():
-  """#518's review: a fallback put the news back, so with the endpoint
-  failing (offline, before its cooloff) every later ask ended a charge's
-  hold for an answer nobody gave -- and a fallback's order may unplug. The
-  message is shown at the next ask all the same. A policy's fallback (a
-  cooloff, a spent purse) still heard nothing, and keeps it news. Shown to
-  fail without the fix: a failure restored the flag."""
+def test_a_failed_call_keeps_a_message_news_for_one_retry_and_no_more():
+  """#518's reviews: a fallback put the news back after every failed call,
+  so with the endpoint failing (offline, before its cooloff) every later ask
+  ended a charge's hold for an answer nobody gave -- and a fallback's order
+  may unplug (round 1). Dropped after the first failure, a one-off cut-off
+  left its person waiting out the whole charge (round 4). So a failed call
+  puts it back once: the next ask is a retry, and the one after a failure
+  more is not cut for it. A new message is news again. Shown to fail on
+  each side: restored always, and restored never."""
   from test_overseer import FakeClient
 
   class Down(FakeClient):
@@ -388,8 +390,40 @@ def test_a_failed_endpoint_never_makes_a_message_news_again():
   assert life._heard_new
   life.body.run(life._decide_routine())
   assert ov.fallback_class(life.decisions[-1]["source"]) == "failure", life.decisions[-1]
-  assert not life._heard_new
-  assert life.overseer.can_ask(), "no cooloff yet: the hold would end again"
+  assert life._heard_new, "a one-off failure: the next ask is a retry"
+  life.body.run(life._decide_routine())
+  assert not life._heard_new, "failed again: no more holds cut for it"
+  assert life.overseer.can_ask(), "no cooloff yet: kept, the hold would end again"
+  _say(life, 2)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._heard_new, "a new message is news"
+
+
+def test_a_rating_or_a_reach_in_is_nobody_speaking():
+  """#518's fourth review: every inbound kind waits in one queue until code
+  drains it between errands, and `message_received` fired for a rating or
+  an admin's reach-in, so a map's `message_received -> ask` paid a call with
+  no message to answer. Shown to fail without the fix."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  life.inbox.offer({"type": "rating", "seq": 3, "quality": 0.5})
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life.queued_row is None and not life._heard_new
+
+
+def test_the_maps_first_row_for_a_message_decides_whether_one_asks():
+  """#518's fourth review: the map's first row for an event is the one that
+  fires, so `message_received -> idle` ahead of `message_received -> ask`
+  never asks on a message -- and a message must not cut a charge's hold
+  through some other ask. Shown to fail on any row's ask."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action="idle"),
+                 ev.Row(event="message_received", action=ev.ASK))
+  assert not life._asks_on_messages
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  assert life._asks_on_messages
 
 
 def test_only_a_persons_message_ends_a_charges_hold():

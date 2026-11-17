@@ -1872,11 +1872,17 @@ save a filmstrip PNG named after the script.
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
   in. ⚠ ITS HOLD (`charge_routine`'s, never the walk there) ENDS SO ON A
-  PERSON'S MESSAGE the model was not shown at its last ask, an ask waiting and
-  the model able to be asked (`_spoken_to`, `Overseer.can_ask`;
-  rooftop-media-2026 #518, Ben: a robot may answer while it charges): this
-  run's mind is asked at once on the same rules, and nothing is banked (the
-  part before the message is in no `charge` row). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  PERSON'S MESSAGE (`kind` `message`: never a rating, a reach-in or a
+  ticket's line, which fire no `message_received` either) the model was not
+  shown at its last ask, in a map whose first `message_received` row asks,
+  an ask waiting and the model able to be asked (`_spoken_to`,
+  `Overseer.can_ask`; rooftop-media-2026 #518, Ben: a robot may answer while
+  it charges): this run's mind is asked at once on the same rules, and
+  nothing is banked (the part before the message is in no `charge` row). ⚠
+  A fallback that made no call keeps the message news; a FAILED call's, for
+  one retry only (`_news_retried`): kept every time, an outage cut every
+  charge; dropped at once, a one-off cut-off left its person waiting the
+  charge out. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN

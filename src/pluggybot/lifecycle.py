@@ -1164,6 +1164,9 @@ class HubLifecycle:
     self._heard_new = False
     #: ...and the ids the model was shown at its last ask, which are no news.
     self._shown_visitors: set[str] = set()
+    #: ...and whether a FAILED call has already put that news back once: it
+    #: is put back for one more ask, never for every ask an outage fails.
+    self._news_retried = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -2697,11 +2700,12 @@ class HubLifecycle:
 
   @property
   def _asks_on_messages(self) -> bool:
-    """The agent's map asks it when a message comes (#518's review): with
-    no such row, a message never moves when it is asked -- the map is the
-    whole of that (Overseer.md "The event map")."""
-    rows = self.event_map.rows if self.event_map is not None else ()
-    return any(r.event == "message_received" and r.action == ev.ASK for r in rows)
+    """The agent's map asks it when a message comes, by its first row for
+    one, as the clock reads it (#518's review): otherwise a message never
+    moves when it is asked -- the map is the whole of that (Overseer.md "The
+    event map")."""
+    row = self.event_map.first("message_received") if self.event_map is not None else None
+    return row is not None and row.action == ev.ASK
 
   # ---- phases --------------------------------------------------------------
 
@@ -5492,16 +5496,18 @@ class HubLifecycle:
     # stranger can trigger a row; a stranger cannot choose which one.
     if self.inbox is not None:
       for msg in self.inbox.peek(VISITORS_SHOWN):
-        if msg.id not in self._seen_visitors:
-          self._seen_visitors.add(msg.id)
-          # ...a person's MESSAGE (never the other robot's `tell`, nor a
-          # rating, an admin's reach-in or a ticket's line, which wait in
-          # the same queue for code to drain) that the model was not shown
-          # at its last ask (#518)
-          if (msg.sender == text_registry.VISITOR and msg.kind == "message"
-              and msg.id not in self._shown_visitors):
-            self._heard_new = True
-          self._occurred.append(("message_received", ""))
+        # ⚠ A MESSAGE, never a rating, an admin's reach-in or a ticket's
+        # line, which wait in the same queue for code to drain (#518's
+        # review): none of them is somebody speaking, nor a call's worth.
+        if msg.kind != "message" or msg.id in self._seen_visitors:
+          continue
+        self._seen_visitors.add(msg.id)
+        # ...a person's (never the other robot's `tell`) that the model was
+        # not shown at its last ask (#518)
+        if msg.sender == text_registry.VISITOR and msg.id not in self._shown_visitors:
+          self._heard_new = True
+          self._news_retried = False
+        self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
                            else None),
@@ -6072,17 +6078,23 @@ class HubLifecycle:
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
-    if (decision.scripted and len(self.true_deaths) == lives
-        and (fallback_class(decision.source) != "failure"
-             or decision.source == "fallback:busy")):
-      # A fallback that made no call heard nothing, refused before anything
-      # stepped (a policy's, or `busy` behind a call still out, which
-      # `can_ask` waits out): what the ask was to show is news again. ⚠ NOT
-      # A FAILED CALL'S: its endpoint fails the next ask too until the
-      # cooloff, and its news would cut every charge for nothing (Overseer.md
-      # §10).
-      self._heard_new = self._heard_new or shown
-      self._shown_visitors = shown_ids
+    if decision.scripted and len(self.true_deaths) == lives:
+      # A fallback heard nothing: what the ask was to show is news again.
+      # One that made no call (a policy's, `busy` behind a call still out,
+      # `no-client`) every time: `can_ask` holds off a hold's end while it
+      # stands. ⚠ A FAILED CALL'S ONCE, a retry (#518's reviews): an outage
+      # fails every ask until its cooloff, and news kept would cut every
+      # charge for nothing, where a one-off cut-off left its person waiting
+      # out the charge (Overseer.md §10).
+      no_call = (fallback_class(decision.source) == "policy"
+                 or decision.source in ("fallback:busy", "fallback:no-client"))
+      if no_call or not self._news_retried:
+        if not no_call and shown:
+          self._news_retried = True
+        self._heard_new = self._heard_new or shown
+        self._shown_visitors = shown_ids
+    elif not decision.scripted:
+      self._news_retried = False
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
       # or an unpaid bill lands mid-think): the answer is its own, and none
