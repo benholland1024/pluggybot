@@ -89,7 +89,7 @@
     },
     "dining_table_0": {
       "house": "mall",
-      "directions": "The mall is south of the second house, across the alley between them, on the middle street's east side: in through its front door on the street, or its door from the alley, into the concourse that runs down its west side. The restaurant's dining room door is on the concourse's east side, the north of its two doors. The dining room has four tables in two rows of two, and the place is laid at the table on your left as you come in, the nearer the door of that row, on its south side, toward the room's middle, where no chair stands. A place card stands on the table facing south, carrying tag 93 on its face. The plate carries tag 90 in its middle, the cup tag 91 on its lid and the fork tag 92 on its handle.",
+      "directions": "The mall is south of the second house, across the alley between them, on the middle street's east side: in through its front door on the street, or its door from the alley, into the concourse that runs down its west side. The restaurant's dining room door is on the concourse's east side, the north of its two doors. The dining room has four tables in two rows of two, and the place is laid at the table on your left as you come in, the nearer the door of that row, on its south side, toward the room's middle, where no chair stands. A place card stands on the table facing south, carrying tag 93 on its face. When a job here is offered, the plate, the cup and the fork are set out on the table near the card, none of them where it goes. The plate carries tag 90 in its middle, the cup tag 91 on its lid and the fork tag 92 on its handle.",
       "tags": {"93": "the place card", "90": "the plate", "91": "the cup", "92": "the fork"}
     },
     "study_room": {

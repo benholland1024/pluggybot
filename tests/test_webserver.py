@@ -710,6 +710,25 @@ def _load_serve():
   return mod
 
 
+class _NoCamera:
+  """A tag camera that builds no renderer: serve.py builds the robots'
+  cameras at boot (#713's tail), and the tests here wire it, never draw."""
+
+  def __init__(self, model, camera_name, **kw):
+    self.camera_name = camera_name
+
+  def close(self) -> None:
+    pass
+
+
+@pytest.fixture(autouse=True)
+def _cameras_off_gl(monkeypatch):
+  """...so a served pair's wiring costs no GL context and no renderer of
+  ~257 MiB a test."""
+  from pluggybot.perception import tags
+  monkeypatch.setattr(tags, "TagDetector", _NoCamera)
+
+
 class _FakeLife:
   """Stands in for HubLifecycle: records how it was built and run."""
 
@@ -718,7 +737,11 @@ class _FakeLife:
     # The world it was built on, as the real lifecycle holds it.
     self.model, self.data = model, data
     self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing",
-                                      working=False, making_way=None)
+                                      working=False, making_way=None,
+                                      build_cameras=self._build_cameras)
+    # How often serve.py asked for its cameras, in all and by the time its
+    # day began (#713's tail).
+    self.cameras_built = self.cameras_built_by_run = 0
     self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []
     # The operator's switch and its two hook lists (issue #37). Held the way
@@ -771,8 +794,12 @@ class _FakeLife:
   def telemetry_status(self) -> dict:
     return {}
 
+  def _build_cameras(self) -> None:
+    self.cameras_built += 1
+
   def run(self, *a, **kw):
     self.run_args, self.run_kwargs = a, kw
+    self.cameras_built_by_run = self.cameras_built
     return {"state": "DONE", "charge_cycles": 1, "sim_time": 100.0,
             "errands": [], "boards": {}, "verdicts": [], "points": 0,
             "earned": 0}
@@ -1024,6 +1051,140 @@ def test_a_served_process_says_why_it_ended(monkeypatch, capsys):
     serve.main()
   assert ("vitals: exiting -- RuntimeError: the day loop broke"
           in capsys.readouterr().out)
+
+
+def test_a_served_robot_builds_its_cameras_before_its_day(monkeypatch):
+  """#713's tail: serve.py builds a robot's cameras at boot -- their one
+  renderer, ~257 MiB under osmesa -- inside the memory alarm's warm-up,
+  where at a first look after it the renderer was a step that two samples
+  over the rate could read as a runaway (`vitals.RUNAWAY_MINUTES`;
+  Webserver.md, "Two samples")."""
+  life, _, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert life.cameras_built_by_run == life.cameras_built == 1
+
+
+def test_a_served_pair_builds_both_robots_cameras_before_its_day(monkeypatch,
+                                                                 tmp_path):
+  """...and the deployed world, a pair: each robot's colour imager and
+  navigation camera built through its own body (`Body.build_cameras`)
+  before the day begins, counted by a stand-in detector that builds no
+  renderer."""
+  from pluggybot import pair as pair_mod
+  from pluggybot.humanoid.body import TAG_CAMERA
+  from pluggybot.humanoid.places import NAV_CAMERA
+  from pluggybot.perception import tags
+  from pluggybot.robot import FIRST, SECOND
+  serve = _load_serve()
+  built: list = []
+
+  class _Counted:
+    def __init__(self, model, camera_name, **kw):
+      built.append(camera_name)
+
+    def close(self) -> None:
+      pass
+
+  at_day: dict = {}
+
+  def run_pair(lives, **kw):
+    at_day["cameras"] = sorted(built)
+    for life in lives:
+      life.body.close()
+    return [{"state": "DONE", "charge_cycles": 0, "sim_time": 1.0, "errands": [],
+             "boards": {}, "verdicts": [], "points": 0, "earned": 0}
+            for _ in lives]
+
+  monkeypatch.setattr(tags, "TagDetector", _Counted)
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  monkeypatch.setattr(pair_mod, "run_pair", run_pair)
+  monkeypatch.setattr(sys, "argv", [
+    "serve.py", "--pair", "--world", "home", "--free-run",
+    "--thoughts", str(tmp_path / "t"),
+    "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
+  serve.main()
+  assert at_day["cameras"] == sorted(
+    robot.el(camera) for robot in (FIRST, SECOND)
+    for camera in (TAG_CAMERA, NAV_CAMERA))
+
+
+def test_cameras_that_cannot_be_built_are_a_crash_on_the_wire(monkeypatch,
+                                                              tmp_path):
+  """...inside the run's own `try`, so a renderer that cannot be built (no
+  GL context, the memory cap) is the last thing on the wire, as it was at a
+  first look: one robot's, and the pair's."""
+  from pluggybot.perception import tags
+  serve = _load_serve()
+  pubs: list = []
+
+  class _NoGL(_FakeLife):
+    def _build_cameras(self) -> None:
+      raise RuntimeError("no GL context")
+
+  def refused(model, camera_name, **kw):
+    raise RuntimeError("no GL context")
+
+  def pub_factory(model, data, endpoint, **kw):
+    pubs.append(_FakePublisher(model, data, endpoint, **kw))
+    return pubs[-1]
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _NoGL(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(tags, "TagDetector", refused)
+  for argv in (["--free-run"],
+               ["--pair", "--world", "home", "--free-run",
+                "--thoughts", str(tmp_path / "t"),
+                "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"]):
+    monkeypatch.setattr(sys, "argv", ["serve.py", *argv])
+    with pytest.raises(RuntimeError, match="no GL context"):
+      serve.main()
+  assert [(p.messages[-1]["type"], p.messages[-1]["error"]) for p in pubs] == [
+    ("crash", "RuntimeError: no GL context")] * 2
+
+
+#: Where src/ builds a renderer or a tag camera by name, and why none is a
+#: step in a served process after its warm-up (#713's tail).
+BUILDS_A_RENDERER = {
+  ("humanoid/body.py", "_detector"): "built at boot",
+  ("humanoid/places.py", "_place_detector"): "built at boot",
+  ("perception/tags.py", "__init__"): "a tag camera's, built by those",
+  ("perception/tags.py", "_renderer_for"): "the one every tag camera shares",
+  ("viz.py", "rebind"): "a video's, never served",
+  ("viz.py", "_make_inset"): "a video's, never served",
+  ("evaluation/practice.py", "head_picture"): "practice's, never served",
+}
+
+
+def test_every_renderer_a_served_process_builds_is_built_at_boot():
+  """...and one added later: a renderer built at a first look is a step the
+  memory alarm can read as a runaway, so every call in src/ that builds a
+  renderer or a tag camera by name is one of these, and each getter built
+  at boot is one `HumanoidBody.build_cameras` calls; a new one is built
+  there as well, or is one no served process builds."""
+  import ast
+  src = _SERVE.parent.parent / "src" / "pluggybot"
+  names = {"TagDetector", "Renderer", "_renderer_for"}
+
+  def called(node):
+    return {getattr(n.func, "id", None) or getattr(n.func, "attr", None)
+            for n in ast.walk(node) if isinstance(n, ast.Call)}
+
+  sites = set()
+  for path in src.rglob("*.py"):
+    text = path.read_text()
+    if not any(name + "(" in text for name in names):
+      continue
+    for fn in ast.walk(ast.parse(text)):
+      if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and names & called(fn):
+        sites.add((path.relative_to(src).as_posix(), fn.name))
+  assert sites == set(BUILDS_A_RENDERER)
+  body = ast.parse((src / "humanoid" / "body.py").read_text())
+  (build,) = [fn for cls in body.body
+              if isinstance(cls, ast.ClassDef) and cls.name == "HumanoidBody"
+              for fn in cls.body
+              if isinstance(fn, ast.FunctionDef) and fn.name == "build_cameras"]
+  assert {fn for (_, fn), why in BUILDS_A_RENDERER.items()
+          if why == "built at boot"} <= called(build)
 
 
 def _report(r, capsys, **kw):

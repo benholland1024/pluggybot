@@ -1575,6 +1575,10 @@ class HumanoidBody(Body):
   def detect_tags(self) -> dict:
     return self._detector().detect(self._d)
 
+  def build_cameras(self) -> None:
+    self._detector()
+    self.mission._place_detector()
+
   def spot(self, tag: int, at_height: float | None = None) -> dict | None:
     """One tag's centre in the believed world frame off one decode of its
     colour imager, through the camera's pose in its model of itself (the
