@@ -10301,9 +10301,11 @@ asked once the wait ran out, loaded it until the body went over. Given up
 where it was not held, 7 of 9 still fell. The posture cannot be held with
 the other hand on the lever, however it is approached. O1_MEASURED
 
-**What is true now** (`Reach.take_posture`, `stages`, `_stage_on`,
-`asked`; `STAGE_PITCH`, `STAGE_WAIST`, `STAGE_WAIT_S`): a posture a reach, a
-`move_hand`, a `pull`, a reach's look or a carry's or a pull's re-plan asks,
+**What is true now** (`Reach.take_posture`, `staged`, `stages`, `_stage_on`,
+`asked`; `STAGE_PITCH`, `STAGE_WAIST`, `STAGE_WAIT_S`): a posture a
+procedure's reach, `move_hand` or `pull` asks (`verb`; never the loop's own,
+a charge's or a walk's lift: a failed charge is a death), or its look or its
+carry's or pull's re-plan,
 further than 0.15 rad of pitch or 0.27 rad of waist from the posture the
 body is in by its senses (`posture_now`), is walked there in even stages of
 all three numbers, each held -- within `POSTURE_TOL`, the trunk under

@@ -1088,6 +1088,9 @@ class Reach:
     #: None: home is its rest. A new reach, a joint moved by hand and a
     #: let-go end it (`drop_carry`).
     self.carry_q: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
+    #: By side, whether its last reach, carry or pull was a procedure's, whose
+    #: postures come in stages (#719), the look's and re-plans' too.
+    self.staged: dict[str, bool] = {s: False for s in hm.SIDES}
     #: Whether the stand waits for an arm on its way home (`_go_home`, #693):
     #: asked once every arm is home or carried (`_update`).
     self.stand_home = False
@@ -1095,7 +1098,8 @@ class Reach:
   # ---- what a caller asks ----
 
   def reach(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
-            postures=REACH_POSTURES, flip: bool = True, refuse: bool = True) -> bool:
+            postures=REACH_POSTURES, flip: bool = True, refuse: bool = True,
+            verb: bool = False) -> bool:
     """A hand to `goal`: planned, then moved, approached and held. False
     (nothing moves) if no posture the policy holds puts it in reach. ⚠ A
     TWO-JAW GRIP IS THE SAME GRIP HALF A TURN ROUND ITS FINGERS (#493): where
@@ -1125,7 +1129,9 @@ class Reach:
       self.kept[side]["back"] = True
       return False
     self.slack[side], self.outs[side] = slack, outs
-    self.take_posture(*posture)
+    # ...in stages, a procedure's (`verb`, #719): never the loop's own (a charge's)
+    self.staged[side] = verb
+    self.take_posture(*posture, staged=verb)
     self._off[side] = self._tip[side] = 0.0
     self.speed[side] = HAND_SPEED
     self.goal[side] = goal
@@ -1212,6 +1218,9 @@ class Reach:
       self.stop(side, why)
       return True
     if phase in ("approach", "pull"):
+      if self.looking[side] and self.stages:
+        # ...a look's posture still coming in stages held where it got to (#719)
+        self.hold_posture(*self.posture_now())
       self.phase[side], self.looking[side] = "blocked", False
       return True
     if phase != "move":
@@ -1405,7 +1414,7 @@ class Reach:
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
-            speed: float = HOLD_SPEED, path=None, turns=None) -> bool:
+            speed: float = HOLD_SPEED, path=None, turns=None, verb: bool = False) -> bool:
     """A hand that is out (`out`) carried from where it IS along a straight
     line to `pos`, stance frame, at `speed`, its turn kept, at `stiffness`
     (or its goal's), the posture the least bent that reaches the end --
@@ -1442,7 +1451,8 @@ class Reach:
       return False
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
     moved_posture = tuple(posture) != tuple(float(v) for v in self.posture)
-    self.take_posture(*posture)
+    self.staged[side] = verb
+    self.take_posture(*posture, staged=verb)
     # ...or stages of it still to come (#719): the hand holds still through them
     moved_posture = moved_posture or bool(self.stages)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
@@ -1459,7 +1469,7 @@ class Reach:
     return True
 
   def pull(self, side: str, way, force: float, distance_m: float,
-           speed: float = HOLD_SPEED, give: bool = True) -> bool:
+           speed: float = HOLD_SPEED, give: bool = True, verb: bool = False) -> bool:
     """A hand that is out PULLED along `way` (stance frame) -- or pushed: a
     FORCE MOVE (#525) -- with at most `force`, N, as the hand reads it,
     and at most `speed`, m/s. Across its way, GIVING, the hand yields to
@@ -1493,8 +1503,9 @@ class Reach:
     moved = posture is not None and (tuple(posture) != tuple(float(v) for v in self.posture)
                                      or bool(self.stages))
     began = self._standing_in() if moved else None
+    self.staged[side] = verb
     if moved:
-      self.take_posture(*posture)
+      self.take_posture(*posture, staged=verb)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), PULL_STIFFNESS)
     self.goal[side] = HandGoal(h.copy(), r.copy(), PULL_STIFFNESS)
     self.speed[side], self._off[side] = float(speed), 0.0
@@ -1557,7 +1568,7 @@ class Reach:
     if chosen is None or chosen == here:
       return True
     self.left[side].append(here)
-    self.take_posture(*chosen)
+    self.take_posture(*chosen, staged=self.staged[side])
     return False
 
   def _reaching(self, side: str, pos: np.ndarray, rot) -> np.ndarray | None:
@@ -1576,17 +1587,19 @@ class Reach:
     self.stages, self.stage_s = [], 0.0
     self.stand.ask(*(self.posture[:2] + self.trim))
 
-  def take_posture(self, height: float, pitch: float, waist: float = 0.0) -> None:
+  def take_posture(self, height: float, pitch: float, waist: float = 0.0,
+                   staged: bool = True) -> None:
     """A posture a reach, a carry or a pull asks (#719): held as
     `hold_posture` holds one -- but further than a stage from the posture
     the body is in as its senses have it (`STAGE_PITCH`), taken in stages,
     the first asked now (`_stage_on`); the plan asked again, its stages
-    still to come, keeps them."""
+    still to come, keeps them; not `staged` (the loop's own move), as
+    `hold_posture` holds it."""
     goal = np.array([height, pitch, waist], dtype=float)
     if self.stages and np.array_equal(goal, self.posture):
       self.stand_home = False
       return
-    stages = [] if np.array_equal(goal, self.posture) else self._stages_to(goal)
+    stages = [] if not staged or np.array_equal(goal, self.posture) else self._stages_to(goal)
     if not stages:
       self.hold_posture(height, pitch, waist)
       return
@@ -1644,7 +1657,7 @@ class Reach:
     read -- no model of itself is posed while it tumbles."""
     if self.steps % self.every == 0:
       self.posture[2:] = 0.0
-      self.stages = []
+      self.stages, self.stage_s = [], 0.0
       self._turn_waist(self.every * self.m.opt.timestep, np.zeros(len(hm.WAIST)))
     self.steps += 1
 
@@ -2163,7 +2176,8 @@ class Reach:
     stages held where the body has got to, as a move stopped is (#719)."""
     st = self.pulls[side]
     c = self.cmd[side]
-    if self.stages:
+    if self.stages and st.get("postured") is not None:
+      # ...its own move's stages, never another hand's reach's
       self.hold_posture(*self.posture_now())
     short = float(np.linalg.norm(self.goal[side].pos - h))
     if not at_goal:
@@ -2220,7 +2234,7 @@ class Reach:
       st["planned"] = st["t"]
       posture = self.posture_for(side, c.pos, rot=c.rot)
       if posture is not None and tuple(posture) != tuple(self.posture):
-        self.take_posture(*posture)
+        self.take_posture(*posture, staged=self.staged[side])
         st["postured"] = st["t"]
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
@@ -2388,7 +2402,7 @@ class Reach:
         if posture is not None and tuple(posture) != tuple(self.posture):
           left_.append(tuple(float(v) for v in self.posture))
           st.setdefault("began", self._standing_in())
-          self.take_posture(*posture)
+          self.take_posture(*posture, staged=self.staged[side])
           st["postured"] = st["t"]
     self.goal[side].pos, self.goal[side].rot = c.pos.copy(), c.rot
     # held fast: the hand stays put while it pushes with its whole force, or

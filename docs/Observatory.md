@@ -23,7 +23,8 @@ hello `39c0692a…`, unmoved): nothing is refused, and no words change.
 further than a stage of pitch or waist from the posture the body is in by its
 senses, is walked there in even stages, each held or given 2 s before the
 next; the reach goes in, and a carried or pulled hand moves, only once every
-stage is passed. The loop's own reach -- a charge's plug-in -- is staged too.
+stage is passed. A procedure's moves alone: the loop's own (a charge's
+plug-in, a walk's lift) ask their postures as before.
 
 **Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): O1_OBS
 

@@ -808,7 +808,7 @@ class HumanoidBody(Body):
 
     def clear() -> bool:
       nonlocal went
-      went = self._reached(side, goal(), postures, path is not None, words=refuse)
+      went = self._reached(side, goal(), postures, path is not None, words=refuse, verb=refuse)
       return went or refuse or self._why[side] != "kept off"
     why = yield from self.mission.arm_wait_routine(clear, (side,), "reach")
     if why == "fell":
@@ -816,7 +816,8 @@ class HumanoidBody(Body):
       return False
     if why == "waited":
       # ...waited out: the way out that comes least near it
-      went = self._reached(side, goal(), postures, path is not None, words=False, refuse=False)
+      went = self._reached(side, goal(), postures, path is not None, words=False, refuse=False,
+                           verb=refuse)
     if not went:
       return False
     falls = self.mission.falls
@@ -830,21 +831,23 @@ class HumanoidBody(Body):
                        else "stopped short" if self.reach.done(side) else "out of time")
     return held
 
-  def _reached(self, side, goal, postures, follows, words, refuse=True) -> bool:
+  def _reached(self, side, goal, postures, follows, words, refuse=True, verb=False) -> bool:
     """A reach planned and begun off one look round (`look_round`, #678):
     True; else False, `hand_why` and `hand_kept` saying why -- and, `words`,
-    whether the other hand's way there would keep off that robot."""
+    whether the other hand's way there would keep off that robot. `verb`: a
+    procedure's reach, whose posture comes in stages (#719)."""
     self._why[side] = "out of reach"
     self._kept.pop(side, None)
     self.reach.keep_out = self.mission.keep_out(self.mission.look_round())
     try:
-      if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse):
+      if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse,
+                          verb=verb):
         return True
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
       kept = self.reach.kept[side]
-      if follows and self.reach.reach(side, goal, flip=False, refuse=refuse):
+      if follows and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb):
         return True
       kept = self.reach.kept[side] or kept
       if kept is not None:
@@ -1183,21 +1186,22 @@ class HumanoidBody(Body):
     return self._report(self.reach.report[side])
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0,
-                        path=None, turns=None):
+                        path=None, turns=None, verb=False):
     """...`path`, points it goes through on its way, in turn (#493: a lid's
     arc carried as one motion, from one posture that follows it all), and
     `turns`, the grip's turn at each."""
     yield from self.mission.to_stand_routine()
     ways = None if path is None else [self.to_stance(p) for p in path]
     if not self.reach.carry(side, self.to_stance(pos), stiffness, speed, path=ways,
-                            turns=None if turns is None else self._turns(list(turns))):
+                            turns=None if turns is None else self._turns(list(turns)),
+                            verb=verb):
       rep = self.reach.report[side] if self.reach.out(side) else None
       return self._report(rep or {"why": "not out", "seconds": 0.0, "moved": 0.0,
                                   "dx": 0.0, "dy": 0.0, "dz": 0.0})
     return (yield from self._held_routine(side, patience))
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=HOLD_SPEED,
-                   patience=30.0, give=True):
+                   patience=30.0, give=True, verb=False):
     """THE PULL, a force move (#525): the hand that is out pulled -- or
     pushed -- along `direction` with at most `limit_n`, N, as the hand reads
     it, at most `speed`, m/s, going where what it holds takes it across that
@@ -1214,7 +1218,7 @@ class HumanoidBody(Body):
                            "dx": 0.0, "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
-    if not self.reach.pull(side, d, limit_n, distance_m, speed, give):
+    if not self.reach.pull(side, d, limit_n, distance_m, speed, give, verb=verb):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:
       rep = yield from self._held_routine(side, patience)

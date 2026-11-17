@@ -462,8 +462,9 @@ save a filmstrip PNG named after the script.
   GRIPS WHAT IT PULLS TAKES ITS POSTURES AS IT DID: two of our door's 72
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
-  call. ⚠ A POSTURE A REACH, A CARRY OR A PULL ASKS IS TAKEN IN STAGES
-  (#719's option 1; `Reach.take_posture`, `stages`, `_stage_on`, `asked`;
+  call. ⚠ A POSTURE A PROCEDURE'S REACH, CARRY OR PULL ASKS (`verb`, never
+  the loop's own: a charge's, a walk's lift) IS TAKEN IN STAGES (#719's
+  option 1; `Reach.take_posture`, `staged`, `stages`, `_stage_on`, `asked`;
   SimNotes, "A posture change out of a deep bow, taken in stages"): further
   than `STAGE_PITCH` (0.15 rad) of pitch or `STAGE_WAIST` (0.27) of waist
   from the posture its senses read, in even stages, each held or given

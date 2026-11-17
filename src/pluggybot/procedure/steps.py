@@ -1243,7 +1243,7 @@ def _move_hand(life, args: dict) -> Routine:
     life, hand, guard, life.body.move_hand_routine(
       hand, end, stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
       patience=HAND_PATIENCE_S + (2.0 * length / speed if places else 0.0),
-      path=places or None, turns=turns)))
+      path=places or None, turns=turns, verb=True)))
   _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
@@ -1281,7 +1281,8 @@ def _pull(life, args: dict) -> Routine:
     life, hand, guard, life.body.pull_routine(
       hand, axes.from_stance(life, d, point=False), float(args["force"]),
       float(args["distance"]), speed=float(args.get("speed", _SPEED.default)),
-      patience=HAND_PATIENCE_S, give=float(args.get("give", _GIVE.default)) >= 0.5)))
+      patience=HAND_PATIENCE_S, give=float(args.get("give", _GIVE.default)) >= 0.5,
+      verb=True)))
   _stopped_reading(life, "pull", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force"),
          "felt": felt, **_said(guard, stopped, rep.get("why"))}

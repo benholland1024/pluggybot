@@ -39,6 +39,7 @@ def _reach(now=(0.0, 0.0, 0.0)):
   r.waist_cmd, r.waist_speed = np.zeros(len(hm.WAIST)), np.zeros(len(hm.WAIST))
   r.waist_sent = []
   r.waist = NS(command=lambda target, feed: r.waist_sent.append(np.array(target)))
+  r.staged = {s: True for s in hm.SIDES}
   return r
 
 
@@ -236,7 +237,12 @@ def test_a_carry_ended_or_an_arm_sent_home_ends_the_stages_where_the_body_got_to
   r.now = np.array([-0.2, 0.62, 0.0])
   r.goal = {"left": rc.HandGoal(at + [0.0, 0.0, 0.05], None, 1.0)}
   r.cmd = {"left": rc.HandGoal(at.copy(), None, 1.0)}
+  # ...another hand's stages (its move asked none) go on
   r.pulls, r.report, r.phase = {"left": {"start": at.copy(), "t": 1.0}}, {"left": None}, {"left": "carry"}
+  r._end("left", "held back", at, np.eye(3))
+  assert r.stages and np.allclose(r.posture, (-0.16, 0.3, 0.0))
+  r.goal["left"], r.cmd["left"] = rc.HandGoal(at + [0.0, 0.0, 0.05], None, 1.0), rc.HandGoal(at.copy(), None, 1.0)
+  r.pulls, r.phase = {"left": {"start": at.copy(), "t": 1.0, "postured": 0.0}}, {"left": "carry"}
   r._end("left", "held back", at, np.eye(3))
   assert r.stages == [] and np.allclose(r.posture, r.now)
   # ...and a withdraw cut short keeps no plan still walking in stages: the stand at once
@@ -252,3 +258,33 @@ def test_a_carry_ended_or_an_arm_sent_home_ends_the_stages_where_the_body_got_to
   r.carry_q, r._ahead = {s: None for s in hm.SIDES}, lambda side: False
   r._go_home("left")
   assert r.stages == [] and not r.stand_home and r.stand.asks[-1] == (0.0, 0.0)
+
+
+def test_only_a_procedures_moves_come_in_stages_never_the_loops_own():
+  """A charge's plug-in or a walk's lift asks its posture as before: a
+  failed charge is a death, and stages cost time a charge's patience does
+  not give."""
+  r = _reach((-0.22, 0.8, 0.0))
+  r.take_posture(-0.16, 0.3, 0.0, staged=False)
+  assert r.stages == [] and r.stand.asks[-1] == (-0.16, 0.3)
+  import inspect
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid import charge
+  from pluggybot.humanoid import mission as hmi
+  from pluggybot.procedure import steps as st
+  for method, flag in (("reach", "verb"), ("carry", "verb"), ("pull", "verb"),
+                       ("_look", "self.staged[side]"), ("_held", "self.staged[side]"),
+                       ("_pulled", "self.staged[side]")):
+    calls = _calls(getattr(rc.Reach, method), "take_posture")
+    assert calls and all(ast.unparse(k.value) == flag for c in calls for k in c.keywords
+                         if k.arg == "staged"), method
+    assert all(any(k.arg == "staged" for k in c.keywords) for c in calls), method
+  reached = _calls(hb.HumanoidBody.reach_routine, "_reached")
+  assert reached and all(any(k.arg == "verb" and ast.unparse(k.value) == "refuse" for k in c.keywords)
+                         for c in reached)
+  for fn, name in ((st._move_hand, "move_hand_routine"), (st._pull, "pull_routine")):
+    assert any(k.arg == "verb" and ast.unparse(k.value) == "True" for k in _calls(fn, name)[0].keywords)
+  for fn in (hb.HumanoidBody.move_hand_routine, hb.HumanoidBody.pull_routine, rc.Reach.reach,
+             rc.Reach.carry, rc.Reach.pull):
+    assert inspect.signature(fn).parameters["verb"].default is False, fn
+  assert "verb=" not in inspect.getsource(charge) + inspect.getsource(hmi)
