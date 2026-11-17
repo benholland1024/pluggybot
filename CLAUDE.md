@@ -199,7 +199,8 @@ Before doing anything, read the doc that owns what you are about to touch:
   FAILS THE TRY (Ben, 2026-10-25, #544; it was lost time from 10-17, and
   learned skills fell to open a door): every grader's criterion, a fall
   the body's own watch counted (`Body.falls`; the humanoid's is its trunk
-  35 deg past the posture its legs hold, so a bow is none, #520) from the
+  35 deg past the postures between upright and the one its legs hold, so a
+  bow is none, #520) from the
   attempt's start to the hold's end, said FIRST in the verdict
   (`lid.judged`) and stated in the job the robot is told (`practice.JOBS`).
   The job is the lid inside the TASK's time limit, the budget
@@ -598,12 +599,17 @@ save a filmstrip PNG named after the script.
   is the open half: the belief lags 0.7-1.9 m at the foot (it runs down
   faster than asked; its odometry follows a sole in the air, skids and
   flights; the hall gives the matcher nothing along it). A FALL is the get-up policy's (`models/humanoid_getup.npz`,
-  getupwall14 of `-Getup-Wall3-Mirror` since #679, every joint): tilt `FALL_TILT_RAD` past the posture the
-  legs hold or the pelvis under `COLLAPSED_M` over the LOWER sole, handed
-  back once stood still; ⚠ A TIP IS READ OFF THE POSTURE, NEVER OFF
-  UPRIGHT (#520; `getup.tipped`, `Reach.held_pitch`, exactly upright at the
-  stand): the IMU is on the pelvis, under a waist that only turns, and off upright the reach's
-  deepest bows were falls; a forward fall from a bow is the collapse's to
+  getupwall14 of `-Getup-Wall3-Mirror` since #679, every joint): tilt `FALL_TILT_RAD` past the postures
+  between upright and the one the legs hold or the pelvis under
+  `COLLAPSED_M` over the LOWER sole, handed back once stood still; ⚠ A TIP
+  IS READ PAST THE POSTURES BETWEEN UPRIGHT AND THE ONE THE LEGS HOLD (#520,
+  P5; `getup.tipped_past`, `Reach.held_pitch`, exactly upright at the
+  stand): off upright alone the reach's deepest bows were falls (the IMU is
+  on the pelvis, under a waist that only turns), and off the bow alone a
+  fall going back from the look's 26 deg bow was taken 2-11 deg behind
+  upright, and the get-up ran the body 1.6-2.7 m backward on its feet,
+  into the wall behind (a stuck death in the lobby; SimNotes, "A fall
+  backward out of a bow"); a forward fall from a bow is the collapse's to
   take (lying on its face is 27 deg past the deepest bow). ⚠ The head is
   charged on its own in training, or it struck at 5.5-6.9 m/s; the
   mission waits out a get-up before a walk takes the legs or the standing

@@ -2281,6 +2281,45 @@ a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
 stand-up's fresh reach -- and the stand-up keeps the grippers as they were
 asked, where a fresh set read a shut gripper as never shut.
 
+**A fall backward out of a bow** (P5 of the loop of 11-16/17; M12's lobby
+case, #679's comment of 11-15). Read off the bow alone, a trunk going back
+from it was a fall 35 deg behind the bow: off the look's 26 deg (0.45 rad)
+bow, 9 deg behind upright, where a fall from the stand is taken 35 behind
+it -- and off the floor's 63 deg, 28 deg in front of it. In the research
+center's lobby, `door_mall1`'s blind steps ended at the east wall and
+`spot`'s bow pressed the head into it ("A step into a wall, and the look's
+bow there"); the trunk then went over backward at about 200 deg/s, the
+watch took it 2-11 deg behind upright, still on its feet, and the get-up --
+trained on falls tipped over from the stand -- ran the body backward. A
+trunk is now read past every posture between upright and the one held
+(`getup.tipped_past`): past the bow as before, to the bit; behind upright by
+its tilt, as from the stand; between the two by its roll alone. M12's nine
+lobby starts, flown on his tree (8edc3e54: on 73f8daf the #717 rule keeps
+the head off that wall and none falls), a fresh process each, osmesa:
+
+| the watch | the trunk when taken | went down | carried back | the wall behind | stood | stuck |
+|---|---|---|---|---|---|---|
+| off the bow | 2-11 deg behind upright | 2 of 9 | 1.6-2.7 m | 3, at 372-1,380 N | 2.7-6.6 s | 1 |
+| past the postures | 27-39 deg behind upright | 9 of 9 | 1.0-1.1 m | none | 2.5-2.7 s | none |
+
+Left on the standing policy no trunk came back -- in the stuck one it went
+from 14 to 37 deg behind upright in 0.1 s -- so the early take was early,
+not wrong: it caught seven of the nine on their feet, and now every one
+lies down on its back before it stands. From each posture a reach takes,
+shoved four ways on a bare floor (`--fall`'s bow table, 73f8daf beside it,
+a process a trial): on the standing policy alone the watch took none of the
+38 shoves it stood through for a fall, as #520's took none; as served, 24
+of the 80 trials moved -- each a shove back or sideways out of a bow at 30
+or 45 N*s, taken 0.08-0.24 s later, 0.23-0.53 s before the first strike
+(0.34-0.79 before) -- and all 42 falls stood either way, none dead: in
+those 24, 2.1-3.5 s after the take (2.2-4.3), the head into the floor in 8
+at 2.1-4.7 m/s (7, at 1.4-5.1). It never takes a fall the bow's own reading
+would not (a test states it), so a flight that falls nowhere, or falls from
+the stand or under the walker, is the same flight to the byte: four of the
+11-15 wake's falls at the storeroom's counter, flown at their live draws on
+73f8daf, came out so (three fall nowhere there; the fourth falls from the
+stand and is caught on its feet, 38 deg behind upright at its most).
+
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak
 and its RMS against the part's continuous rating), flown by the walker

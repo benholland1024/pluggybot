@@ -308,9 +308,11 @@ def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(
   # get-up there. A trunk is tipped past every posture between upright and
   # the one its legs hold: between the two by its roll alone, behind
   # upright by its tilt, past the bow as it always was -- and at the stand
-  # and under the walker, the IMU's tilt to the bit.
+  # and under the walker, the IMU's tilt to the bit. Never a fall the bow's
+  # own reading would not call one: a flight that falls nowhere today is
+  # the same flight, bit for bit.
   from pluggybot.humanoid.getup import FALL_TILT_RAD, FallWatch, tipped, tipped_past
-  from pluggybot.humanoid.policy import TrunkSense
+  from pluggybot.humanoid.policy import PITCH_RANGE, TrunkSense
   from pluggybot.humanoid.senses import JointSense
   from pluggybot.perception.imu import Attitude
   down = np.array([0.0, 0.0, -1.0])
@@ -328,6 +330,15 @@ def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(
     q = rng.normal(size=4)
     att = Attitude(q / np.linalg.norm(q))
     assert tipped_past(att.matrix().T @ down, 0.0) == att.tilt()
+  near = 0
+  for _ in range(4000):
+    q = rng.normal(size=4)
+    g = Attitude(q / np.linalg.norm(q)).matrix().T @ down
+    pitch = rng.uniform(*PITCH_RANGE)
+    if tipped(g, pitch) <= FALL_TILT_RAD:
+      near += 1
+      assert tipped_past(g, pitch) <= tipped(g, pitch), pitch
+  assert near > 100
   model, _ = head
 
   def leaned(pitch):

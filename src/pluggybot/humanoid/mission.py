@@ -21,8 +21,9 @@ reach`). The legs change hands only at a standstill, the arms home
 (`to_walk_routine`, `to_stand_routine`).
 
 A FALL is its get-up policy's (stage 5, `humanoid.getup`): once its senses
-say it is falling -- tipped 35 deg past the posture its legs hold (a bow
-the standing policy was asked is no fall, #520), or folded down under 0.40
+say it is falling -- tipped 35 deg past the postures between upright and
+the one its legs hold (a bow the standing policy was asked is no fall,
+#520, nor a trunk on its way back from one), or folded down under 0.40
 m over its soles -- every joint, arms too, goes to that policy until it
 stands, and the legs come back to the standing policy (`legs` is "getup"
 between).

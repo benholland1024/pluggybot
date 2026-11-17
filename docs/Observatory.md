@@ -10,6 +10,38 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A fall backward out of a bow is taken behind upright, as from the stand (P5, `loop-watch`) — opens when this is deployed
+
+**What the robots read does not move** (`prompt_sha` `0ba46734…`, 68,294
+characters, 17 sections, as at `loop-staging` 73f8daf; the session host's
+hello is byte-identical, sha1 `39c0692a…`).
+
+**The change** (`getup.tipped_past`, read by `FallWatch.falling`; SimNotes,
+"A fall backward out of a bow"). The fall watch read a tip off the posture
+the legs hold (#520), so a trunk going back from a bow was a fall 35 deg
+behind the bow: 9 deg behind upright under the look's 26 deg bow, still 28
+in front of it under the floor's 63. It now reads the trunk past every
+posture between upright and the one held: past the bow as before, behind
+upright by its tilt, as a fall from the stand is, and between the two by
+its roll alone. At the stand and under the walker nothing moves, to the bit.
+
+**What it does.** A fall backward or sideways out of a bow is handed to the
+get-up later, and the body goes down before it gets up. In M12's lobby case
+(flown on his tree: 73f8daf's #717 rule keeps the head off that wall), taken
+2-11 deg behind upright the get-up ran nine falls 1.6-2.7 m backward on
+their feet, into the wall behind in three and to a stuck death in one;
+taken behind upright, all nine went down on their backs and stood in
+2.5-2.7 s, 1.0-1.1 m back. On a bare floor, 24 of the bow table's 80
+served shoves moved, every fall stood either way. A flight whose watch takes
+no fall today, or takes it from the stand or under the walker, is the same
+flight to the byte (a test states the rule; four of the 11-15 wake's falls
+at the storeroom's counter, flown at their live draws on 73f8daf, came out
+so, the one that still falls a fall from the stand).
+
+**To read.** The `fall` rows (#707): how far each get-up carried the body
+and how long it took (`movedM`, `seconds`), how many ended stuck, and what
+the robot was doing as it fell (`at`).
+
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294
