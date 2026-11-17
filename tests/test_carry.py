@@ -396,6 +396,41 @@ def test_a_step_holding_something_walks_and_its_report_says_what_it_carried():
   assert "carried" not in ran["steps"][0] and not body.carrying("left")
 
 
+def test_a_walks_report_says_an_arm_it_went_with_where_its_way_home_was_held():
+  """#693's family: an arm whose way home something held -- raised and sent
+  home again, and held still -- stays where it is held (`Body.arm_held`),
+  and a walk goes with it there: its report says so (`armHeld`), and says
+  nothing of it where no arm is."""
+  from pluggybot.procedure import lang
+  body = _stub()
+  facts = st.hand_facts()
+  proc = lang.compile_procedure('def a():\n  step(0.2)\n', facts)
+  ran = body.run(lang.run_procedure_routine(_Life(body), proc, facts))
+  assert "armHeld" not in ran["steps"][0]
+  body.held_arms = {"right"}
+  ran = body.run(lang.run_procedure_routine(_Life(body), proc, facts))
+  rep = ran["steps"][0]
+  assert rep["ok"] and rep["armHeld"] == ["right"], rep
+
+
+def test_an_arm_left_held_is_no_hand_at_work_and_rests():
+  """An arm left where its way home was held (phase "held") keeps its
+  command where it is held, kept across a restart (`Reach.KEPT`), and moves
+  until a withdraw or a walk: the world saves through it, and the robot
+  rests and is asked aside with it, the aside's hand-over sending it home
+  again -- as a carried hand (#682)."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.way import HumanoidWay
+  body = body_for(*_floor())
+  try:
+    body.mission.reach.phase["left"] = "held"
+    assert not body.working
+    assert not body.mission._hand_out()
+    assert {"homing", "held_for", "lifted"} <= set(rc.Reach.KEPT)
+  finally:
+    body.close()
+
+
 # ---- the review's: a carry rests, rides a restart, is bounded and judged home ------
 
 

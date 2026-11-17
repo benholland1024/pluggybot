@@ -735,6 +735,15 @@ class Body(abc.ABC):
     shut, until a reach takes it out again or a withdraw home."""
 
   @abc.abstractmethod
+  def arm_held(self, side: str) -> bool:
+    """Whether an arm's way home stopped where something holds it (#693's
+    live family; `humanoid.reach.HELD_S`): its drivers read it off its rest
+    with its rest commanded, so it was lifted and sent home again, and held
+    again it was left there, pressing on nothing -- out, until a withdraw or
+    a walk sends it home again. A walk carries it as it is held and says
+    so (`steps._carried`'s `held`)."""
+
+  @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
     """A hand's move stopped now and held where it is, as its own stops
     hold it (#554: a procedure's stop condition, `steps._guarded_routine`):
@@ -945,8 +954,10 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
-    #: ...and which hands a walk carries (#682): out, their grips holding
+    #: ...and which hands a walk carries (#682): out, their grips holding;
+    #: and which arms' ways home a test says were held (#693's family)
     self.carried: set[str] = set()
+    self.held_arms: set[str] = set()
     #: ...the force each was last shut with (#525), how wide what a shut
     #: hand holds is, m, and which grippers are shut (each starts so)
     self.squeezes: dict[str, float | None] = {}
@@ -1349,6 +1360,9 @@ class StubBody(Body):
 
   def carrying(self, side) -> bool:
     return side in self.carried
+
+  def arm_held(self, side) -> bool:
+    return side in self.held_arms
 
   def carry(self) -> None:
     """A walk's hand-over, as the body's (#682): a hand out whose grip holds

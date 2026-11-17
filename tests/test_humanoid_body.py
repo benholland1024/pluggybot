@@ -327,6 +327,90 @@ def test_a_release_waits_until_its_drivers_read_the_arm_home(monkeypatch):
   assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
 
 
+class _HeldHome(_Homing):
+  """...one whose way home its drivers read held `n` steps after it is sent
+  (`Reach.held`): never home, and pressing on nothing from then (#693's
+  family)."""
+
+  def home(self, side) -> bool:
+    return False
+
+  def held(self, side) -> bool:
+    return self.sent and self.steps >= self.n
+
+
+def test_a_release_whose_arm_is_held_ends_there_never_waits_out_its_time(monkeypatch):
+  """#693's live family (drawer_g22 at draw 366, flown on 73f8daf): a
+  withdraw waited `RELEASE_S` (15 s) for an arm its way home had brought down
+  on the counter's top, and 12 s into it the robot went over backward. Held
+  -- its drivers reading it off its rest with the rest commanded
+  (`Reach.HELD_S`) -- it says "held" there."""
+  from pluggybot.humanoid import body as hb
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach = _HeldHome(100, _opened(m.reach.grippers))
+  t0 = float(body.data.time)
+  assert body.run(body.release_routine("left")) == "held"
+  assert float(body.data.time) - t0 < hb.RELEASE_S / 4, "it waited out its time"
+
+
+class _HomingOut(_Out):
+  """...one whose hands, sent home, are over their way home by their
+  drivers only `n` steps after their command reached the rest (`homing`)."""
+
+  def __init__(self, grippers, out, log, at, n):
+    super().__init__(grippers, out, log, at)
+    self.n_home, self.since = n, {}
+
+  def retreat(self, side, approach=None) -> None:
+    super().retreat(side, approach)
+    self.homing[side], self.since[side] = True, self.steps
+
+  def step(self) -> None:
+    super().step()
+    for s, at in list(self.since.items()):
+      if self.steps - at >= self.n_home:
+        self.homing[s] = False
+        del self.since[s]
+
+
+def test_a_walk_takes_the_legs_only_once_every_way_home_is_over_by_its_drivers(monkeypatch):
+  """#693's live family (drawer_g20 at t_0339, flown on 73f8daf): a walk's
+  hand-over handed the legs to the walker once each arm's COMMAND read its
+  rest, and walked a jaw its way home had brought down on the counter's top.
+  It waits until each way home is over by its drivers (`Reach.homing`: home,
+  or held where something holds it, `HELD_S` at most after its command
+  reached the rest)."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _HomingOut(_opened(m.reach.grippers), ("left",), log,
+                       lambda: float(body.data.time), n=300)
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk"
+  assert not m.reach.homing["left"] and m.reach.steps >= 300, \
+    "the walk took the legs while the arm's way home was not over"
+
+
+def test_a_walk_takes_the_legs_with_an_arm_held_as_it_is(monkeypatch):
+  """...and an arm left held (`Reach.held`, phase "held") ends the wait:
+  the walk goes with it as it is held -- waited on as an arm still out, a
+  walk would wait for good."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), (), log, lambda: float(body.data.time))
+  m.reach.phase["left"] = "held"
+
+  def bounded(steps):
+    if steps > 5000:
+      raise AssertionError("the walk's hand-over waited on an arm left held")
+  m.reach.on_step = bounded
+  m.reach.retreat = lambda side, approach=None: None
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk"
+
+
 def test_a_release_begun_in_a_get_up_waits_it_out_then_comes_home(monkeypatch):
   """Every hand routine waits out a get-up under way first: begun in one, a
   release spent its `RELEASE_S` on the arm the fall had let go of, and said

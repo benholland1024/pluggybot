@@ -2464,6 +2464,8 @@ class Reach:
             self.q_to[s] = self.homes[s].pop(0)
           else:
             self.phase[s] = "rest" if self.carry_q[s] is None else "carried"
+            # ...a carry's way ends at its pose, never read home (#682)
+            self.homing[s] = self.homing[s] and self.carry_q[s] is None
             # ...home: the stand its way home kept from it (`_go_home`)
             if self.stand_home and all(p in ("rest", "carried") for p in self.phase.values()):
               self.stand_home = False

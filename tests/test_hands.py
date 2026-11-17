@@ -868,6 +868,24 @@ def test_an_arm_its_drivers_read_home_ends_its_way_home_there(monkeypatch):
     "an arm at rest moved by something else was taken for a way home held"
 
 
+def test_a_carrys_way_ends_at_its_pose_never_waiting_to_be_read_home():
+  """A walk's hand-over takes a hand that holds to its carry pose by the way
+  home's own walk (#682): that way ends "carried", at its pose, and is no way
+  home still to be read home -- left so, a walk's hand-over waited on it for
+  good (`HumanoidMission.to_walk_routine`)."""
+  r = _stepped(_standing_reach())
+  r.set_joints("left", RAISED)
+  r.q_cmd["left"] = RAISED.copy()
+  r.carry_q["left"] = r.rest["left"] + 0.4
+  r.retreat("left")
+  assert r.homing["left"] and r.phase["left"] == "home"
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase["left"] != "home":
+      break
+  assert r.phase["left"] == "carried" and not r.homing["left"]
+
+
 def test_a_way_home_held_is_lifted_and_sent_home_again_before_it_is_left_there(monkeypatch):
   """...first lifted `LIFT_M` straight up from where its drivers put it,
   pressing on nothing as it goes, and sent home again from there, judged

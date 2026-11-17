@@ -580,8 +580,10 @@ class HumanoidBody(Body):
     a restart's save waits it out (`continuation.Keeper.busy`) -- but not
     one carried at its side (#682), held there as a hanging arm is, its
     pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
-    let-go, and saves held through it, a crash rolled the world back."""
-    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
+    let-go, and saves held through it, a crash rolled the world back -- nor
+    an arm left where its way home was held (`Reach.HELD_S`), its command
+    kept where it is held, which lasts until a withdraw or a walk."""
+    return any(p not in ("rest", "carried", "held") for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -885,6 +887,9 @@ class HumanoidBody(Body):
 
   def carrying(self, side) -> bool:
     return self.reach.carried(side)
+
+  def arm_held(self, side) -> bool:
+    return self.reach.held(side)
 
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a

@@ -703,7 +703,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       # command alone, a walk walked a jaw on a counter's top), which the walk
       # carries as it is, pressing on nothing, and says so (`Body.arm_held`)
       while (any(p not in ("rest", "carried", "held") for p in self.reach.phase.values())
-             or any(self.reach.homing.values())
+             or any(self.reach.homing[s] and self.reach.phase[s] == "rest" for s in hm.SIDES)
              or not self.stand.settled or not self.reach.waist_home()):
         yield STILL
         self._after_step()

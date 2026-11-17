@@ -167,8 +167,9 @@ class HumanoidWay:
 
   def _hand_out(self) -> bool:
     # ...a hand carried at its side is none (#682): it rests, and walks aside
-    # carrying it, as every walk does
-    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
+    # carrying it, as every walk does -- nor an arm left where its way home
+    # was held (`Reach.HELD_S`), which the aside's hand-over sends home again
+    return any(p not in ("rest", "carried", "held") for p in self.reach.phase.values())
 
   def _busy(self) -> bool:
     """Moving by more than a walk command: getting up, inside a walk of its
