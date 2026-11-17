@@ -710,6 +710,25 @@ def _load_serve():
   return mod
 
 
+class _NoCamera:
+  """A tag camera that builds no renderer: serve.py builds the robots'
+  cameras at boot (#713's tail), and the tests here wire it, never draw."""
+
+  def __init__(self, model, camera_name, **kw):
+    self.camera_name = camera_name
+
+  def close(self) -> None:
+    pass
+
+
+@pytest.fixture(autouse=True)
+def _cameras_off_gl(monkeypatch):
+  """...so a served pair's wiring costs no GL context and no renderer of
+  ~257 MiB a test."""
+  from pluggybot.perception import tags
+  monkeypatch.setattr(tags, "TagDetector", _NoCamera)
+
+
 class _FakeLife:
   """Stands in for HubLifecycle: records how it was built and run."""
 
