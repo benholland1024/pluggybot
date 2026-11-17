@@ -1317,12 +1317,13 @@ class Reach:
     # on, never the posture it holds, from a fresh seed: up a lid's arc the
     # arm stood at its elbow's stop 2 cm short of its way for 9 s, while
     # another branch of the same posture "reached" (#525)
-    here = tuple(float(v) for v in self.posture)
-    gone = {here} | {tuple(float(v) for v in p_) for p_ in past}
-    order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
-             else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
     if postures is not None:
       order = list(postures)
+    else:
+      here = tuple(float(v) for v in self.posture)
+      gone = {here} | {tuple(float(v) for v in p_) for p_ in past}
+      order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
+               else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
     for posture in order:
       if not stands(sm, posture, q0) or out_of_reach(sm, side, pos, -LEAN_MOST_M):
         continue
@@ -1419,6 +1420,7 @@ class Reach:
     (`path_for`), turning to `turns`' at each (one a point of `path` and
     one at `pos`, None keeping the one before), where given. False (nothing moves) for a hand that is
     not out, or an end no posture reaches. How it ends is its `report`."""
+    kept = self.keep(side, verb)
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
@@ -1439,7 +1441,6 @@ class Reach:
                        f"not {len(rots)}")
     # ...none but the one it is in while the other hand holds something, a
     # `verb`'s carry (#719)
-    kept = self.keep(side, verb)
     only = {} if kept is None else {"postures": (kept,)}
     if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
@@ -1485,6 +1486,7 @@ class Reach:
     `report`."""
     if force <= 0.0:
       raise ValueError(f"a pull pushes with some force, not {force} N")
+    kept = self.keep(side, verb)
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
@@ -1496,7 +1498,6 @@ class Reach:
     # it comes: a posture changed partway jerks what the hand holds -- and
     # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
     gripped = self.grippers[side].held()
-    kept = self.keep(side, verb)
     # ...kept (#719), the one the body stands in: one still coming held where it got to
     posture = (None if not gripped and self._pressed(self.force[side], force)
                else kept if kept is not None
@@ -1532,11 +1533,18 @@ class Reach:
     loop's own (`verb`: a charge's, a walk's lift) -- else None; which
     hand held, by side, in `kept_by`, which the move's posture changes on
     its way read, and every way into them is a move that sets it here. A
-    piece carried at the side (#682) holds the body in nothing."""
+    piece carried at the side (#682) holds the body in nothing. The posture
+    kept is the one it holds where the body is within `POSTURE_TOL` of it,
+    else where it has got to: never a sensed reading in place of the plan
+    for a trunk that only sways."""
     other = "left" if side == "right" else "right"
     held = verb and self.out(other) and self.grippers[other].held()
     self.kept_by[side] = other if held else None
-    return self._standing_in() if held else None
+    if not held:
+      return None
+    now = self.posture_now()
+    there = (np.abs(now - self.posture) <= POSTURE_TOL).all()
+    return tuple(float(v) for v in (self.posture if there else now))
 
   def _standing_in(self) -> tuple:
     """The posture the body stands in as another is asked of it: the one it
@@ -2055,7 +2063,7 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking", "carry_q", "stand_home")
+          "allowed", "left", "looks", "looking", "carry_q", "stand_home", "kept_by")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},

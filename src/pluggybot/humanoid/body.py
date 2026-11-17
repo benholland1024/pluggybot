@@ -789,9 +789,9 @@ class HumanoidBody(Body):
     self._halted.discard(side)
     self._kept.pop(side, None)
     postures = reach_.REACH_POSTURES
-    # ...the one it is in alone, a verb's, while the other hand holds something (#719)
-    kept = self.reach.keep(side, refuse)
     if path is not None:
+      # ...the one it is in alone, a verb's, while the other hand holds something (#719)
+      kept = self.reach.keep(side, refuse)
       # the posture the hand then follows its path in, and that one alone
       ways = [self.to_stance(q) for q in path]
       if turns is not None and len(turns) != len(ways):
@@ -859,10 +859,10 @@ class HumanoidBody(Body):
         self._why[side] = "kept off"
         # ...and what the other hand's way would do -- or, where that hand holds
         # something and kept the body in its posture, that it does (#719)
-        held = self.reach.kept_by[side] is not None
-        self._kept[side] = dict(kept, **(
-          {"other": "holds"} if held and words and not follows else
-          {"other": self.reach.clear_way(_OTHER[side], goal)} if words and not follows else {}))
+        if words and not follows:
+          held = self.reach.kept_by[side] is not None
+          kept = dict(kept, other="holds" if held else self.reach.clear_way(_OTHER[side], goal))
+        self._kept[side] = kept
       return False
     finally:
       self.reach.keep_out = []

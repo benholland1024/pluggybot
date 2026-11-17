@@ -715,7 +715,8 @@ class Body(abc.ABC):
     that robot stands in the stance frame, `home` (its way home, else its
     way out), `back` (a reach whose way home from there would meet it), and
     for a reach `other` (whether the other hand's way there keeps off it;
-    None where that hand does not reach) -- else None."""
+    None where that hand does not reach; "holds" where it is out holding
+    something and kept the body's posture, #719) -- else None."""
 
   @abc.abstractmethod
   def posture_kept_by(self, side: str) -> str | None:

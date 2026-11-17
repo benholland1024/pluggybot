@@ -24,8 +24,8 @@ def _holding(left="hold", held=True):
   reading `held`."""
   r = _bare_reach()
   r.posture = np.array(BOWED)
-  # ...the posture the body is in, as it reads itself (`_standing_in`)
-  r._standing_in = lambda: BOWED
+  # ...the posture the body is in, as it reads itself (`posture_now`)
+  r.posture_now = lambda: np.array(BOWED)
   r.phase["left"] = left
   r.goal["left"] = None if left == "rest" else rc.HandGoal(np.array([0.4, 0.2, 0.8]))
   r.grippers["left"].holding = held
@@ -233,3 +233,11 @@ def test_a_reach_kept_off_another_robot_says_the_other_hand_is_out_holding():
       return {"m": 0.9, "x": 0.5, "y": -0.6, "home": False, "back": False, "other": "holds"}
   step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', Off(*_bare()))["steps"][-1]
   assert step["reason"].endswith("; your left hand is out holding something")
+
+
+def test_the_posture_kept_is_the_plans_where_the_body_is_near_it_never_a_swaying_reading():
+  r = _holding()
+  r.posture_now = lambda: np.array(BOWED) + [0.01, 0.03, 0.01]
+  assert r.keep("right", True) == BOWED
+  r.posture_now = lambda: np.array(BOWED) + [0.0, -0.2, 0.0]
+  assert np.allclose(r.keep("right", True), (-0.22, 0.6, 0.0))
