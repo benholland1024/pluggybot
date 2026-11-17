@@ -8160,8 +8160,8 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
   - At 1c4fabe (round 5, below: the plate brought back in two moves, the
     cup pulled back to 0.32 m, the fork squeezed at 40 N), on walk2: 18 of
     32; held out (sealed by 1c4fabe), 12; each laid in 423-483 s. On the
-    same pod and draws, round 4's reference on round 5's tree laid 12 of 32
-    and 15 held out. The first piece not laid in each flight (the bar's
+    same pod, the bar's draws and the pool 1c4fabe sealed, round 4's
+    reference on round 5's tree laid 12 of 32 and 15 held out. The first piece not laid in each flight (the bar's
     draws, then the held-out; the reference before in brackets): the lay 6
     and 16 (12 and 11) -- a cup set down off its spot 2 and 9 (2 and 4) or
     let go over the table 0 and 1 (0 and 1), a fork off 3 and 6 (6 and 2)
@@ -8177,10 +8177,10 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
   - At e7b968a (round 5, below: the plate brought back in two moves, the
     last to no nearer the body's middle than 0.25 m; 1c4fabe's other two
     levers taken back out), on walk2: 15 of 32; held out (sealed by
-    e7b968a), 15; each laid in 409-500 s. On the same pod and draws, round
-    4's reference laid 12 of 32 (the reading before's rows: on one pod a
-    flight replays, and the cup's leg, the same code in both, was the same
-    in all 32) and 9 held out. The first piece not laid (the bar's draws,
+    e7b968a), 15; each laid in 409-500 s. On the same pod, the bar's draws
+    and the pool e7b968a sealed, round 4's reference laid 12 of 32 (the
+    reading before's rows: on one pod a flight replays, and the cup's leg,
+    the same code in both, was the same in all 32) and 9 held out. The first piece not laid (the bar's draws,
     then the held-out; the reference before in brackets): the lay 6 and 14
     (12 and 16) -- a cup set down off its spot 2 and 11 (2 and 11), a fork
     off 1 and 1 (6 and 2) or let go over the table 2 and 0 (2 and 2), the

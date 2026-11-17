@@ -224,23 +224,30 @@ def test_the_pass_plate_is_brought_back_from_the_pass_by_a_position_move():
   assert back == "move_hand", f"the plate is brought back by {back}"
 
 
-def _plate_pull_back(monkeypatch, gx: float, gy: float, gz: float = 1.0) -> list:
-  """The pass reference's plate pull-back off the pass as the language runs
-  it for a grip at (gx, gy, gz) in the stance frame: its run compiled as the
-  library compiles it, and its statements from the lift off the pass to the
-  walk to the place worked out by the language's own evaluator
-  (`lang._eval`), the hand read where its moves left it; every `move_hand`
-  of the left hand is recorded where it was asked to go, taken as arrived.
-  A statement the walk does not know fails, never one followed otherwise."""
-  from types import SimpleNamespace
+def _plate_run():
+  """The pass reference's plate run compiled as the library compiles it
+  (its callees defined first), and the world's facts."""
   from pluggybot.challenge import solutions
   from pluggybot.lifecycle import HUMANOID_HOME, world_facts
-  from pluggybot.procedure import axes, lang
   from pluggybot.procedure import library as lib
   facts = world_facts(HUMANOID_HOME)
   library = lib.Library(facts)
   for source in (*solutions.LIBRARY["set_table_pass"], solutions.PROCEDURES["set_table_pass"][1]):
     library.define(solutions._def_name(source), source)
+  return library.entries["lay_plate"].procedure.body, facts
+
+
+def _plate_pull_back(monkeypatch, run, gx: float, gy: float, gz: float = 1.0) -> list:
+  """The plate's pull-back off the pass as the language runs it (`run`,
+  `_plate_run`'s) for a grip at (gx, gy, gz) in the stance frame: its
+  statements from the lift off the pass to the walk to the place worked out
+  by the language's own evaluator (`lang._eval`), the hand read where its
+  moves left it; every `move_hand` of the left hand is recorded where it was
+  asked to go, taken as arrived. A statement the walk does not know fails,
+  never one followed otherwise."""
+  from types import SimpleNamespace
+  from pluggybot.procedure import axes, lang
+  body, facts = run
   hand = {"left.x": gx, "left.y": gy, "left.z": gz}
   for k in hand:
     monkeypatch.setitem(axes.SENSORS, k, SimpleNamespace(read=lambda life, k=k: hand[k]))
@@ -283,7 +290,6 @@ def _plate_pull_back(monkeypatch, gx: float, gy: float, gz: float = 1.0) -> list
       elif s[0] != "pass":
         raise AssertionError(f"the plate's pull-back holds a {s[0]} this walk does not follow")
     return False
-  body = library.entries["lay_plate"].procedure.body
   lift = next(i for i, s in enumerate(body) if s[0] == "verb" and s[1] == "pull"
               and s[2]["hand"] == ("str", "left") and s[2]["dz"] == ("num", 1.0))
   assert run(body[lift + 1:]), "the plate's run never walks to the place"
@@ -305,9 +311,10 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(mo
   "The place laid from the pass"). Off the reference's own source, run by
   the language for grips round where it grips."""
   from pluggybot.challenge import solutions
+  run = _plate_run()
   for gx in (0.43, 0.47, 0.51):
-    for gy in (0.12, 0.2, 0.3, 0.36):
-      moves = _plate_pull_back(monkeypatch, gx, gy)
+    for gy in (0.08, 0.12, 0.2, solutions.PASS_PLATE_LEFT, 0.3, 0.36):
+      moves = _plate_pull_back(monkeypatch, run, gx, gy)
       assert len(moves) == 2, f"a grip at ({gx}, {gy}) is brought back by {len(moves)} moves"
       (x1, y1, _), (x2, y2, _) = moves
       assert abs(x1 - (gx + x2) / 2) < 1e-9 and y1 == gy, (gx, gy, moves)

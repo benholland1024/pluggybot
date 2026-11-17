@@ -351,17 +351,19 @@ PASS_FORK_MID = 0.33
 #: pass's face 0.39 ahead) to here by `move_hand` (nearer the pass the
 #: hand-over struck it; by `pull` that far it bowed and fell).
 PASS_PLATE_BACK = 0.23
+#: Where the plate's `near` puts its tag, m left of the stance, and the
+#: plate's grip from its tag across: the grip meant 0.25 m out.
+PASS_PLATE_AIM, PASS_PLATE_ACROSS = 0.184, 0.066
 #: How far left of the stance the plate's pull-back off the pass ends at the
-#: least, m: a grip the hand read 0.20 m left or nearer the body's middle
-#: (`near` lands it 0.12-0.32 m out, half of them under 0.25) was brought
-#: straight back to 0.23 m in a posture with the waist turned 30-60 deg, and
-#: held back, tipped the plate in its jaws or fell (SimNotes, "The place laid
-#: from the pass"). The pull-back goes halfway first, then here, a path
-#: reached in a crouch at most (the first, from a grip read 0.08-0.13 m out,
-#: still bowed with the waist turned about once in 12, and never fell). It
-#: is the grip's place as `near`'s aim and the reach's offset across leave
-#: it: retune those and this with them.
-PASS_PLATE_LEFT = 0.25
+#: least, m -- where the grip is meant to be: a grip the hand read 0.20 m
+#: out or nearer the body's middle (`near` lands it 0.12-0.32 m out, half of
+#: them under 0.25) was brought straight back to 0.23 m in a posture with
+#: the waist turned 30-60 deg, and held back, tipped the plate in its jaws
+#: or fell (SimNotes, "The place laid from the pass"). The pull-back goes
+#: halfway first, then here: the path here is reached in a crouch at most,
+#: while the first, from a grip read 0.08-0.13 m out, still bowed with the
+#: waist turned about once in 12 (and never fell).
+PASS_PLATE_LEFT = PASS_PLATE_AIM + PASS_PLATE_ACROSS
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -420,7 +422,7 @@ PASS_CUP = '''def lay_cup():
 PASS_PLATE = '''def lay_plate():
   budget(steps=120, seconds=1200)
   to_pass(-0.18)
-  near(90, 0.50, 0.184)
+  near(90, 0.50, %(plate_aim)g)
   move("left_shoulder_roll", 0.9)
   move("left_elbow", 1.4)
   open_hand("left")
@@ -428,9 +430,9 @@ PASS_PLATE = '''def lay_plate():
   px = read("spot.x")
   py = read("spot.y")
   gz = read("spot.z") + 0.0384
-  reach("left", px, py + 0.066, gz + 0.06, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", px, py + %(plate_across)g, gz + 0.06, 0.5, 0, -0.866, 0, -1, 0)
   if spot(90):
-    go("left", read("spot.x"), read("spot.y") + 0.066, gz + 0.06, 20, 0)
+    go("left", read("spot.x"), read("spot.y") + %(plate_across)g, gz + 0.06, 20, 0)
   pull("left", 0, 0, -1, 12, read("left.z") - gz, give=0)
   if not close_hand("left", 80):
     open_hand("left")
@@ -519,7 +521,8 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
            "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
-           "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT}
+           "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
+           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
