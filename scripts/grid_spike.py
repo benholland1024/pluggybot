@@ -157,6 +157,7 @@ def lay_house(path: Path) -> dict:
   from humanoid_spike import speed_world
   from make_way_spike import true_floor
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.mapping.occupancy_grid import GRAZE_M
   model, data, (body,) = speed_world(1)
   m = body.mission
   body.run(body.hold_routine(0.5))
@@ -177,7 +178,8 @@ def lay_house(path: Path) -> dict:
     mujoco.mj_forward(model, data)
     pose = m.true_pose()
     angles, ranges, _, _ = m.lidar.scan_split(data, _home(m.lidar))
-    g.update(pose, angles, ranges, m.lidar.max_range, origin=m.LIDAR_ORIGIN)
+    g.update(pose, angles, ranges, m.lidar.max_range, origin=m.LIDAR_ORIGIN,
+             graze_m=GRAZE_M)
     m._set_pose(*pose)
     m._walls_t = None
     m._fold_low(m._levelled(m.depth.frame(data, _home(m.depth))).points)
@@ -275,7 +277,7 @@ def table_one(scale: float, repeat: int, house_path: str) -> dict:
   from pluggybot.mapping import optimistic
   from pluggybot.mapping.astar import astar
   from pluggybot.mapping.frontier import find_frontiers, traversable_mask
-  from pluggybot.mapping.occupancy_grid import OccupancyGrid
+  from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
   from pluggybot.perception.heightmap import HeightMap
   from pluggybot.telemetry.recorder import encode_grid_png
 
@@ -303,7 +305,8 @@ def table_one(scale: float, repeat: int, house_path: str) -> dict:
     return m._walls()
 
   r = {"update": timed(lambda: m.grid.update(pose, angles, ranges, m.lidar.max_range,
-                                             origin=m.LIDAR_ORIGIN), repeat),
+                                             origin=m.LIDAR_ORIGIN, graze_m=GRAZE_M),
+                       repeat),
        "walls": timed(walls, repeat)}
   m.grid.grid[:] = syn
   walls()

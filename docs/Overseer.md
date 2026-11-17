@@ -24,8 +24,8 @@ is `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
 
 `HubLifecycle.run()` is a priority arbitration loop, and the mind is one
 branch of it. The loop as a state diagram, with what each state reads and
-writes of the memory, is at the top of `README.md` (pinned by
-`tests/test_readme.py`). Since issue #58 the loop is `_day_routine` — a ROUTINE, with
+writes of the memory, is in `README.md`'s "The robot's day, as states"
+(pinned by `tests/test_readme.py`). Since issue #58 the loop is `_day_routine` — a ROUTINE, with
 every branch yielding its drive commands to the one loop that steps the
 physics (`pluggybot/tick.py`) — and `run()` drives it; the branch order and
 every rail below are exactly as they were:
@@ -398,7 +398,22 @@ offer. History says the `done` and names the job (`said done on t_0027
 (open_door): …`, #629: by its kind alone, Rowan took one job's grade for
 another's). A `done` on a job the robot does not hold is dropped and says
 why (`said done on t_0137 (open_chest): not graded, because nobody has
-taken it`; #648). A fall while the robot holds one ends it there, graded as
+taken it`; #648). A `done` beside a run that never began is not graded
+either (#706, Ben's call of 11-16; why, in its Observatory period): its
+grade waits on the errand its answer builds (`_grade_waits`: that errand's
+alone, kept across a restart, which drops it), and one never built -- a
+`procedure:new` whose define was refused or left out, or whose def takes
+arguments, a `procedure:<name>` that builds nothing, a run too dear to
+start -- or never validated -- refused before its first verb -- is not made
+at the loop's pass once the queue is empty, a dead robot's after its
+stand-up too. History says so (`said done on t_0301 (open_drawer): not
+graded, because the run I said it beside never began -- I still hold it,
+and its time runs on`; a job whose time is already up runs out there
+instead), the job stays held, and a `done` said again is graded; beside a
+run, `said done on …: graded once everything queued has run` is written as
+that run begins, never before. A run that began -- validated, whatever
+ended it after, a death before its first verb included -- is graded as
+before. A fall while the robot holds one ends it there, graded as
 if `done` were said as it fell (`fell holding t_0239 (open_door): a fall
 fails the try, so the job ends here …`, then the grade's line; #701). A job
 held past the time its description gives is failed by the
@@ -916,17 +931,60 @@ in the context) is the public surface and nothing else: name, reported pose,
 state, what it says it is doing, whether it is dead, and its
 `posture` (`standing`, or `getting_up` while its get-up has it). Not its
 battery, points, goals, thoughts, reasons or secrets — a test walks the
-whole context for the other's thought lines. Its `doing` is the last line
-the other narrated of its OWN doing (`HubLifecycle.doing`), never the
-BOARD's: an offer, an expiry, an offer's things set out (or not there, or
-left under a hand), things put away, a claim given back for a robot that is
-not in this world and a job a restart failed are narrated like any line and
-become the wire's `status` as ever (`_say(board=True)`), and are kept out
-of `doing`. Both lifecycles say the set-out line and the first says every
-offer, and shown as the other's `doing` they read as its claims
-(Observatory.md, the period of `loop-k4`, has the rows). `doing` is empty
-until a robot narrates a line of its own, at every start: neither it nor
-`status` is kept across a restart.
+whole context for the other's thought lines.
+
+**Its `doing` is the last line the other narrated that says what its BODY
+is doing** (`HubLifecycle.doing`, issue #709), the way anyone in the room
+could see it, and only in the form that call gives it
+(`_say(doing=True)` as said, or `doing="..."`): PRIVATE BY DEFAULT, and
+shown only where the line begins as the stated list says one may
+(`lifecycle.DOING_KINDS`; a decided walk's `DECIDE` line only as
+`Decision.shown`, its action and where). The wire's `status` is still
+every line.
+
+| what the other is shown | the lines (and the form) |
+|---|---|
+| a walk | `EXPLORE` (heading for a zone, how it ended; never "-> GO_CHARGE (battery low)", which only a pack run low says), `MAKE WAY` and `MADE WAY`, `WAIT` and `STATION` at a station held, `standing by` clearing a station; a decided explore's `DECIDE` line as its action alone ("DECIDE explore (store)"), and a decided idle's ("DECIDE idle") |
+| a charge | a decided charge's `DECIDE` line as its action alone ("DECIDE charge (free)": it says nothing more until it plugs in, waits or fails), `GO_CHARGE` (each leg; never "stranded", which only a pack run low says), `CHARGE` without its level or why: "CHARGE complete -- backing off", "CHARGE: unplugging", "CHARGE: still plugged in -- carrying on", "CHARGE: the run's time is up -- my plug stays in", "the plug came out", and the hand that could not take it out |
+| a procedure it runs | `PROCEDURE` step lines as the verb alone, never the values it was handed (a procedure may hand a verb what it read of its pack or wallet) and never a name the robot gave the procedure or a def (below): "PROCEDURE step 24 (line 34): step", said "PROCEDURE door_p1 step 24 (line 34): step(ahead=0.12, left=0.0, turn=0.0)"; a step that read false or failed, a call a test read false (shown as its line alone, where the line the robot says names the def it called), and a stop, without their words (a check's words repeat the values: "seconds=731.9 is above 60.0"); how the run ended (complete, cut short, failed) and its counts; a house program's (#58) `PROCEDURE` lines likewise |
+| a job it holds | `TASK` claimed (never an act's: its claim is the act, on an offer hidden from the robot it names), done or failed, ended by a fall, out of time, still held after a restart; `DONE` without when it is graded ("before this answer's ..."); `GRADE` (the hold, standing clear) |
+| its body's fate | `DEAD (cause)`, read off `dead` itself (`others_context`), never the death's line (its why, its hearts), and nothing else until it stands up (a run its death ended, the jobs a true death fails, a late answer's `done`; and across a restart, which brings `dead` back and not `doing`); `UP again after N s down -- back at` its start, without the pack; `STOOD UP mid-errand`. An operator's reset is never shown and empties `doing`: the robot is where it starts, as at a run's start |
+
+Everything else is the robot's own, by what it is: its mind (`THINK`,
+`DECIDE` and every reason and source, any other decision, `INTERRUPT`,
+`ANSWER`, `LEFT OUT`, `RECALL`,
+`READ`, `LOOK`), its memory and its rules (`THOUGHT`, `HISTORY`,
+`CONSTITUTION`, `EVENT`, `BELIEF`), a fall it got up from (`FELL`, #707:
+its body's fate is shown off its posture and its death), its library (`PROCEDURE define`,
+`undefine`, a run refused), its books (`SCORE`, `GAVE`, `BOUGHT`, a heart,
+`HUNGER`, `ENERGY`, `SKIP`, `DEFER`, `DECLINE`, `TRUE DEATH`, an act's
+claim and close), its acts
+and its talk (`PREDICT`, `TELL`, `RATE`, `CHAT`, `VISITOR`, `TICKET`), an
+operator's (`ADMIN`, `PAUSED`, `RESUMED`, `STOPPING`), a take that did not
+happen, a job's note to its own mind ("nothing queued -- write a
+procedure"), the world's and the board's (`RESTART`, `PRESS`, which says
+the mouse's state; an offer, an expiry, things set out or put away, a claim
+given back) and the run's own (`mission ...`, `stopping at`, `STUCK`).
+`tests/test_doing.py` lists every kind one way or the other (a new kind
+fails it until someone classes it), narrates every call through `_say` as
+it is written and reads the other's whole context after each (and a form
+whose words its line no longer says fails it), and narrates the private
+things through the lifecycle's own methods. A walk's own words (why it
+stopped short) are the body's, and are shown; a name the robot gave a
+procedure or a def is its own words, and is not (Ben, 2026-11-16: a name
+can carry its reasons, and a robot that would share its plans has `tell`):
+the test runs a procedure through every form a run's line takes, a def of
+its own and another of its library's procedures called, and walks every
+call's shown form: a run's line for anything but a count, a line or a verb,
+and a line of any kind for such a name. (`STOOD UP mid-errand` names the
+errand, and a procedure runs as the errand `procedure`.)
+
+`doing` may be old: it is the last thing the body was seen doing, and
+`state` beside it is what the robot is in now. It is empty until a robot
+narrates a line the list shows, at every start: neither it nor `status` is
+kept across a restart. Observatory.md's periods of `loop-k4` (the board's
+lines), `loop-709` (this rule) and `loop-709b` (a procedure's lines without
+its names) have the rows.
 
 **What a robot may DO about the other, measured** (issue #208; a mind with
 a peer, `mind/acts.py` is the pure half). Five paperwork
@@ -2285,7 +2343,7 @@ for any of this; its own goals live in `Goals.md`.
 | **constitution** | human | always, the cached prefix | `Main.md`: rendered from the library file the environment names (#263); no write API, and an edit on the volume is set aside |
 | **core** | robot | always, whole | `Goals.md` (`intend` / `drop_goal`) and `Top_of_mind.md` (`pin` / `unpin`) — RAM: *always in front of you, so keep it short; anything you only need sometimes is a note* |
 | **notes** | robot | the INDEX always, beside what it holds (`holds`, #688); a body by `recall` | `Notes.md`: titled lines in topics the robot names (`note {topic, title, text}` / `unnote`). `Findings.md` is the first TYPED topic family, `findings/<task>`, fields declared by code (`record` / `retract`, offered with the library) |
-| **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, interventions, visitor and peer messages |
+| **history** | system, and the senders | the tail (12 lines, each `#id`) always; the rest by `recall` | what happened: decisions and their thinks, verdicts, deaths, a fall nothing else told it of (#707: "I fell over and got up again 4 s later"), interventions, visitor and peer messages |
 
 The **procedural** tier (`procedures/`) is unchanged by #221 and is memory
 in the paper's sense too — §2b.

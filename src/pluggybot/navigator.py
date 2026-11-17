@@ -35,7 +35,7 @@ from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
-from pluggybot.mapping.occupancy_grid import OccupancyGrid
+from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
 from pluggybot.mapping.scan_match import ACCEPTED, REFUSED, ScanMatcher
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
@@ -446,6 +446,10 @@ class Navigator:
     #: own corridor; only a scan taken since its walk began, so nothing a
     #: restart drops is ever read.
     self.peer_returns: tuple[float, np.ndarray, np.ndarray] | None = None
+    #: ...and its returns off the room at the head's height (#717,
+    #: `Scan.over_*`), and where the sensor was (`Scan.origin`): what a step
+    #: keeps off and a look's bow is judged against.
+    self.over_returns: tuple[float, np.ndarray, np.ndarray, tuple | None] | None = None
     #: WHO THE LIDAR SAW (#675): when its newest scan was taken, sim s, and
     #: by each other robot's root the newest that returned points off it
     #: (`Scan.peer_roots`) -- what `seen_at` answers.
@@ -619,7 +623,7 @@ class Navigator:
         m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
-                           origin=origin, free_from=free_from)
+                           origin=origin, free_from=free_from, graze_m=GRAZE_M)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
       elif self.matcher is not None:
@@ -635,8 +639,11 @@ class Navigator:
     """What a scan saw of the other robots, kept: its returns off them, for
     the front stop's and a step's (`peer_returns`, #316, #670), and whom
     they came off, by root (`seen_t`, #675) -- every scan's, and a look's
-    (`HumanoidMission.look_round`, #678)."""
+    (`HumanoidMission.look_round`, #678); and the room's at the head's
+    height (`over_returns`, #717)."""
     self.peer_returns = (t, scan.peer_angles, scan.peer_ranges)
+    if scan.over_angles is not None:
+      self.over_returns = (t, scan.over_angles, scan.over_ranges, scan.origin)
     self.scanned_t = t
     for root in scan.peer_roots:
       self.seen_t[root] = t

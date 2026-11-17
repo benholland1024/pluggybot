@@ -1,21 +1,30 @@
-"""The state diagram at the top of README.md is read against the code
-(issue #221): a diagram in the README is where a developer looks first,
+"""The state diagram in README.md is read against the code (issue #221;
+since #714 it sits under the first screen, which is for people): a diagram
+in the README is where a developer looks first,
 and one that has drifted from `lifecycle.State`, the death causes, the
 event types or the memory verbs is worse than none.
 
 Nothing here flies anything. The README's two Mermaid blocks are parsed
-with regexes that know just enough of the syntax to pull names out.
+with regexes that know just enough of the syntax to pull names out. The
+README's first screen, and CONTRIBUTING.md where it sends a person next,
+are read for their links, anchors and the scene they tell a person to run
+(#714).
 """
 
+import ast
 import re
 from pathlib import Path
 from typing import get_args
+from urllib.parse import unquote
 
 from pluggybot import lifecycle
 from pluggybot.mind import events, text
 from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 README = Path(__file__).resolve().parents[1] / "README.md"
+
+#: Where the README's first screen, the one written for people (#714), ends.
+FIRST_SCREEN_END = "## For developers"
 
 #: Mermaid caps a `stateDiagram-v2` edge label at 200 px and a longer line
 #: wraps (Chromium) or is cut off (Firefox) -- issue #259's clipped labels.
@@ -94,3 +103,114 @@ def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   drawn -= {"LR", "TB", "MAIN", "GOALS", "TOP", "NOTES", "FIND", "HIST", "USE",
             "VISITOR", "PROCS", "TICKETS"}
   assert drawn <= _state_names(loop), drawn - _state_names(loop)
+
+
+def _prose(markdown: str) -> str:
+  """The text outside fenced code blocks (``` or ~~~, indented under a list
+  item too), where a `#` is a heading and a `](...)` a link."""
+  return re.sub(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[^\n]*$", "", markdown,
+                flags=re.S | re.M)
+
+
+def _anchors(markdown: str) -> set[str]:
+  """GitHub's anchor for each heading, off its text as rendered (a link's
+  words, no tags, no closing hashes): lower case, punctuation dropped,
+  spaces as hyphens, and `-1`, `-2` after a heading's repeats; and every
+  `<a name>` or `id`."""
+  text = _prose(markdown)
+  seen, anchors = {}, set(re.findall(r"<a\s+(?:name|id)=\"([^\"]+)\"", text))
+  for heading in re.findall(r"^#{1,6} (.+?)(?:\s+#+)?\s*$", text, re.M):
+    shown = re.sub(r"<[^>]+>", "", re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", heading))
+    slug = re.sub(r"[^\w\- ]", "", shown.strip().lower()).replace(" ", "-")
+    anchors.add(f"{slug}-{seen[slug]}" if slug in seen else slug)
+    seen[slug] = seen.get(slug, 0) + 1
+  return anchors
+
+
+def _links(markdown: str) -> list[str]:
+  """Every link's target in the prose, inline (with a title or none) or by
+  reference, `%20` read as a space; one in a code span, a footnote or with
+  a scheme (`https:`, `mailto:`) is no file here."""
+  text = re.sub(r"`[^`\n]*`", "", _prose(markdown))
+  title = r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
+  inline = re.findall(r"\]\(\s*<?([^)\s>]+)>?" + title + r"\s*\)", text)
+  by_reference = re.findall(r"^ {0,3}\[(?!\^)[^\]]+\]:\s*<?([^\s>]+)", text, re.M)
+  return [unquote(t) for t in inline + by_reference if not re.match(r"[A-Za-z][\w+.-]*:", t)]
+
+
+def _broken(source: Path, targets: list[str]) -> list[str]:
+  """The targets that name no file, or a heading their file does not have."""
+  broken, anchors = [], {}
+  for target in targets:
+    path, _, anchor = target.partition("#")
+    doc = source.parent / path if path else source
+    if not doc.exists():
+      broken.append(target)
+    elif anchor and doc.suffix == ".md":
+      if doc not in anchors:
+        anchors[doc] = _anchors(doc.read_text())
+      if anchor not in anchors[doc]:
+        broken.append(target)
+  return broken
+
+
+def _scenes(script: Path) -> set[str]:
+  """The scenes `--view` and `--strip` offer: the keys of the script's
+  `SCENES` dict."""
+  for node in ast.parse(script.read_text()).body:
+    target = node.target if isinstance(node, ast.AnnAssign) else (
+      node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None)
+    if getattr(target, "id", None) == "SCENES" and isinstance(node.value, ast.Dict):
+      keys = node.value.keys
+      assert all(isinstance(k, ast.Constant) for k in keys), \
+          "SCENES has a ** or a computed key, so its scenes cannot be read here"
+      return {k.value for k in keys}
+  raise AssertionError(f"{script.name} has no `SCENES = {{...}}` to read the scenes from")
+
+
+def _strips(script: Path) -> set[str]:
+  """The scenes whose filmstrip `--strip` draws: one with a branch of its
+  own (`args.strip == "walk"`), a stage-2 scene `_scene_gen` dispatches on,
+  and the body's, the default. Any other reaches the stage-2 filmstrip,
+  which has no scene by that name."""
+  drawn = {"body"}
+  for node in ast.walk(ast.parse(script.read_text())):
+    if (isinstance(node, ast.Compare) and getattr(node.left, "attr", None) == "strip"
+        and isinstance(node.ops[0], (ast.Eq, ast.In))):
+      drawn |= {c.value for c in ast.walk(node.comparators[0])
+                if isinstance(c, ast.Constant) and isinstance(c.value, str)}
+    if isinstance(node, ast.FunctionDef) and node.name == "_scene_gen":
+      returned = [n.value for n in ast.walk(node) if isinstance(n, ast.Return)]
+      dispatch = [n.value for r in returned for n in ast.walk(r)
+                  if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Dict)]
+      drawn |= {k.value for d in dispatch for k in d.keys if isinstance(k, ast.Constant)}
+  return drawn
+
+
+def test_the_first_screen_links_only_to_what_is_there():
+  """The first screen is a visitor's (#714): a renamed doc, a moved picture,
+  a heading reworded or a scene the script no longer offers fails here, not
+  on a person following it."""
+  readme = README.read_text()
+  assert FIRST_SCREEN_END in readme, "the first screen ends where the developers' part begins"
+  first = readme.split(FIRST_SCREEN_END)[0]
+  targets = _links(first)
+  assert [t for t in targets if not t.startswith("#")], \
+      "the first screen links the docs and the picture"
+  broken = _broken(README, targets)
+  assert not broken, broken
+  script = README.parent / "scripts" / "humanoid_spike.py"
+  named = set(re.findall(r"humanoid_spike\.py --(?:view|strip) (\w+)", first))
+  assert named, "the first screen names a scene to run"
+  assert named <= _scenes(script), named - _scenes(script)
+  stripped = set(re.findall(r"humanoid_spike\.py --strip (\w+)", first))
+  assert stripped <= _strips(script), stripped - _strips(script)
+
+
+def test_the_start_here_page_links_only_to_what_is_there():
+  """CONTRIBUTING.md is where the first screen sends a person next (#714)."""
+  page = README.parent / "CONTRIBUTING.md"
+  targets = _links(page.read_text())
+  assert targets, "the start-here page links the docs"
+  broken = _broken(page, targets)
+  assert not broken, broken

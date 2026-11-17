@@ -317,13 +317,14 @@ def test_the_mission_places_a_held_grip_off_its_model_of_itself_and_drops_it_fro
     sm.pose(q, np.array([0.0, 0.0, -1.0]))
     centres, _ = m._held_drop()
     assert np.linalg.norm(centres[0] - truth()) < 0.03, (centres[0], truth())
-    # ...and the low layer: a point at the grip folds in only unheld
+    # ...and the low layer: a point at the grip folds in only unheld (its
+    # frame filtered once, `_held_out`, for the layer and the knees' memory)
     point = np.array([centres[0]])
     m.low[...] = 0.0
-    m._fold_low(point)
+    m._fold_low(hmis._held_out(point, m._held_drop()))
     assert not (m.low != 0.0).any(), "the held grip's point went into the layer"
     m.reach.grippers["left"].held = lambda: False
-    m._fold_low(point)
+    m._fold_low(hmis._held_out(point, m._held_drop()))
     assert (m.low > 0.0).any(), "the premise: unheld, the point is an obstacle"
   finally:
     body.close()
@@ -393,6 +394,46 @@ def test_a_step_holding_something_walks_and_its_report_says_what_it_carried():
   # ...and the next walk carries it no longer: its hand-over let it go
   ran = body.run(lang.run_procedure_routine(_Life(body), proc, facts))
   assert "carried" not in ran["steps"][0] and not body.carrying("left")
+
+
+def test_a_walks_report_says_an_arm_it_went_with_where_its_way_home_was_held():
+  """#693's family: an arm whose way home something held -- raised and sent
+  home again, and held still -- stays where it is held (`Body.arm_held`),
+  and a walk goes with it there: its report says so (`armHeld`), and says
+  nothing of it where no arm is."""
+  from pluggybot.procedure import lang
+  body = _stub()
+  facts = st.hand_facts()
+  proc = lang.compile_procedure('def a():\n  step(0.2)\n', facts)
+  ran = body.run(lang.run_procedure_routine(_Life(body), proc, facts))
+  assert "armHeld" not in ran["steps"][0]
+  body.held_arms = {"right"}
+  ran = body.run(lang.run_procedure_routine(_Life(body), proc, facts))
+  rep = ran["steps"][0]
+  assert rep["ok"] and rep["armHeld"] == ["right"], rep
+
+
+def test_an_arm_left_held_is_saved_through_but_never_rested_with():
+  """An arm left where its way home was held (phase "held") keeps its
+  command where it is held, kept across a restart (`Reach.KEPT`), and moves
+  until a withdraw or a walk: the world saves through it, as through a
+  carried hand (#682) -- but the robot does not rest with it, so is never
+  asked aside: an aside takes no arm home first, and would walk it there."""
+  from pluggybot.humanoid import reach as rc
+  body = body_for(*_floor())
+  try:
+    body.mission.reach.phase["left"] = "held"
+    assert not body.working
+    assert body.mission._hand_out()
+    # ...but it moves nothing: the heading is held as the robot stands
+    # (#693b's fourth review: counted busy, the hold never came)
+    m = body.mission
+    assert m._busy() and not m._busy(still=True)
+    m._moved_t = m.last_motion_t = float(m.data.time) - 100.0
+    assert m._settled()
+    assert {"homing", "held_for", "lifted"} <= set(rc.Reach.KEPT)
+  finally:
+    body.close()
 
 
 # ---- the review's: a carry rests, rides a restart, is bounded and judged home ------

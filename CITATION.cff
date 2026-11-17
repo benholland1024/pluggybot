@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "PluggyBot: a simulated, hardware-honest robot and the autonomous agent that lives in it"
+type: software
+authors:
+  - family-names: Holland
+    given-names: Ben
+repository-code: "https://github.com/benholland1024/pluggybot"
+url: "https://rooftop-media.org/experiments/pluggyworld"
+license: Apache-2.0
+abstract: >-
+  PluggyBot is the simulation behind PluggyWorld. Two humanoid robots live
+  in a small simulated neighborhood, and a language model makes their
+  decisions. Each robot is built in MuJoCo from real parts that can be
+  bought, with their datasheets' limits and noise. The robots charge
+  themselves, take jobs for points, write small programs to do those jobs,
+  and can die. The project measures how far such an agent gets on its own, and
+  where it stops.
+keywords:
+  - robotics
+  - humanoid
+  - MuJoCo
+  - LLM agents
+  - embodied AI
+  - benchmark

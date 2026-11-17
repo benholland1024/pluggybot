@@ -51,6 +51,9 @@ COPY models/ models/
 COPY src/ src/
 COPY scripts/serve.py scripts/
 COPY deploy/entrypoint.sh deploy/
+# The license and NOTICE ride with the code; the third-party texts NOTICE
+# names are in models/ (#714).
+COPY LICENSE NOTICE ./
 
 # Board contents, the points ledger and the overseer's memory are WORLD state,
 # not run state (issues #12, #14 and #15): mount a volume here and the

@@ -373,7 +373,7 @@ def _life(stops_at=None):
                               pose_xy=lambda: life.body.pose[:2],
                               in_sight=lambda x, y: True,
                               peer_on_the_goal=lambda x, y: None,
-                              watch=lambda tag: None, arm_kept=lambda: None, carrying=lambda side: False,
+                              watch=lambda tag: None, arm_kept=lambda: None, carrying=lambda side: False, arm_held=lambda side: False,
                               go_to_routine=go, hold_routine=hold)
   life.walks = walks
   return life

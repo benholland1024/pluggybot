@@ -27,7 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, V_MIN,
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
-from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
@@ -132,6 +132,77 @@ TURN_CLOSE_S = TURN_SETTLE_BIG_S + TURN_PULSES * (0.14 + TURN_SETTLE_S)
 STEP_KEEP_M = HumanoidMission.OTHER_ROBOT_CELLS * GRID_M
 STEP_KEEP_DOWN_M = HumanoidMission.DOWN_ROBOT_CELLS * GRID_M
 STEP_FRONT_M, STEP_FRONT_HALF_M = HumanoidMission.FRONT_STOP_RANGE, HumanoidMission.FRONT_HALF_M
+#: A STEP KEEPS OFF WALLS AND FURNITURE TOO (#717, Ben's option 1; `_Room`;
+#: SimNotes, "A step into a wall, and the look's bow there"): its walk stops
+#: before its stride's carry would bring its LIDAR within `STEP_WALL_M` of
+#: what it reads at its head's height (`lidar.OVER_Z` and up), m -- or its
+#: pelvis within `STEP_LOW_M` of what its depth camera has seen at its
+#: knees' height, remembered where its belief placed it (`mission.KNEE_Z`,
+#: `KneeMemory`: up close the camera sees none of a counter's face, and a
+#: thigh pressed on it at 0.15-0.17 m). MEASURED: the references' work spots
+#: kept 0.15 m clear of the first (the door's) and 0.05 of the second. ⚠ ONLY
+#: WHAT LIES AHEAD ALONG ITS WAY, AND BEGUN NEARER, IT MAY GO BUT NO NEARER
+#: THAN `STEP_NEARER_M` LESS THAN IT BEGAN: a sideways step along a counter's
+#: face or a wall goes on.
+STEP_WALL_M = 0.30
+STEP_LOW_M = 0.20
+STEP_NEARER_M = 0.02
+#: ...how many of the nearest it reads past, of either (a lone return is not
+#: a surface: `box._agreed`).
+STEP_NEAREST = 3
+#: A STEP ITS SCANS SAY WENT UNDER `STEP_PRESSED_SHARE` OF WHAT ITS LEGS COUNT,
+#: these at least `STEP_PRESSED_M` along its way, did not go (#718, Ben's
+#: option 1; `steps._step`; SimNotes, "A step into a wall, and the look's bow
+#: there"): pressed on a counter's face, a stride lands where it lifted and the
+#: legs' reckoning counts 7-9 cm a step where the pelvis moved 1-3 -- and its
+#: matched belief (`stance`, the matcher's corrections in) moved 0.5-3.8.
+#: MEASURED over 750 steps of the base's flights (P2, the loop of 11-16/17):
+#: every step whose legs counted 4 cm or more over the truth's travel matched
+#: under half of their count, and no step whose truth went more than half did.
+STEP_PRESSED_M, STEP_PRESSED_SHARE = 0.04, 0.5
+#: ...never judged where a single correction past this, m, moved its belief
+#: as it walked (`jump`): a relocation, a doubt's take, a station's fix --
+#: the matcher's own corrections along a pressed step come under a cm a scan.
+STEP_JUMP_M = 0.03
+#: A LOOK'S BOW IS JUDGED AGAINST WHAT STANDS IN FRONT OF ITS HEAD (#717,
+#: Ben's option 2; `bow_room`; SimNotes, "A step into a wall, and the look's
+#: bow there"): bowed, its head's front goes as far ahead as its model of
+#: itself's statue at that bow puts it (`head_front`: 7 cm past its LIDAR
+#: upright, 22 at `spot`'s 0.25 rad, 33 at its 0.45), and a bow is taken only
+#: where that leaves `BOW_CLEAR_M` short of the nearest its LIDAR reads at its
+#: head's height (`lidar.OVER_Z` and up) within `BOW_HALF_M` either side of
+#: its facing -- else the deepest that does, `BOW_STEP_RAD` at a time, and
+#: none where none does: the lobby's wall met at a 0.25 rad bow from 0.12-0.14
+#: m off the LIDAR, the head's front past it as the statue has it.
+BOW_CLEAR_M, BOW_HALF_M, BOW_STEP_RAD = 0.05, 0.15, 0.05
+#: ...off its newest scan where that is no older than this, s; else off one
+#: taken where it stands.
+BOW_SCAN_S = 1.0
+_HEADS: dict = {}
+
+
+def head_front(height: float, pitch: float) -> float:
+  """How far ahead its head's front stands in its stance frame, m, in the
+  posture (`height`, `pitch`, its waist square): its model of itself
+  (`arms.SelfModel`) posed as that posture's statue, arms hanging
+  (`reach.statue`); kept."""
+  key = (round(float(height), 3), round(float(pitch), 3))
+  if key not in _HEADS:
+    if "model" not in _HEADS:
+      from pluggybot.humanoid.arms import SelfModel
+      sm = SelfModel()
+      _HEADS["model"] = (sm, np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES]),
+                         [sm.m.geom(n).id for n in hm.HEAD_GEOMS])
+    sm, q0, geoms = _HEADS["model"]
+    reach_.statue(sm, (key[0], key[1], 0.0), q0)
+    m, d = sm.m, sm.d
+    front = -math.inf
+    for g in geoms:
+      rot = d.geom_xmat[g].reshape(3, 3)
+      centre = d.geom_xpos[g] + rot @ m.geom_aabb[g, :3]
+      front = max(front, float(centre[0] + np.abs(rot[0]) @ m.geom_aabb[g, 3:]))
+    _HEADS[key] = front
+  return _HEADS[key]
 #: How far a walk's plan keeps its middle off what its map holds solid, m
 #: (the map's inflation, taxicab: along a wall's face) -- what `drive_to`'s
 #: text says (#700).
@@ -164,6 +235,91 @@ def _turn_pulse(togo: float) -> float:
   0.08 s turns the stance 0.7-1.3 deg, 0.10 s 1-1.5 and 0.14 s 2-4."""
   d = math.degrees(abs(togo))
   return 0.08 if d < 1.0 else 0.10 if d < 2.0 else 0.14
+
+
+def _ahead_of(pts: np.ndarray, ux: float, uy: float, at: float, carry: float) -> tuple[float, float]:
+  """Of points (n, 2) round where a walk was, m, those ahead along its way
+  (`ux`, `uy`) of where it is now, `at` m on: how near the `STEP_NEAREST`-th
+  nearest is from there and from where the stride's `carry` would take it;
+  inf where there are too few."""
+  if not len(pts):
+    return math.inf, math.inf
+  q = pts - [at * ux, at * uy]
+  front = q[q[:, 0] * ux + q[:, 1] * uy > 0.0]
+  if len(front) < STEP_NEAREST:
+    return math.inf, math.inf
+  k = STEP_NEAREST - 1
+  now = np.partition(np.hypot(front[:, 0], front[:, 1]), k)[k]
+  then = np.partition(np.hypot(front[:, 0] - carry * ux, front[:, 1] - carry * uy), k)[k]
+  return float(now), float(then)
+
+
+class _Room:
+  """WHAT A STEP'S WALK KEEPS OFF BESIDES ANOTHER ROBOT (#717; `STEP_WALL_M`):
+  walls and what stands at its head's height, off its LIDAR's newest scan
+  since `since` (`Navigator.over_returns`, from the sensor), moved on by
+  what its legs have walked since it was taken (none before the walk began,
+  at `walk_t`); and what its depth camera
+  has seen at its knees' height, remembered where its belief placed it
+  (`HumanoidMission.knee`), from its pelvis. Its way (`ux`, `uy`)
+  in the trunk's frame as the walk began."""
+
+  def __init__(self, mission, ux: float, uy: float, since: float, walk_t: float) -> None:
+    self.mi, self.ux, self.uy, self.since, self.walk_t = mission, ux, uy, since, walk_t
+    self.began: dict[str, float] = {}
+    #: the newest scan's time, and how far the walk had gone as it came
+    #: (one taken before the walk began, at `walk_t`: none); and its points,
+    #: laid out once a scan
+    self.scan_t, self.went_at = None, 0.0
+    self._wall_t, self._wall_pts = None, None
+    # ...and a scan where it stands as it sets off, where the step has taken
+    # none: standing still, the LIDAR takes none of its own, and a walk's
+    # first comes a tenth of a second and 3 cm in
+    seen = mission.over_returns
+    if seen is None or seen[0] < since:
+      mission.look_scan()
+
+  def _wall(self) -> np.ndarray | None:
+    seen = self.mi.over_returns
+    if seen is None or seen[0] < self.since or not len(seen[1]):
+      return None
+    if seen[0] != self._wall_t:
+      # ...laid out once a scan, never every physics step
+      a, r = seen[1], seen[2]
+      self._wall_t, self._wall_pts = seen[0], np.stack([np.cos(a) * r, np.sin(a) * r], axis=1)
+    return self._wall_pts
+
+  def kept(self, carry: float, went: float) -> dict | None:
+    """None while its walk, `went` m along its way by its legs, is clear of
+    both, else how it keeps off: `by` "wall" (what its LIDAR reads at its
+    head's height) or "low" (what its depth camera saw at its knees), `m`
+    how near it is now -- from its LIDAR, or from its middle -- and `keepM`
+    how near a step lets it."""
+    pts = self._wall()
+    if pts is not None:
+      t = self.mi.over_returns[0]
+      if t != self.scan_t:
+        self.scan_t, self.went_at = t, (went if t >= self.walk_t else 0.0)
+      now, then = _ahead_of(pts, self.ux, self.uy, went - self.went_at, carry)
+      if self._nearer("wall", now, then, STEP_WALL_M):
+        return {"by": "wall", "m": round(now, 3), "keepM": STEP_WALL_M, "room": self}
+    pts = self.mi.knee.near(self.mi.pose, self.mi.odo.corrected)
+    now, then = _ahead_of(pts, self.ux, self.uy, 0.0, carry)
+    if self._nearer("low", now, then, STEP_LOW_M):
+      return {"by": "low", "m": round(now, 3), "keepM": STEP_LOW_M, "room": self}
+    return None
+
+  def now(self, by: str) -> float:
+    """How near what it kept off by `by` stands now, m, ahead along its
+    way: its stride's carry and its settle walked (off the scans its settle
+    took, and the knees' memory as its legs carried it)."""
+    pts = (self._wall() if by == "wall"
+           else self.mi.knee.near(self.mi.pose, self.mi.odo.corrected))
+    return math.inf if pts is None else _ahead_of(pts, self.ux, self.uy, 0.0, 0.0)[0]
+
+  def _nearer(self, by: str, now: float, then: float, keep: float) -> bool:
+    began = self.began.setdefault(by, now)
+    return then < keep and then < began - STEP_NEARER_M
 
 
 def _step_walks(ahead: float, left: float) -> list[tuple[float, float]]:
@@ -424,8 +580,10 @@ class HumanoidBody(Body):
     a restart's save waits it out (`continuation.Keeper.busy`) -- but not
     one carried at its side (#682), held there as a hanging arm is, its
     pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
-    let-go, and saves held through it, a crash rolled the world back."""
-    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
+    let-go, and saves held through it, a crash rolled the world back -- nor
+    an arm left where its way home was held (`Reach.HELD_S`), its command
+    kept where it is held, which lasts until a withdraw or a walk."""
+    return any(p not in AT_EASE for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -488,9 +646,11 @@ class HumanoidBody(Body):
     mujoco.mj_forward(m, d)
     self.mission.fresh_drivers()
     self.mission.drop_aside()
-    # ...and nobody its LIDAR saw from where it stood before (#675, #678)
+    # ...and nobody its LIDAR saw from where it stood before (#675, #678),
+    # nor what it read round it there (#717: a look's bow judged against it)
     self.mission.seen_t.clear()
     self.mission._looked = None
+    self.mission.over_returns = self.mission.peer_returns = self.mission.look_peers = None
     if self.mission.matcher is not None:
       self.mission.matcher.anchored(on=False)
 
@@ -728,6 +888,9 @@ class HumanoidBody(Body):
   def carrying(self, side) -> bool:
     return self.reach.carried(side)
 
+  def arm_held(self, side) -> bool:
+    return self.reach.held(side)
+
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
     # fall let go of still says its hand moves, and stopping that used up a
@@ -783,7 +946,10 @@ class HumanoidBody(Body):
         return "fell"
       self.reach.retreat(side)
       for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
-        if self.mission.falls != falls or self.reach.home(side):
+        # ...or held, pressing on nothing where something holds it
+        # (`Reach.HELD_S`): pressed on, a jaw on a counter's top tipped the
+        # robot over backward inside this wait (#693's family)
+        if self.mission.falls != falls or self.reach.home(side) or self.reach.held(side):
           break
         yield STILL
       came_home = self.reach.home(side)
@@ -888,16 +1054,74 @@ class HumanoidBody(Body):
     standing policy trained on, until its trunk is still there -- ⚠ NEVER
     WITH A HAND OUT, which keeps the posture it has: the bow carries the
     hand with it, and a look from a low reach's bow lifted the hand 43 cm
-    (#525)."""
+    (#525) -- ⚠ and no deeper than leaves its head clear of what stands in
+    front of it (#717, `bow_room`). Returns None where it bowed as asked,
+    else how it was held: the bow `asked` and the one taken (`bow`, rad),
+    and how far in front of its head, upright, that thing stands (`m`)."""
     yield from self.mission.to_stand_routine()
     if any(p != "rest" for p in self.reach.phase.values()):
-      return
+      return None
     lo, hi = PITCH_RANGE
-    self.reach.hold_posture(float(self.reach.posture[0]), min(max(float(down), lo), hi))
+    height, want = float(self.reach.posture[0]), min(max(float(down), lo), hi)
+    bow, held = want, None
+    if want > float(self.reach.posture[1]) + 1e-9:
+      bow, near = self.bow_room(want)
+      if bow < want - 1e-9:
+        held = {"asked": round(want, 4), "bow": round(bow, 4),
+                "m": round(near - head_front(height, 0.0), 3)}
+    self.reach.hold_posture(height, bow)
     waited = 0.0
     while not self.reach._posture_held() and waited < GAZE_WAIT_S:
       yield from self.hold_routine(GRIP_READ_S)
       waited += GRIP_READ_S
+    return held
+
+  def bow_room(self, down: float) -> tuple[float, float]:
+    """The deepest bow up to `down`, rad, at the height it stands at, whose
+    head's front (`head_front`) stays `BOW_CLEAR_M` short of what its LIDAR
+    reads at its head's height in front of it (`Navigator.over_returns`,
+    and another robot's body the same scan saw, `peer_returns`: the
+    `STEP_NEAREST`-th nearest within `BOW_HALF_M` either side of its
+    stance's facing) -- 0 where even upright it does not -- and how far
+    ahead that stands, m, its stance frame (inf: nothing). Off its newest
+    scan where it was taken since it last walked and within `BOW_SCAN_S`,
+    else one taken where it stands: the posture it stands in now is the one
+    that scan was taken in."""
+    mi = self.mission
+    t = float(self._d.time)
+    over = mi.over_returns
+    if over is None or t - over[0] > BOW_SCAN_S or over[0] < mi.last_motion_t:
+      # ...one taken where it stands: none since it last walked, or old
+      mi.look_scan()
+    t_over, a, r, origin = mi.over_returns
+    ox, oy = origin if origin is not None else (0.0, 0.0)
+    peers = mi.peer_returns
+    looked = mi.look_peers
+    if (not len(a) and (peers is None or peers[0] != t_over or not len(peers[1]))
+        and (looked is None or looked[0] != t_over or not len(looked[1]))):
+      return float(down), math.inf
+    # ...and another robot's body the same scan saw: it stands at the head's
+    # height too, and the head's room is the step's (`_kept_off`) no less
+    if peers is not None and peers[0] == t_over and len(peers[1]):
+      a, r = np.concatenate((a, peers[1])), np.concatenate((r, peers[2]))
+    elif mi.look_peers is not None and mi.look_peers[0] == t_over and len(mi.look_peers[1]):
+      a, r = np.concatenate((a, mi.look_peers[1])), np.concatenate((r, mi.look_peers[2]))
+    # ...each return from the pelvis along its heading, into the stance
+    # frame through its odometry's model of itself, posed every tick
+    sm = mi.odo.sm
+    rot = np.zeros(9)
+    mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
+    yaw = _yaw(rot.reshape(3, 3))
+    lx, ly = ox + np.cos(a) * r, oy + np.sin(a) * r
+    sx = float(sm.d.qpos[0]) + math.cos(yaw) * lx - math.sin(yaw) * ly
+    sy = float(sm.d.qpos[1]) + math.sin(yaw) * lx + math.cos(yaw) * ly
+    ahead = sx[(sx > 0.0) & (np.abs(sy) <= BOW_HALF_M)]
+    near = (float(np.partition(ahead, STEP_NEAREST - 1)[STEP_NEAREST - 1])
+            if len(ahead) >= STEP_NEAREST else math.inf)
+    height, bow = float(self.reach.posture[0]), float(down)
+    while bow > 0.0 and head_front(height, bow) + BOW_CLEAR_M > near:
+      bow = max(0.0, round(bow - BOW_STEP_RAD, 6))
+    return bow, near
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
     """`depth_pictures`' points, one cloud."""
@@ -1039,9 +1263,12 @@ class HumanoidBody(Body):
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
     "blocked"
     -- its walk got nowhere, or kept off another robot as a walk does
-    (`_kept_off`, #670: then `keptOff` says how) -- "fell", "out of time"), in
+    (`_kept_off`, #670), or kept off a wall or what stands at its knees
+    (`_Room`, #717: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
-    frame it stood in before (`dx`, `dy`, m; `turn`, rad). ⚠ BY ITS LEGS' RECKONING
+    frame it stood in before (`dx`, `dy`, m; `turn`, rad) -- and by its scans
+    of the room, the matcher's corrections in (`mdx`, `mdy`: what a pressed
+    step is told by, #718). ⚠ BY ITS LEGS' RECKONING
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
@@ -1050,6 +1277,7 @@ class HumanoidBody(Body):
     yield from mi._getup_routine()
     by_legs = self._by_legs()
     t0, s0, falls = float(self._d.time), by_legs(self.stance), mi.falls
+    b0 = self.stance
     walks = _step_walks(ahead, left)
     # ...nor, any of its walks heading nearer another robot it would stand
     # too near as that walk begins (`_kept_off`), turns or hands its legs
@@ -1090,13 +1318,19 @@ class HumanoidBody(Body):
     # 17-86 deg) -- so the step's move is the walks' alone, measured from
     # where the turn left the belief
     s_mid = by_legs(self.stance)
+    # ...and where its scans have it, the matcher's corrections in (#718)
+    b_mid = self.stance
+    self._jump = 0.0
     kept = None
     for a_, l_ in walks:
       if why == "stepped":
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
         why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
+    seen = mi.odo.corrected.copy()
     yield from mi.to_stand_routine()
+    d_ = mi.odo.corrected - seen
+    self._jump = max(self._jump, math.hypot(float(d_[0]), float(d_[1])))
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
     if mi.falls != falls:
@@ -1109,10 +1343,18 @@ class HumanoidBody(Body):
       if kept["of"] < len(bodies):
         b = bodies[kept["of"]]
         kept["m"] = round(math.hypot(b.x - px, b.y - py), 3)
+    elif why == "blocked" and kept and "room" in kept:
+      # ...and a wall or a counter, as its senses read it now (#717)
+      now = kept["room"].now(kept["by"])
+      if math.isfinite(now):
+        kept["m"] = round(now, 3)
     x1, y1, yaw1 = by_legs(self.stance)
+    b1 = self.stance
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
+      b1 = b_mid
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
+    matched = _rz(b0[2]).T @ np.array([b1[0] - b_mid[0], b1[1] - b_mid[1], 0.0])
     # ...and a walk its own legs reckon went nowhere did not walk (#649)
     if why == "stepped" and length >= STEP_LEAST_M:
       way = _rz(s_mid[2]) @ np.array([ahead / length, left / length, 0.0])
@@ -1120,6 +1362,7 @@ class HumanoidBody(Body):
         why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
+            "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
             **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
 
   def _by_legs(self):
@@ -1203,6 +1446,10 @@ class HumanoidBody(Body):
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
     held = mi.held_s
+    seen = mi.odo.corrected.copy()
+    # ...and walls and furniture (#717), off every scan the step has taken
+    # as a walk's front stop reads the other robot's
+    room = _Room(mi, ux, uy, since, float(self._d.time))
     while True:
       if mi.held_s != held:
         # ...held through the other robot's blocking run (#690): its window
@@ -1212,9 +1459,15 @@ class HumanoidBody(Body):
       now = wx * (x - x0) + wy * (y - y0)
       speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
       went = now
+      # ...the largest single correction of its belief as it walks (#718)
+      d = mi.odo.corrected - seen
+      self._jump = max(self._jump, math.hypot(float(d[0]), float(d[1])))
+      seen = mi.odo.corrected.copy()
       if went + max(speed, 0.0) * STEP_STOP_S >= length:
         return "stepped", None
       kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)
+      if kept is None:
+        kept = room.kept(max(speed, 0.0) * STEP_STOP_S, went)
       if kept is not None:
         return "blocked", kept
       if float(self._d.time) - mark[0] >= window:
@@ -1270,7 +1523,7 @@ class HumanoidBody(Body):
   def _kept_said(kept: dict) -> dict:
     """How a step kept off another robot, as its record says it: which robot
     it was is the step's own business."""
-    return {k: v for k, v in kept.items() if k != "of"}
+    return {k: v for k, v in kept.items() if k not in ("of", "room")}
 
   # ---- senses --------------------------------------------------------------
 

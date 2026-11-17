@@ -308,7 +308,8 @@ they may all stand at once, and each is discharged by a procedure the robot
 writes (`TaskKind.discharge = "procedure"`, #207): claiming queues nothing;
 the robot writes the procedure, runs it and sets `done` to the job's id --
 graded at that word, before its answer's action, or once the run is over
-where the same answer runs a procedure (#689) -- and only a mind with a
+where the same answer runs a procedure (#689), and not at all where that
+run never began (#706: Overseer.md §2b) -- and only a mind with a
 library is offered one (`lifecycle.world_targets`).
 All four are offered (cadence.json), the cube's since its reference passed
 from the tour (below).
@@ -504,7 +505,10 @@ middle and its put-downs moved, 10 of 32 on walk2 and 0 on the carry walker
 (held out, 6 and 0); a third time, on walk2 alone (round 3: the cup brought
 down to its grip by a position move and set down from a stance turned 4 deg
 right, the plate taken from further off, brought back by a position move and
-eased before it is let go), 15 of 32 (held out, 11 of 32).
+eased before it is let go), 15 of 32 (held out, 11 of 32); a fourth (round
+4: the fork brought back off the pass in two pulls, the cup's pick tried
+again where its descent is held back on the lid), 16 of 32 (held out,
+19 of 32).
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

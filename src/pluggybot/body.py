@@ -615,18 +615,23 @@ class Body(abc.ABC):
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
     turn that could not get there -- "blocked" -- its walk got nowhere, or kept off another robot as a
-    walk does (#670), and then `keptOff` says how -- "fell", "out of time"), in
+    walk does (#670), or a wall or what stands at its knees (#717), and then `keptOff` says how
+    -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance
     frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
-    turned into."""
+    turned into -- and, where its scans of the room say otherwise, by them
+    (`mdx`, `mdy`, #718)."""
 
   @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
     """Its head's cameras turned `down` rad below their gaze standing --
     0 back to it -- as the body can: the humanoid, its head fixed on its
     trunk, bows (#493: a knob at the bottom of its colour camera's view
-    from a step nearer). Returns once still there."""
+    from a step nearer), no deeper than leaves its head clear of what stands
+    in front of it (#717). Returns once still there: None where it turned as
+    asked, else how it was held -- the turn `asked` and the one taken
+    (`bow`, rad), and how far in front of its head that thing stands (`m`)."""
 
   @abc.abstractmethod
   def depth_cloud(self, width: int, height: int, min_z: float, frames: int = 1,
@@ -728,6 +733,16 @@ class Body(abc.ABC):
     side it carries at -- the forearm folded up, the hand at the hips,
     turned as it was against the floor -- and holds it there, its gripper
     shut, until a reach takes it out again or a withdraw home."""
+
+  @abc.abstractmethod
+  def arm_held(self, side: str) -> bool:
+    """Whether an arm's way home stopped where something holds it (#693's
+    live family; `humanoid.reach.HELD_S`): its drivers read it off its rest
+    with its rest commanded, and -- raised and sent home again where it
+    could be, held again, or with another robot by, or its raise held too --
+    it was left there, pressing on nothing: out, until a withdraw or a walk
+    sends it home again. A walk goes with it as it is held and says so
+    (`steps._carried`'s `armHeld`)."""
 
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
@@ -940,8 +955,10 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
-    #: ...and which hands a walk carries (#682): out, their grips holding
+    #: ...and which hands a walk carries (#682): out, their grips holding;
+    #: and which arms' ways home a test says were held (#693's family)
     self.carried: set[str] = set()
+    self.held_arms: set[str] = set()
     #: ...the force each was last shut with (#525), how wide what a shut
     #: hand holds is, m, and which grippers are shut (each starts so)
     self.squeezes: dict[str, float | None] = {}
@@ -957,8 +974,10 @@ class StubBody(Body):
     self.turned: list[tuple] = []
     self.carried_paths: list[tuple] = []
     self.pulled: list[tuple] = []
-    #: ...and each step asked (#525), (ahead, left, turn)
+    #: ...and each step asked (#525), (ahead, left, turn), and how a bow
+    #: is held, as `gaze_routine` says it (#717; a test sets it)
     self.stepped: list[tuple] = []
+    self.bow_held: dict | None = None
     #: ...and each tag it was asked to watch (#554), None a stop, and what
     #: a test says its newest reading is (`sighting`'s shape)
     self.watched: list = []
@@ -1260,8 +1279,9 @@ class StubBody(Body):
     return side not in self.out_of_reach and (rot is None or side not in self.unturned)
 
   def gaze_routine(self, down):
-    """No head to turn: at once."""
-    return
+    """No head to turn: at once -- held as a test says (`bow_held`) where
+    it bows."""
+    return self.bow_held if down > 0.0 else None
     yield
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
@@ -1341,6 +1361,9 @@ class StubBody(Body):
 
   def carrying(self, side) -> bool:
     return side in self.carried
+
+  def arm_held(self, side) -> bool:
+    return side in self.held_arms
 
   def carry(self) -> None:
     """A walk's hand-over, as the body's (#682): a hand out whose grip holds

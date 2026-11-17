@@ -104,6 +104,16 @@ BAND_RISE = math.tan(math.radians(2.0))
 #: box 2 m behind held on all 9 bearings bowed up to 35 deg, and was cleared
 #: on 2 of 9 at 40 deg, 8 at 52; walking tilts it under 4.
 CLEARS_TILT_RAD = math.radians(30.0)
+#: What stands at the head's height, m over the floor (`band`'s `over`, #717):
+#: per bearing the nearest return this high or higher -- walls, doors and tall
+#: furniture, what a step keeps off and a look's bow is judged against
+#: (`HumanoidBody`'s `STEP_WALL_M`, `bow_room`) -- over the storeroom
+#: counter's props (the cupboard's top, 1.02 m, the tallest) and the band's
+#: floor: the band's own nearest at a counter is its top where the steepest
+#: ring meets it, 0.38-0.5 m ahead of the sensor at the hand jobs' work spots
+#: whatever its face's distance. Under the head bowed for a look (its lowest
+#: point 1.13 m at `spot`'s deepest bow, standing).
+OVER_Z = 1.05
 
 
 def robot_geoms(model, root_name: str) -> set:
@@ -143,7 +153,8 @@ class Scan(NamedTuple):
   the scan's origin (`free_from`; None, from the sensor itself), that
   origin, (forward, left) of the pose (`origin`; None, the body's
   `LIDAR_ORIGIN`), and which other robots, by root, its returns in the band
-  came off (`peer_roots`, #675: the band's; the level ring names none)."""
+  came off (`peer_roots`, #675: the band's; the level ring names none), and
+  the room's returns at the head's height (`over_*`, #717)."""
   angles: np.ndarray
   ranges: np.ndarray
   peer_angles: np.ndarray
@@ -151,6 +162,10 @@ class Scan(NamedTuple):
   free_from: np.ndarray | None = None
   origin: tuple[float, float] | None = None
   peer_roots: tuple[str, ...] = ()
+  #: The room's returns at the head's height (`OVER_Z` and up, #717), per
+  #: bearing as the band's, from the same origin; None from the level ring.
+  over_angles: np.ndarray | None = None
+  over_ranges: np.ndarray | None = None
 
 
 class Cloud(NamedTuple):
@@ -423,7 +438,7 @@ class Lidar:
     rot, base = level @ turn, level @ offset
     lo, hi = band_m
 
-    def flat(points, held=None):
+    def flat(points, held=None, lo=lo, rise=rise):
       q = points @ rot.T + base
       z = height + q[:, 2]
       v = q[:, :2] - base[:2]
@@ -452,6 +467,9 @@ class Lidar:
     # the scan they would leave the front stop blind to it
     have, angles, ranges, banded, held = flat(c.points, drop)
     p_have, peer_angles, peer_ranges, p_banded, p_held = flat(c.peers)
+    # ...and the room's at the head's height alone (#717): what a step keeps
+    # off and a look's bow is judged against -- the map's band left as it was
+    _, over_angles, over_ranges, _, _ = flat(c.points, drop, lo=OVER_Z, rise=0.0)
     # ...and which robots those in the band came off, by the split's labels
     # (#675: what keeps one standing at its body, `HubLifecycle.keep_clear`)
     struck = c.peer_geoms[p_banded]
@@ -496,7 +514,7 @@ class Lidar:
     order = np.argsort(idx, kind="stable")
     r = np.concatenate((ranges, np.full(len(fa), self.max_range)))
     return Scan(a[order], r[order], peer_angles, peer_ranges, free_from[idx][order],
-                (float(base[0]), float(base[1])), roots)
+                (float(base[0]), float(base[1])), roots, over_angles, over_ranges)
 
   def hidden(self, data) -> np.ndarray:
     """Which of a frame's rays the robot's own body hides, rings by
