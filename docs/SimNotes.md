@@ -10487,8 +10487,9 @@ robot's own body included):
   the lever keep 0.35 cm and more off it.
 
 **The rule** (`Reach._own_kept`, `reach.own_room`): the way is sampled on
-the robot's model of itself every 0.01 rad of its furthest joint, its end
-included, the arm's parts that meet the trunk (the upper arm, the forearm,
+the robot's model of itself every 0.005 rad of its furthest joint (about 3
+mm at the grip, so a way may cut no more than half that between two
+samples), its end included, the arm's parts that meet the trunk (the upper arm, the forearm,
 the gripper: `model.ARM_GEOMS`' pairs) against the trunk above the waist
 (the torso, the head and the LIDAR), which hang on the same link as the
 shoulders, so the room is a function of the arm's six joints alone. Today's
@@ -10500,9 +10501,10 @@ body" and its words "every way your left arm takes from where it is to there
 passes through your own body, so it did not move", and the loop's own (a
 charge's) takes the way that comes least near, as no wait frees it (asked
 to refuse, as its first try asks to wait out another robot, #678, it still
-goes). With another robot by, a way round it keeps off the trunk too, and a
-reach kept off it says when the other hand's every way would pass through
-the robot's own body. Two readings of one depth may part by 0.1 mm
+goes). With another robot by, a way round it keeps off the trunk too (where none keeps off the trunk, the
+loop's own weighs every way against that robot as #678 does), and a reach
+kept off it says when the other hand's every way would pass through the
+robot's own body. Two readings of one depth may part by 0.1 mm
 (`OWN_SLACK_M`: MuJoCo's box against a box and `_box_box` agree to 0.07 mm).
 - *No clearance.* On the model, 6 of the 7 that pressed the torso were
   judged 0.9-3.3 cm through it, and the seventh, begun 1.5 mm in it at 1.3

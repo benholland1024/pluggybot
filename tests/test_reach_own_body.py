@@ -213,6 +213,30 @@ def test_the_loops_own_reach_takes_the_way_least_near_its_own_trunk():
   assert r.own["left"]["m"] == pytest.approx(max(rooms), abs=1e-3)
 
 
+def test_a_refused_way_whose_pre_grasp_lies_in_the_trunk_judges_no_other(monkeypatch):
+  """Every way ends at the pre-grasp: where it lies in the trunk, a verb's
+  reach is refused without judging the side way or the way drawn in (each
+  costs a sampled walk on the physics thread)."""
+  r, goal = _at_lever()
+  assert _own_room(LEVER_AGAIN, []) < 0.0, "the premise: the pre-grasp is in the torso"
+  monkeypatch.setattr(rc, "_aside", lambda *a: (_ for _ in ()).throw(AssertionError("judged")))
+  monkeypatch.setattr(rc, "_tucked_way", lambda *a: (_ for _ in ()).throw(AssertionError("judged")))
+  assert r.way_out("left", LEVER_AGAIN) is None and r.own["left"]["part"] == "torso"
+
+
+def test_with_no_way_clear_of_its_trunk_the_loop_weighs_another_robot_as_before():
+  """The loop's own reach with no way clear of its trunk takes the least near
+  -- and hands `_kept_off` no judge of its trunk, so another robot by is
+  weighed against every way, as #678 weighs them."""
+  r, goal = _at_lever()
+  r.keep_out = [(5.0, 5.0)]
+  got = []
+  real = rc.Reach._kept_off
+  r._kept_off = lambda *a, **kw: (got.append(a[-1] if len(a) > 9 else kw.get("clear")), real(r, *a, **kw))[1]
+  assert r.way_out("left", LEVER_AGAIN, refuse=False) is not None
+  assert got == [None] and r.own["left"] is not None
+
+
 def test_the_body_refuses_a_verbs_reach_for_its_own_trunk_and_never_its_own():
   """Through the body (`HumanoidBody._reached`, as `reach_routine` asks it):
   a procedure's reach is refused, "own body"; the loop's own goes."""

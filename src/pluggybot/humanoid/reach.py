@@ -971,9 +971,9 @@ def room(sm: SelfModel, side: str, q0, ways, keep_out) -> float:
 #: 0.9-3.3 cm through it, or 1 mm deeper than a gripper begun on it, and the 9
 #: judged 0.28-2 cm clear met nothing.
 OWN_CLEAR_M = 0.0
-#: ...sampled every this much of its furthest joint's walk, rad: under 1 cm
-#: at the grip.
-OWN_SAMPLE_RAD = 0.01
+#: ...sampled every this much of its furthest joint's walk, rad: about 3 mm
+#: at the grip, so a way may cut no more than half that between two samples.
+OWN_SAMPLE_RAD = 0.005
 #: ...and read no further off than this, m (`mj_geomDistance`'s `distmax`).
 OWN_READ_M = 0.2
 #: ...two readings of one depth may part by this, m: MuJoCo's box against a
@@ -1055,14 +1055,12 @@ def own_room(sm: SelfModel, side: str, q0, ways) -> tuple[float, str]:
   m, d = sm.m, sm.d
   arm = [m.geom(f"{side}_{p}").id for p in hm.ARM_GEOMS]
   trunk = [m.geom(g).id for g in UPPER_GEOMS]
-  adr = sm.qadr[sm.arm[side]]
   worst, part, prev = math.inf, "", np.asarray(q0, dtype=float)
   for w in [prev] + list(ways):
     w = np.asarray(w, dtype=float)
     n = max(1, math.ceil(float(np.abs(w - prev).max()) / OWN_SAMPLE_RAD))
     for k in range(1, n + 1):
-      d.qpos[adr] = prev + (w - prev) * (k / n)
-      mujoco.mj_kinematics(m, d)
+      sm._set_arm(side, prev + (w - prev) * (k / n))
       for a in arm:
         for b in trunk:
           x = apart(m, d, a, b)
@@ -2033,9 +2031,10 @@ class Reach:
     straight on (as `_kept_off` judges a hand already out); else `own` saying
     how, and None where `refuse`, or of those ways the one that comes least
     near it, `own` saying how near. Returns that way, and the judge of any
-    other (`_kept_off`'s). ⚠ NEVER A WAY FROM A HAND AT REST: there the
-    plan's pre-grasp itself can lie in the trunk (SimNotes), and refused,
-    our cube's set-out 7 lost its pass."""
+    other (`_kept_off`'s) -- none where no way keeps clear: then another
+    robot's ways are weighed as #678 weighs them. ⚠ NEVER A WAY FROM A HAND
+    AT REST: there the plan's pre-grasp itself can lie in the trunk
+    (SimNotes), and refused, our cube's set-out 7 lost its pass."""
     own = self._own_model()
     rooms: dict = {}
 
@@ -2051,6 +2050,11 @@ class Reach:
     best, part = room_of(pick)
     if best >= need:
       return pick, clear
+    end, at = own_room(own, side, q1, [])
+    if refuse and end < need:
+      # ...every way ends at the pre-grasp: one in the trunk is no way at all
+      self.own[side] = {"part": "torso" if at == "torso" else "head", "m": round(best, 3)}
+      return None, clear
     self._pose_planner(sm, None)
     dips = _dips(sm, side, q0, q1, front(sm, side, self.rest[side]))
     deepest = max(HOME_DIP_M, dips(pick))
@@ -2065,7 +2069,7 @@ class Reach:
       if room_ > best:
         best, part, best_way = room_, near, w
     self.own[side] = {"part": "torso" if part == "torso" else "head", "m": round(best, 3)}
-    return (None if refuse else best_way), clear
+    return (None, clear) if refuse else (best_way, None)
 
   def _own_model(self) -> SelfModel:
     """The model of itself an arm is judged against its own trunk on
