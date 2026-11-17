@@ -10,12 +10,12 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3, `loop-719b`) -- opens when this PR is deployed
+### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3 and R2, `loop-719c`) — opens when this PR is deployed
 
-**What the robots read moves** (`prompt_sha` `a780e1dc…`, 68,644
-characters, 17 sections, from `0ba46734…`'s 68,294 at `loop-staging`
-73f8daf; the session host's hello moves, sha1 `27f68336…` from
-`39c0692a…`):
+**What the robots read moves** (`prompt_sha` `a38f86a9…`, 69,205
+characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
+3e000d65; the session host's hello moves, sha1 `a61b6376…` from
+`3cd41b6f…`; #693's period below is already on that tree):
 - `reach`'s text, "...then in along the fingers; you take whatever posture
   reaches. stiffness 1 is...", reads "...you take whatever posture reaches
   -- but while your other hand is out holding something, your body keeps
