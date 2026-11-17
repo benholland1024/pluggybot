@@ -341,7 +341,7 @@ def _rz(yaw: float) -> np.ndarray:
   return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
-_OTHER = {"left": "right", "right": "left"}
+_OTHER = reach_.OTHER_SIDE
 
 
 class HumanoidPack(Pack):
@@ -862,12 +862,13 @@ class HumanoidBody(Body):
         # ...and what the other hand's way would do -- planned as its reach
         # would be, kept where this hand holds something -- or, where that hand
         # holds something and kept the body in its posture, that it does (#719)
+        other = {}
         if words and not follows:
-          held = self.reach.kept_by[side] is not None
           its = self.reach.keeps(_OTHER[side], verb)
-          kept = dict(kept, other="holds" if held else self.reach.clear_way(
-            _OTHER[side], goal, **({} if its is None else {"postures": (its,)})))
-        self._kept[side] = dict(kept)
+          other["other"] = ("holds" if self.reach.kept_by[side] is not None
+                            else self.reach.clear_way(_OTHER[side], goal, **(
+                              {} if its is None else {"postures": (its,)})))
+        self._kept[side] = dict(kept, **other)
       return False
     finally:
       self.reach.keep_out = []

@@ -1185,7 +1185,8 @@ def _reach(life, args: dict) -> Routine:
   # reach's, a kept one's from the posture kept (#493: a mind asked both
   # hands for a turn neither makes there, five tries running, told only that
   # neither could)
-  turned = lambda: rot is not None and life.body.hand_reaches(hand, place, verb=True)  # noqa: E731
+  def turned() -> bool:
+    return rot is not None and life.body.hand_reaches(hand, place, verb=True)
   if kept_by and life.body.hand_reaches(hand, place, rot):
     # ...no other posture while the other hand holds something (#719), where
     # another would reach: what the holding hand could do is beside the point

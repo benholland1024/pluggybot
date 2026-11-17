@@ -98,6 +98,8 @@ class _Sent:
     self.end = end
     self.phase = {s: "rest" for s in hm.SIDES}
     self.grippers = {}
+    # ...and no hand's grip keeping the body in its posture (#719)
+    self.kept_by = {s: None for s in hm.SIDES}
 
   def reach(self, side, goal, approach=None, postures=None, flip=True, refuse=True,
             verb=False) -> bool:
@@ -109,6 +111,9 @@ class _Sent:
 
   def keep(self, side, verb=False):
     """No other hand holds anything (#719)."""
+    return None
+
+  def keeps(self, side, verb=False):
     return None
 
   def step(self) -> None:
