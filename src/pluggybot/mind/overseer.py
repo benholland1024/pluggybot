@@ -1059,12 +1059,27 @@ PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
 #: own, every one filler. ⚠ Not a field named by an everyday word (`done`,
 #: `reason`, `tell`): it may be meant there ("Done!" in the chat), and
 #: counted, it would make an answer filled and leave out the `done` it
-#: meant, so it is judged only as its own field's name (found in review;
-#: Rowan's `say` "tell:" stands). Nor in an object, judged by its own names:
+#: meant, so bare it is judged only as its own field's name (found in
+#: review; `FORM_MARKS` below). Nor in an object, judged by its own names:
 #: of the four findings named for a field, three were meant (`answer = 24
 #: -- calculated from 6×4`).
 COINED = tuple(name for name in FORM_FIELDS
                if "_" in name or (name.startswith("un") and name[2:] in FORM_FIELDS))
+#: ...and ANY field's name, everyday or coined, that the form's own
+#: punctuation clings to: `,intend` and `tell:` in `say` are the form leaking
+#: into a field, never a sentence ("Done!" stands, and so does a bare
+#: everyday name). Rowan said `,intend` to everyone (rooftop-media-2026
+#: #518, 2026-11-15 16:00 UTC): `intend` is an everyday word.
+FORM_MARKS = ',:"{}[]'
+
+
+def _form_name(text) -> bool:
+  """Is `text` one of the form's field names with the form's punctuation
+  on it (`FORM_MARKS`)?"""
+  said = str(text).strip().lower()
+  word = said.strip(PUNCTUATION)
+  return (word in FORM_FIELDS
+          and any(c in FORM_MARKS for c in said.replace(word, "", 1)))
 #: ...but a QUOTE names a line, so outside an answer full of placeholders one
 #: stands, and a placeholder quote takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
@@ -1134,7 +1149,8 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or (sub is None and _word(text) in COINED) or _word(text) in own]
+          or (sub is None and (_word(text) in COINED or _form_name(text)))
+          or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
   for name, sub, text in held:
