@@ -145,6 +145,9 @@ FIRST_WALK = [
 # then +22 at the first camera's first picture and +10 at a navigation
 # camera's.
 BOOT_MIB, FIRST_LOOKS_MIB = 257.0, (22.0, 10.0)
+# A renderer of a camera's own, built at its first look, as the deployed box
+# read one at a time (2026-11-14 20:00:38 and 20:33:38 UTC, #713).
+OWN_RENDERER_MIB = (222.0, 223.0)
 
 
 def test_a_wake_into_a_world_that_never_ran_is_its_warm_up(tmp_path):
@@ -180,9 +183,10 @@ def test_a_renderer_built_at_a_first_walk_read_as_a_runaway_so_it_is_built_at_bo
   over the rate read that as a runaway (shown). No first look builds a
   renderer now: the cameras draw through one (#713), which a served process
   builds at boot, inside the warm-up. That day with its renderer built in
-  its first minute, and its first walk's two looks costing what a look
-  costs after it, reads quiet under two; a runaway after it is reported at
-  its second minute."""
+  its first minute, and each of its first walk's two minutes a look's cost
+  after it in place of a renderer's (whatever else those minutes grew
+  kept), reads quiet under two; a runaway after it is reported at its
+  second minute."""
   def fired(rows):
     rule = RunawayRule()
     return [i for i, (hms, mib) in enumerate(rows) if rule.sample(_utc(hms), mib)]
@@ -191,7 +195,8 @@ def test_a_renderer_built_at_a_first_walk_read_as_a_runaway_so_it_is_built_at_bo
   steps = [b[1] - a[1] for a, b in zip(FIRST_WALK, FIRST_WALK[1:])]
   steps[0] += BOOT_MIB                       # built at boot, with the world
   walk = _at(FIRST_WALK, "17:32:50")         # the minute of the first look
-  steps[walk - 1], steps[walk] = FIRST_LOOKS_MIB
+  for i, look, own in zip((walk - 1, walk), FIRST_LOOKS_MIB, OWN_RENDERER_MIB):
+    steps[i] += look - own
   booted = FIRST_WALK[:1]
   for (hms, _), step in zip(FIRST_WALK[1:], steps):
     booted.append((hms, booted[-1][1] + step))

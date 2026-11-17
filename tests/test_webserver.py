@@ -1088,27 +1088,74 @@ def test_a_served_pair_builds_both_robots_cameras_before_its_day(monkeypatch,
     for camera in (TAG_CAMERA, NAV_CAMERA))
 
 
-def test_every_tag_camera_a_body_builds_is_built_at_boot():
-  """...and a camera added later is too: a renderer built at a first look
-  is a step the memory alarm can read as a runaway, so every `TagDetector`
-  in src/ is built by one of the getters `HumanoidBody.build_cameras` calls
-  (the test above), or the new one is built there as well."""
+def test_cameras_that_cannot_be_built_are_a_crash_on_the_wire(monkeypatch,
+                                                              tmp_path):
+  """...inside the run's own `try`, so a renderer that cannot be built (no
+  GL context, the memory cap) is the last thing on the wire, as it was at a
+  first look: one robot's, and the pair's."""
+  from pluggybot.perception import tags
+  serve = _load_serve()
+  pubs: list = []
+
+  class _NoGL(_FakeLife):
+    def _build_cameras(self) -> None:
+      raise RuntimeError("no GL context")
+
+  def refused(model, camera_name, **kw):
+    raise RuntimeError("no GL context")
+
+  def pub_factory(model, data, endpoint, **kw):
+    pubs.append(_FakePublisher(model, data, endpoint, **kw))
+    return pubs[-1]
+
+  monkeypatch.setattr(serve, "HubLifecycle",
+                      lambda model, data, **kw: _NoGL(model, data, **kw))
+  monkeypatch.setattr(serve, "WsPublisher", pub_factory)
+  monkeypatch.setattr(tags, "TagDetector", refused)
+  for argv in (["--free-run"],
+               ["--pair", "--world", "home", "--free-run",
+                "--thoughts", str(tmp_path / "t"),
+                "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"]):
+    monkeypatch.setattr(sys, "argv", ["serve.py", *argv])
+    with pytest.raises(RuntimeError, match="no GL context"):
+      serve.main()
+  assert [(p.messages[-1]["type"], p.messages[-1]["error"]) for p in pubs] == [
+    ("crash", "RuntimeError: no GL context")] * 2
+
+
+#: Where src/ builds a renderer or a tag camera by name, and why none is a
+#: step in a served process after its warm-up (#713's tail).
+BUILDS_A_RENDERER = {
+  ("humanoid/body.py", "_detector"): "built at boot",
+  ("humanoid/places.py", "_place_detector"): "built at boot",
+  ("perception/tags.py", "_renderer_for"): "the one every tag camera shares",
+  ("viz.py", "rebind"): "a video's, never served",
+  ("viz.py", "_make_inset"): "a video's, never served",
+  ("evaluation/practice.py", "head_picture"): "practice's, never served",
+}
+
+
+def test_every_renderer_a_served_process_builds_is_built_at_boot():
+  """...and one added later: a renderer built at a first look is a step the
+  memory alarm can read as a runaway, so every call in src/ that builds a
+  renderer or a tag camera is one of these. A tag camera is built by a
+  getter `HumanoidBody.build_cameras` calls (the test above); a new one is
+  built there as well, or is one no served process builds."""
   import ast
   src = _SERVE.parent.parent / "src" / "pluggybot"
   sites = set()
   for path in src.rglob("*.py"):
     text = path.read_text()
-    if "TagDetector" not in text:
+    if "TagDetector(" not in text and "Renderer(" not in text:
       continue
     for fn in ast.walk(ast.parse(text)):
       if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
           isinstance(node, ast.Call)
-          and "TagDetector" in (getattr(node.func, "id", None),
-                                getattr(node.func, "attr", None))
+          and {"TagDetector", "Renderer"} & {getattr(node.func, "id", None),
+                                             getattr(node.func, "attr", None)}
           for node in ast.walk(fn)):
         sites.add((path.relative_to(src).as_posix(), fn.name))
-  assert sites == {("humanoid/body.py", "_detector"),
-                   ("humanoid/places.py", "_place_detector")}
+  assert sites == set(BUILDS_A_RENDERER)
 
 
 def _report(r, capsys, **kw):
