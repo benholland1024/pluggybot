@@ -352,8 +352,8 @@ save a filmstrip PNG named after the script.
   a jaw back over the door's top pressing down on it, and stopped there --
   on the whole reading at 20-40 N, or on its pull alone at 30 N -- the door
   fell more or passed fewer. ⚠ It reads a push on the robot's own body as
-  the world's (a way out from a hand already out, judged against nothing,
-  drove a gripper into the torso: 46-61 N; SimNotes). ⚠ OUR DOOR'S AND LID'S
+  the world's (a gripper driven into the torso stopped there at 46-61 N;
+  SimNotes). ⚠ OUR DOOR'S AND LID'S
   REFERENCES, A REACH FAILED (THE LID'S: STOPPED SHORT, ITS HAND OUT), TRY
   THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT (`hands_check.DOOR`,
   `LID`; SimNotes, "The door's reach the stop sends back"): tilted at once,
@@ -390,7 +390,19 @@ save a filmstrip PNG named after the script.
   driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
+  home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
+  TRUNK (#722; `Reach._own_kept`, `reach.own_room`, `OWN_CLEAR_M`;
+  SimNotes, "A way out from a hand already out"): sampled on its model of
+  itself, the upper arm, forearm and gripper against the torso, the head and
+  the LIDAR, its end included -- straight where it never goes through them,
+  or, begun in them, no deeper; else the side way or the way drawn in that
+  keeps so and dips no deeper ahead; else a verb's reach moves nothing,
+  "own body" (the loop's own takes the way that comes least near): straight,
+  the wake's door runs drove the gripper into the torso at 36-165 N. ⚠ NEVER
+  FROM A HAND AT REST: there the plan's own pre-grasp can lie in the trunk,
+  and refused, our cube's set-out 7 lost its pass. ⚠ MuJoCo 3.10 reads two
+  boxes apart as 0.0 at some poses (`reach.apart` reads them again). ⚠
+  JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
   straight, unchecked -- has the stand once it is home (asked as it set

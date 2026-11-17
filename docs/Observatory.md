@@ -10,6 +10,45 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
+
+**What the robots read** is unmoved where it is read every turn: the prompt
+(`prompt_sha` `75ec76e3…`, 69,505 characters, 17 sections) and the session
+host's hello (sha1 `a61b6376…`) are `loop-staging` ac2538e8's. One new
+reason a `reach` reads false: a reach begun with the hand already out whose
+every way there would pass through the robot's own torso or head moves
+nothing and says "every way your left arm takes from where it is to there
+passes through your own body, so it did not move". Before, it went straight
+there and pressed the torso; where that tipped the robot past #708's line
+it read "your left hand stopped short on its way: out of reach from how you
+truly stand, or pushing on something; as it stopped, its grip was ... cm
+from where you asked".
+
+**The change** (`Reach._own_kept`, `reach.own_room`, `apart`; `Reach.own`;
+`Body.hand_why` "own body"; `steps.REACH_WHY`; SimNotes, "A way out from a
+hand already out"). A way out from a hand already out is sampled on the
+robot's model of itself against the torso, the head and the LIDAR, its end
+included: today's way where no part of the arm goes through them (begun in
+them, no deeper), else the side way or the way drawn in that keeps so and
+dips no deeper ahead, else a verb's reach is refused; the loop's own (a
+charge's) takes the way that comes least near. A way from the arm hanging,
+and a way home, are judged as before.
+
+**Measured** (one Vast pod, an EPYC 7742, beside ac2538e8; SimNotes has
+the count before it): Ben's bar the base's flight for flight, 608 of 736
+passed with 5 falls on both trees and none of the 736 moved at all; its 309
+ways out from a hand already out keep clear of the trunk. Of the 11-15
+wake's 53 runs flown at their live draws, the 3 whose ways out from the
+cupboard's lever pressed the torso at 36-56 N moved, none passing or
+falling otherwise: 8 reaches refused, one press left at 9 N by a forearm
+begun on the torso. The pair's recorded day and the counter's attempt are
+the committed fixtures'.
+
+**What to read**: reaches that read false with "own body", and what the
+robot does next (a `withdraw` first, a `step` back, a turn given); a reach
+from the hand out at a lever close to the chest; whether a reach at the
+cupboard's lever still reads "stopped short" with the hand out.
+
 ### Each person's chat with a robot is their own, and the robots are told so (rooftop-media-2026 #518, R1, `loop-chat2`) — opens when this PR is deployed
 
 Ben's call of 2026-11-17: a chat is like texting one robot, never a public

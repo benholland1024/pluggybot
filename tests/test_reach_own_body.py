@@ -22,13 +22,13 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.body import StubBody
 from pluggybot.humanoid import body as hb
 from pluggybot.humanoid import reach as rc
 from pluggybot.humanoid.arms import HandGoal, SelfModel
 from pluggybot.procedure import steps as st
 
 from test_hands import _bare, _fly, _standing_reach
-from pluggybot.body import StubBody
 
 #: The 11-15 wake's t_0360, Luca's door_run31 flown at its live draw on
 #: ac2538e8 (R5's rows): its left hand held at the cupboard's lever reached
@@ -190,6 +190,19 @@ def test_a_reach_whose_way_out_meets_its_own_trunk_moves_nothing():
   # ...and asked whether its way would be clear, it says no and keeps what it said
   r.own["left"] = said = {"part": "head", "m": -0.01}
   assert r.clear_way("left", goal) is False and r.own["left"] is said
+
+
+def test_a_carried_hand_whose_reach_is_refused_is_still_carried():
+  """Nothing moves, so a hand a walk carried stays carried (#682): its way
+  home is still to its carry pose -- refused, `carry_q` dropped, the hand at
+  the robot's side read as out at its work."""
+  r = _standing_reach()
+  r.q_cmd["left"], r.phase["left"] = AT_LEVER.copy(), "carried"
+  r.carry_q["left"] = AT_LEVER.copy()
+  plan_ = ((0.0, 0.0, 0.0), LEVER_AGAIN.copy(), LEVER_AGAIN.copy(), True)
+  r._planned = lambda side, goal, approach, postures, flip: (plan_, goal)
+  assert not r.reach("left", HandGoal(np.array([0.3, 0.1, 0.9]), None, 1.0))
+  assert r.carried("left") and np.allclose(r.home_to("left"), AT_LEVER)
 
 
 # ---- 4: the box against a box ----------------------------------------------------------

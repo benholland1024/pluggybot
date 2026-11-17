@@ -968,7 +968,7 @@ def room(sm: SelfModel, side: str, q0, ways, keep_out) -> float:
 #: -- or, begun nearer, go no nearer. ⚠ Unjudged, a gripper was driven into
 #: the torso at 165 N and the head at 75 N; over the 11-15 wake's 53 runs
 #: flown on ac2538e8, the 7 such ways that met the trunk (36-56 N) were judged
-#: 0.3-3.3 cm through it, or 1 mm deeper than a gripper begun on it, and the 9
+#: 0.9-3.3 cm through it, or 1 mm deeper than a gripper begun on it, and the 9
 #: judged 0.28-2 cm clear met nothing.
 OWN_CLEAR_M = 0.0
 #: ...sampled every this much of its furthest joint's walk, rad: under 1 cm
@@ -1246,7 +1246,10 @@ class Reach:
     it may take the other grip. Where another robot stands by (`keep_out`,
     #678), its way out and its way home from there keep off it: none that
     does, and nothing moves (`kept` says how) -- or, not `refuse`, the way
-    out that comes least near it is taken (`_kept_off`). ⚠ NO OTHER POSTURE
+    out that comes least near it is taken (`_kept_off`). From a hand already
+    out, its way out keeps off its own trunk too (#722, `_own_kept`): none
+    that does, and nothing moves (`own` says how) -- or, not `refuse`, the
+    way that comes least near it is taken. ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
     `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
     (a charge's)."""
@@ -1257,20 +1260,20 @@ class Reach:
     self.kept[side] = self.judged_home[side] = self.own[side] = None
     if plan_ is None:
       return False
-    # ...a hand reached out again carries no longer (#682): its way home is
-    # its rest once more
-    self.carry_q[side] = None
     posture, q_pre, _, slack = plan_
     outs = self.way_out(side, q_pre, posture, refuse=refuse)
     if outs is None:
       # every way out meets another robot's body (#678), or its own (#722):
-      # nothing moves
+      # nothing moves, a hand carried still carried
       return False
     if refuse and not self._returns(side, q_pre, posture):
       # ...nor goes where every way home from would: stranded there, its
       # withdraw and every walk the verbs ask are refused (#678)
       self.kept[side]["back"] = True
       return False
+    # ...a hand reached out again carries no longer (#682): its way home is
+    # its rest once more
+    self.carry_q[side] = None
     self.slack[side], self.outs[side] = slack, outs
     self.hold_posture(*posture)
     self._off[side] = self._tip[side] = 0.0
@@ -1977,7 +1980,8 @@ class Reach:
     side way (#560). Where another robot stands by (`keep_out`, #678),
     judged against its body as it stands and in `posture` (`_kept_off`):
     None where every way crosses it and `refuse`, else the one that comes
-    least near it."""
+    least near it. From a hand already out, judged against its own trunk
+    too (`_own_kept`, #722), and so None."""
     return self._judged(side, self.q_cmd[side].copy(), np.asarray(q_to, dtype=float).copy(),
                         out=True, poses=(None, posture), refuse=refuse)
 
@@ -1988,9 +1992,10 @@ class Reach:
     walked back going `out`) where straight takes some part of the arm
     further ahead than the robot's front (`front`) and lower than the
     lowest of it there at the end over the work -- `q0` going home, `q1`
-    going out -- and the side way dips less. With another robot by, the
-    first way of today's, straight, the side way and the way drawn in that
-    keeps off it (`_kept_off`)."""
+    going out -- and the side way dips less; a hand already out going out,
+    straight, kept off its own trunk (`_own_kept`). With another robot by,
+    the first way of today's, straight, the side way and the way drawn in
+    that keeps off it (`_kept_off`)."""
     sm = self._planner_model()
     sm.q = self.self_model.q.copy()
     sm.d.qpos[:] = self.self_model.d.qpos
@@ -2052,8 +2057,8 @@ class Reach:
 
   def _picked(self, sm, side: str, q0, q1, out: bool):
     """`_judged`'s way with nobody by, and how far a way dips (`_dips`; None
-    for a hand already out, whose way today is never judged so: `_kept_off`
-    judges another against it)."""
+    for a hand already out, whose way is never judged so: `_own_kept` and
+    `_kept_off` judge another against it)."""
     ahead = front(sm, side, self.rest[side])
     if out:
       sm._set_arm(side, q0)

@@ -9731,9 +9731,9 @@ any hand that is out does.
   11-15's `door_run31` at draw 407 (Luca's own, flown at its live draw), a
   reach begun with the hand still out at the cupboard's lever, after a
   `pull` and an `open_hand`, took the straight way out in joint space --
-  from a hand already out a way out is not judged at all, and no way out
-  is judged against the robot's own trunk (`_picked`) -- and drove its
-  left gripper into its torso; stopped there at 57 N, and twice more 0.04 s
+  from a hand already out a way out was not judged at all then, and none
+  against the robot's own trunk (it is now: "A way out from a hand already
+  out", #722) -- and drove its left gripper into its torso; stopped there at 57 N, and twice more 0.04 s
   into the reaches that followed (49 and 46 N), the gripper resting on the
   torso between them. Without the stop the same way out pressed the torso
   at up to 165 N until its command arrived. The run failed either way. A
@@ -10460,6 +10460,94 @@ kept: refused, a charge fails, and a failed charge is a death. The posture
 kept is the one asked where the body stands within `POSTURE_TOL` of it, a
 trunk that only sways re-asking nothing, else where the body has got to: one
 still coming is held there.
+
+## A way out from a hand already out (issue #722)
+
+A reach walks its arm out to its pre-grasp in joint space (`Reach.way_out`).
+From the arm hanging the way is judged against dipping under the work ahead
+(#539, #560); from a hand already out -- some part of the arm ahead of the
+robot's front -- it was taken straight, unjudged ("a hand already out sweeps
+nothing aside"), and no way out was judged against the robot's own body. In
+the 11-15 wake Luca's `door_run31` at t_0408 reached its left hand again
+from the cupboard's lever and drove the gripper into its own torso: 165 N on
+bab67ea, stopped by #708 at 46-61 N after (the loop of 11-16/17, P1).
+
+**Measured first** (the loop of 11-17, R5; `loop-staging` ac2538e8 on one
+Vast pod, an AMD EPYC 7742; `~/pluggybot-training/loop-1117/r5-722/`,
+batch r5a; every way out and home recorded with what the arm touched, the
+robot's own body included):
+- Over Ben's bar -- the hands checks at set-outs 0-31 and 32-127 and the
+  tour's five jobs, 736 flights -- 1262 ways out, 309 of them from a hand
+  already out (in 120 flights). None met the robot's own body; on its model
+  of itself the nearest kept 2.5 cm off the trunk.
+- In the wake's 53 runs flown at their live draws, 33 from a hand out in 12
+  runs; 7 pressed the torso at 36-56 N, in 3 runs (t_0360 `door_run31`,
+  t_0415 `door_run32`, t_0422 `door_final39`), 5 of them not touching it as
+  they began. t_0408's own no longer does on this tree: its 7 ways out from
+  the lever keep 0.35 cm and more off it.
+
+**The rule** (`Reach._own_kept`, `reach.own_room`): the way is sampled on
+the robot's model of itself every 0.01 rad of its furthest joint, its end
+included, the arm's parts that meet the trunk (the upper arm, the forearm,
+the gripper: `model.ARM_GEOMS`' pairs) against the trunk above the waist
+(the torso, the head and the LIDAR), which hang on the same link as the
+shoulders, so the room is a function of the arm's six joints alone. Today's
+way where no part goes through the trunk -- or, begun in it, goes no deeper
+-- else the side way, else the way drawn in, each where it keeps so and
+dips no deeper ahead than going straight on (`_kept_off`'s rule for a hand
+already out); else a verb's reach moves nothing, the body's why "own body"
+and its words "every way your left arm takes from where it is to there
+passes through your own body, so it did not move", and the loop's own (a
+charge's) takes the way that comes least near. With another robot by, a way
+round it keeps off the trunk too.
+- *No clearance.* On the model, 6 of the 7 that pressed the torso were
+  judged 0.9-3.3 cm through it, and the seventh, begun 1.5 mm in it at 1.3
+  N, 1.2 mm deeper (t_0415 at 32.09 s: 56 N); the 9 judged 0.28-2 cm clear
+  met nothing, and a clearance of 1 cm would have refused five of them,
+  four t_0408's own.
+- *Never from the arm hanging.* There the plan's own pre-grasp can lie in
+  the trunk: the tour's `door_29` laid its forearm on the head's visor at
+  37.5 N (its pre-grasp 4.3 mm into the visor), and three of the wake's
+  door reaches from the arm hanging pressed the torso at 18-52 N (their
+  pre-grasps 0.8-4.2 cm into it, a lever standing 0.2 m ahead of the
+  robot's middle). But our cube at set-out 7 passes with its pre-grasp 3.5
+  mm into the head's back on the model, touching nothing: refused, the pass
+  would go. The plan's to keep clear: of the plan's seeds, others reach
+  those door pre-grasps 2-4.5 cm clear (`solve_seeded` keeps the one
+  nearest the arm as it is).
+- *MuJoCo 3.10 reads two boxes apart as 0.0* at some poses
+  (`mj_geomDistance`: the gripper against the torso at 1.4 % of an arm's
+  random poses, its from-to then a segment centimetres long, and in runs of
+  neighbouring poses): a box against a box that reads 0.0 is read again
+  exactly (`reach._box_box`: the corners against the other box and the
+  edges against each other's, apart; the least overlap over the fifteen
+  separating axes, through), which agrees with MuJoCo to 4e-16 wherever
+  MuJoCo reads them apart.
+
+**Measured after** (the same pod beside ac2538e8, batch r5b, `loop-722`
+765e22b2): Ben's bar the base's flight for flight -- 608 of 736 passed with
+5 falls on both trees, none of the 736 moved at all (every end state, its
+qpos, qvel and time, the base's), every job and every slowest pass of the
+tour the same: the bar's 309 ways out from a hand out each keep clear, and
+are today's. Of the wake's 53 runs the 3 whose ways out from the lever
+pressed the torso moved, and none passed or fell otherwise: 8 reaches
+refused "own body" where 7 ways out had pressed it at 36-56 N, the one
+press left t_0415's, a forearm begun on the torso at 5.6 N, at 9 N; no way
+home met the robot's own body in any of them. The pair's recorded day and
+the counter's attempt are the committed fixtures', line for line (their
+charge rows' wall-clock stamps aside). The judgment takes 4.7
+ms a way at the median and 12.7 at most, over the 342 recorded.
+
+**What it does not do.** A way home is judged against nothing of the
+robot's own body, nor a way out from the arm hanging: the cube's ways home
+after its deep bows begin with the gripper already on the head's back or
+rim (36-127 N at set-outs 7, 15 and 91), and P3's `door_p3` came home onto
+its own right thigh (#719's section). On bab67ea, P1's tree, with the rule
+put in, t_0408's reach from the lever is refused three times where it had
+pressed the torso at 165 N; its procedure then steps back, and the step's
+hand-over brings the arm home from the lever through the torso at 107 N.
+Nothing judges the world: a hand's way still swings through what it never
+looked at (#708 stops what would tip the robot).
 
 ## Debugging workflow that worked
 
