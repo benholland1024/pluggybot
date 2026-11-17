@@ -468,9 +468,12 @@ save a filmstrip PNG named after the script.
   than `STAGE_PITCH` (0.15 rad) of pitch or `STAGE_WAIST` (0.27) of waist
   from the posture its senses read, in even stages, each held or given
   `STAGE_WAIT_S` (2 s), the policy, the trim, the waist, the fall watch and
-  #708's hold reading the stage asked; nothing goes in, moves on or re-plans
-  until every stage is passed. ⚠ It took none of door_p3's falls away (the
-  other hand on a lever holds the trunk out of every stage). ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
+  #708's hold reading the stage asked; the reach goes in, a carried or
+  pulled hand moves and a plan is made again only once every stage is
+  passed, the same plan asked again keeps its stages, and a carry ended or
+  an arm sent home ends them where the body got to. ⚠ With the other hand
+  on a lever the trunk holds no stage: it took none of door_p3's falls
+  away. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
   (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the

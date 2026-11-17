@@ -197,3 +197,58 @@ def test_no_new_posture_is_planned_for_a_carried_hand_while_stages_are_to_come()
   r.stages = []
   r._held("left", 0.1, at, None)
   assert len(planned) == 1
+
+
+def test_the_plan_asked_again_keeps_its_stages_and_never_stages_a_body_held_short():
+  r = _reach((-0.22, 0.8, 0.0))
+  r.take_posture(-0.16, 0.3, 0.0)
+  stages, asks = [s.copy() for s in r.stages], len(r.stand.asks)
+  r.now = stages[0].copy()
+  r.take_posture(-0.16, 0.3, 0.0)
+  assert len(r.stages) == len(stages) and all(np.array_equal(a, b) for a, b in zip(r.stages, stages))
+  assert len(r.stand.asks) == asks
+  # ...and with none to come, a body held 0.2 rad short of it by what its
+  # other hand grips is asked the plan, as `hold_posture` asks it -- never a
+  # shallower stage that would unload what it grips
+  r.stages, r.now = [], np.array([-0.16, 0.5, 0.0])
+  r.take_posture(-0.16, 0.3, 0.0)
+  assert r.stages == [] and r.stand.asks[-1] == (-0.16, 0.3)
+
+
+def test_a_carry_on_the_same_plan_with_stages_to_come_holds_its_hand_still():
+  r = _reach((-0.22, 0.8, 0.0))
+  r.take_posture(-0.16, 0.3, 0.0)
+  at = np.array([0.4, 0.1, 0.8])
+  r.goal = {"left": rc.HandGoal(at.copy(), np.eye(3), 1.0)}
+  r.cmd = {"left": rc.HandGoal(at.copy(), np.eye(3), 1.0)}
+  r.phase, r.speed, r._off = {"left": "hold"}, {"left": rc.HOLD_SPEED}, {"left": 0.0}
+  r.pulls, r.report = {"left": None}, {"left": None}
+  r.grip_now = lambda side: (at.copy(), np.eye(3))
+  r.posture_for = lambda *a, **kw: (-0.16, 0.3, 0.0)
+  assert r.carry("left", at + [0.0, 0.0, 0.05])
+  assert r.stages and "postured" in r.pulls["left"]
+
+
+def test_a_carry_ended_or_an_arm_sent_home_ends_the_stages_where_the_body_got_to():
+  r = _reach((-0.22, 0.8, 0.0))
+  r.take_posture(-0.16, 0.3, 0.0)
+  at = np.array([0.4, 0.1, 0.8])
+  r.now = np.array([-0.2, 0.62, 0.0])
+  r.goal = {"left": rc.HandGoal(at + [0.0, 0.0, 0.05], None, 1.0)}
+  r.cmd = {"left": rc.HandGoal(at.copy(), None, 1.0)}
+  r.pulls, r.report, r.phase = {"left": {"start": at.copy(), "t": 1.0}}, {"left": None}, {"left": "carry"}
+  r._end("left", "held back", at, np.eye(3))
+  assert r.stages == [] and np.allclose(r.posture, r.now)
+  # ...and a withdraw cut short keeps no plan still walking in stages: the stand at once
+  r.take_posture(-0.25, 0.95, 0.0)
+  assert r.stages
+  r.phase = {s: "rest" for s in hm.SIDES}
+  r.phase["left"] = "retreat"
+  r.goal, r.cmd = {s: None for s in hm.SIDES}, {s: None for s in hm.SIDES}
+  r.outs, r.looking = {s: [] for s in hm.SIDES}, {s: False for s in hm.SIDES}
+  r.judged_home, r.homes = {s: None for s in hm.SIDES}, {s: [] for s in hm.SIDES}
+  r.q_to, r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}, {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
+  r.way_home = lambda side: [np.zeros(len(hm.ARM))]
+  r.carry_q, r._ahead = {s: None for s in hm.SIDES}, lambda side: False
+  r._go_home("left")
+  assert r.stages == [] and not r.stand_home and r.stand.asks[-1] == (0.0, 0.0)
