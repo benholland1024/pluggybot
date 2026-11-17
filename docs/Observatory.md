@@ -10,7 +10,7 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A wake hears a visitor's message at once, a charge's hold ends on one, and a field's name with the form's punctuation on it is said nowhere (rooftop-media-2026 #518, P13, `loop-chat`) — opens when this PR is deployed
+### A wake hears a visitor's message at once, a charge's hold ends on one, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13, `loop-chat`) — opens when this PR is deployed
 
 **What the robots read does not move** (`prompt_sha` `0ba46734…`, 68,294
 characters, 17 sections, as at `loop-staging` 73f8daf; the session host's
@@ -28,22 +28,26 @@ visitors does:
   start; reproduced on a local site, the sim and the site at today's trees.
   ⚠ The site's half (rooftop branch `loop-chat`) is what reads the field:
   deployed before it, this period's sim changes nothing a visitor sees.
-- **A charge's hold ends on a visitor's ask** (`HubLifecycle._spoken_to`,
-  `charge_routine`; Ben, 2026-11-16): a `message_received -> ask` row the
-  map queued ends the hold with the plug in and what it got banked, and
-  the loop asks at once, the robot plugged in as at a run's end (#654). So
+- **A charge's hold ends on a visitor's message** (`HubLifecycle._spoken_to`,
+  `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a message
+  has come since the robot last decided, with an ask waiting in the map's
+  slot (any: behind a periodic ask, the message's own row fails `busy`) and
+  a model that would be asked (no cooloff, budget or purse refusing, the
+  switch on `llm`), the hold ends with the plug in and what it got banked,
+  and the loop asks at once, the robot plugged in as at a run's end (#654). So
   a `charge` row is cut in two where a message came, a narration line says
   "CHARGE: a message came in at N% -- my plug stays in while I answer",
   and the robot's next turn is asked by `message_received` while it is
   plugged in. Before, the ask waited for the charge's end: 43 minutes once
   on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
   decision to the next.
-- **A field's name with the form's punctuation on it reads as empty** in
-  any field of its own (`overseer.FORM_MARKS`, `_form_name`): Rowan said
+- **A field's name with the form's separators on it reads as empty** in
+  any field a placeholder can stand in, an object's content included
+  (`overseer.FORM_MARKS`: `,` `:` and braces; `_form_name`): Rowan said
   `,intend` to everyone at 2026-11-15 16:00 UTC. Such a `say` is said to
   no one now, and the answer's `left_out` and History line say it; `tell:`
-  in a `say`, which stood since #462's review, goes too. "Done!" and a bare
-  everyday name still stand.
+  in a `say`, which stood since #462's review, goes too. "Done!", a bare
+  everyday name and a quoted title still stand.
 
 **What to read off it.** A message's wait from `pw_messages` (`createdAt`
 to `deliveredAt` and `settledAt`; ⚠ `deliveredAt` is the LAST delivery's,

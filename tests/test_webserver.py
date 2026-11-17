@@ -1216,14 +1216,25 @@ def test_a_served_wake_tells_the_site_the_robot_hears_messages_again(
   being the one deployed."""
   import ast
 
+  import gzip
+
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "paused"}))
+  record = tmp_path / "out.jsonl.gz"
   life, pub, _ = _serve_wiring(monkeypatch, [
-    "--world", "home", "--free-run", "--overseer", "--mode-file", str(path)])
+    "--world", "home", "--free-run", "--overseer", "--mode-file", str(path),
+    "--record", str(record)])
   path.write_text(json.dumps({"mode": "llm"}))
   life.init_kwargs["mode"].poll(force=True)
   woke = [m for m in pub.messages if m.get("type") == "mode"][-1]
   assert woke["mode"] == "llm" and "message" in woke["accepts"]
+  # ...and a recording of the stream names what the run hears from its
+  # header on, as the stream does, or its `mode` lines widen past a header
+  # that named nothing (found in review)
+  with gzip.open(record, "rt") as f:
+    header = json.loads(f.readline())
+  assert header["type"] == "header" and "rating" in header["accepts"]
+  assert "message" not in header["accepts"], "opened while paused"
   calls = [node for node in ast.walk(ast.parse(_SERVE.read_text()))
            if isinstance(node, ast.Call)
            and getattr(node.func, "id", None) == "attach_mode_stream"]

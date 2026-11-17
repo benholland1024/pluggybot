@@ -169,11 +169,16 @@ def test_a_fields_name_with_the_forms_punctuation_on_it_is_empty_anywhere():
   assert d.left_out == {"why": "placeholder", "fields": ["say"],
                         "words": [",intend"]}
   assert _validate(_quiet(say="tell:")).say == ""
-  assert _validate(_quiet(lookup='"note"')).lookup == ""
   assert _validate(_quiet(intend="say:")).intend == ""
-  # ...and a sentence's punctuation is a sentence's
+  # ...in an object's content too, which goes whole, as any placeholder there
+  d = _validate(_quiet(tell={"to": "Rowan", "text": ",intend"},
+                       note={"topic": "", "title": "", "text": "say:"}))
+  assert d.tell is None and d.note is None
+  # ...and a sentence's punctuation is a sentence's, a quote a title's
   assert _validate(_quiet(say="Done!")).say == "Done!"
   assert _validate(_quiet(say="Note.")).say == "Note."
+  assert _validate(_quiet(lookup='"Station"')).lookup == '"Station"'
+  assert _validate(_quiet(say="[note]")).say == "[note]"
 
 
 def test_a_quote_of_a_findings_name_takes_the_finding_out():

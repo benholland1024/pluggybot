@@ -1065,21 +1065,6 @@ PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
 #: -- calculated from 6×4`).
 COINED = tuple(name for name in FORM_FIELDS
                if "_" in name or (name.startswith("un") and name[2:] in FORM_FIELDS))
-#: ...and ANY field's name, everyday or coined, that the form's own
-#: punctuation clings to: `,intend` and `tell:` in `say` are the form leaking
-#: into a field, never a sentence ("Done!" stands, and so does a bare
-#: everyday name). Rowan said `,intend` to everyone (rooftop-media-2026
-#: #518, 2026-11-15 16:00 UTC): `intend` is an everyday word.
-FORM_MARKS = ',:"{}[]'
-
-
-def _form_name(text) -> bool:
-  """Is `text` one of the form's field names with the form's punctuation
-  on it (`FORM_MARKS`)?"""
-  said = str(text).strip().lower()
-  word = said.strip(PUNCTUATION)
-  return (word in FORM_FIELDS
-          and any(c in FORM_MARKS for c in said.replace(word, "", 1)))
 #: ...but a QUOTE names a line, so outside an answer full of placeholders one
 #: stands, and a placeholder quote takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
@@ -1097,6 +1082,25 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
 }
+#: ...and in any of THOSE, an object's included, ANY field's name, everyday
+#: or coined, that the form's own separators cling to (`,` `:` and its
+#: braces): `,intend` and `tell:` in `say` are the form leaking into a
+#: field, never a sentence. Rowan said `,intend` to everyone
+#: (rooftop-media-2026 #518, 2026-11-15 16:00 UTC): `intend` is an everyday
+#: word. ⚠ Not a quote or a bracket alone, a sentence's or a title's
+#: (`"Station"`), and not "Done!".
+FORM_MARKS = ",:{}"
+
+
+def _form_name(text) -> bool:
+  """Is `text` one of the form's field names with the form's separators on
+  it (`FORM_MARKS`)?"""
+  said = str(text).strip().lower()
+  word = said.strip(PUNCTUATION)
+  return (word in FORM_FIELDS
+          and any(c in FORM_MARKS for c in said.replace(word, "", 1)))
+
+
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
 #: word in three of them is that answer's own (`keep`, `robot`, `watch_mouse`)
 #: and is read as empty wherever it is -- and the paperwork no placeholder
@@ -1149,7 +1153,7 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or (sub is None and (_word(text) in COINED or _form_name(text)))
+          or (sub is None and _word(text) in COINED) or _form_name(text)
           or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
@@ -4298,6 +4302,16 @@ class Overseer:
     if self.client is None:
       return "no-client"
     return ""
+
+  def can_ask(self) -> bool:
+    """Would a decision started now go to the model, as far as this side can
+    tell? Not with no client, a spent budget or allowance, a cooloff or a
+    call still out; an endpoint that does not answer is found only by
+    asking. `_refuse`'s gates, read and never moved (its idle-run throttle
+    resets when it fires, and is left to it)."""
+    return (self.client is not None and not self._in_flight
+            and self.budget_left() > 0 and self._allowance_ok()
+            and self.clock() >= self._cooloff_until)
 
   @property
   def pending(self) -> bool:

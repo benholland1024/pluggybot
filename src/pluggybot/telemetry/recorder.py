@@ -501,7 +501,7 @@ class FrameBuilder:
     None when there is no switch at all, which is every demo and every test
     that did not ask for one.
     """
-    return mode_message(self.mode, t, held_s, accepts=self.accepts)
+    return mode_message(self.mode, t, held_s, accepts=self.accepts or None)
 
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""

@@ -95,6 +95,15 @@ from pluggybot.telemetry import vitals
 ERRAND_QUEUES = ("none",)
 
 
+def _built_to_hear(boss) -> tuple[str, ...]:
+  """What a run can actually HEAR, per kind (issues #16, #30), before the
+  operator's switch narrows it. The website reads it: a message is only
+  "delivered" if somebody who can act on it got it, and that somebody is an
+  overseer -- while a rating or an admin's reach-in is handled by code and
+  heard on any served world."""
+  return INBOUND_TYPES if boss is not None else CODE_HANDLED_TYPES
+
+
 def main() -> None:
   """`serve`, watched (issue #349): a memory line a minute, a runaway's
   stacks and allocations, and one line saying why the process ended -- so
@@ -573,11 +582,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     life.activities = activities
   life.restart_note = opened.why
   watchdog.sim_time = lambda: life.data.time
-  # What this run can actually HEAR, per kind (issues #16, #30). The website
-  # reads it: a message is only "delivered" if somebody who can act on it got
-  # it, and that somebody is an overseer -- while a rating or an admin's
-  # reach-in is handled by code and heard on any served world.
-  built_to_hear = INBOUND_TYPES if boss is not None else CODE_HANDLED_TYPES
+  built_to_hear = _built_to_hear(boss)
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
                           status_fn=life.telemetry_status,
@@ -647,6 +652,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   recorder = None
   if args.record is not None:
     recorder = TelemetryRecorder(model, data, args.record,
+                                 accepts=built_to_hear,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  keyframe_s=args.keyframe_s,
@@ -820,10 +826,11 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                  robot_name=names[0],
                  build=identity, grid=first.body.grid, others=others,
                  heightmap=first.near_field)
-  built_to_hear = INBOUND_TYPES if boss is not None else CODE_HANDLED_TYPES
+  built_to_hear = _built_to_hear(boss)
   publisher = WsPublisher(model, data, args.endpoint, token=args.token,
                           accepts=built_to_hear, **sink_kw)
-  recorder = (TelemetryRecorder(model, data, args.record, **sink_kw)
+  recorder = (TelemetryRecorder(model, data, args.record,
+                                accepts=built_to_hear, **sink_kw)
               if args.record is not None else None)
   sinks = [publisher.message] + ([recorder.emit] if recorder else [])
   first.body.step_hooks.append(publisher.step_hook)

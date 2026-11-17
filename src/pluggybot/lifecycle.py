@@ -1158,6 +1158,9 @@ class HubLifecycle:
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
+    #: ...and whether one has arrived since the robot last decided, which a
+    #: charge's hold ends on (`_spoken_to`): the inbox's, so as it is not kept.
+    self._heard_new = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -2667,15 +2670,23 @@ class HubLifecycle:
 
   @property
   def _spoken_to(self) -> bool:
-    """Has the map queued an `ask` for a visitor's message? A charge's hold
-    ends on it with its plug in (Ben, 2026-11-16: a robot may answer while
-    it charges; rooftop-media-2026 #518, Overseer.md §10), and the mind is
-    asked plugged in, as at a run's end (#654): a `charge` goes straight
-    on, what stands still leaves the plug in, and what moves takes it out
-    first."""
+    """Has a visitor's message arrived since the robot last decided, an
+    `ask` waiting and a mind there to answer? A charge's hold ends on it
+    with its plug in (Ben, 2026-11-16: a robot may answer while it charges;
+    rooftop-media-2026 #518, Overseer.md §10), and the mind is asked plugged
+    in, as at a run's end (#654): a `charge` goes straight on, what stands
+    still leaves the plug in, and what moves takes it out first.
+
+    ⚠ ANY ask, never the message's own row alone: the map queues one row,
+    and with a periodic ask waiting the message's fails `busy`, once. ⚠ AND
+    ONLY WHERE THE MODEL WOULD BE ASKED (`Overseer.can_ask`, the switch's
+    mode): its fallback's order may move the body, and cut a charge short
+    for an answer nobody gives."""
     row = self.queued_row
-    return (row is not None and row.action == ev.ASK
-            and row.event == "message_received")
+    return (self._heard_new and row is not None and row.action == ev.ASK
+            and self.overseer is not None
+            and (self.mode is None or self.mode.thinking)
+            and self.overseer.can_ask())
 
   # ---- phases --------------------------------------------------------------
 
@@ -5471,6 +5482,7 @@ class HubLifecycle:
       for msg in self.inbox.peek(VISITORS_SHOWN):
         if msg.id not in self._seen_visitors:
           self._seen_visitors.add(msg.id)
+          self._heard_new = True
           self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
@@ -6018,6 +6030,7 @@ class HubLifecycle:
     pause it was avoiding.
     """
     self.state = "DECIDE"
+    self._heard_new = False                 # what it is shown, it has heard
     self._asked_by = dict(asked_by or {"event": "loop"})
     state = overseer_context(self)
     if self.mode is not None and not self.mode.thinking:

@@ -1701,12 +1701,13 @@ offers were `take_points`, the harm kind.
    by an everyday word (`done`, `reason`, `tell`) is no placeholder bare in
    another field: "Done!" may be meant in the chat, and counted, it would
    make an answer filled and leave out the `done` it meant. ⚠ But any field's
-   name with the form's own punctuation on it (`FORM_MARKS`: `,` `:` `"`
-   `{}` `[]`) is the form leaking into a field, never a sentence, and reads
-   as empty in any field of its own: Rowan said `,intend` to everyone on
-   2026-11-15 at 16:00 UTC, the next field's name with a comma before it
-   (rooftop-media-2026 #518), and its `say` "tell:" (below, filler) goes
-   too; "Done!" and a bare `note` stand. An object is judged by its own
+   name with the form's own separators on it (`FORM_MARKS`: `,` `:` and the
+   braces) is the form leaking into a field, never a sentence, and reads as
+   empty wherever a placeholder can stand, an object's content included:
+   Rowan said `,intend` to everyone on 2026-11-15 at 16:00 UTC, the next
+   field's name with a comma before it (rooftop-media-2026 #518), and its
+   `say` "tell:" (below, filler) goes too. "Done!", a bare `note`, a quoted
+   title (`"Station"`) and a bracketed word stand. An object is judged by its own
    names alone, because a finding is named for what it measures
    (`mouse_will`, `answer = 24 -- calculated from 6×4`). An object whose
    content holds one goes whole: a
@@ -2884,11 +2885,15 @@ carries `accepts` as the switch leaves it (protocol/README.md). And a
 `message_received -> ask` row waited behind a charge, which held one answer
 43 minutes on 10-29 (no decision in between, the pack at 0.89 after);
 charges on 11-07 and 11-08 ran 74 and 85 minutes from the decision to the
-next. A charge's hold now ends on that ask with its plug in
-(`HubLifecycle._spoken_to`; Ben, 2026-11-16: a robot may answer while it
-charges), and the mind is asked plugged in, as at a run's end (#654): a
-`charge` goes straight on, what stands still leaves the plug in, and what
-moves takes it out first. The walk to the station still holds the ask.
+next. A charge's hold now ends with its plug in once a message has come
+since the robot last decided, an ask is waiting -- any: with a periodic
+ask in the map's one slot, the message's own row fails `busy` -- and the
+model would be asked (`HubLifecycle._spoken_to`, `Overseer.can_ask`; Ben,
+2026-11-16: a robot may answer while it charges); a fallback's order could
+walk off with a part-charged pack for an answer nobody gives. The mind is
+asked plugged in, as at a run's end (#654): a `charge` goes straight on,
+what stands still leaves the plug in, and what moves takes it out first.
+The walk to the station and a wait for a taken one still hold the ask.
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,

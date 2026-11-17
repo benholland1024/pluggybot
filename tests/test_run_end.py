@@ -54,7 +54,7 @@ def _reported(life, peer) -> None:
   life.body.peer_on_the_goal = rule
 
 
-def _life(peer: bool = False, continuing: bool = True):
+def _life(peer: bool = False, continuing: bool = True, **kw):
   """The stub with its charge logic round the humanoids' station (as
   `test_rack_contention._life`), its world carrying on from this run, and
   no charge paid for by the walk or the draw: what is read is the plug."""
@@ -62,7 +62,7 @@ def _life(peer: bool = False, continuing: bool = True):
   x, y, yaw = cfg["dock"]
   body = StubBody(rack=RackPose(x, y, yaw + math.pi), grid_bounds=cfg["grid_bounds"],
                   draw_w=0.0, charge_w=energy.load("home_humanoid").charge_w)
-  life = stub_life(body=body)
+  life = stub_life(body=body, **kw)
   life.home_pose = tuple(float(v) for v in cfg["start"])
   life.continuing = continuing
   if peer:
@@ -188,30 +188,76 @@ def test_a_charge_decided_while_plugged_in_goes_straight_on():
   assert any("CHARGE: still plugged in" in ln for ln in life.log), life.log[-3:]
 
 
+def _minded(*rows):
+  """Plugged in at 40 %, with a mind that can be asked, a map of `rows`
+  and an inbox: a visitor's message is offered with `_say`."""
+  from test_overseer import FakeClient
+
+  from pluggybot.lifecycle import board_book
+  from pluggybot.mind import events as ev
+  from pluggybot.mind.inbox import Inbox
+  menu = ov.Menu.for_world("home_humanoid", board_book("home_humanoid"))
+  boss = ov.Overseer(menu, origin="unseeded", client=FakeClient(),
+                     event_map=ev.EventMap(list(rows)))
+  life = _life(overseer=boss, inbox=Inbox())
+  life.max_sim_time = 1e9
+  _plugged_in(life, frac=0.4)
+  return life
+
+
+def _say(life, n: int = 1) -> None:
+  life.inbox.offer({"type": "message", "id": f"m_{n}", "from": "a visitor",
+                    "text": "are you there?"})
+
+
 def test_a_message_ends_a_charges_hold_with_its_plug_in_so_the_mind_answers():
   """rooftop-media-2026 #518 (Ben, 2026-11-16: a robot may answer while it
   charges): the map's `message_received -> ask` waited behind the charge,
-  and a charge held a visitor's answer 36-85 minutes. The hold ends on that
+  and a charge held a visitor's answer 43 minutes. The hold ends on that
   ask with its plug in and what it got banked, as at a run's end, and the
   row is left for the loop to ask: plugged in, a `charge` goes straight on
   (above), and what stands still leaves the plug in."""
   from pluggybot.mind import events as ev
-  life = _life()
-  life.max_sim_time = 1e9
-  _plugged_in(life, frac=0.4)
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
   drives = _walks(life)
-  asked = ev.Row(event="message_received", action=ev.ASK)
-  life.queued_row = asked
+  _say(life)
   life.body.run(life.charge_routine())
   assert life.body.on_charger and life.battery.fraction < lc.CHARGED
   assert life.charge_cycles == 0 and not drives
-  assert life.queued_row is asked, "the ask is the loop's to run"
+  assert life.queued_row == ev.Row(event="message_received", action=ev.ASK), \
+    "the ask is the loop's to run"
   assert any("a message came in at 40%" in ln for ln in life.log), life.log[-3:]
-  # ...and any other ask waits for the charge's end, as before
-  life = _life()
-  life.max_sim_time = 1e9
-  _plugged_in(life, frac=0.89)
-  life.queued_row = ev.Row(event="every", action=ev.ASK, value=900.0)
+
+
+def test_a_message_behind_a_periodic_ask_still_ends_the_hold():
+  """The map queues ONE row: with a periodic ask waiting (`every 900 ->
+  ask`, how a robot keeps its unminded clock), the message's own row fails
+  `busy`, once, and the hold went on for the whole charge (found in
+  review). Any ask waiting ends it once a message has come; with none come,
+  the periodic ask waits for the charge's end, as it did."""
+  from pluggybot.mind import events as ev
+  every = ev.Row(event="every", action=ev.ASK, value=900.0)
+  life = _minded(every, ev.Row(event="message_received", action=ev.ASK))
+  life.queued_row = every
+  _say(life)
+  life.body.run(life.charge_routine())
+  assert life.body.on_charger and life.charge_cycles == 0
+  assert life.queued_row == every
+  # ...and with no message, the hold runs to full
+  life = _minded(every)
+  life.queued_row = every
+  life.body.run(life.charge_routine())
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+
+
+def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish():
+  """Cooling off, its purse spent, the switch on `scripted`: the answer is
+  a fallback's, whose order may walk off with a part-charged pack, and
+  nobody answers the visitor (found in review). The hold goes on."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  _say(life)
   life.body.run(life.charge_routine())
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
