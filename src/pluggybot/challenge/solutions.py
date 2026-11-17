@@ -258,13 +258,13 @@ TABLE = _table_job()
 #:  - each piece brought back over the counter's edge before the walk (the
 #:    carry pose holds it under the pass's top): the cup's hand to 0.29 m
 #:    (further, its arm runs out of reach, and the hand-over lets go of what
-#:    its lift could not raise); the plate, taken from 0.50 m, to 0.23 by
-#:    `move_hand` (nearer the pass the hand-over struck it, and a `pull` that
-#:    long took a 31 deg bow over the counter and fell: `test_solutions`), in
-#:    two moves, halfway and then to no nearer the body's middle than
-#:    `PASS_PLATE_LEFT`;
-#:    the fork's to 0.21 in two pulls (`PASS_FORK_MID`: by `move_hand` it
-#:    slipped in the jaws at the hand-over; `test_solutions`);
+#:    its lift could not raise); the plate, taken from 0.50 m, to
+#:    `PASS_PLATE_BACK` by `move_hand` (nearer the pass the hand-over struck
+#:    it, and a `pull` that long took a 31 deg bow over the counter and fell:
+#:    `test_solutions`), in two moves, halfway and then to no nearer the
+#:    body's middle than `PASS_PLATE_LEFT`; the fork's to 0.21 in two pulls
+#:    (`PASS_FORK_MID`: by `move_hand` it slipped in the jaws at the
+#:    hand-over; `test_solutions`);
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
 #:    further back, its last step over 0.45 m in two, its last turn the
 #:    facing its run wants (the cup's `PASS_CUP_FACING`); nothing steps aside
@@ -347,6 +347,10 @@ PASS_CUP_AT = (0.066, 0.209)
 #: (SimNotes, "The place laid from the pass"); each half asks a posture that
 #: reaches both its ends standing.
 PASS_FORK_MID = 0.33
+#: Where the plate's pull-back off the pass ends, m ahead: from 0.50 m (the
+#: pass's face 0.39 ahead) to here by `move_hand` (nearer the pass the
+#: hand-over struck it; by `pull` that far it bowed and fell).
+PASS_PLATE_BACK = 0.23
 #: How far left of the stance the plate's pull-back off the pass ends at the
 #: least, m: a grip the hand read 0.20 m left or nearer the body's middle
 #: (`near` lands it 0.12-0.32 m out, half of them under 0.25) was brought
@@ -430,12 +434,12 @@ PASS_PLATE = '''def lay_plate():
     close_hand("left", 80)
   oz = read("left.z") - gz + 0.0434
   pull("left", 0, 0, 1, 20, 0.05, give=0)
-  if not move_hand("left", (read("left.x") + 0.23) / 2, read("left.y"), read("left.z")):
+  if not move_hand("left", (read("left.x") + %(plate_back)g) / 2, read("left.y"), read("left.z")):
     pass
   y = read("left.y")
   if y < %(plate_left)g:
     y = %(plate_left)g
-  if not move_hand("left", 0.23, y, read("left.z")):
+  if not move_hand("left", %(plate_back)g, y, read("left.z")):
     pass
   to_place(%(facing)g)
   spot(93)
@@ -512,7 +516,7 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
            "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
-           "plate_left": PASS_PLATE_LEFT}
+           "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 

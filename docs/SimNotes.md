@@ -8332,6 +8332,12 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
     cm right of its usual place (2 of 64 cup legs): its target then lies
     past the right hand's band, and the reach bows 0.55-0.8 rad for it --
     once it fell, once the cup was set down 14 cm off.
+  - **Named, not flown:** the first of the plate's two moves keeps the
+    grip's own place across, and with the grip moved 6 cm nearer the middle
+    3 of 32 still bowed 0.55-0.8 rad with the waist turned there (the hand
+    reading the grip 0.11-0.12 m out; one held back, none fell); and `near`
+    lands the plate's grip anywhere 0.12-0.32 m out, where steadying it
+    would serve every leg that reaches from its stance.
 
 ## The arms keep off the other robot (issue #678)
 

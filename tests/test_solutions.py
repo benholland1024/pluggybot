@@ -224,77 +224,95 @@ def test_the_pass_plate_is_brought_back_from_the_pass_by_a_position_move():
   assert back == "move_hand", f"the plate is brought back by {back}"
 
 
-def _plate_pull_back(gx: float, gy: float, gz: float = 1.0) -> list[tuple[float, float, float]]:
-  """The pass reference's plate pull-back off the pass as its own source
-  runs it for a grip at (gx, gy, gz) in the stance frame: its statements
-  from the lift off the pass to the walk to the place, each assignment and
-  test worked out with the hand read where its moves left it, and every
-  `move_hand` of the left hand recorded where it was asked to go (each taken
-  as arrived)."""
+def _plate_pull_back(monkeypatch, gx: float, gy: float, gz: float = 1.0) -> list:
+  """The pass reference's plate pull-back off the pass as the language runs
+  it for a grip at (gx, gy, gz) in the stance frame: its run compiled as the
+  library compiles it, and its statements from the lift off the pass to the
+  walk to the place worked out by the language's own evaluator
+  (`lang._eval`), the hand read where its moves left it; every `move_hand`
+  of the left hand is recorded where it was asked to go, taken as arrived.
+  A statement the walk does not know fails, never one followed otherwise."""
+  from types import SimpleNamespace
   from pluggybot.challenge import solutions
-  fn = ast.parse(solutions.PROCEDURES["set_table_pass"][1]).body[0]
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import library as lib
+  facts = world_facts(HUMANOID_HOME)
+  library = lib.Library(facts)
+  for source in (*solutions.LIBRARY["set_table_pass"], solutions.PROCEDURES["set_table_pass"][1]):
+    library.define(solutions._def_name(source), source)
   hand = {"left.x": gx, "left.y": gy, "left.z": gz}
-  names: dict = {}
+  for k in hand:
+    monkeypatch.setitem(axes.SENSORS, k, SimpleNamespace(read=lambda life, k=k: hand[k]))
+  env: dict = {}
   moves = []
 
-  def value(node):
-    expr = ast.Expression(body=node)
-    ast.fix_missing_locations(expr)
-    return eval(compile(expr, "<plate>", "eval"), {"__builtins__": {}},
-                {**names, "read": lambda k: hand[k]})
+  def value(expr):
+    return lang._eval(expr, env, SimpleNamespace(), facts)
 
-  def call_of(node):
-    if isinstance(node, ast.Expr):
-      node = node.value
-    if isinstance(node, ast.If) and isinstance(node.test, ast.UnaryOp):
-      node = node.test.operand
-    return node if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) else None
+  def moved(verb, args):
+    if verb == "move_hand" and args["hand"] == ("str", "left"):
+      x, y, z = (value(args[a]) for a in ("x", "y", "z"))
+      moves.append((x, y, z))
+      hand.update({"left.x": x, "left.y": y, "left.z": z})
 
-  def run(body, started) -> bool:
-    for st in body:
-      c = call_of(st)
-      if c is not None and c.func.id == "pull" and [ast.literal_eval(a) for a in c.args[1:4]] == [0, 0, 1]:
-        started = True
-        continue
-      if not started:
-        continue
-      if c is not None and c.func.id == "to_place":
-        return started
-      if c is not None and c.func.id == "move_hand" and ast.literal_eval(c.args[0]) == "left":
-        x, y, z = (value(a) for a in c.args[1:4])
-        moves.append((x, y, z))
-        hand.update({"left.x": x, "left.y": y, "left.z": z})
-      elif isinstance(st, ast.Assign):
-        names[st.targets[0].id] = value(st.value)
-      elif isinstance(st, ast.If) and c is None and value(st.test):
-        run(st.body, True)
-    return started
-  run(fn.body, False)
+  def run(stmts) -> bool:
+    """True once the walk to the place is reached."""
+    for s in stmts:
+      if s[0] == "verb":
+        moved(s[1], s[2])
+      elif s[0] == "set":
+        env[s[1]] = value(s[2])
+      elif s[0] == "if":
+        for cond, body in s[1]:
+          if cond[0] == "try":
+            assert cond[2][0] == "verb", f"the pull-back tests a {cond[2][0]}"
+            moved(cond[2][1], cond[2][2])
+            held = not cond[1]  # the verb did what it said
+          else:
+            held = lang._truth(value(cond))
+          if held:
+            if run(body):
+              return True
+            break
+        else:
+          if run(s[2]):
+            return True
+      elif s[0] == "call" and s[1] == "to_place":
+        return True
+      elif s[0] != "pass":
+        raise AssertionError(f"the plate's pull-back holds a {s[0]} this walk does not follow")
+    return False
+  body = library.entries["lay_plate"].procedure.body
+  lift = next(i for i, s in enumerate(body) if s[0] == "verb" and s[1] == "pull"
+              and s[2]["hand"] == ("str", "left") and s[2]["dz"] == ("num", 1.0))
+  assert run(body[lift + 1:]), "the plate's run never walks to the place"
   return moves
 
 
-def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle():
-  """#682's stage C, round 5: the plate gripped at the pass, 0.43-0.51 m
+def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(monkeypatch):
+  """#682's stage C, round 5: the plate gripped at the pass, 0.42-0.51 m
   out, was brought back to 0.23 m by one position move along the stance's
-  x -- and a grip nearer the body's middle than about 0.22 m (`near` lands
-  it 0.15-0.36 m left of the stance) took a posture with the waist turned
-  30-60 deg for that path: it held back, tipped the plate 19-44 deg in its
-  jaws (then let go on the walk) or fell, the pelvis coming 0.25-0.29 m
-  toward the pass (round 4's reading; 3 of 64 plate legs on dev draws, and
-  with the grip set 6 cm nearer the middle on purpose, 5 falls, 11 plates
-  dropped and 16 laid of 32). In two moves, halfway first, the last ending
-  no nearer the middle than `PASS_PLATE_LEFT`, each path is reached in a
-  crouch at most: 27 of those 32 laid, no fall, 4 dropped (SimNotes, "The
-  place laid from the pass"). Off the reference's own source, run for grips
-  round where it grips."""
+  x -- and a grip the hand read 0.20 m left of the stance or nearer its
+  middle (`near` lands it 0.12-0.32 m out) took a posture with the waist
+  turned 30-60 deg for that path: it held back, tipped the plate 19-44 deg
+  in its jaws (then let go on the walk) or fell, the pelvis coming
+  0.25-0.29 m toward the pass (round 4's reading; 3 of 64 plate legs on dev
+  draws, and with the grip set 6 cm nearer the middle on purpose, 5 falls,
+  11 plates dropped and 16 laid of 32). In two moves, halfway first, the
+  last ending no nearer the middle than `PASS_PLATE_LEFT`, each path is
+  reached in a crouch at most: 27 of those 32 laid, no fall, 4 dropped
+  (SimNotes, "The place laid from the pass"). Off the reference's own
+  source, run by the language for grips round where it grips."""
   from pluggybot.challenge import solutions
   for gx in (0.43, 0.47, 0.51):
     for gy in (0.12, 0.2, 0.3, 0.36):
-      moves = _plate_pull_back(gx, gy)
+      moves = _plate_pull_back(monkeypatch, gx, gy)
       assert len(moves) == 2, f"a grip at ({gx}, {gy}) is brought back by {len(moves)} moves"
       (x1, y1, _), (x2, y2, _) = moves
       assert abs(x1 - (gx + x2) / 2) < 1e-9 and y1 == gy, (gx, gy, moves)
-      assert x2 == 0.23 and y2 == max(gy, solutions.PASS_PLATE_LEFT), (gx, gy, moves)
+      assert x2 == solutions.PASS_PLATE_BACK and y2 == max(gy, solutions.PASS_PLATE_LEFT), \
+        (gx, gy, moves)
 
 
 def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
