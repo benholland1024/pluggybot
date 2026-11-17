@@ -35,10 +35,10 @@ RUNAWAY_MB_PER_MIN = 50.0
 #: Two: the cameras' one renderer (#713) is built at boot, inside the
 #: warm-up (`Body.build_cameras`), and a camera's first look after it is no
 #: step over the rate (MEASURED, the served pair under osmesa: +257 MiB at
-#: boot, then +22 at the first picture and +10 at a navigation camera's).
-#: While each camera built a renderer of its own at its first look, two
-#: built a minute apart read as a runaway (2026-11-14; Webserver.md, "Two
-#: samples").
+#: boot, then +22 at the first picture and +10 at a navigation camera's,
+#: all four's +42). While each camera built a renderer of its own at its
+#: first look, two built a minute apart read as a runaway (2026-11-14;
+#: Webserver.md, "Two samples").
 RUNAWAY_MINUTES = 2
 #: Calm samples in a row that end an episode.
 CALM_MINUTES = 2

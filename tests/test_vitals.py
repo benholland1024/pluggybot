@@ -177,12 +177,12 @@ def test_a_renderer_built_at_a_first_walk_read_as_a_runaway_so_it_is_built_at_bo
   process charging walked off its station, each of its two cameras building
   a renderer of its own at its first look, then flat; the trace held 4.0
   MiB, because the step is MuJoCo's and osmesa's, not Python's. Two minutes
-  over the rate read that as a runaway (shown), and for a while the rule was
-  three. No first look builds a renderer now: the cameras draw through one
-  (#713), which a served process builds at boot, inside the warm-up. That
-  day with its renderer built in its first minute, and its first walk's two
-  looks costing what a look costs after it, reads quiet under two; a
-  runaway after it is reported at its second minute."""
+  over the rate read that as a runaway (shown). No first look builds a
+  renderer now: the cameras draw through one (#713), which a served process
+  builds at boot, inside the warm-up. That day with its renderer built in
+  its first minute, and its first walk's two looks costing what a look
+  costs after it, reads quiet under two; a runaway after it is reported at
+  its second minute."""
   def fired(rows):
     rule = RunawayRule()
     return [i for i, (hms, mib) in enumerate(rows) if rule.sample(_utc(hms), mib)]
@@ -243,6 +243,10 @@ def test_the_grown_worlds_four_minute_start_never_fires_and_a_runaway_after_it_d
   grown = _day(RESTING, GROWN_START)
   assert _feed(RunawayRule(), grown) == []
   assert _feed(RunawayRule(warmup=3, minutes=2), grown) != []
+  # ...nor that load with the cameras' renderer built at its end, a fifth
+  # minute of it (`BOOT_MIB`)
+  booted = GROWN_START + [GROWN_START[-1] + BOOT_MIB]
+  assert _feed(RunawayRule(), _day(RESTING, booted)) == []
   late = _day(RESTING[:2] + [115.0] * 8, GROWN_START)
   first_fast = len(GROWN_START) + 2          # the sample closing minute one
   assert _feed(RunawayRule(), late) == [first_fast + 1]

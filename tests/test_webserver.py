@@ -1088,6 +1088,29 @@ def test_a_served_pair_builds_both_robots_cameras_before_its_day(monkeypatch,
     for camera in (TAG_CAMERA, NAV_CAMERA))
 
 
+def test_every_tag_camera_a_body_builds_is_built_at_boot():
+  """...and a camera added later is too: a renderer built at a first look
+  is a step the memory alarm can read as a runaway, so every `TagDetector`
+  in src/ is built by one of the getters `HumanoidBody.build_cameras` calls
+  (the test above), or the new one is built there as well."""
+  import ast
+  src = _SERVE.parent.parent / "src" / "pluggybot"
+  sites = set()
+  for path in src.rglob("*.py"):
+    text = path.read_text()
+    if "TagDetector" not in text:
+      continue
+    for fn in ast.walk(ast.parse(text)):
+      if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
+          isinstance(node, ast.Call)
+          and "TagDetector" in (getattr(node.func, "id", None),
+                                getattr(node.func, "attr", None))
+          for node in ast.walk(fn)):
+        sites.add((path.relative_to(src).as_posix(), fn.name))
+  assert sites == {("humanoid/body.py", "_detector"),
+                   ("humanoid/places.py", "_place_detector")}
+
+
 def _report(r, capsys, **kw):
   serve = _load_serve()
   life = types.SimpleNamespace(mode=None, paused_s=0.0)

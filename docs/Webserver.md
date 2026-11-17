@@ -463,12 +463,15 @@ Why the numbers are what they are:
   runaway's 115.
 - **A warm-up of five samples.** The house before #560 took the
   process from 212 to 788 MiB in its first minute, and three samples
-  covered a slower box. The grown world took four minutes in the deployed
-  process of 2026-11-12 (19:17-19:21 UTC, 173 MiB to 1.3 GB), and a warm-up
-  of three set the alarm off with 4.6 MiB new at the onset. Five judges
-  nothing until the sixth sample: a load of up to five minutes passes, a
-  runaway that begins once the world is loaded is reported at its second
-  minute, and one from boot six minutes in at the earliest.
+  covered a slower box. The deployed process of 2026-11-12 19:17 UTC grew
+  from 173 MiB to 1.3 GB over four minutes, its world running from its
+  second sample on, most of the rest its cameras' four renderers built at
+  their first looks (before #713), and a warm-up of three set the alarm off
+  with 4.6 MiB new at the onset. Five judges nothing until the sixth
+  sample: a load of up to five minutes passes, the world and the cameras'
+  renderer built once it is, a runaway that begins once the world is
+  loaded is reported at its second minute, and one from boot six minutes in
+  at the earliest.
 - **A paused world's samples are not counted.** A process started into a
   pause builds its world, stops at its first step, and builds at the wake
   what a fresh process builds in its first minutes. That made three false
@@ -493,13 +496,13 @@ Why the numbers are what they are:
   charging built both on its first walk, a minute apart (2026-11-14
   17:32-17:33 UTC: +207 and +239, then flat), which two samples read as a
   runaway. Its trace held 4.0 MiB: `tracemalloc` sees only the renderer's
-  own arrays. For a while the rule was three. Since #713 the four cameras
-  draw through one renderer, and `serve.py` builds it at boot, once the
-  world is built (`Body.build_cameras`): measured on the served pair under
-  osmesa, +257 MiB there (the renderer, the AprilTag detector and the
+  own arrays. Since #713 the four cameras draw through one renderer, and
+  `serve.py` builds it at boot, once the world is built
+  (`Body.build_cameras`): measured on the served pair under osmesa, +257
+  MiB there in 0.3 s (the renderer, the AprilTag detector and the
   process's first GL context), then a camera's first look +22 at most (its
-  first picture; a navigation camera's +10), where the first camera's
-  first look had cost 278.
+  first picture; a navigation camera's +10, all four's +42), where the
+  first camera's first look had cost 278.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
   with the pair free-running on the dev machine (EGL, Python 3.14; the
   image runs 3.12), four interleaved runs, per wall minute after start-up:
