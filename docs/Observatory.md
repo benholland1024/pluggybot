@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A procedure's read of a hand's place moves nothing (#721, R4, `loop-721`) — opens when this PR is deployed
+
+**What the robots read does not move** (`prompt_sha` `75ec76e3…`, 69,505
+characters, 17 sections, and the session host's hello, sha1 `a61b6376…`,
+both as at `loop-staging` ac2538e8): no text the robots read says when a
+reading is taken.
+
+**The change** (`axes._hand_sensed`, `Body.hand_sensed`; SimNotes, "A
+procedure's read of a hand's place"). A procedure's `read("left.x")` (y, z,
+the right hand's) is the place as the arm's loop read it at its last
+command, at most 0.01 s old, where it read every joint afresh: each read
+drew on the drivers' noise and posed the model of itself again, so a read
+nobody acted on moved the rest of the flight. What a robot reads is the
+same kind of reading, a tick older at most; what changes is that its
+flight no longer moves when its procedure reads a hand's place. Before the
+arm's first reading (a body's first instant) a hand's place has no reading
+and says so; no served robot reads there.
+
+**Measured** (one Vast pod, a Xeon E5-2698 v4, beside ac2538e8; SimNotes
+has the rest): the hands checks at 0-127 and the tour, 600 of 736 flights
+moved (every one that reads a hand's place; the drawer's 128 bit for bit),
+608 passed with 5 falls on both trees, 13 flips each way -- and Ben's bar
+missed, by the held-out lid (88 -> 85 of 96; the cube 64 -> 70). On a
+second draw of every flight's noise the flips run 26 against 15, 39 against
+28 over both (a sign test's p 0.22), and today's tree against its own
+second draw moves its held-out lid 88 -> 86 and its held-out cube 64 -> 71:
+within what a re-roll does by itself. The pair's recorded day is unmoved.
+The fix's own pin stands apart: a read moves nothing, bit for bit.
+
+**What to read**: nothing new should show. The hand jobs' passes and
+falls, and the robots' procedures that read a hand's place (a lift's
+height, a move back from where the hand is), should read as before.
+
 ### Each person's chat with a robot is their own, and the robots are told so (rooftop-media-2026 #518, R1, `loop-chat2`) — opens when this PR is deployed
 
 Ben's call of 2026-11-17: a chat is like texting one robot, never a public

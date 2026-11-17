@@ -10457,6 +10457,99 @@ kept is the one asked where the body stands within `POSTURE_TOL` of it, a
 trunk that only sways re-asking nothing, else where the body has got to: one
 still coming is held there.
 
+## A procedure's read of a hand's place (issue #721)
+
+A procedure's `read("left.x")` (y, z, the right hand's) read every joint
+afresh: the sensor called `Body.hand_at`, which is `Reach.grip_now`, which
+is `Reach._pose` -- every joint read again through its driver (a draw on
+the drivers' shared noise stream) and the model of itself posed off that
+reading, `Reach.sensed`, `tau` and `qd` overwritten. After a read nobody
+acted on, every later joint reading in the flight was another draw, and the
+flight went another way. M3 found it in our lid reference's retry (the
+loop of 11-15/16): over set-outs 0-127, of the 21 lid flights where the
+retry never fired and only its read of the hand's place differed, 7 came
+out otherwise, and the first way out of 23 of the 28 with a refusal ended
+10-20 ms apart. P1 flew it alone on the bare floor (the loop of 11-16/17,
+`c/read_moves.py`): a reach, a second's wait and a withdraw, with one read
+nobody acts on, ended 7.2e-4 to 8.3e-4 rad of qpos apart from the same
+flight with none, the one read at the body's first instant 50 ms sooner;
+a read of the hand's force, `held` or the gap moved nothing, each being
+what the body last measured. A move's stop condition on the same sensor
+had read the place as the arm's loop last read it since #554
+(`Body.hand_sensed`, then the sensor's own `live`), and the watch is placed
+through the model as that loop last posed it; the plain `read` was never
+given the rule.
+
+**The read is the stop condition's now.** A procedure's `read` of a hand's
+place is `Body.hand_sensed`: the place as the arm's loop read it at its
+last command (`Reach.sensed_grip`, every `EVERY_S`, 0.01 s, while that loop
+runs), drawing nothing and posing nothing; `Sensor.live` is gone, every
+sensor's `read` being what the body last measured. Before that loop's first
+reading -- a body's first instant, before its first physics step, or a
+stand-up's fresh reach before the next step -- there is none, and the read
+says so (`axes.NoReading`) where it read afresh. No served robot, no set-out
+of the attempt kit (its 0.5 s settle) and no tour flight reads there.
+
+**Measured.** P1's instrument widened (R4, the loop of 11-17,
+`c/read_moves2.py`, on the bare floor under EGL): on `loop-staging`
+ac2538e8 every read of a hand's place moved the flight -- after the reach
+6.0e-4 to 8.3e-4 rad of qpos apart, before it 7.2e-4 (at the body's first
+instant, ending 50 ms sooner) and 7.5e-4 (after a 0.02 s wait); with the
+fix every one is the flight with no read, bit for bit, but the read at the
+body's first instant, which now stops the run with no reading.
+
+**Ben's bar moves as a re-roll.** On one Vast pod (a Xeon E5-2698 v4, both
+trees cloned from their commits), the hands checks at set-outs 0-31 and
+32-127 (the table's 32-63) and the tour's five jobs, beside ac2538e8: 600
+of the 736 flights moved -- every one that reads a hand's place before it
+ends; the drawer's 128, whose procedure reads none, are the base's bit for
+bit -- because each base read drew one block of the drivers' noise, so from
+its first read every flight on the fix draws otherwise. Overall the trees
+read alike, 608 passed with 5 falls each, and the flips pair off, 13
+flights the base passed and the fix failed against 13 the other way; job by
+job they differ as two draws of the same noise differ: held out, the lid 88
+-> 85 of 96 (Ben's bar missed: a held-out job worse by more than one pass)
+and the cube 64 -> 70; at 0-31 the lid 28 -> 26 with a fall and the table
+24 -> 26 with one fewer; the tour's table 28 -> 26 with one fewer, the rest
+the base's counts, every slowest pass within a second but the cube's (154
+-> 165 s). The lid's losses are no stale reading: flown again with every
+read logged beside a watcher's fresh one, which moves nothing
+(`c/liftread.py`), the reads sit within -1.3 to +2.4 mm of it on both
+trees, and the fix's lids fail before any read decides, in a lowering pull
+that went out of reach or held fast with the lid still up (the hand 13 and
+22 cm over its grip at the lift's check, which then rightly fires the extra
+pulls).
+
+**A second draw of the noise** (each key with `:r4b`, both trees, the hands
+check's drawer left out): the trees read 523 and 512 of the same 608 with 7
+and 4 falls, where the bar's draws read 521 and 521 with 3 and 3; the flips
+run 26 against 15 there and 39 against 28 over both (a sign test's p 0.22),
+and no job's departs from chance -- the lid's 6 against 1 on the bar's
+draws is 4 against 5 on the second, its held-out 86 -> 88 there; the cube's
+1 against 7 is 10 against 4; the tour's table is the strongest, 6 against 1
+over both (p 0.12), its falls 2 -> 0. Today's tree against its own second
+draw flips 45 against 47, its held-out lid 88 -> 86 and its held-out cube
+64 -> 71: a fix that changes what every reading flight draws moves the bar
+as a re-roll does, by more than its one held-out pass, and at a 94 % job
+like the lid a re-roll alone loses more often than it gains (today's tree's
+own: 7 lost, 5 gained). The pair's recorded day and the counter's are
+unmoved (`c/fix_r4.sh`).
+
+**What is true now** (`axes._hand_sensed`, `Body.hand_sensed`,
+`tests/test_guard.py`): a procedure's `read` of a hand's place is the place
+as the arm's loop last read it, at most 0.01 s old while that loop runs; a
+read moves nothing, so a reference or a robot may read a hand's place to
+decide something without changing a flight where it decides nothing; before
+the arm's first reading a hand's place has no reading. `Body.hand_at` still
+reads afresh, and so its callers still draw where they read -- the verbs'
+own record of what a hand felt (`steps._sensed`: at a hand verb's start,
+every 0.25 s and at its end), `pull`'s start and end (`Reach.grip_now`), and
+our chest opener (`evaluation/opener.py`): each is part of what it is in
+every flight, none is a procedure's read, and #721's option 2 left them as
+they are; and a watch's picture taken between two of the arm's ticks is
+placed through the model as whatever posed it last, which may be a felt
+sample rather than the arm's loop.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
