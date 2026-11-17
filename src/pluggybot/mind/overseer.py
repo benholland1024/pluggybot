@@ -923,8 +923,8 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
   ("reply", "always", "HOW YOUR LIFE WORKS",
    "what goes back to whoever wrote to you."),
   ("say", "always", "HOW YOUR LIFE WORKS",
-   "something said in your chat that answers nobody; everyone reading "
-   "your chat sees it."),
+   "something said to everyone watching that answers nobody; it is never "
+   "part of anyone's conversation with you."),
   ("pin", "always", "HOW YOUR LIFE WORKS",
    "add one line to `Top_of_mind.md`, which is in front of you every turn."),
   ("unpin", "always", "HOW YOUR LIFE WORKS",
@@ -2226,7 +2226,7 @@ from (`#123 #140`), when it was drawn from some.
 - RECALL is how you read what is not in front of you: a note's text, an \
 old History line, what somebody said last week, a line you unpinned. Choose \
 `recall` and set `read` to a key -- a note's `topic/title`, a whole topic, \
-`history` for more of your history, `chat` for more of your chat, \
+`history` for more of your history, `chat` for more of your chats, \
 `changelog` for the changelog, or a line's number like `#123` -- and/or \
 `find` to a few words to search for. You stand still for ten seconds and the \
 lines arrive on your next turn as `recalled`, each with its number. They \
@@ -2274,19 +2274,23 @@ answered, a greeting returned, somebody told what you are up to. Answer from \
 what you actually know -- your state, your recent tasks, what is on the \
 boards -- and if you do not know, say so. A friendly message deserves a \
 friendly answer; it does not have to become work.
-- What people say to you and what you say back are ONE chat, and everyone \
-watching can read all of it. A message comes with `earlier` when anything \
-was said in your chat before it: its last %(lines)d lines, oldest first -- \
-what people said (`from`, `text`; `dropped` means it never reached you) and \
-what you said (`you`, with `to` and `outcome` where you were answering \
-somebody). Answer as the one who said those things, not as a stranger. \
-`recall` with `read` set to `chat` shows you more of it.
-- You may also say something in your chat that answers nobody: set `say`, \
-on any answer. Everyone reading your chat sees it. Like a reply, try to \
-keep it to %(aim)d characters or fewer; it is kept up to %(chars)d. You may \
-say one such thing every %(minutes)d minutes: while you may not, \
-`sayAgainInS` says how many seconds are left, and a `say` sent anyway is \
-not said, and you are told.
+- Each person's chat with you is their own conversation: they see their \
+messages and your replies to them, and nobody else sees that conversation. \
+A message comes with `earlier` when that person has said something to you \
+before: the last %(lines)d lines of your conversation with them, oldest \
+first -- what they said (`from`, `text`; `dropped` means it never reached \
+you) and what you answered them (`you`, with `to` and `outcome`). It never \
+holds another person's lines, or what you said to everyone. Answer as the \
+one who said those things, not as a stranger. Every conversation is also \
+kept in your History: `recall` with `read` set to `chat` shows you more of \
+them.
+- You may also say something to everyone watching that answers nobody: set \
+`say`, on any answer. Everyone watching sees it, in a place of its own: it \
+is never part of anyone's conversation with you. Like a reply, try to keep \
+it to %(aim)d characters or fewer; it is kept up to %(chars)d. You may say \
+one such thing every %(minutes)d minutes: while you may not, `sayAgainInS` \
+says how many seconds are left, and a `say` sent anyway is not said, and you \
+are told.
 """ % {"chars": MAX_REPLY, "aim": AIM_REPLY, "lines": MAX_EARLIER,
        "minutes": round(SAY_EVERY_S / 60)}
 

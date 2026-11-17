@@ -54,6 +54,29 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, no new shape: a person's chat is their own, and the narration says neither whose nor what (rooftop-media-2026 #518)
+
+Ben's call of 2026-11-17: a chat is like texting one robot. The website
+shows each visitor only their own conversation with a robot, and the
+`earlier` it sends with a message is that person's conversation alone
+(their lines and the robot's answers to them, never another person's line
+nor a `chat` line said to everyone): the shape is as it was.
+
+What changes on the wire is the narration of an answer, which rides every
+frame as `status` and is drawn under the portrait every viewer sees. It
+said whose message it was and what the robot answered:
+
+```jsonc
+"status": "VISITOR message from ada -- replied: b is free now"   // before
+"status": "VISITOR message answered: replied"                     // now
+"status": "VISITOR message dropped: the inbox was full"           // a drop
+```
+
+The `visitor_reply` is unchanged: it carries `reply`, `from` and `id` for
+the website to settle the person's row with. The website's hub relays it to
+its viewers without those (`server/pluggyworld.ts`), as a cue that a chat
+moved. No bump.
+
 ### 0.21.0, additive: a `mode` message says what the robot hears now (`mode.accepts`, rooftop-media-2026 #518)
 
 The header's `accepts` is what the run hears AT ITS CONNECT, narrowed by

@@ -292,7 +292,10 @@ PRIVATE_DOORS = {
     lambda a: a._set_points(SimpleNamespace(who="ada_admin", points=5555)),
     ("ada_admin", "5555")),
   "an admin's reset": (_an_operators_reset, ("ada_admin", "reset me")),
-  "a visitor's line": (_a_visitor_answered, ("vera", "my plans to myself")),
+  #  ...which since rooftop-media-2026 #518 names neither whose message it
+  #  answered nor what it said (`test_inbox.py` pins that): the line itself
+  #  is still the robot's own.
+  "a visitor's line": (_a_visitor_answered, ("VISITOR message answered: replied",)),
 }
 
 

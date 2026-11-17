@@ -5003,12 +5003,10 @@ class HubLifecycle:
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
-    # Narrated too, on `_answer_visitor`'s terms: the typed message closes the
-    # database row, and the event line is what a person watching reads. An
-    # operator seeing this repeatedly is watching the channel saturate, which
-    # is the other thing the count was supposed to be telling somebody.
-    self._say(f"VISITOR message from {msg.who or 'a visitor'} -- "
-              f"dropped: the inbox was full")
+    # Narrated too, on `_answer_visitor`'s terms (whose it was is not said):
+    # an operator seeing this repeatedly is watching the channel saturate,
+    # which is the other thing the count was supposed to be telling somebody.
+    self._say("VISITOR message dropped: the inbox was full")
 
   def _answer_visitor(self, decision) -> None:
     """Send one accepted/declined/replied back out, and retire the message.
@@ -5044,16 +5042,12 @@ class HubLifecycle:
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
-    # Narrated as well as sent, because the two audiences are different: the
-    # typed message closes the database row the website is holding, and the
-    # event line is what a person watching the stream reads.
-    # Phrased with the message as the subject rather than the outcome as a
-    # verb: "replied ada's message" was ungrammatical the moment `answered`
-    # became `replied`, and all three outcomes have to read as English here.
+    # Narrated as well as sent, and ⚠ NEITHER WHOSE NOR WHAT (rooftop-media-
+    # 2026 #518): the narration rides every frame as `status`, under the
+    # portrait every viewer sees, and a person's chat is theirs alone.
     who = msg.who or "a visitor"
     said = text or "(no reply)"
-    self._say(f"VISITOR message from {who} -- {decision.outcome}: {said}"
-              f"{text_registry.cut_said(cut, MAX_REPLY)}")
+    self._say(f"VISITOR message answered: {decision.outcome}")
     # ...and REMEMBERED (rooftop-media-2026 #125): the exchange is the one
     # thing in a day that another mind said, and until this it was narrated
     # and then gone -- the tier table promised History "the senders" and no
@@ -5103,7 +5097,7 @@ class HubLifecycle:
       # are routine, and each is a line of the dozen History shows.
       self._say(f"CHAT not said, {wait} s before it may: "
                 f"{decision.say[:MAX_REPLY]}")
-      self._remember(f"did not say in my chat -- one thing every "
+      self._remember(f"did not say to everyone watching -- one thing every "
                      f"{SAY_EVERY_S / 60:.0f} minutes, and the next may go "
                      f"in {math.ceil(wait / 60)} min -- "
                      f"{decision.say[:QUOTED_CHARS]!r}")
@@ -5119,7 +5113,8 @@ class HubLifecycle:
       hook(dict(msg))
     self.chats.append(msg)
     self._say(f"CHAT said: {text}{text_registry.cut_said(cut, MAX_REPLY)}")
-    self._remember(f"said in my chat{text_registry.cut_note(cut, MAX_REPLY)}: "
+    self._remember(f"said to everyone watching"
+                   f"{text_registry.cut_note(cut, MAX_REPLY)}: "
                    f"{text}", room=MAX_REPLY, chat=CHAT_SAID)
 
   # ---- tasks (issue #21) ----------------------------------------------------

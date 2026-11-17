@@ -2941,17 +2941,27 @@ message carrying six of the robot's lines at its cap: 7 677 characters as
 the site sends it, 79 237 with every character an escaped astral pair. The
 other robot's `tell` stays a sentence, 280.
 
-**Each robot's chat is ONE conversation** (issue #485; threads with a
-Reply button since rooftop-media-2026 #125, which Ben found unlike any
-chat). Everything said to a robot and by it is one chronological line on
-the website, its panel's Chat, which everyone watching can read — so the
-robot is shown it that way: every message carries `earlier`, the chat's
-newest `MAX_EARLIER` (6) LINES before it, because the chat is the
-WEBSITE's state — it outlives a mission, a restart and a generation — and
-a transcript is a thing a network can carry. A line is somebody's
+**Each person's chat with a robot is their own conversation**
+(rooftop-media-2026 #518, Ben's call of 2026-11-17: "a chat is like
+texting one robot, never a public channel"; one room per robot that
+everyone watching read, #485, before it, and threads with a Reply button
+before that, #125). The website shows each visitor only their own messages
+to that robot and its replies to them — an account's conversation follows
+the account, and one without an account is kept by that browser's session
+— and the robot is shown it that way: every message carries `earlier`,
+the newest `MAX_EARLIER` (6) LINES of THAT PERSON's conversation with the
+robot before it, never another person's line and never a line the robot
+said to everyone, because the chat is the WEBSITE's state — it outlives a
+mission, a restart and a generation — and a transcript is a thing a
+network can carry. The VISITORS rule says so: each person's conversation
+is their own, `earlier` is theirs, and a `say` is in nobody's. ⚠ So
+nothing on the viewers' stream says whose message an answer answered or
+what it said: the narration under the portrait is "VISITOR message
+answered: <outcome>" (and "VISITOR message dropped: …"), and the site's
+hub relays a `visitor_reply` to its viewers without its words, its sender
+or its id (it keeps them on the person's row). A line is the person's
 (`from`, `text`; `outcome: dropped` where the queue threw it away) or the
-robot's own (`you`, with `to` and `outcome` on an answer, neither on a
-line it said unasked). ⚠ The robot's own lines are a SHAPE, never a name:
+robot's own answer to them (`you`, with `to` and `outcome`). ⚠ The robot's own lines are a SHAPE, never a name:
 a username can be `you`, so a person's line never carries that key. The
 model sees `earlier` in `visitorMessages` (the user turn: the cached
 prefix is unaffected), under one rule in the VISITORS block: *answer as
@@ -2976,11 +2986,16 @@ past the six lines a message carries — Ben's "an extended conversation
 window": the newest of the chat that fits the recall chain's whole room
 (`CHAT_RECALLED_CHARS`, 8 000), no hole in it, oldest first; one block's
 room would have held seven full-length lines. The other robot's `tell`
-is remembered the same way and filed as no chat's: people read the chat,
-and it was never said there.
+is remembered the same way and filed as no chat's: it was never said in
+one. ⚠ The memory is EVERY conversation's, as a person remembers whom they
+talked to (Ben's to revisit, #518): `recall` with `read: chat` reads back
+what everyone said to the robot and what it said to everyone, and History,
+like all of the robot's memory, is read by everyone watching — the rule
+says each conversation is "also kept in your History".
 
 **The robot may say something unasked** (issue #485): `say`, on any
-answer, is a line of its chat that answers nobody — a `chat` message
+answer, is a line to everyone watching that answers nobody, in nobody's
+conversation (the site's Broadcasts tab, #518) — a `chat` message
 (`{t, robot, id, text, cut?}`), which the website keeps as the robot's own
 line, and a History line under `chat`/`said`. It is cut at a reply's 1000
 out loud, and RATIONED, one every `SAY_EVERY_S` (20 minutes: a visitor's

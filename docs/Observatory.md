@@ -10,6 +10,60 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Each person's chat with a robot is their own, and the robots are told so (rooftop-media-2026 #518, R1, `loop-chat2`) — opens when this PR is deployed
+
+Ben's call of 2026-11-17: a chat is like texting one robot, never a public
+channel. ⚠ It opens with the site's half (rooftop branch `loop-chat2`), which
+shows each visitor only their own conversation and sends with each message
+only that person's lines as `earlier`; deployed alone, this half tells the
+robots something the site does not yet do.
+
+**What the robots read moves** (`prompt_sha` `6a3d6cf2…`, 69,126
+characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
+3e000d65; the session host's hello is unmoved, sha1 `3cd41b6f…`):
+- VISITORS, the chat: "What people say to you and what you say back are
+  ONE chat, and everyone watching can read all of it. A message comes with
+  `earlier` when anything was said in your chat before it: its last 6
+  lines, oldest first -- what people said (`from`, `text`; `dropped` means
+  it never reached you) and what you said (`you`, with `to` and `outcome`
+  where you were answering somebody). [...] `recall` with `read` set to
+  `chat` shows you more of it." becomes "Each person's chat with you is
+  their own conversation: they see their messages and your replies to
+  them, and nobody else sees that conversation. A message comes with
+  `earlier` when that person has said something to you before: the last 6
+  lines of your conversation with them, oldest first -- what they said
+  (`from`, `text`; `dropped` means it never reached you) and what you
+  answered them (`you`, with `to` and `outcome`). It never holds another
+  person's lines, or what you said to everyone. [...] Every conversation is
+  also kept in your History: `recall` with `read` set to `chat` shows you
+  more of them."
+- VISITORS, `say`: "You may also say something in your chat that answers
+  nobody: set `say`, on any answer. Everyone reading your chat sees it."
+  becomes "You may also say something to everyone watching that answers
+  nobody: set `say`, on any answer. Everyone watching sees it, in a place
+  of its own: it is never part of anyone's conversation with you."
+- The `say` field's line in WHAT YOU CAN DO: "something said in your chat
+  that answers nobody; everyone reading your chat sees it." becomes
+  "something said to everyone watching that answers nobody; it is never
+  part of anyone's conversation with you."
+- RECALL: "`chat` for more of your chat" becomes "`chat` for more of your
+  chats".
+- History, not the prompt: a `say` is "said to everyone watching: …" (was
+  "said in my chat: …"), and one refused "did not say to everyone watching
+  -- …" (was "did not say in my chat -- …").
+
+**What viewers see moves.** The narration of an answer, `status` under the
+portrait, was "VISITOR message from <who> -- <outcome>: <the reply>" and
+is "VISITOR message answered: <outcome>"; a drop no longer names whose.
+The robots' memory is unchanged: History keeps every conversation ("ada
+said: …", "replied to ada: …"), `recall` with `chat` reads them all back,
+and History is read by everyone watching (Ben's to revisit).
+
+**What to read off it.** Whether answers still build on `earlier` (#485:
+4 of 4); whether a robot tells one person what another said to it (its
+memory holds every conversation); how often it `say`s now that a `say`
+is to everyone and in nobody's conversation.
+
 ### A wake hears a visitor's message at once, a charge's hold ends on one, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13, `loop-chat`) — opens when this PR is deployed
 
 **The prompt does not move** (`prompt_sha` `91f1a7bd…`, 68,855

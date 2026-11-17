@@ -1939,15 +1939,24 @@ save a filmstrip PNG named after the script.
   (`recorder.heard`, rooftop-media-2026 #518; protocol/README.md), or a
   link opened while paused hears no message until the next run. ⚠
   Sanitising is NOT the security
-  boundary; the framing and the fixed menu are. ⚠ It is ONE CHAT PER ROBOT
-  (#485; threads since rooftop #125): every message carries `earlier`, the
-  chat's newest `MAX_EARLIER` (6) LINES, the website's state; the robot's
-  own lines are a SHAPE (`robot` on the wire, `you` to the model), never a
-  name, because a username can be `you`; an older site's thread exchanges
-  are read as their two lines. `sender` is stated by the CALLER of
+  boundary; the framing and the fixed menu are. ⚠ EACH PERSON'S CHAT WITH
+  A ROBOT IS THEIR OWN (rooftop-media-2026 #518, Ben's call of 2026-11-17;
+  one room per robot since #485 before it): the site shows a visitor only
+  their messages and the replies to them, and every message carries
+  `earlier`, the newest `MAX_EARLIER` (6) LINES of THAT PERSON's
+  conversation with that robot, the website's state, never another
+  person's line nor a `say`; the VISITORS rule says so. ⚠ So nothing on
+  the viewers' stream says whose message it answered or what: the
+  narration is "VISITOR message answered: <outcome>" (the site's hub takes
+  the words out of the `visitor_reply` it relays). The robot's own lines
+  are a SHAPE (`robot` on the wire, `you` to the model), never a name,
+  because a username can be `you`; an older site's thread exchanges are
+  read as their two lines. `sender` is stated by the CALLER of
   `Inbox.offer`, never read off the wire. Each line is filed in History
-  under the topic `chat` by its role (a peer's `tell` under none), and
-  `read chat` widens the window. ⚠ The robot may `say` something unasked:
+  under the topic `chat` by its role (a peer's `tell` under none), every
+  conversation's (the robot remembers them all, and its memory is read by
+  everyone watching), and `read chat` widens the window. ⚠ The robot may
+  `say` something to everyone watching, unasked, in no one's conversation:
   a `chat` message, cut out loud as a reply is and RATIONED at `SAY_EVERY_S`
   (1200, a visitor's three an hour) off the STORE's clock
   (`ThoughtFiles.last_said`; a last line stamped after now is a clock gone
