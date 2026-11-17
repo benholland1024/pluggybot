@@ -596,6 +596,20 @@ def test_the_death_seam_reads_a_humanoids_tip_off_the_bow_its_fall_watch_reads(m
     back = math.radians(-61.0)
     life.data.xquat[life.body.root] = (math.cos(back / 2), 0.0, math.sin(back / 2), 0.0)
     assert life.down()
+    # ...the watch's own reading of a tip, off the truth: one rule, two copies
+    from pluggybot.humanoid.getup import tipped_past
+    from pluggybot.humanoid.policy import PITCH_RANGE
+    held = [0.0]
+    monkeypatch.setattr(life.body.mission, "_held_pitch", lambda: held[0])
+    rng, mat = np.random.default_rng(681), np.zeros(9)
+    for _ in range(200):
+      q = rng.normal(size=4)
+      q /= np.linalg.norm(q)
+      held[0] = rng.uniform(*PITCH_RANGE)
+      life.data.xquat[life.body.root] = q
+      mujoco.mju_quat2Mat(mat, q)
+      gravity = mat.reshape(3, 3).T @ np.array([0.0, 0.0, -1.0])
+      assert life._chassis_tilt() == pytest.approx(tipped_past(gravity, held[0]), abs=1e-9)
   finally:
     life.body.close()
 

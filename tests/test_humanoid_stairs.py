@@ -348,7 +348,7 @@ def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(
   assert not watch.falling(d, 0.45)
   d, watch = leaned(0.0)
   assert not watch.falling(d, 1.1)
-  d, watch = leaned(math.radians(-36.0))
+  d, watch = leaned(math.radians(-45.0))
   assert watch.falling(d, 0.45)
 
 

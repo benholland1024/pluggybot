@@ -795,10 +795,10 @@ class Body(abc.ABC):
   stuck_after_s: float
   #: The trunk's pitch forward that the posture its legs hold puts it at,
   #: rad: what a topple is read past (`TOPPLE_TILT_RAD`: the lifecycle's
-  #: `down`, and the death seam's for a body that cannot right itself).
-  #: 0 for a body that stands only upright; the humanoid's bow
-  #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
-  #: (#559).
+  #: `down`, and the death seam's for a body that cannot right itself), off
+  #: it or off upright, the nearer (P5). 0 for a body that stands only
+  #: upright; the humanoid's bow (`Reach.held_pitch`), whose deepest, 63
+  #: deg, is past the seam's 60 (#559).
   held_pitch: float
 
   @abc.abstractmethod

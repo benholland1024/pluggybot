@@ -604,13 +604,12 @@ save a filmstrip PNG named after the script.
   the LOWER sole, handed back once stood still; ⚠ A TIP IS READ OFF THE BOW
   THE LEGS HOLD AND OFF UPRIGHT, THE NEARER (#520, P5; `getup.tipped_past`,
   `Reach.held_pitch`, exactly upright at the stand; a posture leaning back
-  off itself): off upright alone the reach's deepest bows were falls (the
-  IMU is on the pelvis, under a waist that only turns), and off the bow
-  alone a trunk going back from a bow was taken barely behind upright and
-  the get-up ran the body backward on its feet (SimNotes, "A fall backward
-  out of a bow"); a forward fall from a bow is the collapse's to take (lying
-  on its face is 27 deg past the deepest bow). ⚠ The head is
-  charged on its own in training, or it struck at 5.5-6.9 m/s; the
+  off itself; SimNotes, "A fall backward out of a bow"): the IMU is on the
+  pelvis, under a waist that only turns, so off upright alone the reach's
+  deepest bows were falls, and off the bow alone a trunk going back from one
+  was a fall still in front of upright; a forward fall from a bow is the
+  collapse's to take (lying on its face is 27 deg past the deepest bow). ⚠
+  The head is charged on its own in training, or it struck at 5.5-6.9 m/s; the
   mission waits out a get-up before a walk takes the legs or the standing
   policy takes them back, and on standing forgets its ground map and
   starts its height again. `stuck_after_s` is

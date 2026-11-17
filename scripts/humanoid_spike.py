@@ -4217,8 +4217,8 @@ def fall_table(npz: str | None = None, jobs: int = 4, watch_s: float | None = No
   peak_tau = np.array([hm.CHOSEN.motor(j).peak_torque for j in hm.JOINT_NAMES])
   noload = np.array([hm.CHOSEN.motor(j).noload_speed for j in hm.JOINT_NAMES])
   print(f"FALLS, shoved {FALL_NS:g} N*s at the trunk each way, standing on a bare floor; the "
-        f"get-up policy or the limp drivers take over {math.degrees(FALL_TILT_RAD):.0f} deg past its "
-        "posture")
+        f"get-up policy or the limp drivers take over {math.degrees(FALL_TILT_RAD):.0f} deg off its "
+        "posture and upright both")
   print("  each part: the speed it first touched the floor at, m/s, and the hardest the floor "
         "pushed back, kN (MuJoCo's soft contact: an upper bound's shape, not a number to bank)")
   print("  gears past peak: joints whose torque through the gears passed their part's peak "
