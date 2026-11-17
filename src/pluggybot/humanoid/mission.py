@@ -49,7 +49,7 @@ from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandDriver, StandPolicy)
-from pluggybot.humanoid.reach import AT_EASE, Reach
+from pluggybot.humanoid.reach import AT_EASE, NOT_OUT, Reach
 from pluggybot.humanoid.scan import HeadScan
 from pluggybot.humanoid.senses import Noise
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
@@ -696,7 +696,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       # (`Reach._go_home`, #693: off the stand, one with none of it ahead
       # once it is home), and the trunk waited on still there,
       # `STAND_BACK_S` at most
-      if all(p in ("rest", "carried") for p in self.reach.phase.values()):
+      if all(p in NOT_OUT for p in self.reach.phase.values()):
         self.reach.hold_posture(0.0, 0.0)
       # ...each arm's way home over by its drivers -- home, or held where
       # something holds it (`Reach.HELD_S`, #693's family: read home by its

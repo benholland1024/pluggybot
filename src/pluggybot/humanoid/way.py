@@ -40,6 +40,7 @@ import math
 import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
+from pluggybot.humanoid.reach import NOT_OUT
 from pluggybot.mapping import optimistic
 from pluggybot.navigator import (ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, WAYPOINT_REACHED_M,
                                  Navigator)
@@ -169,7 +170,7 @@ class HumanoidWay:
     # ...a hand carried at its side is none (#682): it rests, and walks aside
     # carrying it, as every walk does -- but an arm left where its way home
     # was held (`Reach.HELD_S`) is one: an aside takes no arm home first
-    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
+    return any(p not in NOT_OUT for p in self.reach.phase.values())
 
   def _busy(self) -> bool:
     """Moving by more than a walk command: getting up, inside a walk of its

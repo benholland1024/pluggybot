@@ -10313,8 +10313,9 @@ legs over, and a reach planned its way out from the rest.
   takes no arm home first). With another robot by (`keep_out`) it is left
   held at once -- a way judged from the top of a raise would take the way
   that comes least near that robot rather than be refused, as a verb's must
-  (#678) -- and so is a raise its arm did not follow (`_raise_held`: its
-  grip more than `BLOCKED_M` short, held from above or under an edge).
+  (#678) -- and so is a raise its arm did not follow (`_raise_short`: its
+  grip more than `BLOCKED_M` short of it `BLOCKED_S` after its command
+  arrived, held from above or under an edge).
 - The stand's return waits on every arm at ease (`reach.AT_EASE`: rest,
   carried or held): kept out of it, an arm left held kept the robot bowed
   after the other arm's way home.

@@ -738,10 +738,11 @@ class Body(abc.ABC):
   def arm_held(self, side: str) -> bool:
     """Whether an arm's way home stopped where something holds it (#693's
     live family; `humanoid.reach.HELD_S`): its drivers read it off its rest
-    with its rest commanded, so it was lifted and sent home again, and held
-    again it was left there, pressing on nothing -- out, until a withdraw or
-    a walk sends it home again. A walk carries it as it is held and says
-    so (`steps._carried`'s `held`)."""
+    with its rest commanded, and -- raised and sent home again where it
+    could be, held again, or with another robot by, or its raise held too --
+    it was left there, pressing on nothing: out, until a withdraw or a walk
+    sends it home again. A walk goes with it as it is held and says so
+    (`steps._carried`'s `armHeld`)."""
 
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:

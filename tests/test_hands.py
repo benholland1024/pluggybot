@@ -900,8 +900,10 @@ def test_a_raise_its_arm_did_not_follow_is_left_held_there(monkeypatch):
   """#693b's second review: a raise runs as a retreat's line, which nothing
   blocks, and arrives by its command -- held from above, or under an edge, its
   arm pressed up at full stiffness and its way home would be judged from a
-  command the arm never reached. One whose grip, by its senses, is more
-  than `BLOCKED_M` from where the raise went is left held there."""
+  command the arm never reached. One whose grip, by its senses, stays more
+  than `BLOCKED_M` from where the raise went for `BLOCKED_S` after its
+  command arrived is left held there (the third review: judged at the very
+  tick, an arm only lagging its command would read held)."""
   from pluggybot.humanoid import reach as rc
   r = _stepped(_standing_reach())
   held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
@@ -911,11 +913,15 @@ def test_a_raise_its_arm_did_not_follow_is_left_held_there(monkeypatch):
   top = r.goal["left"].pos.copy()
   r.cmd["left"].pos = top.copy()
   r.sensed_grip["left"] = top - np.array([0.0, 0.0, rc.BLOCKED_M + 0.01])
-  assert r._raise_held("left")
+  assert r._raise_short("left")
   r.sensed_grip["left"] = top - np.array([0.0, 0.0, rc.BLOCKED_M - 0.01])
-  assert not r._raise_held("left")
-  # ...and the line's end takes the word: a raise held is left there
-  monkeypatch.setattr(r, "_raise_held", lambda side: True)
+  assert not r._raise_short("left")
+  # ...and the line's end takes the word, `BLOCKED_S` on: a raise held is left there
+  monkeypatch.setattr(r, "_raise_short", lambda side: True)
+  ticks = int(round(rc.BLOCKED_S / 0.01))
+  for _ in range(ticks - 1):
+    r._update(0.01)
+  assert r.phase["left"] == "retreat", "left held before its arm had `BLOCKED_S` to follow"
   r._update(0.01)
   assert r.held("left") and not r.homing["left"] and np.allclose(r.q_cmd["left"], held_at)
 

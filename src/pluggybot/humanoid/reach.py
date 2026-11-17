@@ -312,13 +312,18 @@ HELD_S = 0.5
 #: at most this many times a way home -- never with another robot by
 #: (`keep_out`): a way judged from the top would take the way that comes
 #: least near it rather than be refused, as a verb's must (#678) -- and a
-#: raise its arm did not follow is left held (`_raise_held`).
+#: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
+#: after its command arrived, is left held (`_raise_short`).
 LIFT_M, LIFTS = 0.05, 1
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
 #: (`HELD_S`) -- what the stand's return waits on (`_go_home`), and what a
 #: walk's hand-over and a restart's save let be.
 AT_EASE = ("rest", "carried", "held")
+#: ...and of an arm that is no hand out, for the walk's hand-over's let-go
+#: and for rest (`HumanoidWay._hand_out`): an arm left held is one -- an
+#: aside takes no arm home first.
+NOT_OUT = ("rest", "carried")
 #: The way OUT is judged so from its other end (`way_out`, #560): straight, a
 #: hanging hand at a table 13 cm out was driven into its top at 353-359 N.
 
@@ -1977,9 +1982,9 @@ class Reach:
     self.phase[side] = "held"
     return q
 
-  def _raise_held(self, side: str) -> bool:
-    """Whether a raise (`_homed`) ended with its arm short of it: its grip,
-    by its senses, more than `BLOCKED_M` from the command it walked to."""
+  def _raise_short(self, side: str) -> bool:
+    """Whether a raise (`_homed`) whose command has arrived has its arm
+    short of it: its grip, by its senses, more than `BLOCKED_M` from it."""
     c, at = self.cmd[side], self.sensed_grip[side]
     return (self.lifted[side] > 0 and not self.homing[side] and c is not None
             and at is not None and float(np.linalg.norm(at - c.pos)) > BLOCKED_M)
@@ -2009,8 +2014,7 @@ class Reach:
     # ...its grip where its drivers put it, on its model of itself as it
     # stands, its line straight up from there; then `_go_home` from the top
     sm = self._planner_model()
-    sm.q = self.self_model.q.copy()
-    sm.d.qpos[:] = self.self_model.d.qpos
+    self._pose_planner(sm, None)
     sm._set_arm(side, q)
     pos, rot = sm.grip_pose(side)
     self.cmd[side] = HandGoal(pos.copy(), rot.copy(), 1.0)
@@ -2532,11 +2536,14 @@ class Reach:
         if there and phase in ("approach", "pull"):
           self.phase[s] = "hold"
         elif there and phase == "retreat":
-          if self._raise_held(s):
+          if self._raise_short(s):
             # ...a raise its arm did not follow -- held from above, or under
-            # an edge -- is no start for a way home: left held where it is
-            self._ease(s)
-            sm._set_arm(s, self.q_cmd[s])
+            # an edge -- is no start for a way home: given `BLOCKED_S` to
+            # catch up, then left held where it is
+            self.held_for[s] += dt
+            if self.held_for[s] >= BLOCKED_S:
+              self._ease(s)
+              sm._set_arm(s, self.q_cmd[s])
           else:
             self._go_home(s)
       self.arms[s].command(self.q_cmd[s], sm.gravity(s), stiffness)
