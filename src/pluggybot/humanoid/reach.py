@@ -1155,6 +1155,8 @@ class Reach:
     self.allowed[side] = [tuple(float(v) for v in p_) for p_ in postures]
     self.left[side], self.looks[side], self.looking[side] = [], 0, False
     self.phase[side] = "move"
+    # ...a way home it cut short is over: no later rest reads it held
+    self.homing[side] = False
     return True
 
   def clear_way(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
@@ -1647,6 +1649,7 @@ class Reach:
     self.q_to[side] = np.asarray(q, dtype=float).copy()
     self.looking[side] = False
     self.phase[side] = "joints"
+    self.homing[side] = False
 
   def stiffen(self, side: str, stiffness: float) -> None:
     """The stiffness the hand's commands carry from now (a share of
@@ -1982,6 +1985,15 @@ class Reach:
     self.phase[side] = "held"
     return q
 
+  def _stand_at_ease(self) -> None:
+    """The stand a way home kept from the robot (`stand_home`, #693), asked
+    once every arm is at ease (`AT_EASE`) -- however the last came to it:
+    home, carried, or left held (#693b's fourth review: left held, a raise held
+    too, the stand never came and the robot stayed bowed)."""
+    if self.stand_home and all(p in AT_EASE for p in self.phase.values()):
+      self.stand_home = False
+      self.hold_posture(0.0, 0.0)
+
   def _raise_short(self, side: str) -> bool:
     """Whether a raise (`_homed`) whose command has arrived has its arm
     short of it: its grip, by its senses, more than `BLOCKED_M` from it."""
@@ -2009,6 +2021,7 @@ class Reach:
       return
     q = self._ease(side)
     if self.lifted[side] >= LIFTS or len(self.keep_out):
+      self._stand_at_ease()
       return
     self.lifted[side] += 1
     # ...its grip where its drivers put it, on its model of itself as it
@@ -2499,9 +2512,7 @@ class Reach:
             # ...a carry's way ends at its pose, never read home (#682)
             self.homing[s] = self.homing[s] and self.carry_q[s] is None
             # ...home: the stand its way home kept from it (`_go_home`)
-            if self.stand_home and all(p in AT_EASE for p in self.phase.values()):
-              self.stand_home = False
-              self.hold_posture(0.0, 0.0)
+            self._stand_at_ease()
       elif phase == "blocked":
         sm._set_arm(s, self.q_cmd[s])
         stiffness = self.cmd[s].stiffness
@@ -2543,6 +2554,7 @@ class Reach:
             self.held_for[s] += dt
             if self.held_for[s] >= BLOCKED_S:
               self._ease(s)
+              self._stand_at_ease()
               sm._set_arm(s, self.q_cmd[s])
           else:
             self._go_home(s)

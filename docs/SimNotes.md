@@ -10317,8 +10317,10 @@ legs over, and a reach planned its way out from the rest.
   grip more than `BLOCKED_M` short of it `BLOCKED_S` after its command
   arrived, held from above or under an edge).
 - The stand's return waits on every arm at ease (`reach.AT_EASE`: rest,
-  carried or held): kept out of it, an arm left held kept the robot bowed
-  after the other arm's way home.
+  carried or held), however the last came to it (`_stand_at_ease`): kept
+  out of it, or asked only at a way home's end at the rest, an arm left held
+  kept the robot bowed. An arm left held moves nothing, so the heading's
+  hold (#593) comes as the robot stands (`_busy(still=True)`).
 - A withdraw ends there, "held"; a later withdraw or walk sends the arm home
   again from where it is.
 - A walk's hand-over waits for each arm's way home to be over by its drivers

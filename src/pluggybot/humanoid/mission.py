@@ -491,7 +491,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     inside the very settle it waits out -- after a warp 2.36 deg off where
     from a boot 1.60 (`humanoid_drift_spike.py --still standup`)."""
     t = float(self.data.time)
-    if self._busy() or self.falls != self._falls_seen:
+    # ...an arm left where its way home was held moves nothing: no rest, but
+    # its heading held as it stands (#693b's fourth review: busy, it drifted)
+    if self._busy(still=True) or self.falls != self._falls_seen:
       self._moved_t, self._falls_seen = t, self.falls
       return False
     return t - max(self.last_motion_t, self._moved_t) >= HOLD_AFTER_S

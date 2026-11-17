@@ -425,6 +425,12 @@ def test_an_arm_left_held_is_saved_through_but_never_rested_with():
     body.mission.reach.phase["left"] = "held"
     assert not body.working
     assert body.mission._hand_out()
+    # ...but it moves nothing: the heading is held as the robot stands
+    # (#693b's fourth review: counted busy, the hold never came)
+    m = body.mission
+    assert m._busy() and not m._busy(still=True)
+    m._moved_t = m.last_motion_t = float(m.data.time) - 100.0
+    assert m._settled()
     assert {"homing", "held_for", "lifted"} <= set(rc.Reach.KEPT)
   finally:
     body.close()

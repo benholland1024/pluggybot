@@ -926,6 +926,29 @@ def test_a_raise_its_arm_did_not_follow_is_left_held_there(monkeypatch):
   assert r.held("left") and not r.homing["left"] and np.allclose(r.q_cmd["left"], held_at)
 
 
+def test_the_stand_a_way_home_kept_comes_when_the_last_arm_is_left_held(monkeypatch):
+  """#693b's fourth review: the stand a way home kept from the robot
+  (`stand_home`) came only at a way home's end at the rest -- an arm left
+  held there instead (its raises spent, or held too) left the robot bowed.
+  It comes once every arm is at ease, however the last came to it."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  _held_at_rest(r, "left", monkeypatch, lifts=0)
+  r.stand_home, r.postures = True, []
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and not r.stand_home and r.postures == [(0.0, 0.0, 0.0)]
+
+
+def test_a_new_move_ends_a_way_home_still_to_be_read():
+  """A way home cut short by a move of the arm's own (`set_joints`, a
+  reach) is over: no later rest reads it held."""
+  r = _stepped(_standing_reach())
+  r.homing["left"] = True
+  r.set_joints("left", r.rest["left"])
+  assert not r.homing["left"]
+
+
 def test_a_carrys_way_ends_at_its_pose_never_waiting_to_be_read_home():
   """A walk's hand-over takes a hand that holds to its carry pose by the way
   home's own walk (#682): that way ends "carried", at its pose, and is no way
