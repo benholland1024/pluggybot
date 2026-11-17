@@ -368,6 +368,30 @@ def test_what_the_model_is_shown_it_has_heard_and_nothing_else():
   assert life._heard_new, "a message the model was never shown"
 
 
+def test_a_failed_endpoint_never_makes_a_message_news_again():
+  """#518's review: a fallback put the news back, so with the endpoint
+  failing (offline, before its cooloff) every later ask ended a charge's
+  hold for an answer nobody gave -- and a fallback's order may unplug. The
+  message is shown at the next ask all the same. A policy's fallback (a
+  cooloff, a spent purse) still heard nothing, and keeps it news. Shown to
+  fail without the fix: a failure restored the flag."""
+  from test_overseer import FakeClient
+
+  class Down(FakeClient):
+    def create(self, **kwargs):
+      raise ConnectionError("the endpoint is down")
+  life = _minded()
+  life.overseer._client, life.overseer._client_ready = Down(None), True
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._heard_new
+  life.body.run(life._decide_routine())
+  assert ov.fallback_class(life.decisions[-1]["source"]) == "failure", life.decisions[-1]
+  assert not life._heard_new
+  assert life.overseer.can_ask(), "no cooloff yet: the hold would end again"
+
+
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():
   """The whole of the decided path: no walk, no dock, the charge on to full
   and its one undock at the end."""

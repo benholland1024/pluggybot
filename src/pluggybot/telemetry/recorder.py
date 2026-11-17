@@ -75,6 +75,9 @@ def mode_message(mode, t: float, held_s: float = 0.0,
   leaves it (rooftop-media-2026 #518): the header's list is the mode's at
   the CONNECT, so a link opened while paused named no `message`, and a site
   that may only narrow it held every visitor's message until the next run.
+  `serve.py` hands it; `run_demo` does not, and its `mode` carries none (a
+  demo's recording is replayed, never a live hub's list to widen;
+  protocol/README.md).
   """
   if mode is None:
     return None

@@ -52,8 +52,8 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  SAY_EVERY_S, THINK_SLICE_S, call_said, left_out_said, order_runnable,
-  say_again_in,
+  SAY_EVERY_S, THINK_SLICE_S, call_said, fallback_class, left_out_said,
+  order_runnable, say_again_in,
 )
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
@@ -6061,7 +6061,13 @@ class HubLifecycle:
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
-    if decision.scripted and len(self.true_deaths) == lives:
+    if (decision.scripted and len(self.true_deaths) == lives
+        and fallback_class(decision.source) != "failure"):
+      # A policy's fallback heard nothing, refused before anything stepped:
+      # what the ask was to show is news again. ⚠ NOT A FAILURE'S (#518's
+      # review): an endpoint that failed fails the next ask too until its
+      # cooloff, and every hold its news ended was a charge cut for an
+      # answer nobody gave; the next ask shows the message all the same.
       self._heard_new = self._heard_new or shown
       self._shown_visitors = shown_ids
     if len(self.true_deaths) != lives:
