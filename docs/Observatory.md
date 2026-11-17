@@ -10,6 +10,56 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A way home is over by its drivers: held, it is raised and sent home again, then left where it is held (#693's live family, P4, `loop-693b`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `91f1a7bd…`, 68,855
+characters, 17 sections, from `0ba46734…`'s 68,294 at `loop-staging`
+73f8daf; the session host's hello moves, sha1 `3cd41b6f…` from
+`39c0692a…`):
+- `withdraw`'s text, after "ok once your arm is home.", gains: "An arm that
+  something holds on its way home -- your hand come down on a counter's top
+  -- is raised 5 cm and sent home again, unless another robot stands near
+  you, and still held, it stays where it is held, pressing on nothing, and
+  it reads false saying so." Before, nothing: an arm held read "did not get
+  home" after 15 s of pressing on.
+- YOUR BODY's paragraph on walks, after "If what it holds did not come with
+  it, the hand lets go and comes home.", gains: "An arm that something holds
+  on its way home is raised 5 cm and sent home again, unless another robot
+  stands near you, and still held, it stays where it is held, pressing on
+  nothing: the walk goes with it there and says so in its report
+  (`armHeld`), and a `withdraw` or the next walk sends it home again."
+  Before, nothing.
+- A walk verb's report (`step`, `drive_to`, `face`, `find`) gains
+  `armHeld`, the hands left held, only where there is one. A held
+  `withdraw`'s words are unchanged ("your left arm did not get home:
+  something holds it there"), and come at once rather than after
+  `RELEASE_S` (15 s).
+
+**The change** (`Reach.HELD_S`, `LIFT_M`, `LIFTS`, `_homed`, `held`,
+`homing`; `HumanoidBody.release_routine`; `HumanoidMission.to_walk_routine`;
+`Body.arm_held`; `steps._carried`; SimNotes, "A way home something holds").
+A way home ended "rest" once its command reached the rest, whatever its
+drivers read, and an arm held on a counter's top pressed on toward it with
+no end. Now one its drivers read off its rest for 0.5 s with its rest
+commanded is held: its command is set where they read it, it is raised 5 cm
+and sent home again once -- never with another robot by, nor from a raise
+its arm did not follow -- and held again it is left there, pressing on
+nothing. A withdraw ends there; a walk's hand-over waits for each way home
+to be over by its drivers and goes with an arm left held. An arm left held
+is out: the world saves through it, but the robot does not rest with it.
+Ben's bar on one pod beside 73f8daf: 608 of 736 passes where 605, flights
+with a fall 5 where 10 -- held out (32-127) every job the base's but the
+cube's 64 where 61, its 4 falls gone; the tour's slowest passes the same.
+Of the 11-15 wake's family, `drawer_g22`'s withdraw no longer falls (its
+flight falls later, in a `move_hand` of its third try) and `drawer_g20`
+falls on neither tree; P3's five `door_p3` falls are not this rule's (#722,
+#719 and the way home judged without the counter: SimNotes).
+
+**What to watch.** Falls within 5 s of a `withdraw` at the counter, and of
+a walk begun with a hand out there (#693's live box); how often a withdraw
+reads "held", and a walk report says `armHeld`; whether an arm left held is
+withdrawn again by the robots or walked with.
+
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294
