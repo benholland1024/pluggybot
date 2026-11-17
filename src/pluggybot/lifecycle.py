@@ -1528,12 +1528,17 @@ class HubLifecycle:
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and where the posture its legs
     hold puts it (`Body.held_pitch`): the world's up, but for a humanoid
-    bowed -- whose deepest bow, 63 deg off upright, is no topple (#559)."""
+    bowed -- whose deepest bow, 63 deg off upright, is no topple (#559) --
+    off the bow or off upright, the nearer, as its fall watch reads a tip
+    (`getup.tipped_past`, P5)."""
     w, x, y, z = self.body.orientation()
     # the world's up in the chassis's frame, R's third row, against the
     # posture's: (-sin p, 0, cos p), pitched p forward (`getup.tipped`)
     p = self.body.held_pitch
-    up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(p) - 2.0 * (x * z - w * y) * math.sin(p)
+    level = 1.0 - 2.0 * (x * x + y * y)
+    up = level * math.cos(p) - 2.0 * (x * z - w * y) * math.sin(p)
+    if p > 0.0:
+      up = max(up, level)
     return math.acos(max(-1.0, min(1.0, up)))
 
   def down(self) -> bool:

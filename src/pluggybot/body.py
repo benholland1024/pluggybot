@@ -785,8 +785,8 @@ class Body(abc.ABC):
   rights_itself: bool
   #: The falls its own fall watch has taken, counted up: what a fall IS is
   #: the body's to say (#493's grader asks) -- the humanoid's trunk 35 deg
-  #: past the postures between upright and the one its legs hold, by its
-  #: IMU, or its pelvis sunk
+  #: off the posture its legs hold and off upright both, by its IMU, or its
+  #: pelvis sunk
   #: (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that

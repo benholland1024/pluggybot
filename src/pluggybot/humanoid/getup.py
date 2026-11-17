@@ -9,29 +9,25 @@ moved it.
 
 It takes a FALLING body over: the policy that had the legs (standing or
 walking) hands it the legs and the arms once the trunk has tipped
-`FALL_TILT_RAD` past the postures between upright and the one those legs
-hold, by the IMU (`tipped_past`), or the pelvis has sunk under
-`COLLAPSED_M` over the sole it stands on by its own model of itself
-(`FallWatch`: shoved hard from the front, the standing policy folded
-straight down into a squat, tilted 32 deg, and its hands struck the floor)
--- trained from bodies tipping over at a shove's speed, it lands on its
+`FALL_TILT_RAD` off the posture those legs hold and off upright both, by
+the IMU (`tipped_past`), or the pelvis has sunk under `COLLAPSED_M` over
+the sole it stands on by its own model of itself (`FallWatch`: shoved hard
+from the front, the standing policy folded straight down into a squat,
+tilted 32 deg, and its hands struck the floor) -- trained from bodies
+tipping over at a shove's speed, it lands on its
 hands and knees rather than its head -- and it hands them back once the
 robot stands (`stood`): upright, its pelvis at the stand's height over that
-sole, and still, for `STOOD_S`. ⚠ PAST THE POSTURE, NEVER PAST UPRIGHT
-(#520): the IMU is on the pelvis, under a waist that only turns, so a bow
-the standing policy is asked tilts the IMU by the whole bow -- read off upright,
-a reach to a low shelf (0.8 rad) or the floor (1.1) was a fall, and the
-get-up took the joints. ⚠ NOR BETWEEN THE TWO: a trunk going back from its
-bow is tipped off upright once it is behind it, as a fall from the stand
-is -- taken 35 deg behind the look's 26 deg bow, 2-11 deg behind upright,
-the get-up ran nine falls 1.6-2.7 m backward across the lobby, into the
-wall behind in three and to a stuck death in one; taken 35 deg behind
-upright, it laid each on its back and stood it in 2.5-2.7 s, 1 m back
-(SimNotes, "A fall backward out of a bow"). ⚠ THE LOWER SOLE, NEVER BOTH:
-standing across two treads, the soles' middle is half a riser under the
-stand, and the get-up would never hand back; and a foot lifted on a 0.22 m
-flight brought the middle within 0.10 m of a collapse (the lower sole,
-0.19).
+sole, and still, for `STOOD_S`. ⚠ OFF THE BOW AND OFF UPRIGHT, THE NEARER
+(#520, P5): the IMU is on the pelvis, under a waist that only turns, so a
+bow the standing policy is asked tilts the IMU by the whole bow -- read off
+upright alone, a reach to a low shelf (0.8 rad) or the floor (1.1) was a
+fall, and the get-up took the joints; read off the bow alone, a trunk going
+back from the look's 26 deg bow was a fall 9 deg behind upright, and the
+get-up ran the body backward on its feet into the wall behind (SimNotes, "A
+fall backward out of a bow"). ⚠ THE LOWER SOLE, NEVER BOTH: standing
+across two treads, the soles' middle is half a riser under the stand, and
+the get-up would never hand back; and a foot lifted on a 0.22 m flight
+brought the middle within 0.10 m of a collapse (the lower sole, 0.19).
 """
 
 import math
@@ -46,12 +42,12 @@ from pluggybot.humanoid.senses import JointSense
 from pluggybot.humanoid.drivers import Drivers
 
 GETUP_NPZ = Path(__file__).resolve().parents[3] / "models" / "humanoid_getup.npz"
-#: The trunk tipped this far past the postures between upright and the one
-#: its legs hold, by the IMU, is a fall the get-up policy takes over: the
-#: standing policy stood through shoves that tipped it 15 deg
-#: (`humanoid_spike.py --shove`), and by 35 deg it is going over. A bow's
-#: trunk follows the posture it is shown within 2.5 deg on its way down and
-#: 1.5 on its way back up.
+#: The trunk tipped this far off the posture its legs hold and off upright
+#: both, by the IMU, is a fall the get-up policy takes over: the standing
+#: policy stood through shoves that tipped it 15 deg (`humanoid_spike.py
+#: --shove`), and by 35 deg it is going over. A bow's trunk follows the
+#: posture it is shown within 2.5 deg on its way down and 1.5 on its way
+#: back up.
 FALL_TILT_RAD = math.radians(35.0)
 #: ...or the pelvis this low over the sole it stands on, m: the standing
 #: policy's deepest crouch holds it at 0.48 (`policy.HEIGHT_RANGE`).
@@ -164,13 +160,13 @@ def tipped(gravity_b: np.ndarray, pitch: float) -> float:
 
 
 def tipped_past(gravity_b: np.ndarray, pitch: float) -> float:
-  """How far the trunk has tipped past every posture between upright and
-  one pitched `pitch` forward, rad (`FallWatch`): `tipped` off the nearest
-  of them, its own pitch off the IMU held to that span. Beyond the posture,
-  `tipped` off it, to the bit; on the far side of upright, the IMU's tilt;
-  between the two, its roll alone. At a pitch of 0, the IMU's tilt."""
-  own = math.atan2(float(gravity_b[0]), -float(gravity_b[2]))
-  return tipped(gravity_b, min(max(own, min(0.0, pitch)), max(0.0, pitch)))
+  """How far the trunk has tipped past a bow pitched `pitch` forward and
+  past upright both, rad (`FallWatch`): `tipped` off the nearer of the two,
+  so never more than off the bow. A posture leaning back (`pitch` <= 0) is
+  read off itself, to the bit -- at 0, the IMU's tilt."""
+  if pitch <= 0.0:
+    return tipped(gravity_b, pitch)
+  return min(tipped(gravity_b, pitch), tipped(gravity_b, 0.0))
 
 
 def over_lower_sole(sm: SelfModel, q: np.ndarray, gravity_b: np.ndarray) -> float:

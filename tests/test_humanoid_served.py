@@ -581,7 +581,9 @@ def test_a_humanoids_look_is_taken_from_its_head():
 def test_the_death_seam_reads_a_humanoids_tip_off_the_bow_its_fall_watch_reads(monkeypatch):
   """A reach's deepest bow (63 deg) is past the seam's topple (60): the seam
   reads the pelvis off the bow its legs hold (`Body.held_pitch`), which is
-  its fall watch's own (`HumanoidMission._held_pitch`)."""
+  its fall watch's own (`HumanoidMission._held_pitch`) -- and off upright
+  where that is nearer, as the watch reads a tip (P5): a trunk thrown back
+  upright under that bow is no topple, and one 61 deg behind upright is."""
   life = _humanoid(near_field=False)
   try:
     bow = math.radians(63.0)
@@ -589,6 +591,11 @@ def test_the_death_seam_reads_a_humanoids_tip_off_the_bow_its_fall_watch_reads(m
     assert life.down(), "the walker stands upright"
     monkeypatch.setattr(life.body.mission, "_held_pitch", lambda: bow)
     assert life.body.held_pitch == bow and not life.down()
+    life.data.xquat[life.body.root] = (1.0, 0.0, 0.0, 0.0)
+    assert not life.down()
+    back = math.radians(-61.0)
+    life.data.xquat[life.body.root] = (math.cos(back / 2), 0.0, math.sin(back / 2), 0.0)
+    assert life.down()
   finally:
     life.body.close()
 

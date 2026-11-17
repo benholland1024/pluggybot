@@ -213,8 +213,8 @@ procedure's run where it comes, an `if`'s test or not (#671; Overseer.md
 failed, on a body still getting up. Said beside, and
 judged by nothing: its worst tilt (`Body.orientation`). What a fall is,
 is the body's to say, so the grader names none: the humanoid's watch is its
-trunk 35 deg past the postures between upright and the one its legs hold,
-by its IMU, or its pelvis sunk -- so a bow its reach asks is no fall (#520).
+trunk 35 deg off the posture its legs hold and off upright both, by its
+IMU, or its pelvis sunk -- so a bow its reach asks is no fall (#520).
 The numbers are judged as measured and only shown
 rounded; the call is wherever the attempt ended (Evaluation.md §4); the
 reason never carries the catch, whose number is secret on the row.

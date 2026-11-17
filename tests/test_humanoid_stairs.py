@@ -305,12 +305,11 @@ def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(
   # The lobby (#679's comment of 11-15): its head on a wall it had bowed
   # into, the trunk was thrown back from a 26 deg bow to 12.5 deg behind
   # upright, 38 deg off the bow, and the watch handed the body to the
-  # get-up there. A trunk is tipped past every posture between upright and
-  # the one its legs hold: between the two by its roll alone, behind
-  # upright by its tilt, past the bow as it always was -- and at the stand
-  # and under the walker, the IMU's tilt to the bit. Never a fall the bow's
-  # own reading would not call one: a flight that falls nowhere today is
-  # the same flight, bit for bit.
+  # get-up there. A trunk is tipped off its bow and off upright both, the
+  # nearer of the two -- so never more than off the bow, and a flight that
+  # falls nowhere today is the same flight, bit for bit -- and a posture
+  # leaning back off itself; at the stand and under the walker, the IMU's
+  # tilt to the bit.
   from pluggybot.humanoid.getup import FALL_TILT_RAD, FallWatch, tipped, tipped_past
   from pluggybot.humanoid.policy import PITCH_RANGE, TrunkSense
   from pluggybot.humanoid.senses import JointSense
@@ -320,25 +319,19 @@ def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(
     for own in (0.0, -0.218, -0.6):
       g = _turn((0.0, 1.0, 0.0), own).T @ down
       assert tipped_past(g, pitch) == pytest.approx(-own, abs=1e-9), (pitch, own)
-    rolled = _turn((1.0, 0.0, 0.0), 0.3) @ _turn((0.0, 1.0, 0.0), pitch / 2)
-    assert tipped_past(rolled.T @ down, pitch) == pytest.approx(0.3, abs=1e-9)
-    for own in (pitch + 0.1, pitch + 0.7):
-      g = _turn((0.0, 1.0, 0.0), own).T @ down
-      assert tipped_past(g, pitch) == tipped(g, pitch)
+    for own, nearer in ((0.2 * pitch, 0.0), (0.8 * pitch, pitch), (pitch + 0.1, pitch),
+                        (pitch + 0.7, pitch)):
+      g = (_turn((1.0, 0.0, 0.0), 0.3) @ _turn((0.0, 1.0, 0.0), own)).T @ down
+      assert tipped_past(g, pitch) == tipped(g, nearer), (pitch, own)
   rng = np.random.default_rng(679)
-  for _ in range(100):
+  for _ in range(200):
     q = rng.normal(size=4)
     att = Attitude(q / np.linalg.norm(q))
-    assert tipped_past(att.matrix().T @ down, 0.0) == att.tilt()
-  near = 0
-  for _ in range(4000):
-    q = rng.normal(size=4)
-    g = Attitude(q / np.linalg.norm(q)).matrix().T @ down
+    g = att.matrix().T @ down
+    assert tipped_past(g, 0.0) == att.tilt()
     pitch = rng.uniform(*PITCH_RANGE)
-    if tipped(g, pitch) <= FALL_TILT_RAD:
-      near += 1
-      assert tipped_past(g, pitch) <= tipped(g, pitch), pitch
-  assert near > 100
+    assert tipped_past(g, pitch) <= tipped(g, pitch)
+    assert tipped_past(g, -0.05) == tipped(g, -0.05)
   model, _ = head
 
   def leaned(pitch):

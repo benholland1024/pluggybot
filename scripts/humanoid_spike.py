@@ -3931,7 +3931,8 @@ def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
 # driven back against its part's no-load speed (back-driven past it, a
 # motor pumps the bus). Three ways to
 # fall: the standing policy keeps the legs; the drivers go limp once the
-# trunk has tipped `getup.FALL_TILT_RAD` past its posture; or the get-up policy takes
+# trunk has tipped `getup.FALL_TILT_RAD` past its posture and upright both
+# (`getup.tipped_past`); or the get-up policy takes
 # the legs and arms there (`humanoid.getup`), and gets up.
 
 from pluggybot.humanoid.getup import (COLLAPSED_M, FALL_TILT_RAD, GETUP_NPZ,  # noqa: E402
@@ -3994,9 +3995,13 @@ class StuckClock:
 
 def _down_now(d, root: int, pitch: float) -> bool:
   """The trunk past `TOPPLE_TILT_RAD` off a posture pitched `pitch` forward
-  (`HubLifecycle._chassis_tilt`, off the truth)."""
+  and, for a bow, off upright both (`HubLifecycle._chassis_tilt`, off the
+  truth)."""
   w, x, y, z = d.xquat[root]
-  up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(pitch) - 2.0 * (x * z - w * y) * math.sin(pitch)
+  level = 1.0 - 2.0 * (x * x + y * y)
+  up = level * math.cos(pitch) - 2.0 * (x * z - w * y) * math.sin(pitch)
+  if pitch > 0.0:
+    up = max(up, level)
   return math.acos(max(-1.0, min(1.0, up))) >= TOPPLE_TILT_RAD
 
 
@@ -4793,9 +4798,9 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
                    watch_s: float | None = None) -> dict:
   """The robot on a bare floor settled in posture `held` (its reach holding
   it, as a plan's posture is), shoved `way` at `ns` N*s and watched
-  `BOW_WATCH_S`: when each check fires -- the tilt past the postures
-  between upright and the one held (the watch's), off the posture alone
-  (#520's), off upright (the watch's before it), the collapse -- what struck
+  `BOW_WATCH_S`: when each check fires -- the tilt off the posture held and
+  off upright both (the watch's), off the posture alone (#520's), off
+  upright alone (the watch's before it), the collapse -- what struck
   the floor first, a hand aside, and when, and the head's speed into it;
   whether it fell, by our grading (a part struck, or its pelvis 0.15 m under
   where it held); and `served`, the checks handing the fall to the get-up
@@ -4896,8 +4901,8 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4,
         f"at {', '.join(f'{ns:g}' for ns in BOW_NS)} N*s. On the standing policy alone, graded by "
         "us: the falls, which check would have taken each first, how long before a part but a "
         "hand struck the floor, and the shoves it stood through that a check took for a fall -- "
-        "the tilt past the postures between upright and the one held (the watch), past that "
-        "posture alone (#520's watch) and off upright (the watch before it). As served, "
+        "the tilt off the posture held and off upright both (the watch), off that posture "
+        "alone (#520's watch) and off upright alone (the watch before it). As served, "
         "the checks handing each fall to the get-up policy: stood, s from the shove; and the "
         "head into the floor, m/s, alone and served")
   print(f"{'posture':>14s}{'falls':>7s}{'first: tilt, collapse':>23s}{'ahead, s':>11s}"
@@ -4926,7 +4931,7 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4,
   missed = [r for r in alone if r["fell"] and r["tilt_s"] is None and r["collapse_s"] is None]
   most = max((r["max_tip"] for r in alone if not r["fell"]), default=0.0)
   print(f"  falls neither check took: {len(missed)}; the most a shove it stood through tipped it "
-        f"past its postures: {math.degrees(most):.1f} deg, against the watch's "
+        f"past its posture and upright: {math.degrees(most):.1f} deg, against the watch's "
         f"{math.degrees(FALL_TILT_RAD):.0f}")
   struck = {}
   for r in rows:

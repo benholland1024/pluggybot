@@ -1600,7 +1600,7 @@ class Reach:
     at the deepest bow the policy trained on (`PITCH_RANGE`): taken off
     there too, an 8 s stand's trim (1.3 deg) read the floor's held bow
     2.3 deg tipped, not 1.5. Exactly 0 at the stand. The fall watch reads
-    a tip off it (`getup.FallWatch`, #520)."""
+    a tip off it or off upright, the nearer (`getup.FallWatch`, #520)."""
     shown = self.stand.goal if self.stand.settled else self.stand.posture
     plan = float(self.posture[1])
     carried = min(max(plan + float(self.trim[1]), PITCH_RANGE[0]), PITCH_RANGE[1]) - plan
