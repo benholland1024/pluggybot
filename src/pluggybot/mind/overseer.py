@@ -1082,13 +1082,14 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
 }
-#: ...and in any of THOSE, an object's included, ANY field's name, everyday
-#: or coined, that the form's own separators cling to (`,` `:` and its
-#: braces): `,intend` and `tell:` in `say` are the form leaking into a
+#: ...and in any of THOSE, an object's content included, ANY field's name,
+#: everyday or coined, that the form's own separators cling to (`,` `:` and
+#: its braces): `,intend` and `tell:` in `say` are the form leaking into a
 #: field, never a sentence. Rowan said `,intend` to everyone
 #: (rooftop-media-2026 #518, 2026-11-15 16:00 UTC): `intend` is an everyday
-#: word. ⚠ Not a quote or a bracket alone, a sentence's or a title's
-#: (`"Station"`), and not "Done!".
+#: word. ⚠ Never a label (a ticket's title, a finding's topic or method:
+#: "Station:" may head a ticket), nor a quote or a bracket alone, a
+#: sentence's or a title's (`"Station"`), nor "Done!".
 FORM_MARKS = ",:{}"
 
 
@@ -1153,7 +1154,8 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or (sub is None and _word(text) in COINED) or _form_name(text)
+          or (sub is None and _word(text) in COINED)
+          or (_form_name(text) and (sub is None or sub in PLACEHOLDER_OBJECTS[name][0]))
           or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
@@ -4305,12 +4307,15 @@ class Overseer:
 
   def can_ask(self) -> bool:
     """Would a decision started now go to the model, as far as this side can
-    tell? Not with no client, a spent budget or allowance, a cooloff or a
-    call still out; an endpoint that does not answer is found only by
-    asking. `_refuse`'s gates, read and never moved (its idle-run throttle
-    resets when it fires, and is left to it)."""
-    return (self.client is not None and not self._in_flight
+    tell? Not with no client, a spent budget or allowance, the idle-run
+    throttle due, a cooloff or a call still out; an endpoint that does not
+    answer is found only by asking. `_refuse`'s gates, read and never moved
+    (the throttle resets when it fires)."""
+    with self._lock:
+      in_flight = self._in_flight
+    return (self.client is not None and not in_flight
             and self.budget_left() > 0 and self._allowance_ok()
+            and self._idle_run < MAX_IDLE_RUN
             and self.clock() >= self._cooloff_until)
 
   @property

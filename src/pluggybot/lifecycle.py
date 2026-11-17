@@ -1158,8 +1158,9 @@ class HubLifecycle:
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
-    #: ...and whether one has arrived since the robot last decided, which a
-    #: charge's hold ends on (`_spoken_to`): the inbox's, so as it is not kept.
+    #: ...and whether one has arrived since the model last answered, which
+    #: a charge's hold ends on (`_spoken_to`): the inbox's, so as it is not
+    #: kept.
     self._heard_new = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
@@ -2670,7 +2671,7 @@ class HubLifecycle:
 
   @property
   def _spoken_to(self) -> bool:
-    """Has a visitor's message arrived since the robot last decided, an
+    """Has a visitor's message arrived since the model last answered, an
     `ask` waiting and a mind there to answer? A charge's hold ends on it
     with its plug in (Ben, 2026-11-16: a robot may answer while it charges;
     rooftop-media-2026 #518, Overseer.md §10), and the mind is asked plugged
@@ -2984,11 +2985,13 @@ class HubLifecycle:
             self._bank(scoring.score_charge(self, before))
           return
         if self._spoken_to:
+          # ⚠ NOTHING BANKED: the charge goes on, and a row cut at a chat
+          # would read as a charge that failed (`CHARGE_OK_FRAC`), in the
+          # observatory and in the robot's History. Its next row starts
+          # where a `charge` takes it up.
           self._say(f"CHARGE: a message came in at {self.battery.fraction:.0%} -- "
                     "my plug stays in while I answer",
                     doing="CHARGE: a message came in -- my plug stays in")
-          if self.data.time > t0:
-            self._bank(scoring.score_charge(self, before))
           return
         yield from self.body.dock_hold_routine(0.25)
         if not self.charging_now:
@@ -6030,7 +6033,6 @@ class HubLifecycle:
     pause it was avoiding.
     """
     self.state = "DECIDE"
-    self._heard_new = False                 # what it is shown, it has heard
     self._asked_by = dict(asked_by or {"event": "loop"})
     state = overseer_context(self)
     if self.mode is not None and not self.mode.thinking:
@@ -6048,6 +6050,9 @@ class HubLifecycle:
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
+    if not decision.scripted:
+      # ...what the model was shown, it has heard; a fallback heard nothing
+      self._heard_new = False
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
       # or an unpaid bill lands mid-think): the answer is its own, and none

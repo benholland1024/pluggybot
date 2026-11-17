@@ -227,6 +227,9 @@ def test_a_message_ends_a_charges_hold_with_its_plug_in_so_the_mind_answers():
   assert life.queued_row == ev.Row(event="message_received", action=ev.ASK), \
     "the ask is the loop's to run"
   assert any("a message came in at 40%" in ln for ln in life.log), life.log[-3:]
+  # ...and NOTHING BANKED (found in review): a row cut at a chat read as a
+  # charge that failed (`CHARGE_OK_FRAC`), in History too
+  assert not [v for v in life.verdicts if v["task"] == "charge"]
 
 
 def test_a_message_behind_a_periodic_ask_still_ends_the_hold():
@@ -250,16 +253,41 @@ def test_a_message_behind_a_periodic_ask_still_ends_the_hold():
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
 
-def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish():
-  """Cooling off, its purse spent, the switch on `scripted`: the answer is
-  a fallback's, whose order may walk off with a part-charged pack, and
-  nobody answers the visitor (found in review). The hold goes on."""
+@pytest.mark.parametrize("refusing", ["cooloff", "idle-run"])
+def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish(refusing):
+  """Cooling off, the idle-run throttle due, its purse spent, the switch on
+  `scripted`: the answer is a fallback's, whose order may walk off with a
+  part-charged pack, and nobody answers the visitor (found in review, the
+  throttle in the second). The hold goes on."""
   from pluggybot.mind import events as ev
   life = _minded(ev.Row(event="message_received", action=ev.ASK))
-  life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  if refusing == "cooloff":
+    life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  else:
+    life.overseer._idle_run = ov.MAX_IDLE_RUN
   _say(life)
   life.body.run(life.charge_routine())
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+
+
+def test_a_fallback_has_not_heard_the_message_and_a_model_has():
+  """A message a fallback answered (a cooloff, a spent purse) is still
+  unheard: a later charge's hold ends on it once the model can be asked
+  (found in review: cleared by any decision, the visitor waited out the
+  charge). The model's own answer has heard it."""
+  life = _minded()
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._heard_new
+  life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  life.body.run(life._decide_routine())
+  assert life.decisions[-1]["source"].startswith("fallback"), life.decisions[-1]
+  assert life._heard_new, "a fallback heard nothing"
+  life.overseer._cooloff_until = 0.0
+  life.body.run(life._decide_routine())
+  assert not life.decisions[-1]["source"].startswith("fallback"), life.decisions[-1]
+  assert not life._heard_new
 
 
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():

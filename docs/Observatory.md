@@ -30,20 +30,22 @@ visitors does:
   deployed before it, this period's sim changes nothing a visitor sees.
 - **A charge's hold ends on a visitor's message** (`HubLifecycle._spoken_to`,
   `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a message
-  has come since the robot last decided, with an ask waiting in the map's
+  has come since the model last answered, with an ask waiting in the map's
   slot (any: behind a periodic ask, the message's own row fails `busy`) and
-  a model that would be asked (no cooloff, budget or purse refusing, the
-  switch on `llm`), the hold ends with the plug in and what it got banked,
-  and the loop asks at once, the robot plugged in as at a run's end (#654). So
-  a `charge` row is cut in two where a message came, a narration line says
+  a model that would be asked (no cooloff, budget, purse or idle-run
+  throttle refusing, the switch on `llm`), the hold ends with the plug in,
+  nothing banked, and the loop asks at once, the robot plugged in as at a
+  run's end (#654). So a `charge` row starts where a `charge` decided after
+  the message took the charge up (the part before it is in no row), a
+  narration line says
   "CHARGE: a message came in at N% -- my plug stays in while I answer",
   and the robot's next turn is asked by `message_received` while it is
   plugged in. Before, the ask waited for the charge's end: 43 minutes once
   on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
   decision to the next.
 - **A field's name with the form's separators on it reads as empty** in
-  any field a placeholder can stand in, an object's content included
-  (`overseer.FORM_MARKS`: `,` `:` and braces; `_form_name`): Rowan said
+  a field or an object's content, never a label (`overseer.FORM_MARKS`:
+  `,` `:` and braces; `_form_name`): Rowan said
   `,intend` to everyone at 2026-11-15 16:00 UTC. Such a `say` is said to
   no one now, and the answer's `left_out` and History line say it; `tell:`
   in a `say`, which stood since #462's review, goes too. "Done!", a bare
@@ -52,9 +54,9 @@ visitors does:
 **What to read off it.** A message's wait from `pw_messages` (`createdAt`
 to `deliveredAt` and `settledAt`; ⚠ `deliveredAt` is the LAST delivery's,
 overwritten by each re-delivery, and `deliveries` counts the flushes): at a
-wake none should wait for a run's start. Charges cut by a message are the
-`charge` rows ending under `CHARGED` with the plug still in and a
-`message_received` decision next.
+wake none should wait for a run's start. A charge's hold a message ended
+is a `CHARGE: a message came in` narration line with a decision asked by
+`message_received` after it, the plug still in.
 
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 

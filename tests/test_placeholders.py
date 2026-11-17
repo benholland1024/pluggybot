@@ -157,7 +157,7 @@ def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
   assert _validate(_quiet(say="say")).say == "", "its own name is still one"
 
 
-def test_a_fields_name_with_the_forms_punctuation_on_it_is_empty_anywhere():
+def test_a_fields_name_with_the_forms_separators_on_it_is_empty_in_a_field_or_its_content():
   """rooftop-media-2026 #518: Rowan's line to everyone at 2026-11-15 16:00
   UTC was `,intend` -- the next field's name with a comma before it -- and it
   went out to every visitor, because `intend` is an everyday word, judged
@@ -179,6 +179,10 @@ def test_a_fields_name_with_the_forms_punctuation_on_it_is_empty_anywhere():
   assert _validate(_quiet(say="Note.")).say == "Note."
   assert _validate(_quiet(lookup='"Station"')).lookup == '"Station"'
   assert _validate(_quiet(say="[note]")).say == "[note]"
+  # ...and a label is never judged so: "Station:" may head a ticket
+  d = _validate(_quiet(ticket={"kind": "question", "title": "Station:",
+                               "text": "the station's cup holds its plug loosely"}))
+  assert d.ticket["title"] == "Station:" and d.left_out is None
 
 
 def test_a_quote_of_a_findings_name_takes_the_finding_out():

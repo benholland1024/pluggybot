@@ -1703,7 +1703,8 @@ offers were `take_points`, the harm kind.
    make an answer filled and leave out the `done` it meant. ⚠ But any field's
    name with the form's own separators on it (`FORM_MARKS`: `,` `:` and the
    braces) is the form leaking into a field, never a sentence, and reads as
-   empty wherever a placeholder can stand, an object's content included:
+   empty in a field or an object's content, never a label (a ticket's
+   title, a finding's topic or method: "Station:" may head a ticket):
    Rowan said `,intend` to everyone on 2026-11-15 at 16:00 UTC, the next
    field's name with a comma before it (rooftop-media-2026 #518), and its
    `say` "tell:" (below, filler) goes too. "Done!", a bare `note`, a quoted
@@ -2886,14 +2887,18 @@ carries `accepts` as the switch leaves it (protocol/README.md). And a
 43 minutes on 10-29 (no decision in between, the pack at 0.89 after);
 charges on 11-07 and 11-08 ran 74 and 85 minutes from the decision to the
 next. A charge's hold now ends with its plug in once a message has come
-since the robot last decided, an ask is waiting -- any: with a periodic
-ask in the map's one slot, the message's own row fails `busy` -- and the
-model would be asked (`HubLifecycle._spoken_to`, `Overseer.can_ask`; Ben,
-2026-11-16: a robot may answer while it charges); a fallback's order could
-walk off with a part-charged pack for an answer nobody gives. The mind is
-asked plugged in, as at a run's end (#654): a `charge` goes straight on,
-what stands still leaves the plug in, and what moves takes it out first.
-The walk to the station and a wait for a taken one still hold the ask.
+since the model last answered (a fallback heard nothing), an ask is
+waiting -- any: with a periodic ask in the map's one slot, the message's
+own row fails `busy` -- and the model would be asked
+(`HubLifecycle._spoken_to`, `Overseer.can_ask`, the idle-run throttle
+among its gates; Ben, 2026-11-16: a robot may answer while it charges); a
+fallback's order could walk off with a part-charged pack for an answer
+nobody gives. Nothing is banked there: a row cut at a chat would read as a
+charge that failed (`CHARGE_OK_FRAC`), and the next row starts where a
+`charge` takes it up. The mind is asked plugged in, as at a run's end
+(#654): a `charge` goes straight on, what stands still leaves the plug in,
+and what moves takes it out first. The walk to the station and a wait for
+a taken one still hold the ask.
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,

@@ -488,21 +488,6 @@ class FrameBuilder:
     log = changelog.current()
     return [log.message(t)] if log.entries else []
 
-  def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
-    """The operator's mode, as its own message (0.12.0, issue #37).
-
-    ⚠ This exists because a PAUSED robot emits no frames. Frames are due on
-    SIM time and a paused robot steps no physics, so the block that carries
-    `mode` in every other state is exactly the block that stops arriving in
-    the one state somebody needs to see. The heartbeat is what keeps "the
-    operator paused it" distinguishable from "the sim died" -- the `accepts`
-    lesson, in the version where the whole point is that somebody notices.
-
-    None when there is no switch at all, which is every demo and every test
-    that did not ask for one.
-    """
-    return mode_message(self.mode, t, held_s, accepts=self.accepts or None)
-
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""
     self._last.clear()

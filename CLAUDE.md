@@ -1349,10 +1349,9 @@ save a filmstrip PNG named after the script.
   `n`, `none`, `:`, `test` or a field's name where `""` was meant -- its own,
   and in a field of its own any the form coined (`COINED`: `drop_goal`,
   `unpin`), never a bare everyday one (`done`: "Done!" may be meant) -- but
-  any field's name the form's separators cling to is one wherever a
-  placeholder can stand (`FORM_MARKS`, `,` `:` and braces: Rowan said
-  `,intend` to everyone, rooftop-media-2026 #518); an object is judged by
-  its own names alone (a finding is named for what it
+  any field's name the form's separators cling to is one in a field or an
+  object's content, never a label (`FORM_MARKS`, `,` `:` and braces;
+  rooftop-media-2026 #518); an object is judged by its own names alone (a finding is named for what it
   measures). `validate` reads one as `""` where it can stand
   (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an object whose content is one
   goes whole, a label is blanked); with `FILLED_FIELDS` (3) or more (one word
@@ -1843,17 +1842,18 @@ save a filmstrip PNG named after the script.
   for `busy`, an end inside a death's 300 s came back from before the fall,
   alive). ⚠ A CHARGE STOPS ON THE RUN'S HOUR WITH ITS PLUG IN where a next
   run carries on (#654; `HubLifecycle._hour_up`, `continuing`, off in a demo
-  or a test; Observatory.md), and its HOLD once a visitor's message has
-  come, an ask waits and the model would be asked (`_spoken_to`,
-  `Overseer.can_ask`, rooftop-media-2026 #518; Ben: a robot may answer while
-  it charges), the loop asking at once: its row banked, its state left `CHARGE`, a wait
+  or a test; Observatory.md): its row banked, its state left `CHARGE`, a wait
   for a taken station, a search and the trip's next leg ended with it; the
   next run's mind is asked, a `charge` goes straight on
   (`go_charge_routine`), the plug comes out by hand at what moves the body
   (`unplug_routine`: an `explore`, a procedure's first verb not in
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
-  in. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  in. ⚠ ITS HOLD (`charge_routine`'s, never the walk there) ENDS SO ON A
+  VISITOR'S MESSAGE come since the model last answered, an ask waiting and
+  the model able to be asked (`_spoken_to`, `Overseer.can_ask`;
+  rooftop-media-2026 #518, Ben: a robot may answer while it charges): this
+  run's mind is asked at once on the same rules, and nothing is banked. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
@@ -1924,10 +1924,10 @@ save a filmstrip PNG named after the script.
   inbound kind, `message`; the OUTCOME carries the distinction, and legacy
   kinds and outcomes are folded at the door (`answered` must still render). ⚠
   The header advertises `accepts` PER KIND, as the switch is at the CONNECT,
-  and ⚠ every `mode` message carries it as the switch leaves it
-  (`recorder.heard`, rooftop-media-2026 #518): a link opened while paused
-  named no `message`, and the site held every one until the next run, the
-  robots awake. ⚠ Sanitising is NOT the security
+  and ⚠ every served `mode` message carries it as the switch leaves it
+  (`recorder.heard`, rooftop-media-2026 #518; protocol/README.md), or a
+  link opened while paused hears no message until the next run. ⚠
+  Sanitising is NOT the security
   boundary; the framing and the fixed menu are. ⚠ It is ONE CHAT PER ROBOT
   (#485; threads since rooftop #125): every message carries `earlier`, the
   chat's newest `MAX_EARLIER` (6) LINES, the website's state; the robot's
