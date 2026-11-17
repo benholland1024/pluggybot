@@ -7620,7 +7620,8 @@ def places_context(life) -> list[dict]:
 
 
 def attach_mode_stream(life, sinks, pacer=None,
-                       heartbeat_s: float = MODE_HEARTBEAT_S) -> None:
+                       heartbeat_s: float = MODE_HEARTBEAT_S,
+                       accepts=None) -> None:
   """Put the operator's switch on the wire, and keep the pacer honest.
 
   Three wirings, and each one exists for a failure that would otherwise be
@@ -7638,12 +7639,15 @@ def attach_mode_stream(life, sinks, pacer=None,
 
   `sinks` are emit callables (`WsPublisher.message`, `TelemetryRecorder.emit`);
   a run with neither passes an empty list and still gets the resync.
+  `accepts` is what the run was built to hear (the header's, before the
+  mode narrows it): handed it, every message says what the robot hears as
+  the switch leaves it (`mode_message`, rooftop-media-2026 #518).
   """
   if life.mode is None:
     return
 
   def emit(held_s: float = 0.0) -> None:
-    msg = mode_message(life.mode, float(life.data.time), held_s)
+    msg = mode_message(life.mode, float(life.data.time), held_s, accepts=accepts)
     for sink in sinks:
       sink(dict(msg))
 
