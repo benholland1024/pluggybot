@@ -1172,9 +1172,9 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   kept_by = life.body.posture_kept_by(hand) if why == "out of reach" else None
-  if kept_by:
-    # ...no other posture while the other hand holds something (#719): what
-    # any other posture or the other hand could do is beside the point
+  if kept_by and life.body.hand_reaches(hand, place, rot):
+    # ...no other posture while the other hand holds something (#719), where
+    # another would reach: what the holding hand could do is beside the point
     return {"ok": False, "hand": hand, "why": why, "reason": REACH_KEPT.format(
       hand=hand, other=kept_by), **said, "felt": felt}
   if why == "stopped short":

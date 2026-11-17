@@ -1090,7 +1090,8 @@ class Reach:
   # ---- what a caller asks ----
 
   def reach(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
-            postures=REACH_POSTURES, flip: bool = True, refuse: bool = True) -> bool:
+            postures=REACH_POSTURES, flip: bool = True, refuse: bool = True,
+            verb: bool = True) -> bool:
     """A hand to `goal`: planned, then moved, approached and held. False
     (nothing moves) if no posture the policy holds puts it in reach. ⚠ A
     TWO-JAW GRIP IS THE SAME GRIP HALF A TURN ROUND ITS FINGERS (#493): where
@@ -1103,9 +1104,9 @@ class Reach:
     does, and nothing moves (`kept` says how) -- or, not `refuse`, the way
     out that comes least near it is taken (`_kept_off`). ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
-    `keep`): only the one it holds -- a verb's reach, never the loop's own
-    (`refuse` False: a charge's)."""
-    kept = self.keep(side, refuse)
+    `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
+    (a charge's)."""
+    kept = self.keep(side, verb)
     if kept is not None:
       postures = (kept,)
     plan_, goal = self._planned(side, goal, approach, postures, flip)
@@ -1321,7 +1322,7 @@ class Reach:
     order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
              else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
     if postures is not None:
-      order = [p_ for p_ in postures]
+      order = [p_ for p_ in postures if not onward or tuple(p_) not in gone]
     for posture in order:
       if not stands(sm, posture, q0) or out_of_reach(sm, side, pos, -LEAN_MOST_M):
         continue
@@ -1410,7 +1411,7 @@ class Reach:
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
-            speed: float = HOLD_SPEED, path=None, turns=None) -> bool:
+            speed: float = HOLD_SPEED, path=None, turns=None, verb: bool = True) -> bool:
     """A hand that is out (`out`) carried from where it IS along a straight
     line to `pos`, stance frame, at `speed`, its turn kept, at `stiffness`
     (or its goal's), the posture the least bent that reaches the end --
@@ -1436,8 +1437,9 @@ class Reach:
     if len(rots) != len(ways) + 1:
       raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
                        f"not {len(rots)}")
-    # ...none but the one it holds while the other hand holds something (#719)
-    kept = self.keep(side)
+    # ...none but the one it is in while the other hand holds something, a
+    # `verb`'s carry (#719)
+    kept = self.keep(side, verb)
     only = {} if kept is None else {"postures": (kept,)}
     if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
@@ -1465,7 +1467,7 @@ class Reach:
     return True
 
   def pull(self, side: str, way, force: float, distance_m: float,
-           speed: float = HOLD_SPEED, give: bool = True) -> bool:
+           speed: float = HOLD_SPEED, give: bool = True, verb: bool = True) -> bool:
     """A hand that is out PULLED along `way` (stance frame) -- or pushed: a
     FORCE MOVE (#525) -- with at most `force`, N, as the hand reads it,
     and at most `speed`, m/s. Across its way, GIVING, the hand yields to
@@ -1494,7 +1496,7 @@ class Reach:
     # it comes: a posture changed partway jerks what the hand holds -- and
     # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
     gripped = self.grippers[side].held()
-    kept = self.keep(side)
+    kept = self.keep(side, verb)
     posture = (None if (not gripped and self._pressed(self.force[side], force)) or kept is not None
                else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
@@ -1525,13 +1527,14 @@ class Reach:
     """As a hand's reach, carry or pull is asked (#719's option 2): the
     posture the body is in, where the other hand is out at its work (`out`)
     and its gripper reads it holds something -- a verb's move, never the
-    loop's own (`verb`) -- else None; which hand held, by side, in
-    `kept_by`, which the move's posture changes on its way read. A piece
-    carried at the side (#682) holds the body in nothing."""
+    loop's own (`verb`: a charge's, a walk's lift) -- else None; which
+    hand held, by side, in `kept_by`, which the move's posture changes on
+    its way read, and every way into them is a move that sets it here. A
+    piece carried at the side (#682) holds the body in nothing."""
     other = "left" if side == "right" else "right"
     held = verb and self.out(other) and self.grippers[other].held()
     self.kept_by[side] = other if held else None
-    return tuple(float(v) for v in self.posture) if held else None
+    return self._standing_in() if held else None
 
   def _standing_in(self) -> tuple:
     """The posture the body stands in as another is asked of it: the one it

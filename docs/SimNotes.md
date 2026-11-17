@@ -10316,8 +10316,10 @@ asked; a reach or a move that does not reach from it reads false saying so
 ("your left hand is out holding something, so your body keeps the posture it
 is in, and from it your right hand does not reach there"), and the three
 verbs' texts say the rule. A piece carried at the side holds the body in
-nothing, and the loop's own reach (a charge's) is never kept: refused, a
-charge fails, and a failed charge is a death.
+nothing, and the loop's own moves (a charge's, a walk's lift) are never
+kept: refused, a charge fails, and a failed charge is a death. The posture
+kept is the one the body stands in (`_standing_in`): one still coming is
+held where it has got to.
 
 ## Debugging workflow that worked
 

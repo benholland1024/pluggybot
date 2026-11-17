@@ -3098,7 +3098,7 @@ def test_the_humanoids_pull_hands_its_way_to_the_reach_in_the_stance_frame():
     body = world.body
     got = {}
 
-    def pull(side, way, force, distance_m, speed=0.06, give=True):
+    def pull(side, way, force, distance_m, speed=0.06, give=True, verb=True):
       got.update(side=side, way=np.asarray(way, dtype=float), force=force,
                  distance=distance_m, speed=speed, give=give)
       return False

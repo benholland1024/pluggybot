@@ -24,6 +24,8 @@ def _holding(left="hold", held=True):
   reading `held`."""
   r = _bare_reach()
   r.posture = np.array(BOWED)
+  # ...the posture the body is in, as it reads itself (`_standing_in`)
+  r._standing_in = lambda: BOWED
   r.phase["left"] = left
   r.goal["left"] = None if left == "rest" else rc.HandGoal(np.array([0.4, 0.2, 0.8]))
   r.grippers["left"].holding = held
@@ -41,7 +43,7 @@ def test_a_reach_plans_only_in_the_posture_it_is_in_while_the_other_hand_holds(l
   r = _holding(left, held)
   asked = []
   r._planned = lambda side, goal, approach, postures, flip: (asked.append(postures), (None, goal))[1]
-  assert not r.reach("right", rc.HandGoal(np.array([0.4, -0.1, 0.8])), refuse=verb)
+  assert not r.reach("right", rc.HandGoal(np.array([0.4, -0.1, 0.8])), verb=verb)
   assert asked[0] == ((BOWED,) if kept else rc.REACH_POSTURES)
   assert r.kept_by["right"] == ("left" if kept else None)
 
@@ -66,6 +68,16 @@ def test_a_carry_and_a_pull_take_no_other_posture_while_the_other_hand_holds():
   r.kept_by["right"] = None
   assert r.pull("right", np.array([0.0, 0.0, 1.0]), 10.0, 0.1)
   assert len(asked) == 2 and "postured" not in r.pulls["right"] and r.kept_by["right"] == "left"
+  # ...but the loop's own carry and pull -- a charge's, a walk's lift -- keep nothing
+  r.phase["right"] = "hold"
+  r.posture_for = lambda *a, postures=None, **kw: asked.append(postures) or BOWED
+  assert r.carry("right", np.array([0.4, -0.1, 0.9]), verb=False)
+  assert asked[-1] is None and r.kept_by["right"] is None
+  r.phase["right"] = "hold"
+  r.force["right"] = np.zeros(3)
+  r.path_for = lambda *a, postures=None, **kw: asked.append(postures) or BOWED
+  assert r.pull("right", np.array([0.0, 0.0, 1.0]), 10.0, 0.1, verb=False)
+  assert asked[-1] is None and r.kept_by["right"] is None
   # ...and with nothing held, as before
   r.grippers["left"].holding = False
   r.phase["right"] = "hold"
@@ -104,15 +116,26 @@ def test_a_carried_or_pulled_hand_plans_no_new_posture_while_the_grip_kept_it():
 
 class _Kept(StubBody):
   """A stub whose left hand holds something as its right reaches, the right
-  out of reach from the posture the body is in."""
+  out of reach from the posture the body is in -- and, `elsewhere`, in
+  reach from another."""
+
+  elsewhere = True
 
   def posture_kept_by(self, side):
     return {"right": "left"}.get(side)
+
+  def hand_reaches(self, side, pos, rot=None):
+    return self.elsewhere if side == "right" else super().hand_reaches(side, pos, rot)
 
 
 def test_a_reach_out_of_reach_while_the_other_hand_holds_says_so():
   body = _Kept(*_bare())
   body.out_of_reach = {"right"}
+  # ...where no posture would reach either, it says so as before
+  body.elsewhere = False
+  step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', body)["steps"][-1]
+  assert step["reason"].startswith(st.REACH_WHY["out of reach"].format(hand="right"))
+  body.elsewhere = True
   step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', body)["steps"][-1]
   assert not step["ok"] and step["why"] == "out of reach"
   assert step["reason"] == st.REACH_KEPT.format(hand="right", other="left") == (
@@ -123,7 +146,7 @@ def test_a_reach_out_of_reach_while_the_other_hand_holds_says_so():
 def test_a_move_out_of_reach_while_the_other_hand_holds_says_so():
   class Short(_Kept):
     def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                          path=None, turns=None):
+                          path=None, turns=None, verb=True):
       return {"why": "out of reach", "seconds": 0.5, "moved": 0.0, "dx": 0.0, "dy": 0.0,
               "dz": 0.0}
       yield
@@ -139,3 +162,36 @@ def test_the_verbs_say_the_body_keeps_its_posture_while_the_other_hand_holds():
   for verb in ("reach", "move_hand", "pull"):
     assert "while your other hand is out holding something, your body keeps the posture it is in" in (
       st.HANDS_VERBS[verb].doc.replace("While", "while")), verb
+
+
+def _calls(fn, name):
+  import ast
+  import inspect
+  import textwrap
+  tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+  return [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+          and isinstance(n.func, ast.Attribute) and n.func.attr == name]
+
+
+def _kw(call, name):
+  import ast
+  return next((ast.unparse(k.value) for k in call.keywords if k.arg == name), None)
+
+
+def test_a_procedures_reach_is_kept_and_the_loops_own_moves_never_are():
+  """The one line of wiring each: a reach's `verb` is its `refuse` (a
+  procedure's, #678's), every hand move of the charge's and the walk's lift
+  passes False, and the body hands both down."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid import charge
+  from pluggybot.humanoid import mission as hmi
+  reached = _calls(hb.HumanoidBody.reach_routine, "_reached")
+  assert reached and all(_kw(c, "verb") == "refuse" for c in reached)
+  assert all(_kw(c, "verb") == "verb" for c in _calls(hb.HumanoidBody._reached, "reach"))
+  assert _kw(_calls(hb.HumanoidBody.move_hand_routine, "carry")[0], "verb") == "verb"
+  assert _kw(_calls(hb.HumanoidBody.pull_routine, "pull")[0], "verb") == "verb"
+  own = [c for fn in vars(charge).values() if callable(fn) and getattr(fn, "__module__", "") == charge.__name__
+         for name in ("move_hand_routine", "pull_routine") for c in _calls(fn, name)]
+  assert own and all(_kw(c, "verb") == "False" for c in own)
+  lifts = [c for c in _calls(hmi.HumanoidMission, "pull")]
+  assert lifts and all(_kw(c, "verb") == "False" for c in lifts)

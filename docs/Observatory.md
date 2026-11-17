@@ -42,7 +42,7 @@ and its gripper reads it holds something, a verb's `reach` of the other
 plans only in the posture the body is in, its `move_hand` and `pull` take no
 new one, a reach's look at its pre-grasp takes none, and no carry or pull
 re-plans one on its way. A piece carried at the side keeps nothing; the
-loop's own reach (a charge's) is never kept.
+loop's own moves (a charge's, a walk's lift) are never kept.
 
 **Measured** (one Vast pod, an Xeon E5-2698 v4, against 73f8daf): O2_OBS
 

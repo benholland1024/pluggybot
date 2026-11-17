@@ -463,8 +463,9 @@ save a filmstrip PNG named after the script.
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
   call. ⚠ WHILE ONE HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
-  SOMETHING, THE OTHER'S REACH, CARRY AND PULL -- A VERB'S, NEVER THE LOOP'S
-  OWN -- TAKE NO POSTURE BUT THE ONE THE BODY IS IN, READ ONCE AS EACH IS
+  SOMETHING, THE OTHER'S REACH, CARRY AND PULL -- A PROCEDURE'S (`verb`),
+  NEVER THE LOOP'S OWN (A CHARGE'S, A WALK'S LIFT) -- TAKE NO POSTURE BUT THE
+  ONE THE BODY STANDS IN, READ ONCE AS EACH IS
   ASKED, AND PLAN NONE ON THEIR WAY (#719's option 2; `Reach.keep`,
   `kept_by`, `Body.posture_kept_by`; SimNotes, "A posture change out of a
   deep bow"): asked a rise out of a deep bow and a turn of the waist with

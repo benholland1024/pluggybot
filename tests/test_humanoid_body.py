@@ -99,12 +99,17 @@ class _Sent:
     self.phase = {s: "rest" for s in hm.SIDES}
     self.grippers = {}
 
-  def reach(self, side, goal, approach=None, postures=None, flip=True, refuse=True) -> bool:
+  def reach(self, side, goal, approach=None, postures=None, flip=True, refuse=True,
+            verb=True) -> bool:
     self.phase[side] = self.end
     return True
 
   def done(self, side) -> bool:
     return self.phase[side] in ("hold", "rest", "blocked")
+
+  def keep(self, side, verb=True):
+    """No other hand holds anything (#719)."""
+    return None
 
   def step(self) -> None:
     pass
@@ -278,7 +283,7 @@ class _Out(_Homing):
   def out(self, side) -> bool:
     return self.phase[side] == "hold"
 
-  def pull(self, side, way, force, distance_m, speed=None, give=True) -> bool:
+  def pull(self, side, way, force, distance_m, speed=None, give=True, verb=True) -> bool:
     self.log.append(("lift", side, self.at()))
     self.phase[side], self.report[side] = "carry", None
     return True

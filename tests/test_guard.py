@@ -826,7 +826,7 @@ def test_a_pull_its_condition_stopped_is_stopped_so_though_its_grip_went():
     def grip_now(self, side):
       return np.array([0.3, 0.2, 1.0]), np.eye(3)
 
-    def pull(self, side, way, force, distance, speed, give):
+    def pull(self, side, way, force, distance, speed, give, verb=True):
       self.phase[side] = "carry"
       return True
 
