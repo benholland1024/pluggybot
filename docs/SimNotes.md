@@ -8284,9 +8284,9 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
     plate comes back halfway first, then to 0.23 m no nearer the middle
     than 0.25 m (`PASS_PLATE_LEFT`): 55 of 64 laid (no fall, 6 dropped),
     and with the grip moved 52 of 64 (no fall, 8 dropped). Two moves
-    straight back took the falls out but not the rest (56 of 64; with the
-    grip moved, on its first 32 draws, 21 where two moves to the floor laid
-    27: 8 dropped and 10 held back). One move straight to the floor laid 55
+    straight back took the falls out but not the rest: 56 of 64, and with
+    the grip moved 21 of its first 32 draws (8 dropped, 10 held back) where
+    two moves to the floor laid 27. One move straight to the floor laid 55
     of the 64 with the grip moved, and fell once, on the walk after the
     hand-over.
   - **Two levers that read well on their legs and not in whole places**,
@@ -8324,12 +8324,11 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763 and 9684X, Xeon Gold
     self-filter's volume, Ben's call 5); the fork slipping out of the jaws
     at the hand-over, 10, and set down 2.6-3.9 cm off, 6 (7.4 once); the
     plate dropped carried, 6 (it slides in its pinch over the walk, its
-    tilt growing to 15 deg); a cup's pull-back that runs out of reach, 9 of 64 -- 3 of them
-    bowed 0.8-0.95 rad for the way, stopped 0.33 m out, and the hand-over
-    let those cups go; the other 6 never started (a crouch, the waist
-    turned 30 deg) and were carried -- and the cup set down 2.6-3.9 cm off,
-    7 (14 once, below).
-    The cup's put-down goes wrong where the approach leaves the card 18-20
+    tilt growing to 15 deg); a cup's pull-back that runs out of reach, 9 of
+    64 -- 3 of them bowed 0.8-0.95 rad for the way, stopped 0.33 m out, and
+    the hand-over let those cups go; the other 6 never started (a crouch,
+    the waist turned 30 deg) and were carried -- and the cup set down
+    2.6-3.9 cm off, 7 (14 once, below). The cup's put-down goes wrong where the approach leaves the card 18-20
     cm right of its usual place (2 of 64 cup legs): its target then lies
     past the right hand's band, and the reach bows 0.55-0.8 rad for it --
     once it fell, once the cup was set down 14 cm off.
