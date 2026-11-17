@@ -1128,6 +1128,7 @@ def test_cameras_that_cannot_be_built_are_a_crash_on_the_wire(monkeypatch,
 BUILDS_A_RENDERER = {
   ("humanoid/body.py", "_detector"): "built at boot",
   ("humanoid/places.py", "_place_detector"): "built at boot",
+  ("perception/tags.py", "__init__"): "a tag camera's, built by those",
   ("perception/tags.py", "_renderer_for"): "the one every tag camera shares",
   ("viz.py", "rebind"): "a video's, never served",
   ("viz.py", "_make_inset"): "a video's, never served",
@@ -1138,24 +1139,33 @@ BUILDS_A_RENDERER = {
 def test_every_renderer_a_served_process_builds_is_built_at_boot():
   """...and one added later: a renderer built at a first look is a step the
   memory alarm can read as a runaway, so every call in src/ that builds a
-  renderer or a tag camera is one of these. A tag camera is built by a
-  getter `HumanoidBody.build_cameras` calls (the test above); a new one is
-  built there as well, or is one no served process builds."""
+  renderer or a tag camera by name is one of these, and each getter built
+  at boot is one `HumanoidBody.build_cameras` calls; a new one is built
+  there as well, or is one no served process builds."""
   import ast
   src = _SERVE.parent.parent / "src" / "pluggybot"
+  names = {"TagDetector", "Renderer", "_renderer_for"}
+
+  def called(node):
+    return {getattr(n.func, "id", None) or getattr(n.func, "attr", None)
+            for n in ast.walk(node) if isinstance(n, ast.Call)}
+
   sites = set()
   for path in src.rglob("*.py"):
     text = path.read_text()
-    if "TagDetector(" not in text and "Renderer(" not in text:
+    if not any(name + "(" in text for name in names):
       continue
     for fn in ast.walk(ast.parse(text)):
-      if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
-          isinstance(node, ast.Call)
-          and {"TagDetector", "Renderer"} & {getattr(node.func, "id", None),
-                                             getattr(node.func, "attr", None)}
-          for node in ast.walk(fn)):
+      if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and names & called(fn):
         sites.add((path.relative_to(src).as_posix(), fn.name))
   assert sites == set(BUILDS_A_RENDERER)
+  body = ast.parse((src / "humanoid" / "body.py").read_text())
+  (build,) = [fn for cls in body.body
+              if isinstance(cls, ast.ClassDef) and cls.name == "HumanoidBody"
+              for fn in cls.body
+              if isinstance(fn, ast.FunctionDef) and fn.name == "build_cameras"]
+  assert {fn for (_, fn), why in BUILDS_A_RENDERER.items()
+          if why == "built at boot"} <= called(build)
 
 
 def _report(r, capsys, **kw):
