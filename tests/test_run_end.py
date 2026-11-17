@@ -188,6 +188,34 @@ def test_a_charge_decided_while_plugged_in_goes_straight_on():
   assert any("CHARGE: still plugged in" in ln for ln in life.log), life.log[-3:]
 
 
+def test_a_message_ends_a_charges_hold_with_its_plug_in_so_the_mind_answers():
+  """rooftop-media-2026 #518 (Ben, 2026-11-16: a robot may answer while it
+  charges): the map's `message_received -> ask` waited behind the charge,
+  and a charge held a visitor's answer 36-85 minutes. The hold ends on that
+  ask with its plug in and what it got banked, as at a run's end, and the
+  row is left for the loop to ask: plugged in, a `charge` goes straight on
+  (above), and what stands still leaves the plug in."""
+  from pluggybot.mind import events as ev
+  life = _life()
+  life.max_sim_time = 1e9
+  _plugged_in(life, frac=0.4)
+  drives = _walks(life)
+  asked = ev.Row(event="message_received", action=ev.ASK)
+  life.queued_row = asked
+  life.body.run(life.charge_routine())
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  assert life.charge_cycles == 0 and not drives
+  assert life.queued_row is asked, "the ask is the loop's to run"
+  assert any("a message came in at 40%" in ln for ln in life.log), life.log[-3:]
+  # ...and any other ask waits for the charge's end, as before
+  life = _life()
+  life.max_sim_time = 1e9
+  _plugged_in(life, frac=0.89)
+  life.queued_row = ev.Row(event="every", action=ev.ASK, value=900.0)
+  life.body.run(life.charge_routine())
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+
+
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():
   """The whole of the decided path: no walk, no dock, the charge on to full
   and its one undock at the end."""

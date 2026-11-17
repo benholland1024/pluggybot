@@ -2665,6 +2665,18 @@ class HubLifecycle:
     finishes, and nothing is left plugged in for nobody."""
     return self.continuing and self.data.time >= getattr(self, "max_sim_time", math.inf)
 
+  @property
+  def _spoken_to(self) -> bool:
+    """Has the map queued an `ask` for a visitor's message? A charge's hold
+    ends on it with its plug in (Ben, 2026-11-16: a robot may answer while
+    it charges; rooftop-media-2026 #518, Overseer.md §10), and the mind is
+    asked plugged in, as at a run's end (#654): a `charge` goes straight
+    on, what stands still leaves the plug in, and what moves takes it out
+    first."""
+    row = self.queued_row
+    return (row is not None and row.action == ev.ASK
+            and row.event == "message_received")
+
   # ---- phases --------------------------------------------------------------
 
   # ---- the branches, as routines (issue #58) --------------------------------
@@ -2957,6 +2969,13 @@ class HubLifecycle:
         if self._hour_up:
           self._say(f"CHARGE: the run's time is up at {self.battery.fraction:.0%} -- "
                     "my plug stays in", doing="CHARGE: the run's time is up -- my plug stays in")
+          if self.data.time > t0:
+            self._bank(scoring.score_charge(self, before))
+          return
+        if self._spoken_to:
+          self._say(f"CHARGE: a message came in at {self.battery.fraction:.0%} -- "
+                    "my plug stays in while I answer",
+                    doing="CHARGE: a message came in -- my plug stays in")
           if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
           return
