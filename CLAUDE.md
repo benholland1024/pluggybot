@@ -1871,11 +1871,9 @@ save a filmstrip PNG named after the script.
   (`unplug_routine`: an `explore`, a procedure's first verb not in
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
-  in. ⚠ A VISITOR'S MESSAGE WAITS FOR THE CHARGE'S END: answering while
-  charging (Ben, 2026-11-16, rooftop-media-2026 #518) was built and taken
-  out unfinished before the wake of 11-18, and
-  `test_a_persons_message_waits_for_the_charge_to_end` pins the hold as it
-  is. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  in. ⚠ A VISITOR'S MESSAGE WAITS FOR THE CHARGE'S END
+  (`test_a_persons_message_waits_for_the_charge_to_end`; why: Overseer.md
+  §10). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
@@ -1956,12 +1954,13 @@ save a filmstrip PNG named after the script.
   their messages and the replies to them, and every message carries
   `earlier`, the newest `MAX_EARLIER` (6) LINES of THAT PERSON's
   conversation with that robot, the website's state, never another
-  person's line nor a `say`; the VISITORS rule says so. ⚠ An answer's own
-  paths say neither whose message nor what: the narration is "VISITOR
-  message answered: <outcome>", and the site's hub relays the
-  `visitor_reply` without its words. ⚠ History still holds every exchange,
-  its `record` events reach every viewer, and the rule says History is read
-  by everyone watching (the memory left as it was: Ben's to revisit). The
+  person's line nor a `say`; the VISITORS rule says so. ⚠ The VISITOR
+  narration says neither whose message nor what ("VISITOR message answered:
+  <outcome>"), and the site's hub relays the `visitor_reply` without its
+  words; ⚠ the robot's own lines still may: History holds every exchange
+  (its `record` events reach every viewer, and the rule says History is
+  read by everyone watching), and its `THINK` and `DECIDE` lines are its
+  thinking (the memory left as it was: Ben's to revisit). The
   robot's own lines are a SHAPE (`robot` on the wire, `you` to the model),
   never a name, because a username can be `you`; an older site's thread
   exchanges are read as their two lines. `sender` is stated by the CALLER of

@@ -45,6 +45,7 @@ from pluggybot.mind import events as ev
 from pluggybot.mind import look as eye_mod
 from pluggybot.mind import tickets as tickets_desk
 from pluggybot.mind import wiki
+from pluggybot.mind.inbox import MAX_QUEUE as INBOX_QUEUE
 from pluggybot.mind import text as text_registry
 from pluggybot.mind.tickets import Desk, DeskRefused
 from pluggybot.mind.mode import ModeSwitch, open_switch
@@ -5037,11 +5038,12 @@ class HubLifecycle:
                    chat=CHAT_ANSWERED if chat else "")
 
   def _chat(self, decision) -> None:
-    """Say something in the robot's chat that answers nobody (issue #485).
+    """Say something to everyone watching that answers nobody (issue #485),
+    in nobody's conversation (rooftop-media-2026 #518).
 
     A `chat` message through the visitor hooks, like a `visitor_reply`:
-    the website keeps it as a line of the robot's chat, and History files
-    it as the chat's. Rationed at `SAY_EVERY_S` off the store's own record
+    the website keeps it as a line of the robot's own (its Broadcasts tab),
+    and History files it under `chat`/`said`. Rationed at `SAY_EVERY_S` off the store's own record
     of the last one (`ThoughtFiles.last_said`: a restart keeps the clock, a
     true death forgets it, and a clock gone back behind it opens the gate,
     `say_again_in`), and cut at a reply's length -- both OUT LOUD, on
@@ -5444,11 +5446,14 @@ class HubLifecycle:
     # before and carries nothing about who sent it or what it said. A
     # stranger can trigger a row; a stranger cannot choose which one.
     if self.inbox is not None:
-      for msg in self.inbox.peek(VISITORS_SHOWN):
-        # ⚠ A MESSAGE, never a rating, an admin's reach-in or a ticket's
-        # line, which wait in the same queue for code to drain (#518's
-        # review): none of them is somebody speaking, nor a call's worth.
-        if msg.kind != "message" or msg.id in self._seen_visitors:
+      # ⚠ MESSAGES, never a rating, an admin's reach-in or a ticket's line,
+      # which wait in the same queue for code to drain (#518's reviews):
+      # none of them is somebody speaking, nor a call's worth -- and the
+      # first messages, never the first of any kind, or five of those
+      # queued ahead hid a person's message from the map.
+      messages = [m for m in self.inbox.peek(INBOX_QUEUE) if m.kind == "message"]
+      for msg in messages[:VISITORS_SHOWN]:
+        if msg.id in self._seen_visitors:
           continue
         self._seen_visitors.add(msg.id)
         self._occurred.append(("message_received", ""))

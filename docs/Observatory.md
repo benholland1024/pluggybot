@@ -18,11 +18,10 @@ shows each visitor only their own conversation and sends with each message
 only that person's lines as `earlier`; deployed alone, this half tells the
 robots something the site does not yet do.
 
-**What the robots read moves** (`prompt_sha` `17c6ce26…`, 69,494
+**What the robots read moves** (`prompt_sha` `75ec76e3…`, 69,505
 characters, 17 sections, from `a38f86a9…`'s 69,205 at `loop-staging`
-1170bf3d, which holds #719's period below; on 3e000d65 alone these
-passages made it `7ce88109…`, 69,144 from 68,855; the session host's hello
-is unmoved, sha1 `a61b6376…`):
+1170bf3d, which holds #719's period below; the session host's hello is
+unmoved, sha1 `a61b6376…`):
 - VISITORS, the chat: "What people say to you and what you say back are
   ONE chat, and everyone watching can read all of it. A message comes with
   `earlier` when anything was said in your chat before it: its last 6
@@ -30,8 +29,8 @@ is unmoved, sha1 `a61b6376…`):
   it never reached you) and what you said (`you`, with `to` and `outcome`
   where you were answering somebody). [...] `recall` with `read` set to
   `chat` shows you more of it." becomes "Each person has their own chat
-  with you. Only they see their messages and your replies to them there. A
-  message comes with `earlier` when that person has said something to you
+  with you, and no other visitor sees their messages or your replies to
+  them there. A message comes with `earlier` when that person has said something to you
   before: the last 6 lines of your conversation with them, oldest first --
   what they said (`from`, `text`; `dropped` means it never reached you) and
   what you answered them (`you`, with `to` and `outcome`). It never holds

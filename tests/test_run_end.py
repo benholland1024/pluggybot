@@ -234,13 +234,14 @@ def test_a_rating_or_a_reach_in_is_nobody_speaking():
   no message to answer. Shown to fail without the fix."""
   from pluggybot.mind import events as ev
   life = _minded(ev.Row(event="message_received", action=ev.ASK))
-  life.inbox.offer({"type": "rating", "seq": 3, "quality": 0.5})
+  for seq in range(1, 6):                        # five of them, queued ahead
+    life.inbox.offer({"type": "rating", "seq": seq, "quality": 0.5})
   life.inbox.offer({"type": "set_battery", "frac": 0.5})
   life._next_events_check = 0.0
   life._events_step()
   assert life.queued_row is None
-  _say(life)                                     # ...and a message is
-  life._next_events_check = 0.0
+  _say(life)                                     # ...and a message is, even
+  life._next_events_check = 0.0                  # behind them (round 7)
   life._events_step()
   assert life.queued_row == ev.Row(event="message_received", action=ev.ASK)
 
