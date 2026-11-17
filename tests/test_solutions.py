@@ -279,13 +279,14 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle():
   x -- and a grip nearer the body's middle than about 0.22 m (`near` lands
   it 0.15-0.36 m left of the stance) took a posture with the waist turned
   30-60 deg for that path: it held back, tipped the plate 19-44 deg in its
-  jaws (then let go on the walk) or fell, the pelvis coming 0.24-0.27 m
-  toward the pass (round 4's reading, and with its grips set 6 cm nearer
-  the middle on dev draws, 2 falls, 5 plates dropped and 6 laid of 13). In
-  two moves, halfway first, the last ending no nearer the middle than
-  `PASS_PLATE_LEFT`, each path is reached in a crouch at most: 12 of the 13
-  laid, no fall, none dropped (SimNotes, "The place laid from the pass").
-  Off the reference's own source, run for grips round where it grips."""
+  jaws (then let go on the walk) or fell, the pelvis coming 0.25-0.29 m
+  toward the pass (round 4's reading; 3 of 64 plate legs on dev draws, and
+  with the grip set 6 cm nearer the middle on purpose, 5 falls, 11 plates
+  dropped and 16 laid of 32). In two moves, halfway first, the last ending
+  no nearer the middle than `PASS_PLATE_LEFT`, each path is reached in a
+  crouch at most: 27 of those 32 laid, no fall, 4 dropped (SimNotes, "The
+  place laid from the pass"). Off the reference's own source, run for grips
+  round where it grips."""
   from pluggybot.challenge import solutions
   for gx in (0.43, 0.47, 0.51):
     for gy in (0.12, 0.2, 0.3, 0.36):
