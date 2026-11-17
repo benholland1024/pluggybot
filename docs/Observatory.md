@@ -31,8 +31,16 @@ nor `places.json` is hashed, and no committed recording carries a job):
   its face.": "When a job here is offered, the plate, the cup and the fork
   are set out on the table near the card, and none of them is where it
   goes."
-- The offer's own sentence is unchanged: at 14 minutes and a six-digit `t`
-  it is 491 of `MAX_DESCRIPTION`'s 500 characters.
+- The offer's sentence, shown with every table offer and held table job
+  (and on the site's job list), "...the fork 19 cm out, 16 cm left, along
+  the line, head to the card; the cup 7 cm out, 24 cm right. ... The plate,
+  the fork and the cup were set out at t=..., when this job was offered.",
+  reads "...the fork 19 cm out, 16 cm to your left, along the line, head to
+  the card; the cup 7 cm out, 24 cm to your right. ... The pieces were set
+  out at t=..., when this job was offered." At 14 minutes and a six-digit
+  `t` it is 486 of `MAX_DESCRIPTION`'s 500 characters, where it was 491.
+  The pass's sentence, offered by no world, keeps its bare "left" and
+  "right": the same words would take it to 511.
 
 **Why** (#723, from P10's reading of the 11-12, 11-14 and 11-15 wakes).
 The practice's job text for the table says which left the fork's is and

@@ -315,11 +315,11 @@ KINDS: dict[str, TaskKind] = {
   "set_table": TaskKind(
     "set_table", task="set_table", target_kind="table",
     template="Lay the place at the card on the restaurant's table: from the foot of its face "
-             "toward you, the plate's middle 19 cm out; the fork 19 cm out, 16 cm left, along the "
-             "line, head to the card; the cup 7 cm out, 24 cm right. Each within 2.5 cm, set down "
-             "and let go of, within {minutes} minutes of taking this job, without falling; graded "
-             "when you say you are done and 5 s later. The plate, the fork and the cup were set out "
-             "at t={offered}, when this job was offered. No errand does this: write the procedure.",
+             "toward you, the plate's middle 19 cm out; the fork 19 cm out, 16 cm to your left, "
+             "along the line, head to the card; the cup 7 cm out, 24 cm to your right. Each within "
+             "2.5 cm, set down and let go of, within {minutes} minutes of taking this job, without "
+             "falling; graded when you say you are done and 5 s later. The pieces were set out at "
+             "t={offered}, when this job was offered. No errand does this: write the procedure.",
     estimate_wh=9.83, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
   # ...and its easy mode of carrying (#682's stage C; Ben, 11-12): the same
   # place, its pieces set out on the pass, the expo counter in the dining

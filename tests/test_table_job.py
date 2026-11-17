@@ -7,6 +7,7 @@ table`'s.
 """
 
 import math
+import re
 
 import mujoco
 import numpy as np
@@ -128,7 +129,7 @@ def test_an_offer_sets_the_place_out_and_a_settled_job_puts_it_away(tmp_path):
   life = _life(tmp_path)
   assert not _out(life), "compiled put away"
   task = _offer(life)
-  assert "The plate, the fork and the cup were set out at t=" in task.description, "says when (#659)"
+  assert "The pieces were set out at t=" in task.description, "says when (#659)"
   k = task.secret["draw"]
   so, load = ct.table_set_out(k), dw.draw(k)
   for p, (x, y, _) in so.pieces.items():
@@ -437,40 +438,60 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
     for p, (a, b) in table.SPOTS.items():
       assert f"{100 * a:g} cm out" in words, (kind, p)
       if b:
-        assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, (kind, p)
+        side = "left" if b > 0 else "right"
+        assert re.search(rf"\b{100 * abs(b):g} cm (?:to your )?{side}\b", words), (kind, p)
     assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words, kind
     assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION, kind
 
 
-def test_the_rows_say_which_left_the_graders_is():
-  """#723: the grader's left is the diner's (`table.place_frame`), and the
-  robot laying the place faces the card as the diner does, so each row that
-  states the place says the side as the robot's own: told "16 cm to the
-  line's left", the line running from the card toward it, Luca asked itself
-  which left the grader meant (11-15, t_0414). The side is read off the
-  grader's frame on the place as an offer sets it out, against a robot
-  standing where the set-out stands it, never typed; the row of the place
-  laid from the pass too, its criteria the table's."""
+#: The kinds whose place is laid at the table (`restaurant.SET_OUTS`).
+TABLE_KINDS = [k for k, kind in KINDS.items() if kind.target_kind == "table"]
+
+
+def _offered() -> set:
+  """Every kind a world's cadence offers (`cadence.json`)."""
+  import json
+  from pluggybot.economy import cadence
+  return {k for w in json.loads(cadence.CADENCE_PATH.read_text())["worlds"]
+          for k in cadence.default_cadence(w).kinds}
+
+
+def test_the_tables_words_say_which_left_the_graders_is():
+  """#723: the grader's left is the diner's (`table.place_frame`), the left
+  of one who faces the card's face, as the robot laying the place does; so
+  each row that states the place says each side as the robot's own, and so
+  does each offered kind's sentence as it is offered -- the side read off the
+  grader's frame and `SPOTS`, never typed (why: #723's period in
+  Observatory.md)."""
   from pluggybot.mind.overseer import Menu
   model, data = _table_world()
+  for kind in TABLE_KINDS:
+    for k in range(4):
+      restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
+      mujoco.mj_forward(model, data)
+      _, toward, left, _ = table.place_frame(model, data)
+      assert np.cross(-toward, left)[2] == pytest.approx(1.0), (kind, k, "a quarter turn anticlockwise")
   so = ct.table_set_out(0)
   restaurant.set_out(model, data, restaurant.TABLE, so.k)
   mujoco.mj_forward(model, data)
-  _, toward, left, _ = table.place_frame(model, data)
+  _, toward, _, _ = table.place_frame(model, data)
   facing = np.array([math.cos(so.start[2]), math.sin(so.start[2]), 0.0])
   assert facing @ toward == pytest.approx(-1.0), "the robot at the place faces the card's face"
-  yours = np.array([-facing[1], facing[0], 0.0])     # a quarter turn anticlockwise of the facing
-  assert yours @ left == pytest.approx(1.0), "the grader's left is the robot's as it faces the card"
   served = {r["task"]: r["detail"] for r in default_table().as_context(
     challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
-  rows = {"set_table": served["set_table"],
-          "set_table_pass": default_table()["set_table_pass"].detail}
-  for kind, words in rows.items():
-    assert "as you face the card" in words, kind
-    for p, (_, b) in table.SPOTS.items():
-      if b:
-        side = "left" if b > 0 else "right"
-        assert f"{100 * abs(b):g} cm to the line's {side} (your {side}" in words, (kind, p)
+  assert served["set_table"] == default_table()["set_table"].detail
+  sides = {p: ("left" if b > 0 else "right", f"{100 * abs(b):g}")
+           for p, (_, b) in table.SPOTS.items() if b}
+  for kind in TABLE_KINDS:
+    row = default_table()[kind].detail
+    assert "as you face the card" in row, kind
+    for p, (side, cm) in sides.items():
+      assert f"{cm} cm to the line's {side} (your {side}" in row, (kind, p)
+    if kind in _offered():
+      said = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
+        kind, restaurant.TABLE, 0.0).description
+      for p, (side, cm) in sides.items():
+        assert f"{cm} cm to your {side}" in said, (kind, p)
 
 
 #: "Near the card", m: an offer here sets each piece out within this of the
@@ -480,28 +501,21 @@ NEAR_CARD_M = 0.35
 
 def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
   """#723: the place's directions say where an offer there sets the pieces
-  out, as the practice's job says where they wait (`practice.TABLE_JOB`),
-  and that none is where it goes: told only that they "were set out", Luca
-  read a set-out's plate and fork as the place half laid (11-15, t_0414),
-  and Rowan wrote its search for them at the pass too (11-14, t_0271). Read
-  as each kind's offer at the table carries them, and checked over 32
-  set-outs of each by the grader's own measure. The directions are the
-  area's, so every kind's offer there carries them: one that sets its pieces
-  out elsewhere (the pass's, #682's stage C, whose row says where) is
-  offered by no world's cadence, and offering it moves these words."""
-  import json
-  from pluggybot.economy import cadence
-  offered = {k for w in json.loads(cadence.CADENCE_PATH.read_text())["worlds"]
-             for k in cadence.default_cadence(w).kinds}
-  here = [k for k, kind in KINDS.items() if kind.target_kind == "table"]
-  assert "set_table" in offered and "set_table" in here
-  maker = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)
+  out -- on the table near the card, as the practice's job says they wait
+  (`practice.TABLE_JOB`) -- and that none is where it goes: true of every
+  kind a world offers at the table, over 32 set-outs, by the grader's own
+  measure. The directions are the area's, so every kind's offer there
+  carries them: one that sets its pieces out elsewhere (the pass's, #682's
+  stage C, whose row says where) is offered by no world, and offering it
+  moves these words (why: #723's period in Observatory.md)."""
+  here = [k for k in TABLE_KINDS if k in _offered()]
+  assert "set_table" in here
   model, data = _table_world()
   for kind in here:
-    words = maker._offer(kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
+    words = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
+      kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
     assert "the plate, the cup and the fork are set out on the table near the card" in words, kind
     assert "none of them is where it goes" in words, kind
-    false = []
     for k in range(32):
       restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
       mujoco.mj_forward(model, data)
@@ -509,12 +523,9 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
       origin, toward, left, _ = table.place_frame(model, data)
       for p in dw.PIECES:
         rel = data.xpos[model.body(p).id] - origin
-        said = {"on the table": abs(got[p]["aboveM"]) <= 1e-6,
-                "near the card": math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M,
-                "not where it goes": got[p]["offM"] > table.PLACE_M}
-        false += [(k, p, claim) for claim, held in said.items() if not held]
-    assert not false or kind not in offered, (kind, "offered, and the directions false of it",
-                                              false[:3])
+        assert abs(got[p]["aboveM"]) <= table.RESTING_M, (kind, k, p, "on the table")
+        assert math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M, (kind, k, p, "near the card")
+        assert got[p]["offM"] > table.PLACE_M, (kind, k, p, "where it goes")
 
 
 # ---- the place laid from the pass (#682's stage C, easy mode) ------------------------------

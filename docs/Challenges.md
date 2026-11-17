@@ -470,15 +470,11 @@ pieces' (90-92), that the card faces south, and that an offer there sets
 the pieces out on the table near the card, none where it goes -- never a
 position. Its sentence states this check's criteria and when the place was
 set out (#659), within a description's 500 characters
-(`tasks.MAX_DESCRIPTION`); its row's detail carries all of them, each side
-said as the robot's own as it faces the card ("16 cm to the line's left
-(your left as you face the card)"), which is the diner's, the grader's.
-The practice's job says the fork's side so and that the pieces wait near
-the card; the served words say both, and the cup's side and that none is
-where it goes (#723): told only "the line's left", the line running from
-the card toward the robot, a mind asked itself which left the grader meant,
-and told only that the pieces "were set out", one read them as the place
-half laid.
+(`tasks.MAX_DESCRIPTION`); its row's detail carries all of them. Each says
+a piece's side as the robot's own as it faces the card ("16 cm to your
+left"; the row's "16 cm to the line's left (your left as you face the
+card)"), which is the diner's, the grader's (#723; why: its period in
+Observatory.md).
 
 **Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
 to the place, then this check's procedure from its one stance, its first
