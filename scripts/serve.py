@@ -889,7 +889,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
 
   wall0 = time.monotonic()
   try:
-    # The cameras' renderer at boot, as `serve` builds it, and why.
+    # Each robot's cameras here, as `serve` builds one robot's, and why.
     for life in lives:
       life.body.build_cameras()
     results = run_pair(lives, max_sim_time=args.max_sim_time,

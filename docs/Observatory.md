@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The cameras' renderer built at boot, and the memory alarm at two samples (#713's tail, R3, `loop-713b`) — opens when this PR is deployed
+
+**Nothing the robots read or do moved.** A served process builds each
+robot's two tag cameras, and so their one renderer, as its run begins
+(`Body.build_cameras`, inside `serve.py`'s `try` around the run, so a
+renderer that cannot be built is a crash on the wire as it was at a first
+look), where each was built at its first look. Flown under osmesa with
+the cameras built as each robot is: every camera's picture the same bit
+for bit (the served pair at three placings, every order of the four, every
+decode the same); the pair's committed recording line for line the same
+(11,664 lines, its two `earned` rows' wall-clock `at` aside), and
+`determinism_spike.py --pair` the same day row for row (525 state samples,
+119 looks, 4,964 scans; a fall, a flat death and a stand-up), and with
+`--resume-at` a day saved and carried on in a new process the same as
+straight through (215 state samples, every look and scan).
+`prompt_sha` `a38f86a9…` (69,205 characters, 17 sections) and the session
+host's hello (sha1 `a61b6376…`) are unmoved; no geometry and no wire field
+moved, so no fixture was flown again.
+
+**What moved is the served process's memory, and its alarm.** The
+renderer's 257 MiB (measured under osmesa on the served pair) comes in a
+process's first minute, with its world, where it came at the first
+camera's first look; a camera's first look after it costs 22 MiB at most.
+The alarm judges two samples over 50 MiB a minute again
+(`vitals.RUNAWAY_MINUTES`; Webserver.md, "Two samples"), not three: a
+runaway is reported a minute sooner, at 115 MiB a minute about 230 MiB in
+where it was 345, and one from boot six minutes in at the earliest.
+
+**What the period is for.** A process's first `vitals: rss` lines carry
+the renderer, about 250 MiB more in its first minute than in #713's
+period; no step over about 30 MiB at a robot's first look after it; and no
+`RUNAWAY` at a boot, a wake or a first walk. One there would be a fault of
+this change: read the `vitals: rss` lines before it.
+
 ### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3 and R2, `loop-719c`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `a38f86a9…`, 69,205
