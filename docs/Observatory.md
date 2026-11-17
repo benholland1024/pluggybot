@@ -20,10 +20,12 @@ hello is byte-identical, sha1 `39c0692a…`).
 "A fall backward out of a bow"). The fall watch read a tip off the posture
 the legs hold (#520), so a trunk going back from a bow was a fall 35 deg
 behind the bow: 9 deg behind upright under the look's 26 deg bow, still 28
-in front of it under the floor's 63. It now reads the trunk past every
-posture between upright and the one held: past the bow as before, behind
-upright by its tilt, as a fall from the stand is, and between the two by
-its roll alone. At the stand and under the walker nothing moves, to the bit.
+in front of it under the floor's 63. It now reads the trunk off the bow and
+off upright, the nearer of the two (a posture leaning back off itself), so
+never more than off the bow: at the stand and under the walker nothing
+moves, to the bit. The death seam's topple (`HubLifecycle._chassis_tilt`:
+`down`, what the other robot keeps clear of, and the stuck clock) reads a
+bow so too.
 
 **What it does.** A fall backward or sideways out of a bow is handed to the
 get-up later, and the body goes down before it gets up. In M12's lobby case

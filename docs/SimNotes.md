@@ -2291,16 +2291,20 @@ center's lobby, `door_mall1`'s blind steps ended at the east wall and
 bow there"); the trunk then went over backward at about 200 deg/s, the
 watch took it 2-11 deg behind upright, still on its feet, and the get-up --
 trained on falls tipped over from the stand -- ran the body backward. A
-trunk is now read past every posture between upright and the one held
-(`getup.tipped_past`): past the bow as before, to the bit; behind upright by
-its tilt, as from the stand; between the two by its roll alone. M12's nine
-lobby starts, flown on his tree (8edc3e54: on 73f8daf the #717 rule keeps
-the head off that wall and none falls), a fresh process each, osmesa:
+trunk is now read off its bow and off upright, the nearer of the two
+(`getup.tipped_past`; a posture leaning back off itself): never more than
+off the bow, so every fall taken from the bow's far side, the stand or the
+walker is taken as before, to the bit, and a trunk going back is read off
+upright once it is nearer upright. (Read instead past every posture between
+the two -- a trunk between them by its roll alone -- it took every fall
+below at the same step.) M12's nine lobby starts, flown on his tree
+(8edc3e54: on 73f8daf the #717 rule keeps the head off that wall and none
+falls), a fresh process each, osmesa:
 
 | the watch | the trunk when taken | went down | carried back | the wall behind | stood | stuck |
 |---|---|---|---|---|---|---|
 | off the bow | 2-11 deg behind upright | 2 of 9 | 1.6-2.7 m | 3, at 372-1,380 N | 2.7-6.6 s | 1 |
-| past the postures | 27-39 deg behind upright | 9 of 9 | 1.0-1.1 m | none | 2.5-2.7 s | none |
+| off the nearer | 27-39 deg behind upright | 9 of 9 | 1.0-1.1 m | none | 2.5-2.7 s | none |
 
 Left on the standing policy no trunk came back -- in the stuck one it went
 from 14 to 37 deg behind upright in 0.1 s -- so the early take was early,
