@@ -506,6 +506,11 @@ def _bare_reach():
   # ...and no carry (#682): home is the rest; nor a stand waiting on one (#693)
   r.carry_q = {s: None for s in hm.SIDES}
   r.stand_home = False
+  # ...nor a way home still to be read home by its drivers (#693's family)
+  r.homing = {s: False for s in hm.SIDES}
+  r.held_for, r.lifted = {s: 0.0 for s in hm.SIDES}, {s: 0 for s in hm.SIDES}
+  # ...nor a hand whose grip keeps the body in its posture (#719)
+  r.kept_by = {s: None for s in hm.SIDES}
   r.allowed, r.left = {s: [] for s in hm.SIDES}, {s: [] for s in hm.SIDES}
   r.looks, r.looking = {s: 0 for s in hm.SIDES}, {s: False for s in hm.SIDES}
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
@@ -796,6 +801,207 @@ def test_the_walk_home_walks_every_target_in_turn_then_rests():
       break
   assert r.phase["right"] == "rest" and np.allclose(r.q_cmd["right"], r.rest["right"])
   assert len(seen) == len(way) == 4 and all(np.allclose(a, b) for a, b in zip(seen, way))
+
+
+def _held_at_rest(r, side, monkeypatch, lifts):
+  """The arm sent home from `RAISED` and walked there by the loop, its
+  drivers then reading every joint of it 0.3 rad off its rest -- where
+  something holds it (`Reach.sensed`, the test's stub of them) -- with
+  `lifts` the most a way home may take. Returns that reading."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", lifts)
+  _sent_home(r, side, RAISED)
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase[side] != "home":
+      break
+  assert r.phase[side] == "rest" and np.allclose(r.q_cmd[side], r.rest[side]), \
+    "the premise: its command walked to the rest"
+  read = r.rest[side] + 0.3
+  r.sensed = np.zeros(len(hm.JOINT_NAMES))
+  r.sensed[r.self_model.arm[side]] = read
+  return read
+
+
+def test_a_way_home_its_drivers_read_held_at_the_rest_is_eased_where_it_is_held(monkeypatch):
+  """#693's live family (the 11-15 wake's drawer_g22 and drawer_g20, flown on
+  73f8daf): a way home was over once its COMMAND reached the rest, whatever
+  its drivers read -- an open jaw the way home had brought down on the
+  counter's top pressed on toward the rest at 39-69 N for as long as nothing
+  else moved the arm: 12 s into a withdraw's 15 s wait the robot went over
+  backward, and a walk's hand-over read the arm home and walked it. Read
+  off its rest `HELD_S` running with its rest commanded, the arm is held:
+  its command where its drivers read it, pressing on nothing, out
+  (`Reach.held`) -- never home."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=0)
+  ticks = int(round(rc.HELD_S / 0.01))
+  for _ in range(ticks - 1):
+    r._update(0.01)
+  assert r.phase["left"] == "rest" and np.allclose(r.q_cmd["left"], r.rest["left"]), \
+    "held before `HELD_S`: an arm a few hundredths of a second behind its command is no hold"
+  r._update(0.01)
+  assert r.held("left") and not r.home("left")
+  assert np.allclose(r.q_cmd["left"], held_at) and np.allclose(r.q_to["left"], held_at), \
+    "still pressed on toward its rest"
+  assert not r.homing["left"]
+  for _ in range(50):
+    r._update(0.01)
+  assert r.held("left") and np.allclose(r.q_cmd["left"], held_at), "it moved on its own"
+  # ...and a way home begins again from where it is held (a withdraw, a walk's hand-over)
+  r.retreat("left")
+  assert r.phase["left"] == "home" and r.homing["left"]
+
+
+def test_an_arm_its_drivers_read_home_ends_its_way_home_there(monkeypatch):
+  """Read home -- every joint within `HOME_RAD` of the rest -- a way home is
+  over: no hold, however long after."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  assert not r.home_over("left"), "its command at the rest, its drivers not yet read"
+  r.sensed[r.self_model.arm["left"]] = r.rest["left"] + 0.5 * rc.HOME_RAD
+  r._update(0.01)
+  assert r.phase["left"] == "rest" and not r.homing["left"] and r.home_over("left")
+  r.sensed[r.self_model.arm["left"]] = held_at
+  for _ in range(int(round(2 * rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.phase["left"] == "rest" and np.allclose(r.q_cmd["left"], r.rest["left"]), \
+    "an arm at rest moved by something else was taken for a way home held"
+
+
+def test_a_way_home_held_with_another_robot_by_is_never_raised(monkeypatch):
+  """#678: a verb's way home is refused where every way would meet another
+  robot's body; one judged from the top of a raise would take the way that
+  comes least near it. With a robot by (`keep_out`), a held way home is left
+  where it is held at once."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  r.keep_out = [(0.1, -0.61)]
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and r.lifted["left"] == 0 and np.allclose(r.q_cmd["left"], held_at)
+
+
+def test_an_arm_left_held_keeps_the_stand_from_no_other_arm():
+  """The review of #693's family: the stand's return waits on every arm at
+  ease (`AT_EASE`) -- an arm left held among them, as a carried one: kept
+  out of it, the other arm's way home kept the robot bowed over the counter."""
+  from pluggybot.humanoid import reach as rc
+  r = _bowed_reach((0.0, 0.3, 0.0))
+  r.phase["left"] = "held"
+  # ...the right arm where the left was at the lever, mirrored
+  asked = _set_off(r, "right", rc.seed("right", AT_THE_LEVER))
+  assert r.stand_home and not asked, "the premise: the stand kept for the arm's home"
+  assert ((0.0, 0.0, 0.0), "rest") in _homed(r, "right"), "the stand never came back"
+
+
+def test_a_raise_its_arm_did_not_follow_is_left_held_there(monkeypatch):
+  """#693b's second review: a raise runs as a retreat's line, which nothing
+  blocks, and arrives by its command -- held from above, or under an edge, its
+  arm pressed up at full stiffness and its way home would be judged from a
+  command the arm never reached. One whose grip, by its senses, stays more
+  than `BLOCKED_M` from where the raise went for `BLOCKED_S` after its
+  command arrived is left held there (the third review: judged at the very
+  tick, an arm only lagging its command would read held)."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  top = r.goal["left"].pos.copy()
+  r.cmd["left"].pos = top.copy()
+  r.sensed_grip["left"] = top - np.array([0.0, 0.0, rc.BLOCKED_M + 0.01])
+  assert r._raise_short("left")
+  r.sensed_grip["left"] = top - np.array([0.0, 0.0, rc.BLOCKED_M - 0.01])
+  assert not r._raise_short("left")
+  # ...and the line's end takes the word, `BLOCKED_S` on: a raise held is left there
+  monkeypatch.setattr(r, "_raise_short", lambda side: True)
+  ticks = int(round(rc.BLOCKED_S / 0.01))
+  for _ in range(ticks - 1):
+    r._update(0.01)
+  assert r.phase["left"] == "retreat", "left held before its arm had `BLOCKED_S` to follow"
+  r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and np.allclose(r.q_cmd["left"], held_at)
+
+
+def test_the_stand_a_way_home_kept_comes_when_the_last_arm_is_left_held(monkeypatch):
+  """#693b's fourth review: the stand a way home kept from the robot
+  (`stand_home`) came only at a way home's end at the rest -- an arm left
+  held there instead (its raises spent, or held too) left the robot bowed.
+  It comes once every arm is at ease, however the last came to it."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  _held_at_rest(r, "left", monkeypatch, lifts=0)
+  r.stand_home, r.postures = True, []
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and not r.stand_home and r.postures == [(0.0, 0.0, 0.0)]
+
+
+def test_a_new_move_ends_a_way_home_still_to_be_read():
+  """A way home cut short by a move of the arm's own (`set_joints`, a
+  reach) is over: no later rest reads it held."""
+  r = _stepped(_standing_reach())
+  r.homing["left"] = True
+  r.set_joints("left", r.rest["left"])
+  assert not r.homing["left"]
+
+
+def test_a_carrys_way_ends_at_its_pose_never_waiting_to_be_read_home():
+  """A walk's hand-over takes a hand that holds to its carry pose by the way
+  home's own walk (#682): that way ends "carried", at its pose, and is no way
+  home still to be read home -- left so, a walk's hand-over waited on it for
+  good (`HumanoidMission.to_walk_routine`)."""
+  r = _stepped(_standing_reach())
+  r.set_joints("left", RAISED)
+  r.q_cmd["left"] = RAISED.copy()
+  r.carry_q["left"] = r.rest["left"] + 0.4
+  r.retreat("left")
+  assert r.homing["left"] and r.phase["left"] == "home"
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase["left"] != "home":
+      break
+  assert r.phase["left"] == "carried" and not r.homing["left"]
+
+
+def test_a_way_home_held_is_lifted_and_sent_home_again_before_it_is_left_there(monkeypatch):
+  """...first lifted `LIFT_M` straight up from where its drivers put it,
+  pressing on nothing as it goes, and sent home again from there, judged
+  afresh (`_go_home`) -- `LIFTS` times a way home, then left held."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  sm = r.self_model
+  sm._set_arm("left", held_at)
+  at, _ = sm.grip_pose("left")
+  assert np.allclose(r.q_cmd["left"], held_at), "its command still pressed toward the rest"
+  assert np.allclose(r.cmd["left"].pos, at) and np.allclose(r.goal["left"].pos, at + [0, 0, rc.LIFT_M])
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase["left"] != "retreat":
+      break
+  assert r.phase["left"] == "home" and r.homing["left"], "not sent home again from the top"
+  sm._set_arm("left", r.q_cmd["left"])
+  assert sm.grip_pose("left")[0][2] == pytest.approx(at[2] + rc.LIFT_M, abs=0.005)
+  # ...and held again there, its lifts spent: left where it is held
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase["left"] != "home":
+      break
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and np.allclose(r.q_cmd["left"], held_at)
+  # ...a way home begun anew lifts again
+  r.retreat("left")
+  assert r.lifted["left"] == 0
 
 
 def _homed(r, side):
@@ -1490,7 +1696,7 @@ class _PullEnds(StubBody):
   ends = "distance"
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                   give=True):
+                   give=True, verb=False):
     why = self.ends.pop(0) if isinstance(self.ends, list) else self.ends
     return {"why": why, "seconds": 0.5, "moved": 0.02, "along": 0.02, "dx": 0.0,
             "dy": 0.0, "dz": 0.02, "direction": [0.0, 0.0, 1.0], "force": float(limit_n)}
@@ -1590,7 +1796,7 @@ def test_a_hand_whose_move_a_death_ended_is_halted_where_it_is():
       return True
 
     def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                     give=True):
+                     give=True, verb=False):
       for n in range(200):
         if n == 50:
           self.life.dead = {"cause": "flat"}  # the death seam's, as the pull goes on
@@ -3096,7 +3302,7 @@ def test_the_humanoids_pull_hands_its_way_to_the_reach_in_the_stance_frame():
     body = world.body
     got = {}
 
-    def pull(side, way, force, distance_m, speed=0.06, give=True):
+    def pull(side, way, force, distance_m, speed=0.06, give=True, verb=False):
       got.update(side=side, way=np.asarray(way, dtype=float), force=force,
                  distance=distance_m, speed=speed, give=give)
       return False

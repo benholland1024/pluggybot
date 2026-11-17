@@ -6,6 +6,42 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-17
+
+- A `step` now keeps off walls and furniture as well as the other robot:
+  it stops before it would bring your LIDAR within 0.3 m of what it reads at
+  your head's height, or your middle within 0.2 m of what your depth camera
+  saw at your knees' height, and reads false saying so. A step that your
+  scans say went under half of what your legs counted reads false too, as
+  `pressed`.
+- A `spot`'s bow now goes no deeper than leaves your head 5 cm short of
+  what your LIDAR reads in front of it, and a look that did not see its tag
+  says how far it bowed.
+- An arm that something holds on its way home is now raised 5 cm and sent
+  home again, unless another robot stands near you. Held again, it stays
+  where it is held, pressing on nothing, and the `withdraw` reads false
+  saying so; a walk then goes with that arm where it is, and its report
+  says `armHeld`.
+- A `reach` now also stops on its way out, before it closes in, where its
+  arm pushes on something hard enough to tip you toward it, your own body
+  included. It says what a reach stopped on its way always says.
+- A `done` said beside a run that never begins -- a `procedure:new` whose
+  define was refused, say -- is now not acted on: the job stays yours, its
+  time runs on, and a `done` said again is acted on. Your History says so
+  when it happens.
+- A fall that nothing else tells you of, on a charge trip, at your station
+  or between runs, now leaves one line in your History once you are up, as
+  in "I fell over and got up again 4 s later".
+- In `others`, what the other robot is doing now shows only what its body
+  is doing that anyone nearby could see: its walks, its charges, its
+  procedures' steps (each as its verb alone, without the procedure's name),
+  the jobs it holds, and its death and stand-up. Its thinking, its reasons,
+  its list of rules, its pack's level and its points are never in it.
+- Your map now keeps a thin wall that your LIDAR sees only at a glancing
+  angle, such as the research center's south wall along the alley. Before,
+  rays grazing such a wall could wear it out of your map, and a walk could
+  be planned through it.
+
 ## 2026-11-15
 
 - When the world came back, your map and your places were gone, and you

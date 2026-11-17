@@ -10,6 +10,113 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3 and R2, `loop-719c`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `a38f86a9…`, 69,205
+characters, 17 sections, from `91f1a7bd…`'s 68,855 at `loop-staging`
+3e000d65; the session host's hello moves, sha1 `a61b6376…` from
+`3cd41b6f…`; #693's period below is already on that tree):
+- `reach`'s text, "...then in along the fingers; you take whatever posture
+  reaches. stiffness 1 is...", reads "...you take whatever posture reaches
+  -- but while your other hand is out holding something, your body keeps
+  the posture it is in, and a hand that does not reach there from it does
+  not move and reads false saying so. stiffness 1 is...".
+- `move_hand`'s, "...given as for `reach`; ok when it arrives", reads
+  "...given as for `reach`; while your other hand is out holding something,
+  your body keeps the posture it is in; ok when it arrives".
+- `pull`'s, after "...then it holds there.", gains "While your other hand
+  is out holding something, your body keeps the posture it is in."
+- New words, where another posture would have reached: a `reach` so
+  refused, "your left hand is out holding something, so your body keeps the
+  posture it is in, and from it your right hand does not reach there"
+  (before, "no posture you hold puts your right hand there", and what the
+  other hand could do); a `move_hand` so refused or that so runs out of
+  reach, "your right hand could reach no further that way from the posture
+  you are in: your left hand is out holding something, so your body keeps
+  it" (before, "...from any posture you hold"). A reach so refused that
+  reaches from that posture turned another way goes on " turned as asked;
+  turned another way it can (leave fx..jz at 0 and your arm finds a turn)".
+  Where no posture would reach, the words are as before, but never what the
+  holding hand could do; a reach kept off another robot says "; your left
+  hand is out holding something" where it said what the other hand's way
+  would do. What a refusal says of a turn, or of what the other hand could
+  do, is planned as that reach would be: a hand holding something never
+  offers the other a reach its grip would refuse.
+
+**The change** (`Reach.keep`, `keeps`, `kept_by`; `Body.posture_kept_by`,
+`hand_reaches(verb=)`; `steps.REACH_KEPT`, `MOVE_KEPT`; SimNotes, "A posture
+change out of a deep bow, with the other hand on a lever"). While one hand
+is out at its work and its gripper reads it holds something, a verb's
+`reach` of the other plans only in the posture the body is in, its
+`move_hand` and `pull` take no new one, a reach's look at its pre-grasp
+takes none, and no carry or pull re-plans one on its way. A piece carried
+at the side keeps nothing; the loop's own moves (a charge's, a walk's lift)
+are never kept.
+
+**Measured** (one Vast pod, an EPYC 7K62, beside 3e000d65; SimNotes has the
+rest): door_p3 at its two live draws (M12's 48 starts and its two fresh
+ones) and `cube_fix3` fell 3 times where the base fell 10 -- none of the
+five in the right reach (three stuck deaths), none new, no pass on either
+tree. Ben's bar the base's verdict for verdict, 608 of 736 passed with 5
+falls on both; 799 of its 811 flights the base's to the step, the 12 others
+door_p3's. The pair's recorded day is the base's.
+
+**What to read**: the falls in a reach, a `move_hand` or a `pull` of one
+hand with the other holding something (a door's lever, a drawer's handle,
+a carried piece); the refusals with the new words, and what the robot does
+next (`withdraw` its holding hand first, or `step` nearer); a job a robot
+passed before by a posture change with a hand on something.
+
+### A way home is over by its drivers: held, it is raised and sent home again, then left where it is held (#693's live family, P4, `loop-693b`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `91f1a7bd…`, 68,855
+characters, 17 sections, from `0ba46734…`'s 68,294 at `loop-staging`
+73f8daf; the session host's hello moves, sha1 `3cd41b6f…` from
+`39c0692a…`):
+- `withdraw`'s text, after "ok once your arm is home.", gains: "An arm that
+  something holds on its way home -- your hand come down on a counter's top
+  -- is raised 5 cm and sent home again, unless another robot stands near
+  you, and still held, it stays where it is held, pressing on nothing, and
+  it reads false saying so." Before, nothing: an arm held read "did not get
+  home" after 15 s of pressing on.
+- YOUR BODY's paragraph on walks, after "If what it holds did not come with
+  it, the hand lets go and comes home.", gains: "An arm that something holds
+  on its way home is raised 5 cm and sent home again, unless another robot
+  stands near you, and still held, it stays where it is held, pressing on
+  nothing: the walk goes with it there and says so in its report
+  (`armHeld`), and a `withdraw` or the next walk sends it home again."
+  Before, nothing.
+- A walk verb's report (`step`, `drive_to`, `face`, `find`) gains
+  `armHeld`, the hands left held, only where there is one. A held
+  `withdraw`'s words are unchanged ("your left arm did not get home:
+  something holds it there"), and come at once rather than after
+  `RELEASE_S` (15 s).
+
+**The change** (`Reach.HELD_S`, `LIFT_M`, `LIFTS`, `_homed`, `held`,
+`homing`; `HumanoidBody.release_routine`; `HumanoidMission.to_walk_routine`;
+`Body.arm_held`; `steps._carried`; SimNotes, "A way home something holds").
+A way home ended "rest" once its command reached the rest, whatever its
+drivers read, and an arm held on a counter's top pressed on toward it with
+no end. Now one its drivers read off its rest for 0.5 s with its rest
+commanded is held: its command is set where they read it, it is raised 5 cm
+and sent home again once -- never with another robot by, nor from a raise
+its arm did not follow -- and held again it is left there, pressing on
+nothing. A withdraw ends there; a walk's hand-over waits for each way home
+to be over by its drivers and goes with an arm left held. An arm left held
+is out: the world saves through it, but the robot does not rest with it.
+Ben's bar on one pod beside 73f8daf: 608 of 736 passes where 605, flights
+with a fall 5 where 10 -- held out (32-127) every job the base's but the
+cube's 64 where 61, its 4 falls gone; the tour's slowest passes the same.
+Of the 11-15 wake's family, `drawer_g22`'s withdraw no longer falls (its
+flight falls later, in a `move_hand` of its third try) and `drawer_g20`
+falls on neither tree; P3's five `door_p3` falls are not this rule's (#722,
+#719 and the way home judged without the counter: SimNotes).
+
+**What to watch.** Falls within 5 s of a `withdraw` at the counter, and of
+a walk begun with a hand out there (#693's live box); how often a withdraw
+reads "held", and a walk report says `armHeld`; whether an arm left held is
+withdrawn again by the robots or walked with.
+
 ### A step keeps off walls and what stands at its knees, a pressed step says so, and a look's bow keeps the head off a wall (#717, #718, P2, `loop-step`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `0ba46734…`, 68,294

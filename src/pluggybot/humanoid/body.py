@@ -27,7 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, V_MIN,
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
-from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
@@ -341,7 +341,7 @@ def _rz(yaw: float) -> np.ndarray:
   return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
-_OTHER = {"left": "right", "right": "left"}
+_OTHER = reach_.OTHER_SIDE
 
 
 class HumanoidPack(Pack):
@@ -580,8 +580,10 @@ class HumanoidBody(Body):
     a restart's save waits it out (`continuation.Keeper.busy`) -- but not
     one carried at its side (#682), held there as a hanging arm is, its
     pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
-    let-go, and saves held through it, a crash rolled the world back."""
-    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
+    let-go, and saves held through it, a crash rolled the world back -- nor
+    an arm left where its way home was held (`Reach.HELD_S`), its command
+    kept where it is held, which lasts until a withdraw or a walk."""
+    return any(p not in AT_EASE for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -790,12 +792,15 @@ class HumanoidBody(Body):
     self._kept.pop(side, None)
     postures = reach_.REACH_POSTURES
     if path is not None:
+      # ...the one it is in alone, a verb's, while the other hand holds something (#719)
+      kept = self.reach.keep(side, refuse)
       # the posture the hand then follows its path in, and that one alone
       ways = [self.to_stance(q) for q in path]
       if turns is not None and len(turns) != len(ways):
         raise ValueError(f"a turn for each of the path's {len(ways)} points, not {len(turns)}")
       follow = self.reach.path_for(side, [p] + ways,
-                                   rot=[r] + self._turns(list(turns)) if turns is not None else r)
+                                   rot=[r] + self._turns(list(turns)) if turns is not None else r,
+                                   postures=None if kept is None else (kept,))
       if follow is None:
         return False
       postures = (follow,)
@@ -808,7 +813,7 @@ class HumanoidBody(Body):
 
     def clear() -> bool:
       nonlocal went
-      went = self._reached(side, goal(), postures, path is not None, words=refuse)
+      went = self._reached(side, goal(), postures, path is not None, words=refuse, verb=refuse)
       return went or refuse or self._why[side] != "kept off"
     why = yield from self.mission.arm_wait_routine(clear, (side,), "reach")
     if why == "fell":
@@ -816,7 +821,8 @@ class HumanoidBody(Body):
       return False
     if why == "waited":
       # ...waited out: the way out that comes least near it
-      went = self._reached(side, goal(), postures, path is not None, words=False, refuse=False)
+      went = self._reached(side, goal(), postures, path is not None, words=False, refuse=False,
+                           verb=refuse)
     if not went:
       return False
     falls = self.mission.falls
@@ -830,28 +836,39 @@ class HumanoidBody(Body):
                        else "stopped short" if self.reach.done(side) else "out of time")
     return held
 
-  def _reached(self, side, goal, postures, follows, words, refuse=True) -> bool:
+  def _reached(self, side, goal, postures, follows, words, refuse=True, verb=False) -> bool:
     """A reach planned and begun off one look round (`look_round`, #678):
     True; else False, `hand_why` and `hand_kept` saying why -- and, `words`,
-    whether the other hand's way there would keep off that robot."""
+    whether the other hand's way there would keep off that robot. `verb`: a
+    procedure's reach, whose posture the other hand's grip keeps (#719)."""
     self._why[side] = "out of reach"
     self._kept.pop(side, None)
     self.reach.keep_out = self.mission.keep_out(self.mission.look_round())
     try:
-      if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse):
+      if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse,
+                          verb=verb):
         return True
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
       kept = self.reach.kept[side]
-      if follows and self.reach.reach(side, goal, flip=False, refuse=refuse):
+      if (follows and self.reach.kept_by[side] is None
+          and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb)):
         return True
       kept = self.reach.kept[side] or kept
       if kept is not None:
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
-        self._kept[side] = dict(kept, **({"other": self.reach.clear_way(_OTHER[side], goal)}
-                                         if words and not follows else {}))
+        # ...and what the other hand's way would do -- planned as its reach
+        # would be, kept where this hand holds something -- or, where that hand
+        # holds something and kept the body in its posture, that it does (#719)
+        other = {}
+        if words and not follows:
+          its = self.reach.keeps(_OTHER[side], verb)
+          other["other"] = ("holds" if self.reach.kept_by[side] is not None
+                            else self.reach.clear_way(_OTHER[side], goal, **(
+                              {} if its is None else {"postures": (its,)})))
+        self._kept[side] = dict(kept, **other)
       return False
     finally:
       self.reach.keep_out = []
@@ -861,6 +878,9 @@ class HumanoidBody(Body):
 
   def hand_kept(self, side) -> dict | None:
     return self._kept.get(side)
+
+  def posture_kept_by(self, side) -> str | None:
+    return self.reach.kept_by[side]
 
   def arm_kept(self) -> dict | None:
     # ...one look, and only with an arm out that a walk would move: a hand
@@ -885,6 +905,9 @@ class HumanoidBody(Body):
 
   def carrying(self, side) -> bool:
     return self.reach.carried(side)
+
+  def arm_held(self, side) -> bool:
+    return self.reach.held(side)
 
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
@@ -941,7 +964,10 @@ class HumanoidBody(Body):
         return "fell"
       self.reach.retreat(side)
       for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
-        if self.mission.falls != falls or self.reach.home(side):
+        # ...or held, pressing on nothing where something holds it
+        # (`Reach.HELD_S`): pressed on, a jaw on a counter's top tipped the
+        # robot over backward inside this wait (#693's family)
+        if self.mission.falls != falls or self.reach.home(side) or self.reach.held(side):
           break
         yield STILL
       came_home = self.reach.home(side)
@@ -1027,9 +1053,11 @@ class HumanoidBody(Body):
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],
                                rot=self._turns(rot)) is not None
 
-  def hand_reaches(self, side, pos, rot=None) -> bool:
+  def hand_reaches(self, side, pos, rot=None, verb=False) -> bool:
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
-    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0))
+    kept = self.reach.keeps(side, verb)
+    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0),
+                            **({} if kept is None else {"postures": (kept,)}))
 
   def _turns(self, rot):
     """A turn, or a list of them, the believed world frame's, in the stance
@@ -1183,21 +1211,22 @@ class HumanoidBody(Body):
     return self._report(self.reach.report[side])
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0,
-                        path=None, turns=None):
+                        path=None, turns=None, verb=False):
     """...`path`, points it goes through on its way, in turn (#493: a lid's
     arc carried as one motion, from one posture that follows it all), and
     `turns`, the grip's turn at each."""
     yield from self.mission.to_stand_routine()
     ways = None if path is None else [self.to_stance(p) for p in path]
     if not self.reach.carry(side, self.to_stance(pos), stiffness, speed, path=ways,
-                            turns=None if turns is None else self._turns(list(turns))):
+                            turns=None if turns is None else self._turns(list(turns)),
+                            verb=verb):
       rep = self.reach.report[side] if self.reach.out(side) else None
       return self._report(rep or {"why": "not out", "seconds": 0.0, "moved": 0.0,
                                   "dx": 0.0, "dy": 0.0, "dz": 0.0})
     return (yield from self._held_routine(side, patience))
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=HOLD_SPEED,
-                   patience=30.0, give=True):
+                   patience=30.0, give=True, verb=False):
     """THE PULL, a force move (#525): the hand that is out pulled -- or
     pushed -- along `direction` with at most `limit_n`, N, as the hand reads
     it, at most `speed`, m/s, going where what it holds takes it across that
@@ -1214,7 +1243,7 @@ class HumanoidBody(Body):
                            "dx": 0.0, "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
-    if not self.reach.pull(side, d, limit_n, distance_m, speed, give):
+    if not self.reach.pull(side, d, limit_n, distance_m, speed, give, verb=verb):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:
       rep = yield from self._held_routine(side, patience)

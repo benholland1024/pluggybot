@@ -10268,6 +10268,199 @@ reckoning by both soles or by the reading ahead closing:
   seats and its lost search the base's, none slower; the pair's recorded
   day unmoved. The period of `loop-step` (Observatory.md) has the rest.
 
+## A way home something holds (issue #693's live family)
+
+On 11-15 three of Rowan's falls at the storeroom's counter came after a
+`withdraw` that said "your left arm did not get home: something holds it
+there" (09:14 `drawer_g19`, 11:59 `drawer_g22`, 14:51 `drawer_g24`; the
+loop of 11-15/16, M12). Flown at their live draws on `loop-staging` 73f8daf,
+the robot's own procedure from a fresh start, every contact of its arms
+recorded -- the world's and its own body's (the loop of 11-16/17, P4;
+`~/pluggybot-training/loop-1116/p4-693b/`):
+- `drawer_g22` (draw 366): the withdraw's way home brought the left jaw's
+  pad down on the counter's top 0.15 s in, as the waist turned home from
+  -60 deg, and its command reached the rest at 43.8 s. The arm pressed on
+  toward the rest through the top at 39-52 N, the trunk leaning back from
+  0.3 to 2.2 deg, and 12 s into the withdraw's 15 s wait (`RELEASE_S`) the
+  robot went over backward. (On 8edc3e54, M12's tree, it lived through the
+  wait, and the next reach's way out, planned from the rest, took it over.)
+- `drawer_g20` at t_0339 (draw 338): a `step(-0.3)` with the hand still out
+  -- its hand-over's way home brought the jaw down on the top (27-69 N), its
+  command read "rest", and the walker took the legs. The step "got nowhere",
+  the next withdraw waited out its 15 s ("held", 58-59 N), and the robot
+  stood to the flight's end leaning 8.8 deg back, its jaw on the top at 59 N.
+  On M12's tree the step walked it, the jaw dragged off the top's edge, and
+  the robot fell.
+
+**Why.** `Reach._update` ended a way home as "rest" once its COMMAND
+reached the rest, whatever its drivers read. An arm whose way home came down
+on something -- a counter's top, or in a crouch its own thigh -- pressed on
+toward its rest for as long as nothing else moved it, and every next move
+read "rest" as home: a withdraw waited out its time pressing, a walk's
+hand-over (`to_walk_routine`, which waited on the phase alone) handed the
+legs over, and a reach planned its way out from the rest.
+
+**What is true now** (`Reach.HELD_S`, `_homed`, `held`, `homing`;
+`HumanoidBody.release_routine`; `HumanoidMission.to_walk_routine`;
+`Body.arm_held`; `steps._carried`'s `armHeld`):
+- A way home is over by its drivers: home, or -- read more than `HOME_RAD`
+  off its rest for `HELD_S` (0.5 s) running with its rest commanded --
+  held. Held, its command is set where its drivers read it, so it presses
+  on nothing; it is raised `LIFT_M` (5 cm) straight up from there and sent
+  home again, judged afresh, `LIFTS` (1) times a way home, and held again it
+  is left where it is held (phase "held": out, its command kept across a
+  restart, saved through as a carried hand is, never rested with: an aside
+  takes no arm home first). With another robot by (`keep_out`) it is left
+  held at once -- a way judged from the top of a raise would take the way
+  that comes least near that robot rather than be refused, as a verb's must
+  (#678) -- and so is a raise its arm did not follow (`_raise_short`: its
+  grip more than `BLOCKED_M` short of it `BLOCKED_S` after its command
+  arrived, held from above or under an edge).
+- The stand's return waits on every arm at ease (`reach.AT_EASE`: rest,
+  carried or held), however the last came to it (`_stand_at_ease`): kept
+  out of it, or asked only at a way home's end at the rest, an arm left held
+  kept the robot bowed. An arm left held moves nothing, so the heading's
+  hold (#593) comes as the robot stands (`_busy(still=True)`).
+- A withdraw ends there, "held"; a later withdraw or walk sends the arm home
+  again from where it is.
+- A walk's hand-over waits for each arm's way home to be over by its drivers
+  (`Reach.home_over`) -- at most `HELD_S` after its command reached the
+  rest, and a raise and a second way home -- and goes with an arm left held,
+  as it is held, its report saying so (`armHeld`). A carry's way ends at its
+  pose and is never waited on to be read home: as first built it was, and a
+  hand-over would have waited on a carried arm until its procedure's budget.
+
+**Flown** (one Vast pod, a Xeon E5-2698 v4, Python 3.12.3, osmesa, beside
+73f8daf; the bar flew the first commit, fda2f353, and the head after both
+reviews flew every check the rule acted in again; its base rows were P3's
+row for row):
+- `drawer_g22`: the withdraw's fall is gone; both of its withdraws come home,
+  each raised once, and the flight falls later, in its third try's
+  `move_hand` (line 50), pushing the drawer's front 4 cm further in as its
+  postures bow 0.3 rad and turn the waist 60 deg -- not this family.
+  `drawer_g20` at t_0339 falls on no tree; its step's hand-over raises the
+  held arm and walks with it home.
+- The hands check at set-outs 0-31: 122 of 160 passed, as the base, flights
+  with a fall 4 where the base's 5; the rule acted in 5 (the cube's 2, 7, 12
+  and 15, whose first withdraw brings the left jaw down on the counter at
+  31-61 N, and the table's 13), and 156 of 160 flights are the base's.
+- The tour's five jobs, 32 draws each: 152 of 160, 1 fall, as the base,
+  every slowest pass the same (the table 280 s, the chest 155, the door 173,
+  the drawer 147, the cube 154); the rule acted in one (the table's 6, which
+  fails and falls on both).
+- The hands check at set-outs 32-127 (the table's 32-63): 334 of 416 where
+  the base passed 331, flights with a fall 0 where 4 -- the lid 88, the
+  drawer 66, the door 86 and the table 30 as the base, the cube 64 where 61
+  (its four falls gone, three of them now passing, and one pass lost); the
+  rule acted in 9, all the cube's, and 408 of 416 flights are the base's.
+- In all, 608 of 736 where the base passed 605, flights with a fall 5 where
+  10; every flight that moved is one the rule acted in, each a way home
+  read 0.45-0.68 rad off its rest -- held, never an arm lagging its command.
+
+**The ease alone** (arm A: `LIFTS` 0, eased where held, never raised; the
+same pod): `drawer_g22`'s withdraw no longer falls, but its next reach plans
+its way out from the arm held on the counter's top -- a hand already out,
+straight (#722) -- its jaw catches the drawer's side and the `move_hand` after
+it falls; the hands check at 0-31 passed 121 (place 2 now falls, place 7 lost),
+and the tour 152 of 160 with 1 fall, every flight the base's. Its set-outs
+32-127 were not flown: the raise came out ahead at every reading before them.
+
+**What it does not take** (P3's five `door_p3` falls on 73f8daf, flown on
+the same pod; P3's keys and starts): in two (t_0419 r1.7_a270, t_0430
+r1.55_a270) the right arm's way home in a crouch-bow dragged its jaws across
+the counter's top at 88-187 N and the robot went over before the arm read
+held -- the way home judged without the counter, #693's open part; in three
+(t_0419 r1.7_a285, r1.86_a285, r1.86_a300) its ways home were held on the
+robot's own right thigh (its gripper or forearm, 23-91 N: #722, no way judged
+against its own body), and each fell at the stand from the crouch-bow, the
+pelvis or torso driven into the counter at 820-1,264 N, with its arm held or
+raised and home. The rule acts on those three (eased, raised, held again) and
+they fall the same, sooner where its withdraws no longer wait 15 s.
+
+## A posture change out of a deep bow, with the other hand on a lever (issue #719)
+
+On 11-15 Rowan's `door_p3` (t_0419, t_0430) fell in its right `reach` (line
+78) after its left hand had reached the cupboard's lever, shut on it at 80 N
+and pulled it 8 cm down; and Luca's `cube_fix3` (t_0423) in a `move_hand` up
+just after an `open_hand`, out of a 17-deg bow it had leant on a hand pressed
+on the cube's board (the loop of 11-15/16, M12). Flown again at their live
+draws on 73f8daf, M12's starts and keys, door_p3's belief 1.55-1.86 m off at
+24 bearings each, the robot's own pairs recorded with the world's
+(`~/pluggybot-training/loop-1116/p3-719/`, `c/fly_p3.py`): `cube_fix3` no
+longer falls -- #717's keep-off at the knees stops six of its steps and it
+stands further back, its `move_hand` arriving -- and `door_p3` falls in 11 of
+its 48 flights: 6 in that reach (3 of them stuck deaths) and 5 in a withdraw,
+or a step after withdraws that did not get home (#693's family).
+
+**What the reach asks.** Bowed 0.55-0.8 rad with the left jaws on the
+lever's arm or tip (25-45 N a pad), the right reach asks a posture of
+(-0.16 to -0.08 m, 0 to 0.3 rad, 45-60 deg): a rise of 0.25-0.8 rad and a
+turn of the waist of 0.5-1.05 rad, in one go. The lever holds the left hand.
+As the trunk comes up and turns, the left jaws load to 120-220 N on the
+lever and the door's panel, and the trunk goes over backward 1.4-2.6 s
+after the ask, the torso sometimes meeting the counter's edge at 600 N on
+the way.
+
+**In stages it falls as often (option 1).** The posture walked there in
+stages of 0.10, 0.15 or 0.30 rad of pitch and 0.27 or 0.53 rad of waist,
+each held (`POSTURE_TOL`, `TRUNK_STILL_RATE`) or given 2 s before the next,
+on 9 flights that fell on M12's tree or today's: 7, 6 and 6 fell, where
+today's tree fell 5. Where nothing holds the body a stage is held in 0.5-0.75
+s; here the trunk cannot come up -- the second stage never held, the lever
+at 87 N -- and the next, asked once the wait ran out, loaded it until the
+body went over. A stage not held given up where the body had got to (as a
+move stopped is held) still fell 7 of 9: the stage that loads the lever is
+held, and the next tips the body within its own wait. The posture cannot be
+held with the other hand on the lever, however it is approached.
+
+**No posture while the other hand holds something (option 2).** While the
+left hand is out holding the lever, the right reach plans only in the
+posture the body stands in (`Reach.keep`), and its carries and pulls take
+none. The right reach is refused, saying the left hand is out holding
+something, and the procedure goes on to its withdraws. Flown again on
+`loop-staging` 3e000d65, #693's held way home merged, beside it on one pod
+(an EPYC 7K62; `~/pluggybot-training/loop-1117/r2-719c/`): door_p3's 48,
+its two fresh starts and `cube_fix3` fell 3 times where that tree fell 10
+-- none of the five that fall there in that reach, its three stuck deaths
+among them (the sixth on 73f8daf, t_0419 r1.86 a255, no longer falls there);
+two of #693's family gone with the sequences that led to them, the other
+three, ways home judged without the counter (#722), as before; none new;
+no pass on either tree. Over Ben's bar every flight's verdict is the base's:
+0-31 122 of 160 passed with 4 falls, 32-127 334 of 416 with none (every job
+the same, the cube's 64 of 96 #693's), the tour's five jobs 152 of 160
+with 1, every slowest pass the same (the table's 280 s, the chest's 155, the
+door's 173, the drawer's 147, the cube's 154); 799 of its 811 flights are
+the base's to the step, the 12 that are not all door_p3's, where 46 moves
+were kept; no reference asks a move with the other hand out holding
+something, and #708's stops on `chest_run35` at K4's keys and draws 321-336
+are the same 24 and 37, at the same ticks, with no fall. On 73f8daf, before
+#693, it took the door's 11 falls to 3 and lost one pass that #693's merge
+has since lost too: a door the body's own posture changes opened with the
+left jaws on its lever while the right reaches failed.
+
+**What is true now** (`Reach.keep`, `keeps`, `kept_by`,
+`Body.posture_kept_by`, `hand_reaches(verb=)`, `steps.REACH_KEPT`,
+`MOVE_KEPT`): while one hand is out at its work and its gripper reads it
+holds something -- its own sensing, never the simulator's -- a verb's
+`reach` of the other hand plans only in the posture the body is in, its
+`move_hand` and its `pull` take no new one, a look at its pre-grasp none
+either, and none is planned on their way, all read once as the move is
+asked; a reach or a move that does not reach from it, where another posture
+would, reads false saying so ("your left hand is out holding something, so
+your body keeps the posture it is in, and from it your right hand does not
+reach there"), and never offers the holding hand; what a refusal says of a
+turn the hand might take, and of what the other hand could do, is planned
+as that reach would be -- kept where a hand holds something, so a holding
+hand's refusal never offers the other hand a reach its grip would refuse;
+the three verbs' texts say the rule. `MOVE_KEPT`'s "another posture would"
+is a reach's plan of the end at any turn, never the carry's own path:
+optimistic. A piece carried at the side holds the body in
+nothing, and the loop's own moves (a charge's, a walk's lift) are never
+kept: refused, a charge fails, and a failed charge is a death. The posture
+kept is the one asked where the body stands within `POSTURE_TOL` of it, a
+trunk that only sways re-asking nothing, else where the body has got to: one
+still coming is held there.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

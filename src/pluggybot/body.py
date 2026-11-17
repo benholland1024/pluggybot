@@ -604,11 +604,13 @@ class Body(abc.ABC):
     of its model of itself (#493)."""
 
   @abc.abstractmethod
-  def hand_reaches(self, side: str, pos, rot=None) -> bool:
+  def hand_reaches(self, side: str, pos, rot=None, verb: bool = False) -> bool:
     """Whether `reach_routine` would plan a hand's grip to `pos` (the
     believed world frame) at the turn `rot`, or any -- asked of its model of
     itself, nothing moved: what a reach out of reach says of the other hand
-    (#493)."""
+    (#493). `verb`: as a procedure's reach would plan it now, from the
+    posture the body is in alone where the other hand is out holding
+    something (#719); else from any posture."""
 
   @abc.abstractmethod
   def step_routine(self, ahead: float, left: float = 0.0, turn: float = 0.0,
@@ -688,7 +690,7 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
                         speed: float = 0.06, patience: float = 20.0,
-                        path=None, turns=None) -> Routine:
+                        path=None, turns=None, verb: bool = False) -> Routine:
     """A hand that is out -- reached, and holding there or moved on --
     carried along a straight line to `pos`, the believed world frame, m, at
     `speed`, m/s, the turn it was asked to hold kept, at `stiffness` --
@@ -701,7 +703,9 @@ class Body(abc.ABC):
     -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
     "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
-    where it began (`dx`, `dy`, `dz`, believed world frame, m)."""
+    where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
+    procedure's, whose posture the other hand's grip keeps (#719), never
+    the loop's own (a charge's)."""
 
   @abc.abstractmethod
   def hand_why(self, side: str) -> str:
@@ -720,7 +724,15 @@ class Body(abc.ABC):
     that robot stands in the stance frame, `home` (its way home, else its
     way out), `back` (a reach whose way home from there would meet it), and
     for a reach `other` (whether the other hand's way there keeps off it;
-    None where that hand does not reach) -- else None."""
+    None where that hand does not reach; "holds" where it is out holding
+    something and kept the body's posture, #719) -- else None."""
+
+  @abc.abstractmethod
+  def posture_kept_by(self, side: str) -> str | None:
+    """The other hand -- "left" or "right" -- out at its work with its
+    gripper reading it held something as this hand's last `reach_routine`,
+    `move_hand_routine` or `pull_routine` was asked, so that the body kept
+    the posture it was in (#719's option 2), else None."""
 
   @abc.abstractmethod
   def arm_kept(self) -> dict | None:
@@ -742,6 +754,16 @@ class Body(abc.ABC):
     shut, until a reach takes it out again or a withdraw home."""
 
   @abc.abstractmethod
+  def arm_held(self, side: str) -> bool:
+    """Whether an arm's way home stopped where something holds it (#693's
+    live family; `humanoid.reach.HELD_S`): its drivers read it off its rest
+    with its rest commanded, and -- raised and sent home again where it
+    could be, held again, or with another robot by, or its raise held too --
+    it was left there, pressing on nothing: out, until a withdraw or a walk
+    sends it home again. A walk goes with it as it is held and says so
+    (`steps._carried`'s `armHeld`)."""
+
+  @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:
     """A hand's move stopped now and held where it is, as its own stops
     hold it (#554: a procedure's stop condition, `steps._guarded_routine`):
@@ -752,7 +774,8 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
-                   speed: float = 0.06, patience: float = 30.0, give: bool = True) -> Routine:
+                   speed: float = 0.06, patience: float = 30.0, give: bool = True,
+                   verb: bool = False) -> Routine:
     """THE PULL, a FORCE MOVE (#525): a hand that is out pulled -- or
     pushed -- along `direction` (the believed world frame) with at most
     `limit_n`, N, as the hand reads it, and at most `speed`, m/s; across
@@ -769,7 +792,8 @@ class Body(abc.ABC):
     how far the hand went (`moved`) and along its way (`along`), where it
     ended up from where it began (believed world frame, m), the way the hand
     was going at its end (`direction`, a unit vector: what it held allowed)
-    and the hardest it pushed along its way (`force`, N)."""
+    and the hardest it pushed along its way (`force`, N). `verb`: as
+    `move_hand_routine`'s."""
 
   @property
   @abc.abstractmethod
@@ -952,8 +976,10 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
-    #: ...and which hands a walk carries (#682): out, their grips holding
+    #: ...and which hands a walk carries (#682): out, their grips holding;
+    #: and which arms' ways home a test says were held (#693's family)
     self.carried: set[str] = set()
+    self.held_arms: set[str] = set()
     #: ...the force each was last shut with (#525), how wide what a shut
     #: hand holds is, m, and which grippers are shut (each starts so)
     self.squeezes: dict[str, float | None] = {}
@@ -1271,9 +1297,9 @@ class StubBody(Body):
     """Anywhere: it has no body to be out of reach of."""
     return True
 
-  def hand_reaches(self, side, pos, rot=None) -> bool:
+  def hand_reaches(self, side, pos, rot=None, verb=False) -> bool:
     """Anywhere, but with a hand a test put `out_of_reach` -- or, turned,
-    `unturned`."""
+    `unturned`; no posture is kept."""
     return side not in self.out_of_reach and (rot is None or side not in self.unturned)
 
   def gaze_routine(self, down):
@@ -1333,7 +1359,7 @@ class StubBody(Body):
             "dx": dx, "dy": dy, "dz": dz}
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                        path=None, turns=None):
+                        path=None, turns=None, verb=False):
     """The hand there at once, as asked (a hand that is out)."""
     self.carried_paths.append((side, list(path or []), tuple(pos),
                                None if turns is None else list(turns)))
@@ -1353,12 +1379,19 @@ class StubBody(Body):
     """No other robot's body in any arm's way: none."""
     return None
 
+  def posture_kept_by(self, side) -> str | None:
+    """No posture to keep: none."""
+    return None
+
   def arm_kept(self) -> dict | None:
     """No other robot's body in any arm's way home: none."""
     return None
 
   def carrying(self, side) -> bool:
     return side in self.carried
+
+  def arm_held(self, side) -> bool:
+    return side in self.held_arms
 
   def carry(self) -> None:
     """A walk's hand-over, as the body's (#682): a hand out whose grip holds
@@ -1374,7 +1407,7 @@ class StubBody(Body):
     return False
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                   give=True):
+                   give=True, verb=False):
     """The hand `distance_m` along `direction` at once: nothing holds it."""
     self.pulled.append((side, tuple(direction), float(limit_n), float(distance_m), bool(give)))
     if side not in self.hands:

@@ -569,7 +569,7 @@ def test_a_walk_its_own_stop_did_not_end_is_never_sent_round_again():
     yield
   body = SimpleNamespace(last_drive={"why": DRIVE_STOPPED, "goal": (9.0, 9.0), "seconds": 5.0},
                          go_to_routine=go, pose=(0.0, 0.0, 0.0), arm_kept=lambda: None,
-                         carrying=lambda side: False)
+                         carrying=lambda side: False, arm_held=lambda side: False)
   life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0), step_until=None,
                          interrupt_due=lambda: False,
                          interrupted_routine=lambda: tick.result(False),
