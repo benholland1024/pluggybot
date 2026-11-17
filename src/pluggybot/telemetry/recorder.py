@@ -52,18 +52,40 @@ from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES,
                                           MODES, PROTOCOL_VERSION, ROBOT_ROOT,
                                           body_census, robot_display_name)
 
-def mode_message(mode, t: float, held_s: float = 0.0) -> dict | None:
+def heard(accepts, mode) -> list[str]:
+  """`accepts` narrowed to what `mode` can act on: in `scripted` and
+  `paused` nothing reads a message, so only the kinds code handles and the
+  eye's are heard (`FrameBuilder.hears`, `mode_message`)."""
+  if mode is not None and not mode.thinking:
+    return [k for k in accepts
+            if k in CODE_HANDLED_TYPES or k in EYE_INBOUND_TYPES]
+  return list(accepts)
+
+
+def mode_message(mode, t: float, held_s: float = 0.0,
+                 accepts=None) -> dict | None:
   """`{"type": "mode", ...}` for a switch, or None when there is no switch.
 
   A module function rather than only a builder method because BOTH sinks and
   both entry points (`run_demo`, `serve.py`) emit it, and a message shape
   written out in four places is a message shape that will disagree with
   itself. 0.12.0, issue #37.
+
+  ⚠ Handed what the run was built to hear, it carries `accepts` as this mode
+  leaves it (rooftop-media-2026 #518): the header's list is the mode's at
+  the CONNECT, so a link opened while paused named no `message`, and a site
+  that may only narrow it held every visitor's message until the next run.
+  `serve.py` hands it; `run_demo` does not, and its `mode` carries none (a
+  demo's recording is replayed, never a live hub's list to widen;
+  protocol/README.md).
   """
   if mode is None:
     return None
-  return {"type": "mode", "t": round(float(t), 3), "robot": ROBOT_ROOT,
-          "mode": mode.mode, "heldS": round(float(held_s), 1)}
+  msg = {"type": "mode", "t": round(float(t), 3), "robot": ROBOT_ROOT,
+         "mode": mode.mode, "heldS": round(float(held_s), 1)}
+  if accepts is not None:
+    msg["accepts"] = heard(accepts, mode)
+  return msg
 
 
 FRAME_HZ = 20.0     # the design point: 15-20 Hz reads smooth after
@@ -292,18 +314,14 @@ class FrameBuilder:
     message "delivered" to a robot with nothing listening.
 
     ⚠ The header is per CONNECTION, so this is right when a run STARTS in
-    a mindless mode and stale if the switch is flipped mid-run. The
-    `mode` message carries every flip as it happens, so a consumer that
-    honours both is correct -- but only within what this header named: it
-    can narrow by mode and never widen past the header, so a link opened
-    switched off hears no visitor's message until it next connects. The
-    eye's kinds are named in every mode for that reason
-    (`EYE_INBOUND_TYPES`, issue #357): neither is a message to deliver.
+    a mindless mode and stale if the switch is flipped mid-run: every
+    `mode` message carries `accepts` as the flip leaves it (`mode_message`,
+    rooftop-media-2026 #518), or a link opened while paused would hear no
+    visitor's message until it next connects. The eye's kinds are named in
+    every mode (`EYE_INBOUND_TYPES`, issue #357) for a consumer older than
+    that field: neither is a message to deliver.
     """
-    if self.mode is not None and not self.mode.thinking:
-      return [k for k in self.accepts
-              if k in CODE_HANDLED_TYPES or k in EYE_INBOUND_TYPES]
-    return list(self.accepts)
+    return heard(self.accepts, self.mode)
 
   def _census(self, model) -> None:
     robot, world = body_census(model)
@@ -472,21 +490,6 @@ class FrameBuilder:
       return []
     log = changelog.current()
     return [log.message(t)] if log.entries else []
-
-  def mode_message(self, t: float, held_s: float = 0.0) -> dict | None:  # noqa: D401
-    """The operator's mode, as its own message (0.12.0, issue #37).
-
-    ⚠ This exists because a PAUSED robot emits no frames. Frames are due on
-    SIM time and a paused robot steps no physics, so the block that carries
-    `mode` in every other state is exactly the block that stops arriving in
-    the one state somebody needs to see. The heartbeat is what keeps "the
-    operator paused it" distinguishable from "the sim died" -- the `accepts`
-    lesson, in the version where the whole point is that somebody notices.
-
-    None when there is no switch at all, which is every demo and every test
-    that did not ask for one.
-    """
-    return mode_message(self.mode, t, held_s)
 
   def reset(self) -> None:
     """Make the next frame a keyframe (every dynamic body shipped)."""

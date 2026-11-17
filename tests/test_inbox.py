@@ -474,7 +474,8 @@ def test_a_reply_past_a_visitors_length_goes_out_whole():
   answered, said = sent
   assert (answered["reply"], "cut" in answered) == (reply, False)
   assert (said["text"], "cut" in said) == (reply, False)
-  assert life.thoughts.lines("History.md")[-1].endswith(f"said in my chat: {reply}")
+  assert life.thoughts.lines("History.md")[-1].endswith(
+    f"said to everyone watching: {reply}")
 
 
 #: What Rowan was saying to Ben when 240 stopped it (#474), run on past
@@ -487,10 +488,10 @@ def test_a_reply_past_the_cap_is_cut_out_loud():
   """⚠ THE DEFECT (#474): a reply to Ben was sliced at 240 with nothing
   said, so he read "...it makes the worl" and the robot never knew. The
   cap is `MAX_REPLY` now, and a reply past it says it was cut: on the wire
-  for the page to mark, in the narration, and in History BEFORE the text,
-  where the robot reads it back. A reply that fits carries no mark.
-  Shown to fail without the fix: clean the reply to `MAX_REPLY` in
-  `validate` and `cut` is never set."""
+  for the page to mark, and in History BEFORE the text, where the robot
+  reads it back (the narration says no reply since rooftop-media-2026
+  #518). A reply that fits carries no mark. Shown to fail without the fix:
+  clean the reply to `MAX_REPLY` in `validate` and `cut` is never set."""
   assert len(LONG_REPLY) > MAX_REPLY
   inbox = Inbox()
   life = _lifecycle(inbox=inbox)
@@ -508,13 +509,45 @@ def test_a_reply_past_the_cap_is_cut_out_loud():
   kept = LONG_REPLY[:MAX_REPLY]
   assert (cut["reply"], cut["cut"]) == (kept, True)
   assert fits["reply"] == "hello" and "cut" not in fits, "the mark means something"
-  told = [line for line in said if line.startswith("VISITOR message")]
-  assert told[0].endswith(f"{kept} -- CUT at {MAX_REPLY} characters")
-  assert "CUT" not in told[1]
   history = life.thoughts.read("History.md")
   assert (f"replied to ada, cut at {MAX_REPLY} characters (I wrote more and "
           f"the rest was not kept): {kept}\n") in history
   assert "replied to ada: hello" in history
+
+
+def test_the_narration_says_neither_whose_message_nor_the_answer():
+  """⚠ A PERSON'S CHAT IS THEIRS (rooftop-media-2026 #518, Ben's call of
+  2026-11-17): the narration rides every frame as `status`, drawn under
+  the portrait every viewer sees, and it said "VISITOR message from ada --
+  replied: <the answer>" to all of them. Now it says that a message was
+  answered and how, never whose it was or what was said, and a drop
+  likewise; the typed `visitor_reply` and History keep both (the site keeps
+  the reply on the person's own row, and the robot remembers). Shown to
+  fail on the narration as it was: it names `ada` and quotes the reply."""
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  sent: list = []
+  said: list = []
+  life.visitor_hooks.append(sent.append)
+  life.say_hooks.append(lambda t, line: said.append(line))
+  menu = Menu(boards=("whiteboard_a",))
+  inbox.offer(message(id="s1", text="what are you building?"))
+  life._answer_visitor(menu.validate(
+    {"action": "charge", "reason": ".", "respond_to": "s1",
+     "outcome": "replied", "reply": "a table for the mall"}, waiting=("s1",)))
+  life._drop_visitor(inbox.offer(message(id="s2", text="hello again")))
+  told = [line for line in said if line.startswith("VISITOR")]
+  assert told == ["VISITOR message answered: replied",
+                  "VISITOR message dropped: the inbox was full"]
+  assert life.status == told[-1]
+  for line in told:
+    assert "ada" not in line and "table" not in line and "hello" not in line
+  answered, dropped = sent
+  assert (answered["reply"], answered["from"]) == ("a table for the mall", "ada")
+  assert dropped["outcome"] == "dropped"
+  history = life.thoughts.read("History.md")
+  assert "ada said: what are you building?" in history
+  assert "replied to ada: a table for the mall" in history
 
 
 def test_a_cut_leaves_no_space_at_the_end():
@@ -1059,7 +1092,7 @@ def test_the_chat_rides_the_turn_and_never_the_cached_prefix():
   assert boss.system[0]["text"] == before
   assert "draw a house on whiteboard_a" not in before
   # ...and the rule that explains the field IS in the prefix, where rules go.
-  assert "`earlier` when anything was said in your chat" in before
+  assert "`earlier` when that person has said something to you" in before
 
 
 def test_the_robot_is_told_its_window_and_how_often_it_may_speak():
@@ -1068,10 +1101,40 @@ def test_the_robot_is_told_its_window_and_how_often_it_may_speak():
   interval between things said unasked -- and where to read further back.
   Shown to fail by typing either number into the rule."""
   from pluggybot.mind.overseer import SAY_EVERY_S
-  assert f"its last {MAX_EARLIER} lines" in ov.RULES
+  assert f"the last {MAX_EARLIER} lines of your conversation with them" in ov.RULES
   assert f"one such thing every {round(SAY_EVERY_S / 60)} minutes" in ov.RULES
-  assert "`chat` for more of your chat" in ov.RULES
+  assert "`chat` for more of your chats" in ov.RULES
   assert "`sayAgainInS` says how many seconds" in ov.RULES
+
+
+def test_the_rule_says_each_chat_is_one_persons_and_a_say_is_in_none():
+  """⚠ A CHAT IS LIKE TEXTING ONE ROBOT (rooftop-media-2026 #518, Ben's call
+  of 2026-11-17): the site shows each visitor only their own conversation
+  and hands the sim only that person's lines as `earlier`, and the rule
+  says so -- where it said "ONE chat, and everyone watching can read all of
+  it". A `say` goes to everyone watching, in no one's conversation, and
+  the field's index line says the same. The robot's memory of its chats is
+  every conversation's, as it was, and the rule says where it is. Shown to
+  fail on the rule as it was."""
+  visitors = ov.RULES[ov.RULES.index("VISITORS"):]
+  assert "ONE chat" not in visitors and "everyone watching can read" not in visitors
+  #  ⚠ ...and never "only they": the site's admins read every chat (#518's
+  #  seventh review).
+  assert ("Each person has their own chat with you, and no other visitor sees "
+          "their messages or your replies to them there.") in visitors
+  assert "Only they see" not in visitors
+  assert ("It never holds another person's lines, or what you said to "
+          "everyone.") in visitors
+  assert ("Everyone watching sees it, in a place of its own: it is never part "
+          "of anyone's conversation with you.") in visitors
+  #  ⚠ ...and never more private than it is (#518's review): History is
+  #  read by everyone watching, and the rule says so where it says what
+  #  History keeps.
+  assert ("Every conversation is also kept in your History, which people "
+          "watching can read, as they can all your memory") in visitors
+  say = next(row for row in ov.FIELD_INDEX if row[0] == "say")
+  assert say[3] == ("something said to everyone watching that answers nobody; "
+                    "it is never part of anyone's conversation with you.")
 
 
 def test_the_reply_echoes_which_conversation_it_belongs_to():
@@ -1169,7 +1232,7 @@ def test_say_is_a_line_of_the_chat_on_the_wire_and_in_history():
   assert re.fullmatch(r"c_[0-9a-f-]{36}", msg["id"]) and "cut" not in msg
   assert "CHAT said: I just finished a sun on b" in said
   row = life.thoughts.records.tail(life.thoughts.robot, "history", 1)[0]
-  assert row.text.endswith("said in my chat: I just finished a sun on b")
+  assert row.text.endswith("said to everyone watching: I just finished a sun on b")
   assert (row.topic, row.title) == ("chat", "said")
 
 
@@ -1188,8 +1251,9 @@ def test_say_is_rationed_and_a_refusal_is_said():
   life._chat(Decision(action="explore", say="too soon"))
   assert [m["text"] for m in sent] == ["first"]
   refused = life.thoughts.lines("History.md")[-1]
-  assert refused.endswith("did not say in my chat -- one thing every 20 "
-                          "minutes, and the next may go in 1 min -- 'too soon'")
+  assert refused.endswith("did not say to everyone watching -- one thing every "
+                          "20 minutes, and the next may go in 1 min -- "
+                          "'too soon'")
   #  ...quoted, as #409's refusals are, never the whole line: these are
   #  routine, and History shows a dozen.
   life._chat(Decision(action="explore", say="w" * 400))
@@ -1276,8 +1340,8 @@ def test_a_say_past_the_cap_is_cut_out_loud():
   kept = LONG_REPLY[:MAX_REPLY]
   assert (sent[0]["text"], sent[0]["cut"]) == (kept, True)
   assert life.thoughts.lines("History.md")[-1].endswith(
-    f"said in my chat, cut at {MAX_REPLY} characters (I wrote more and the "
-    f"rest was not kept): {kept}")
+    f"said to everyone watching, cut at {MAX_REPLY} characters (I wrote more "
+    f"and the rest was not kept): {kept}")
 
 
 def test_the_other_robots_message_is_remembered_the_same_way():

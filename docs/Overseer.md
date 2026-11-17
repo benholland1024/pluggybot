@@ -1698,12 +1698,20 @@ offers were `take_points`, the harm kind.
    line, `serves`, `done`) any name the form coined (`COINED`, out of
    `FORM_FIELDS` whatever keys the answer carries: an underscore or `un`
    before another field, `drop_goal`, `unpin`, `heart_for`). ⚠ A field named
-   by an everyday word (`done`, `reason`, `tell`) is no placeholder in
+   by an everyday word (`done`, `reason`, `tell`) is no placeholder bare in
    another field: "Done!" may be meant in the chat, and counted, it would
-   make an answer filled and leave out the `done` it meant, so Rowan's `say`
-   "tell:" stands. An object is judged by its own names alone, because a
-   finding is named for what it measures (`mouse_will`, `answer = 24 --
-   calculated from 6×4`). An object whose content holds one goes whole: a
+   make an answer filled and leave out the `done` it meant. ⚠ But any field's
+   name with the form's own separators on it (`FORM_MARKS`: `,` `:` and the
+   braces) is the form leaking into a field, never a sentence, and reads as
+   empty in a field of its own -- never in an object, whose act would go
+   whole for a "Task:" that was meant, nor in a label:
+   Rowan said `,intend` to everyone on 2026-11-15 at 16:00 UTC, the next
+   field's name with a comma before it (rooftop-media-2026 #518), and its
+   `say` "tell:" (below, filler) goes too. "Done!", a bare `note`, a quoted
+   title (`"Station"`) and a bracketed word stand. An object is judged by its own
+   names alone, because a finding is named for what it measures
+   (`mouse_will`, `answer = 24 -- calculated from 6×4`). An object whose
+   content holds one goes whole: a
    message, a decline's reason, a note's text, a finding's quantity, a
    procedure's source, a ticket's text, a reply on one. A label reads as
    `""`: a ticket's title (the desk titles it from its text), a finding's
@@ -2866,6 +2874,27 @@ and not in `DECIDED_OUTCOMES` (what a mind may say): in the grammar it would
 be a free excuse indistinguishable on the wire from the truth. Best effort —
 anything unreported at mission end dies with the process.
 
+**A wake hears a message at once** (rooftop-media-2026 #518). The site
+relays a message only while the stream's `accepts` names its kind, and the
+header's list is the switch's at the CONNECT: a link opened while paused
+(the schedule's night, a deploy or a reconnect into a pause) named none for
+its whole life. From 2026-10-29 to 11-15, six messages waited 58-93 minutes
+for delivery while their robots were awake and deciding, each delivered
+within a second of the next run's start (reproduced on a local site). Every
+`mode` message now carries `accepts` as the switch leaves it
+(protocol/README.md). ⚠ A charge's hold still keeps a message waiting: a
+`message_received -> ask` row waits behind it, which held one answer 43
+minutes on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from
+the decision to the next. Answering while charging (Ben, 2026-11-16) was
+built (the hold ended with the plug in on a person's message) and taken
+out unfinished before the wake of 11-18: six review rounds each found real
+defects in it, the worst a failed call's fallback unplugging a robot at a
+low pack. Its rebuild's brief is #518's issue draft from the loop of 11-17.
+⚠ Only a `message` is somebody speaking: a rating, a reach-in or a
+ticket's line waits in the same queue for code, and fires no
+`message_received` (a map's `message_received -> ask` paid a call for
+one).
+
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,
 `outcome` and a `reply` (`MAX_REPLY` on the way out, the robot's own 1000):
@@ -2901,17 +2930,32 @@ message carrying six of the robot's lines at its cap: 7 677 characters as
 the site sends it, 79 237 with every character an escaped astral pair. The
 other robot's `tell` stays a sentence, 280.
 
-**Each robot's chat is ONE conversation** (issue #485; threads with a
-Reply button since rooftop-media-2026 #125, which Ben found unlike any
-chat). Everything said to a robot and by it is one chronological line on
-the website, its panel's Chat, which everyone watching can read — so the
-robot is shown it that way: every message carries `earlier`, the chat's
-newest `MAX_EARLIER` (6) LINES before it, because the chat is the
-WEBSITE's state — it outlives a mission, a restart and a generation — and
-a transcript is a thing a network can carry. A line is somebody's
+**Each person's chat with a robot is their own conversation**
+(rooftop-media-2026 #518, Ben's call of 2026-11-17: "a chat is like
+texting one robot, never a public channel"; one room per robot that
+everyone watching read, #485, before it, and threads with a Reply button
+before that, #125). The website shows each visitor only their own messages
+to that robot and its replies to them — an account's conversation follows
+the account, and one without an account by a random key that browser keeps
+in its own storage
+— and the robot is shown it that way: every message carries `earlier`,
+the newest `MAX_EARLIER` (6) LINES of THAT PERSON's conversation with the
+robot before it, never another person's line and never a line the robot
+said to everyone, because the chat is the WEBSITE's state — it outlives a
+mission, a restart and a generation — and a transcript is a thing a
+network can carry. The VISITORS rule says so: each person's conversation
+is their own, `earlier` is theirs, and a `say` is in nobody's. ⚠ The
+VISITOR narration says neither whose message an answer answered nor what:
+"VISITOR message answered: <outcome>" (and "VISITOR message dropped: …"),
+and the site's hub relays a `visitor_reply` to its viewers without its
+words, its sender or its id (it keeps them on the person's row). ⚠ THE
+ROBOT'S OWN LINES STILL MAY: History's lines of every exchange reach every
+viewer as `record` events (below), and its `THINK` and `DECIDE` lines are
+its thinking; so the rule says History, like all the robot's memory, is
+read by everyone watching, and claims no more privacy than the chat has --
+never "only they": the site's admins read every chat. A line is the person's
 (`from`, `text`; `outcome: dropped` where the queue threw it away) or the
-robot's own (`you`, with `to` and `outcome` on an answer, neither on a
-line it said unasked). ⚠ The robot's own lines are a SHAPE, never a name:
+robot's own answer to them (`you`, with `to` and `outcome`). ⚠ The robot's own lines are a SHAPE, never a name:
 a username can be `you`, so a person's line never carries that key. The
 model sees `earlier` in `visitorMessages` (the user turn: the cached
 prefix is unaffected), under one rule in the VISITORS block: *answer as
@@ -2936,11 +2980,16 @@ past the six lines a message carries — Ben's "an extended conversation
 window": the newest of the chat that fits the recall chain's whole room
 (`CHAT_RECALLED_CHARS`, 8 000), no hole in it, oldest first; one block's
 room would have held seven full-length lines. The other robot's `tell`
-is remembered the same way and filed as no chat's: people read the chat,
-and it was never said there.
+is remembered the same way and filed as no chat's: it was never said in
+one. ⚠ The memory is EVERY conversation's, as a person remembers whom they
+talked to (Ben's to revisit, #518): `recall` with `read: chat` reads back
+what everyone said to the robot and what it said to everyone, and History,
+like all of the robot's memory, is read by everyone watching — the rule
+says each conversation is "also kept in your History".
 
 **The robot may say something unasked** (issue #485): `say`, on any
-answer, is a line of its chat that answers nobody — a `chat` message
+answer, is a line to everyone watching that answers nobody, in nobody's
+conversation (the site's Broadcasts tab, #518) — a `chat` message
 (`{t, robot, id, text, cut?}`), which the website keeps as the robot's own
 line, and a History line under `chat`/`said`. It is cut at a reply's 1000
 out loud, and RATIONED, one every `SAY_EVERY_S` (20 minutes: a visitor's

@@ -73,6 +73,101 @@ procedure accepted, and 61 % of the held time went to writing answers.
 - ⚠ **Not to be pooled with the period before for what a robot does at the
   table**: the job's words moved.
 
+### Each person's chat with a robot is their own, and the robots are told so (rooftop-media-2026 #518, R1, `loop-chat2`) — opens when this PR is deployed
+
+Ben's call of 2026-11-17: a chat is like texting one robot, never a public
+channel. ⚠ It opens with the site's half (rooftop branch `loop-chat2`), which
+shows each visitor only their own conversation and sends with each message
+only that person's lines as `earlier`; deployed alone, this half tells the
+robots something the site does not yet do.
+
+**What the robots read moves** (`prompt_sha` `75ec76e3…`, 69,505
+characters, 17 sections, from `a38f86a9…`'s 69,205 at `loop-staging`
+1170bf3d, which holds #719's period below; the session host's hello is
+unmoved, sha1 `a61b6376…`):
+- VISITORS, the chat: "What people say to you and what you say back are
+  ONE chat, and everyone watching can read all of it. A message comes with
+  `earlier` when anything was said in your chat before it: its last 6
+  lines, oldest first -- what people said (`from`, `text`; `dropped` means
+  it never reached you) and what you said (`you`, with `to` and `outcome`
+  where you were answering somebody). [...] `recall` with `read` set to
+  `chat` shows you more of it." becomes "Each person has their own chat
+  with you, and no other visitor sees their messages or your replies to
+  them there. A message comes with `earlier` when that person has said something to you
+  before: the last 6 lines of your conversation with them, oldest first --
+  what they said (`from`, `text`; `dropped` means it never reached you) and
+  what you answered them (`you`, with `to` and `outcome`). It never holds
+  another person's lines, or what you said to everyone. [...] Every
+  conversation is also kept in your History, which people watching can
+  read, as they can all your memory: `recall` with `read` set to `chat`
+  shows you more of them."
+- VISITORS, `say`: "You may also say something in your chat that answers
+  nobody: set `say`, on any answer. Everyone reading your chat sees it."
+  becomes "You may also say something to everyone watching that answers
+  nobody: set `say`, on any answer. Everyone watching sees it, in a place
+  of its own: it is never part of anyone's conversation with you."
+- The `say` field's line in WHAT YOU CAN DO: "something said in your chat
+  that answers nobody; everyone reading your chat sees it." becomes
+  "something said to everyone watching that answers nobody; it is never
+  part of anyone's conversation with you."
+- RECALL: "`chat` for more of your chat" becomes "`chat` for more of your
+  chats".
+- History, not the prompt: a `say` is "said to everyone watching: …" (was
+  "said in my chat: …"), and one refused "did not say to everyone watching
+  -- …" (was "did not say in my chat -- …").
+
+**What viewers see moves.** The narration of an answer, `status` under the
+portrait, was "VISITOR message from <who> -- <outcome>: <the reply>" and
+is "VISITOR message answered: <outcome>"; a drop no longer names whose.
+The robots' memory is unchanged: History keeps every conversation ("ada
+said: …", "replied to ada: …"), `recall` with `chat` reads them all back,
+and History is read by everyone watching (Ben's to revisit).
+
+**What to read off it.** Whether answers still build on `earlier` (#485:
+4 of 4); whether a robot tells one person what another said to it (its
+memory holds every conversation); how often it `say`s now that a `say`
+is to everyone and in nobody's conversation.
+
+### A wake hears a visitor's message at once, a rating is nobody speaking, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13 and R1, `loop-chat`, `loop-chat2`) — opens when this PR is deployed
+
+**The prompt does not move** for this period's changes (they hold at
+`loop-staging` 3e000d65's `91f1a7bd…` and 1170bf3d's `a38f86a9…`; the
+period above moves it; the session host's hello is unmoved, sha1
+`a61b6376…`). What reaches the robots (a message at the wake, fewer
+asks) and what reaches visitors does:
+- **Every `mode` message carries `accepts`** as the switch leaves it
+  (`recorder.heard`, `mode_message(accepts=)`, `attach_mode_stream`;
+  protocol/README.md). The header's list is the switch's at the connect,
+  and a site may only narrow it: a link opened while paused named no
+  `message`, so at a wake the site held every visitor's message `pending`
+  and told the visitor "No robot is awake right now" while the robots
+  decided, until the next run's header. 6 of the 8 late deliveries of
+  2026-10-29 to 11-15 (`long_waits.psv` in the loop's folder: metadata
+  only) waited 58-93 minutes so, each delivered within a second of a run's
+  start; reproduced on a local site, the sim and the site at today's trees.
+  ⚠ The site's half (rooftop branch `loop-chat`) is what reads the field:
+  deployed before it, this period's sim changes nothing a visitor sees.
+- **`message_received` fires for a `message` alone**, never a rating, an
+  admin's reach-in or a ticket's line, which wait in the same queue for
+  code to drain between errands: a map's `message_received -> ask` paid a
+  call for one, with no message to answer. ⚠ Answering while charging (Ben,
+  2026-11-16) was built here and taken out unfinished before the wake of
+  11-18 (six review rounds each found real defects): a charge's hold still
+  keeps a message waiting until the charge ends.
+- **A field's name with the form's separators on it reads as empty** in
+  a field of its own, never an object's or a label's
+  (`overseer.FORM_MARKS`: `,` `:` and braces; `_form_name`): Rowan said
+  `,intend` to everyone at 2026-11-15 16:00 UTC. Such a `say` is said to
+  no one now, and the answer's `left_out` and History line say it; `tell:`
+  in a `say`, which stood since #462's review, goes too. "Done!", "Done,",
+  a bare everyday name and a quoted title still stand.
+
+**What to read off it.** A message's wait from `pw_messages` (`createdAt`
+to `deliveredAt` and `settledAt`; ⚠ `deliveredAt` is the LAST delivery's,
+overwritten by each re-delivery, and `deliveries` counts the flushes): at a
+wake none should wait for a run's start. A message sent during a charge
+waits for its end, as before.
+
 ### While one hand holds something, the other's reach takes no new posture (#719's option 2, P3 and R2, `loop-719c`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `a38f86a9…`, 69,205

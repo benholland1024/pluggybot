@@ -483,6 +483,9 @@ MAX_ERRAND_DEFERRALS = 2
 #: robot answers at most one per turn, and a wall of them is input tokens
 #: spent on messages it is not going to get to -- the inbox keeps the rest.
 VISITORS_SHOWN = 5
+#: ...of these inbound kinds alone: a person's message or the other robot's
+#: `tell`, never what code drains (a rating, a reach-in, a ticket's line).
+SHOWN_KINDS = ("message",)
 
 
 def _conversation(msg) -> dict:
@@ -4964,12 +4967,10 @@ class HubLifecycle:
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
-    # Narrated too, on `_answer_visitor`'s terms: the typed message closes the
-    # database row, and the event line is what a person watching reads. An
-    # operator seeing this repeatedly is watching the channel saturate, which
-    # is the other thing the count was supposed to be telling somebody.
-    self._say(f"VISITOR message from {msg.who or 'a visitor'} -- "
-              f"dropped: the inbox was full")
+    # Narrated too, on `_answer_visitor`'s terms, never whose (the admins'
+    # chats page says): an operator seeing this repeatedly is watching the
+    # channel saturate, which is what the count is for.
+    self._say("VISITOR message dropped: the inbox was full")
 
   def _answer_visitor(self, decision) -> None:
     """Send one accepted/declined/replied back out, and retire the message.
@@ -5005,16 +5006,12 @@ class HubLifecycle:
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
-    # Narrated as well as sent, because the two audiences are different: the
-    # typed message closes the database row the website is holding, and the
-    # event line is what a person watching the stream reads.
-    # Phrased with the message as the subject rather than the outcome as a
-    # verb: "replied ada's message" was ungrammatical the moment `answered`
-    # became `replied`, and all three outcomes have to read as English here.
+    # Narrated as well as sent, and ⚠ NEITHER WHOSE NOR WHAT (rooftop-media-
+    # 2026 #518): the narration rides every frame as `status`, under the
+    # portrait every viewer sees, and a person's chat is theirs alone.
     who = msg.who or "a visitor"
     said = text or "(no reply)"
-    self._say(f"VISITOR message from {who} -- {decision.outcome}: {said}"
-              f"{text_registry.cut_said(cut, MAX_REPLY)}")
+    self._say(f"VISITOR message answered: {decision.outcome}")
     # ...and REMEMBERED (rooftop-media-2026 #125): the exchange is the one
     # thing in a day that another mind said, and until this it was narrated
     # and then gone -- the tier table promised History "the senders" and no
@@ -5029,8 +5026,8 @@ class HubLifecycle:
     # either. A cut is said BEFORE the text, where a line's end cannot take
     # it (#307).
     # ⚠ ...AND FILED AS THE CHAT'S (issue #485), so `recall` reads the
-    # chat back past the lines a message carries -- a person's alone: the
-    # other robot's `tell` is not said in the chat people read.
+    # chats back past the lines a message carries -- a person's alone: the
+    # other robot's `tell` is in no person's conversation.
     chat = msg.sender == text_registry.VISITOR
     self._remember(f"{who} said: {msg.text}", room=MAX_REPLY,
                    chat=CHAT_HEARD if chat else "")
@@ -5043,11 +5040,12 @@ class HubLifecycle:
                    chat=CHAT_ANSWERED if chat else "")
 
   def _chat(self, decision) -> None:
-    """Say something in the robot's chat that answers nobody (issue #485).
+    """Say something to everyone watching that answers nobody (issue #485),
+    in nobody's conversation (rooftop-media-2026 #518).
 
     A `chat` message through the visitor hooks, like a `visitor_reply`:
-    the website keeps it as a line of the robot's chat, and History files
-    it as the chat's. Rationed at `SAY_EVERY_S` off the store's own record
+    the website keeps it as a line of the robot's own (its Broadcasts tab),
+    and History files it under `chat`/`said`. Rationed at `SAY_EVERY_S` off the store's own record
     of the last one (`ThoughtFiles.last_said`: a restart keeps the clock, a
     true death forgets it, and a clock gone back behind it opens the gate,
     `say_again_in`), and cut at a reply's length -- both OUT LOUD, on
@@ -5064,7 +5062,7 @@ class HubLifecycle:
       # are routine, and each is a line of the dozen History shows.
       self._say(f"CHAT not said, {wait} s before it may: "
                 f"{decision.say[:MAX_REPLY]}")
-      self._remember(f"did not say in my chat -- one thing every "
+      self._remember(f"did not say to everyone watching -- one thing every "
                      f"{SAY_EVERY_S / 60:.0f} minutes, and the next may go "
                      f"in {math.ceil(wait / 60)} min -- "
                      f"{decision.say[:QUOTED_CHARS]!r}")
@@ -5080,7 +5078,8 @@ class HubLifecycle:
       hook(dict(msg))
     self.chats.append(msg)
     self._say(f"CHAT said: {text}{text_registry.cut_said(cut, MAX_REPLY)}")
-    self._remember(f"said in my chat{text_registry.cut_note(cut, MAX_REPLY)}: "
+    self._remember(f"said to everyone watching"
+                   f"{text_registry.cut_note(cut, MAX_REPLY)}: "
                    f"{text}", room=MAX_REPLY, chat=CHAT_SAID)
 
   # ---- tasks (issue #21) ----------------------------------------------------
@@ -5449,10 +5448,15 @@ class HubLifecycle:
     # before and carries nothing about who sent it or what it said. A
     # stranger can trigger a row; a stranger cannot choose which one.
     if self.inbox is not None:
-      for msg in self.inbox.peek(VISITORS_SHOWN):
-        if msg.id not in self._seen_visitors:
-          self._seen_visitors.add(msg.id)
-          self._occurred.append(("message_received", ""))
+      # ⚠ MESSAGES, never a rating, an admin's reach-in or a ticket's line,
+      # which wait in the same queue for code to drain (#518's reviews):
+      # none of them is somebody speaking, nor a call's worth -- the same
+      # messages the model is shown (`overseer_context`).
+      for msg in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS):
+        if msg.id in self._seen_visitors:
+          continue
+        self._seen_visitors.add(msg.id)
+        self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
                            else None),
@@ -7501,7 +7505,10 @@ def overseer_context(life) -> dict:
   has been answered rather than when it has been read (issue #16).
   """
   from pluggybot.mind import overseer as ov
-  visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
+  # ⚠ MESSAGES ALONE (#518's review): a rating or a reach-in that came
+  # since code last drained the queue never reaches the model.
+  visitors = (life.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
+              if life.inbox is not None else ())
   offers = shown_offers(life)
   state = ov.context_for(life, visitors=visitors, tasks=offers,
                          # ...and what it has taken, with each job's time
@@ -7620,7 +7627,8 @@ def places_context(life) -> list[dict]:
 
 
 def attach_mode_stream(life, sinks, pacer=None,
-                       heartbeat_s: float = MODE_HEARTBEAT_S) -> None:
+                       heartbeat_s: float = MODE_HEARTBEAT_S,
+                       accepts=None) -> None:
   """Put the operator's switch on the wire, and keep the pacer honest.
 
   Three wirings, and each one exists for a failure that would otherwise be
@@ -7638,12 +7646,15 @@ def attach_mode_stream(life, sinks, pacer=None,
 
   `sinks` are emit callables (`WsPublisher.message`, `TelemetryRecorder.emit`);
   a run with neither passes an empty list and still gets the resync.
+  `accepts` is what the run was built to hear (the header's, before the
+  mode narrows it): handed it, every message says what the robot hears as
+  the switch leaves it (`mode_message`, rooftop-media-2026 #518).
   """
   if life.mode is None:
     return
 
   def emit(held_s: float = 0.0) -> None:
-    msg = mode_message(life.mode, float(life.data.time), held_s)
+    msg = mode_message(life.mode, float(life.data.time), held_s, accepts=accepts)
     for sink in sinks:
       sink(dict(msg))
 

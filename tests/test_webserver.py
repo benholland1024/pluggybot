@@ -1207,6 +1207,41 @@ def test_serve_hands_the_operator_switch_to_the_lifecycle_and_the_wire(
   assert life.pause_hooks and life.resume_hooks
 
 
+def test_a_served_wake_tells_the_site_the_robot_hears_messages_again(
+    monkeypatch, tmp_path):
+  """rooftop-media-2026 #518, the wiring: a run whose link opened while
+  paused (the schedule's night) told the site it heard no `message` until
+  its next connect. The served `mode` message says what the run was built
+  to hear as the switch leaves it -- both of serve's wirings, the pair's
+  being the one deployed."""
+  import ast
+
+  import gzip
+
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "paused"}))
+  record = tmp_path / "out.jsonl.gz"
+  life, pub, _ = _serve_wiring(monkeypatch, [
+    "--world", "home", "--free-run", "--overseer", "--mode-file", str(path),
+    "--record", str(record)])
+  path.write_text(json.dumps({"mode": "llm"}))
+  life.init_kwargs["mode"].poll(force=True)
+  woke = [m for m in pub.messages if m.get("type") == "mode"][-1]
+  assert woke["mode"] == "llm" and "message" in woke["accepts"]
+  # ...and a recording of the stream names what the run hears from its
+  # header on, as the stream does, or its `mode` lines widen past a header
+  # that named nothing (found in review)
+  with gzip.open(record, "rt") as f:
+    header = json.loads(f.readline())
+  assert header["type"] == "header" and "rating" in header["accepts"]
+  assert "message" not in header["accepts"], "opened while paused"
+  calls = [node for node in ast.walk(ast.parse(_SERVE.read_text()))
+           if isinstance(node, ast.Call)
+           and getattr(node.func, "id", None) == "attach_mode_stream"]
+  assert len(calls) == 2, "the single robot's wiring and the pair's"
+  assert all("accepts" in {k.arg for k in call.keywords} for call in calls)
+
+
 def test_serve_shows_no_wallet_on_a_world_that_cannot_spend(monkeypatch):
   """ABSENT and ZERO are different claims (0.12.0). Without an escalation
   model there is nothing to spend, so the block is not attached at all --

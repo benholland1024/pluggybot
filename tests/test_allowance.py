@@ -548,6 +548,28 @@ def test_the_mode_is_on_the_wire_in_both_shapes():
   assert set(MODES) == {"llm", "scripted", "paused"}
 
 
+def test_a_wake_says_the_robot_hears_messages_again(tmp_path):
+  """rooftop-media-2026 #518: the header's `accepts` is the mode's at the
+  CONNECT, so a link opened while paused named no `message`, the site may
+  only narrow that list, and every visitor's message waited for the next
+  run while the robots were awake (6 of the 8 long waits of 10-29 to 11-15;
+  reproduced on a local site). The `mode` message says what the robot hears
+  as the switch leaves it."""
+  from pluggybot.telemetry.protocol import INBOUND_TYPES
+  from pluggybot.telemetry.recorder import mode_message
+
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "paused"}))
+  switch = ModeSwitch(path)
+  asleep = mode_message(switch, 1.0, accepts=INBOUND_TYPES)["accepts"]
+  assert "message" not in asleep and "rating" in asleep and "image" in asleep
+  path.write_text(json.dumps({"mode": "llm", "at": "2026-11-07T09:00:00Z"}))
+  switch.poll(force=True)
+  assert mode_message(switch, 2.0, accepts=INBOUND_TYPES)["accepts"] == list(INBOUND_TYPES)
+  # ...and handed nothing it was built to hear, it says nothing about it
+  assert "accepts" not in mode_message(switch, 3.0)
+
+
 def test_an_escalated_answer_is_checked_against_the_offers_it_was_shown():
   """⚠ The bug the probe found, pinned. The escalation used to take its
   `offered`/`waiting` tuples as arguments, so a caller that had the state and
