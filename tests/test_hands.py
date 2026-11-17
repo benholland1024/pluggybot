@@ -896,6 +896,30 @@ def test_an_arm_left_held_keeps_the_stand_from_no_other_arm():
   assert ((0.0, 0.0, 0.0), "rest") in _homed(r, "right"), "the stand never came back"
 
 
+def test_a_raise_its_arm_did_not_follow_is_left_held_there(monkeypatch):
+  """#693b's second review: a raise runs as a retreat's line, which nothing
+  blocks, and arrives by its command -- held from above, or under an edge, its
+  arm pressed up at full stiffness and its way home would be judged from a
+  command the arm never reached. One whose grip, by its senses, is more
+  than `BLOCKED_M` from where the raise went is left held there."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=1)
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  top = r.goal["left"].pos.copy()
+  r.cmd["left"].pos = top.copy()
+  r.sensed_grip["left"] = top - np.array([0.0, 0.0, rc.BLOCKED_M + 0.01])
+  assert r._raise_held("left")
+  r.sensed_grip["left"] = top - np.array([0.0, 0.0, rc.BLOCKED_M - 0.01])
+  assert not r._raise_held("left")
+  # ...and the line's end takes the word: a raise held is left there
+  monkeypatch.setattr(r, "_raise_held", lambda side: True)
+  r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and np.allclose(r.q_cmd["left"], held_at)
+
+
 def test_a_carrys_way_ends_at_its_pose_never_waiting_to_be_read_home():
   """A walk's hand-over takes a hand that holds to its carry pose by the way
   home's own walk (#682): that way ends "carried", at its pose, and is no way

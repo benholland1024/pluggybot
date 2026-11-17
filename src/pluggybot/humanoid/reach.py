@@ -311,7 +311,8 @@ HELD_S = 0.5
 #: ...first lifted this far straight up, m, and sent home again from there,
 #: at most this many times a way home -- never with another robot by
 #: (`keep_out`): a way judged from the top would take the way that comes
-#: least near it rather than be refused, as a verb's must (#678).
+#: least near it rather than be refused, as a verb's must (#678) -- and a
+#: raise its arm did not follow is left held (`_raise_held`).
 LIFT_M, LIFTS = 0.05, 1
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
@@ -1966,6 +1967,23 @@ class Reach:
     command eased there (`HELD_S`): out, until a way home begins again."""
     return self.phase[side] == "held"
 
+  def _ease(self, side: str) -> np.ndarray:
+    """An arm left held: its command where its drivers read it, pressing on
+    nothing (phase "held"); returns that reading."""
+    q = self.sensed[self.self_model.arm[side]].copy()
+    self.q_cmd[side], self.q_to[side] = q, q.copy()
+    self.goal[side] = self.cmd[side] = None
+    self.homing[side], self.held_for[side] = False, 0.0
+    self.phase[side] = "held"
+    return q
+
+  def _raise_held(self, side: str) -> bool:
+    """Whether a raise (`_homed`) ended with its arm short of it: its grip,
+    by its senses, more than `BLOCKED_M` from the command it walked to."""
+    c, at = self.cmd[side], self.sensed_grip[side]
+    return (self.lifted[side] > 0 and not self.homing[side] and c is not None
+            and at is not None and float(np.linalg.norm(at - c.pos)) > BLOCKED_M)
+
   def home_over(self, side: str) -> bool:
     """Whether an arm's last way home is over by its drivers (`_homed`):
     read home or held -- False only for one whose command reached its rest
@@ -1984,11 +2002,8 @@ class Reach:
     self.held_for[side] += dt
     if self.held_for[side] < HELD_S:
       return
-    q = self.sensed[self.self_model.arm[side]].copy()
-    self.q_cmd[side], self.q_to[side] = q, q.copy()
-    self.homing[side], self.held_for[side] = False, 0.0
+    q = self._ease(side)
     if self.lifted[side] >= LIFTS or len(self.keep_out):
-      self.phase[side] = "held"
       return
     self.lifted[side] += 1
     # ...its grip where its drivers put it, on its model of itself as it
@@ -2517,7 +2532,13 @@ class Reach:
         if there and phase in ("approach", "pull"):
           self.phase[s] = "hold"
         elif there and phase == "retreat":
-          self._go_home(s)
+          if self._raise_held(s):
+            # ...a raise its arm did not follow -- held from above, or under
+            # an edge -- is no start for a way home: left held where it is
+            self._ease(s)
+            sm._set_arm(s, self.q_cmd[s])
+          else:
+            self._go_home(s)
       self.arms[s].command(self.q_cmd[s], sm.gravity(s), stiffness)
     # ...and the waist to the posture's angle, the trunk above it held as
     # the arms are commanded

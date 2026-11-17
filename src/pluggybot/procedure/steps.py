@@ -299,9 +299,9 @@ def _carried(life) -> dict:
   the walk takes the carry pose itself and says so): `carried`, each hand
   held at the side a walk carries it at -- its gripper said it held
   something as the walk began -- and, of those, `dropped`, each whose
-  gripper says it holds nothing now; and `armHeld`, each arm whose way home
-  something held, so that the walk went with it where it was held (#693's
-  family, `Body.arm_held`). None of these, nothing said."""
+  gripper says it holds nothing now; and `armHeld`, each arm left where its
+  way home was held, out as the walk ends (#693's family, `Body.arm_held`).
+  None of these, nothing said."""
   hands = [s for s in ("left", "right") if life.body.carrying(s)]
   held = [s for s in ("left", "right") if life.body.arm_held(s)]
   dropped = [s for s in hands if not life.body.gripped(s)]
@@ -1394,8 +1394,9 @@ def _open_hand(life, args: dict) -> Routine:
 
 #: What a way home that something holds does (`humanoid.reach.HELD_S`, #693's
 #: family), as the verbs' texts and YOUR BODY say it.
-HELD_SAID = ((f"is raised {100 * HELD_LIFT_M:.0f} cm and sent home again, and still held, it "
-              "stays where it is held") if HELD_LIFTS else "stays where it is held")
+HELD_SAID = ((f"is raised {100 * HELD_LIFT_M:.0f} cm and sent home again, unless another "
+              "robot stands near you, and still held, it stays where it is held")
+             if HELD_LIFTS else "stays where it is held")
 #: What a `withdraw` whose arm did not get home says, by the body's why.
 WITHDRAW_WHY = {"fell": "you fell on the way home",
                 "held": "your {hand} arm did not get home: something holds it there"}
