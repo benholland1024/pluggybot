@@ -224,6 +224,78 @@ def test_the_pass_plate_is_brought_back_from_the_pass_by_a_position_move():
   assert back == "move_hand", f"the plate is brought back by {back}"
 
 
+def _plate_pull_back(gx: float, gy: float, gz: float = 1.0) -> list[tuple[float, float, float]]:
+  """The pass reference's plate pull-back off the pass as its own source
+  runs it for a grip at (gx, gy, gz) in the stance frame: its statements
+  from the lift off the pass to the walk to the place, each assignment and
+  test worked out with the hand read where its moves left it, and every
+  `move_hand` of the left hand recorded where it was asked to go (each taken
+  as arrived)."""
+  from pluggybot.challenge import solutions
+  fn = ast.parse(solutions.PROCEDURES["set_table_pass"][1]).body[0]
+  hand = {"left.x": gx, "left.y": gy, "left.z": gz}
+  names: dict = {}
+  moves = []
+
+  def value(node):
+    expr = ast.Expression(body=node)
+    ast.fix_missing_locations(expr)
+    return eval(compile(expr, "<plate>", "eval"), {"__builtins__": {}},
+                {**names, "read": lambda k: hand[k]})
+
+  def call_of(node):
+    if isinstance(node, ast.Expr):
+      node = node.value
+    if isinstance(node, ast.If) and isinstance(node.test, ast.UnaryOp):
+      node = node.test.operand
+    return node if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) else None
+
+  def run(body, started) -> bool:
+    for st in body:
+      c = call_of(st)
+      if c is not None and c.func.id == "pull" and [ast.literal_eval(a) for a in c.args[1:4]] == [0, 0, 1]:
+        started = True
+        continue
+      if not started:
+        continue
+      if c is not None and c.func.id == "to_place":
+        return started
+      if c is not None and c.func.id == "move_hand" and ast.literal_eval(c.args[0]) == "left":
+        x, y, z = (value(a) for a in c.args[1:4])
+        moves.append((x, y, z))
+        hand.update({"left.x": x, "left.y": y, "left.z": z})
+      elif isinstance(st, ast.Assign):
+        names[st.targets[0].id] = value(st.value)
+      elif isinstance(st, ast.If) and c is None and value(st.test):
+        run(st.body, True)
+    return started
+  run(fn.body, False)
+  return moves
+
+
+def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle():
+  """#682's stage C, round 5: the plate gripped at the pass, 0.43-0.51 m
+  out, was brought back to 0.23 m by one position move along the stance's
+  x -- and a grip nearer the body's middle than about 0.22 m (`near` lands
+  it 0.15-0.36 m left of the stance) took a posture with the waist turned
+  30-60 deg for that path: it held back, tipped the plate 19-44 deg in its
+  jaws (then let go on the walk) or fell, the pelvis coming 0.24-0.27 m
+  toward the pass (round 4's reading, and with its grips set 6 cm nearer
+  the middle on dev draws, 2 falls, 5 plates dropped and 6 laid of 13). In
+  two moves, halfway first, the last ending no nearer the middle than
+  `PASS_PLATE_LEFT`, each path is reached in a crouch at most: 12 of the 13
+  laid, no fall, none dropped (SimNotes, "The place laid from the pass").
+  Off the reference's own source, run for grips round where it grips."""
+  from pluggybot.challenge import solutions
+  for gx in (0.43, 0.47, 0.51):
+    for gy in (0.12, 0.2, 0.3, 0.36):
+      moves = _plate_pull_back(gx, gy)
+      assert len(moves) == 2, f"a grip at ({gx}, {gy}) is brought back by {len(moves)} moves"
+      (x1, y1, _), (x2, y2, _) = moves
+      assert abs(x1 - (gx + x2) / 2) < 1e-9 and y1 == gy, (gx, gy, moves)
+      assert x2 == 0.23 and y2 == max(gy, solutions.PASS_PLATE_LEFT), (gx, gy, moves)
+
+
 def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
   """#682's stage C, round 3: the cup is reached for 10 cm over its grip and
   then brought down to it. Brought down by a `pull`, its grip at the shut

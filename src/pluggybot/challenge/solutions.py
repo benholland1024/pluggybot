@@ -260,7 +260,9 @@ TABLE = _table_job()
 #:    (further, its arm runs out of reach, and the hand-over lets go of what
 #:    its lift could not raise); the plate, taken from 0.50 m, to 0.23 by
 #:    `move_hand` (nearer the pass the hand-over struck it, and a `pull` that
-#:    long took a 31 deg bow over the counter and fell: `test_solutions`);
+#:    long took a 31 deg bow over the counter and fell: `test_solutions`), in
+#:    two moves, halfway and then to no nearer the body's middle than
+#:    `PASS_PLATE_LEFT`;
 #:    the fork's to 0.21 in two pulls (`PASS_FORK_MID`: by `move_hand` it
 #:    slipped in the jaws at the hand-over; `test_solutions`);
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
@@ -345,6 +347,14 @@ PASS_CUP_AT = (0.066, 0.209)
 #: (SimNotes, "The place laid from the pass"); each half asks a posture that
 #: reaches both its ends standing.
 PASS_FORK_MID = 0.33
+#: How far left of the stance the plate's pull-back off the pass ends at the
+#: least, m: a grip the hand read 0.20 m left or nearer the body's middle
+#: (`near` lands it 0.12-0.32 m out, half of them under 0.25) was brought
+#: straight back to 0.23 m in a posture with the waist turned 30-60 deg, and
+#: held back, tipped the plate in its jaws or fell (SimNotes, "The place laid
+#: from the pass"). The pull-back goes halfway first, then here, each path
+#: reached in a crouch at most.
+PASS_PLATE_LEFT = 0.25
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -420,7 +430,12 @@ PASS_PLATE = '''def lay_plate():
     close_hand("left", 80)
   oz = read("left.z") - gz + 0.0434
   pull("left", 0, 0, 1, 20, 0.05, give=0)
-  if not move_hand("left", 0.23, read("left.y"), read("left.z")):
+  if not move_hand("left", (read("left.x") + 0.23) / 2, read("left.y"), read("left.z")):
+    pass
+  y = read("left.y")
+  if y < %(plate_left)g:
+    y = %(plate_left)g
+  if not move_hand("left", 0.23, y, read("left.z")):
     pass
   to_place(%(facing)g)
   spot(93)
@@ -496,7 +511,8 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
   terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
-           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID}
+           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
+           "plate_left": PASS_PLATE_LEFT}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
