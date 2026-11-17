@@ -241,3 +241,10 @@ def test_the_posture_kept_is_the_plans_where_the_body_is_near_it_never_a_swaying
   assert r.keep("right", True) == BOWED
   r.posture_now = lambda: np.array(BOWED) + [0.0, -0.2, 0.0]
   assert np.allclose(r.keep("right", True), (-0.22, 0.6, 0.0))
+
+
+def test_whose_grip_kept_the_posture_rides_a_restart():
+  """A move's way reads which hand's grip kept its posture (`_held`,
+  `_pulled`, `_look`), so a restart keeps it with the reach (`Reach.KEPT`),
+  beside #693's way home (`test_carry`'s)."""
+  assert "kept_by" in rc.Reach.KEPT
