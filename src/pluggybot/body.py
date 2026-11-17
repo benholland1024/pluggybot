@@ -656,14 +656,18 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def hand_at(self, side: str) -> tuple[float, float, float]:
     """Where a hand's grip is, m, in the believed world frame: its arm's
-    encoders and its IMU through its model of itself (#493)."""
+    encoders and its IMU through its model of itself (#493), read afresh --
+    each call draws on their noise, so what a procedure reads is
+    `hand_sensed` (#721)."""
 
   @abc.abstractmethod
-  def hand_sensed(self, side: str) -> tuple[float, float, float]:
+  def hand_sensed(self, side: str) -> tuple[float, float, float] | None:
     """`hand_at` as the hand's control loop last read it, at its last
-    command (#554): what a move's stop condition reads, at the encoders'
-    own rate, drawing nothing more on their noise -- read afresh between
-    commands, a condition that never came true changed the flight."""
+    command (#554), or None before that loop's first reading: what a
+    procedure reads and a move's stop condition reads, at the encoders' own
+    rate, drawing nothing more on their noise -- read afresh between
+    commands, a condition that never came true changed the flight, and so
+    did a read nobody acted on (#721)."""
 
   @abc.abstractmethod
   def hand_watched(self, side: str) -> tuple[float, float, float]:

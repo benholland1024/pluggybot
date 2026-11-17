@@ -43,7 +43,10 @@ class Axis:
 
 @dataclass(frozen=True)
 class Sensor:
-  """One scalar a program may read, measured off the world."""
+  """One scalar a program may read, measured off the world. ⚠ AS THE BODY
+  LAST MEASURED IT: a read draws on no part's noise and poses nothing, so a
+  read nobody acts on moves the flight not at all (#554's stop condition,
+  #721's `read`: a hand's place read afresh drew on its drivers' noise)."""
 
   name: str
   read: Callable[..., float]    # (life) -> float
@@ -52,10 +55,6 @@ class Sensor:
   #: hand's move may stop on, read no oftener (#554) -- or None for what a
   #: verb last reported, which no move changes
   every_s: float | None = None
-  #: how a stop condition reads it where `read` reads its part afresh: as
-  #: the body's own loop last read it (`Body.hand_sensed`), so a condition
-  #: that never comes true moves the flight not at all (#554)
-  live: Callable[..., float] | None = None
   #: how far into a move a stop condition first reads it, s: a hand's force
   #: as a move begins reads the move (`FORCE_FROM_S`, #631)
   from_s: float = 0.0
@@ -195,11 +194,16 @@ def measured(key: str, taller: bool = False):
 
 
 def _hand_at(side: str, k: int):
-  return lambda life: in_stance(life, life.body.hand_at(side))[k]
-
-
-def _hand_sensed(side: str, k: int):
-  return lambda life: in_stance(life, life.body.hand_sensed(side))[k]
+  """`<side>.<x|y|z>`: the hand's place as its arm's loop last read it
+  (`Body.hand_sensed`, at most `HAND_EVERY_S` old), never read afresh
+  (#721) -- and before that loop has read it, no reading."""
+  def read(life) -> float:
+    at = life.body.hand_sensed(side)
+    if at is None:
+      raise NoReading(f"{side}.{'xyz'[k]} has no reading: your {side} arm has not "
+                      "read where its hand is yet")
+    return in_stance(life, at)[k]
+  return read
 
 
 def _hand_force(side: str, k: int):
@@ -210,8 +214,7 @@ for _s in HANDS:
   for _k, _a in enumerate("xyz"):
     SENSORS[f"{_s}.{_a}"] = Sensor(
       f"{_s}.{_a}", _hand_at(_s, _k),
-      f"where your {_s} hand's grip is, m, your stance frame ({_a})", every_s=HAND_EVERY_S,
-      live=_hand_sensed(_s, _k))
+      f"where your {_s} hand's grip is, m, your stance frame ({_a})", every_s=HAND_EVERY_S)
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
       f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off your "
@@ -315,7 +318,7 @@ WATCH_SENSORS = tuple(f"watch.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "e
 # are built from), walked by `Body.ramp_routine`. ⚠ No sensor reads one:
 # the quadruped's arm's read the simulator's `qpos`, a stand-in no new sense
 # extended -- a hand's place is read off its encoders through the robot's
-# model of itself (`left.x`, `Body.hand_at`).
+# model of itself (`left.x`, `Body.hand_sensed`).
 #: How fast a humanoid's arm joint is walked, rad/s (`humanoid.reach.JOINT_RATE`).
 HUMANOID_SLEW = 1.0
 

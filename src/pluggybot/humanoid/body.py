@@ -1017,7 +1017,9 @@ class HumanoidBody(Body):
 
   def hand_sensed(self, side):
     got = self.reach.sensed_grip.get(side)
-    p = self.to_world(self.reach.grip_now(side)[0] if got is None else got)
+    if got is None:
+      return None
+    p = self.to_world(got)
     return float(p[0]), float(p[1]), float(p[2])
 
   def _watched(self) -> np.ndarray:

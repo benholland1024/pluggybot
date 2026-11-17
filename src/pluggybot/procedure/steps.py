@@ -905,7 +905,7 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
   from pluggybot.procedure import axes
   name, side, number = guard
   sensor = axes.SENSORS[name]
-  reading = sensor.live or sensor.read
+  reading = sensor.read
   # physics steps a reading, rounded UP: never oftener than its part reads
   step = float(life.model.opt.timestep)
   every = max(1, math.ceil(sensor.every_s / step - 1e-6))
