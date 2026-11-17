@@ -2322,7 +2322,13 @@ would not (a test states it), so a flight that falls nowhere, or falls from
 the stand or under the walker, is the same flight to the byte: four of the
 11-15 wake's falls at the storeroom's counter, flown at their live draws on
 73f8daf, came out so (three fall nowhere there; the fourth falls from the
-stand and is caught on its feet, 38 deg behind upright at its most).
+stand and is caught on its feet, 38 deg behind upright at its most). So of
+Ben's bar only the flights that fall can move: on 73f8daf nine of P2's ten
+fall (the tour's cube 9 none, the same flight here), and in eight of them
+the watch took the fall with the trunk nearer upright than the bow -- bows
+of 9-54 deg, the trunk from 27 deg behind upright to 20 in front of it.
+Read off the nearer, each still falls, taken 0.06-0.18 s later 28-38 deg
+behind upright, and the verdict is the same; the ninth falls from the stand.
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak

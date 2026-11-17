@@ -607,9 +607,10 @@ save a filmstrip PNG named after the script.
   off itself; SimNotes, "A fall backward out of a bow"): the IMU is on the
   pelvis, under a waist that only turns, so off upright alone the reach's
   deepest bows were falls, and off the bow alone a trunk going back from one
-  was a fall still in front of upright; a forward fall from a bow is the
-  collapse's to take (lying on its face is 27 deg past the deepest bow). ⚠
-  The head is charged on its own in training, or it struck at 5.5-6.9 m/s; the
+  was a fall the bow's depth sooner than from the stand; a forward fall
+  from a bow is the collapse's to take (lying on its face is 27 deg past the
+  deepest bow). ⚠ The head is charged on its own in training, or it struck
+  at 5.5-6.9 m/s; the
   mission waits out a get-up before a walk takes the legs or the standing
   policy takes them back, and on standing forgets its ground map and
   starts its height again. `stuck_after_s` is

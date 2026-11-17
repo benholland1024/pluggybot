@@ -38,7 +38,10 @@ served shoves moved, every fall stood either way. A flight whose watch takes
 no fall today, or takes it from the stand or under the walker, is the same
 flight to the byte (a test states the rule; four of the 11-15 wake's falls
 at the storeroom's counter, flown at their live draws on 73f8daf, came out
-so, the one that still falls a fall from the stand).
+so, the one that still falls a fall from the stand). Of Ben's bar on
+73f8daf, nine flights fall: in eight the fall was taken with the trunk
+nearer upright than the bow, and on this branch each still falls, taken
+0.06-0.18 s later with the same verdict.
 
 **To read.** The `fall` rows (#707): how far each get-up carried the body
 and how long it took (`movedM`, `seconds`), how many ended stuck, and what
