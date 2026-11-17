@@ -23,13 +23,14 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass, field
 import json
+import textwrap
 import time
 
 from pluggybot.humanoid.mission import CARRY_LIFT_M, CARRY_LIFT_N
 from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.procedure import lang
-from pluggybot.procedure.steps import (Refused, WorldFacts, describe_vocabulary, language,
-                                       signature)
+from pluggybot.procedure.steps import (HELD_SAID, Refused, WorldFacts, describe_vocabulary,
+                                       language, signature)
 
 #: The tokens an answer may take, its reasoning first: at 64,000, 37 of
 #: #493's 537 answers ran out still thinking, and answered ones went to
@@ -192,11 +193,16 @@ WALK_LETS_GO = (" Before a `step` or any other walk moves your\n"
                 "it there, says so in its report (`carried`; `dropped`, any whose gripper\n"
                 "says it holds nothing by the walk's end), and it stays there after, until\n"
                 "you reach with that hand again or withdraw it. If what it holds did not come\n"
-                "with it, the hand lets go and comes home. Nor does a `step` or any other\n"
+                "with it, the hand lets go and comes home.\n%(held)s\nNor does a `step` or any other\n"
                 "walk move while a hand is out whose every way home -- or to your side,\n"
                 "carried -- would meet the body of another robot standing near you: it reads\n"
                 "false and says where that robot stands.") % {
-  "lift": round(100 * CARRY_LIFT_M, 1), "force": CARRY_LIFT_N}
+  "lift": round(100 * CARRY_LIFT_M, 1), "force": CARRY_LIFT_N,
+  # ...and an arm whose way home something holds (#693's family)
+  "held": textwrap.fill(f"An arm that something holds on its way home {HELD_SAID}, pressing on "
+                        "nothing: the walk goes with it there and says so in its report "
+                        "(`armHeld`), and a `withdraw` or the next walk sends it home again.",
+                        76)}
 
 YOUR_BODY = """YOUR BODY
 

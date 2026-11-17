@@ -299,6 +299,31 @@ HOME_SAMPLE_RAD = 0.05
 #: ...and home is the rest commanded and its drivers reading every joint
 #: within this of it, rad (they read to 0.0026).
 HOME_RAD = 0.05
+#: A WAY HOME SOMETHING HOLDS (#693's live family; SimNotes, "A way home
+#: something holds"): its command at its rest and its drivers reading the
+#: arm more than `HOME_RAD` off it this long, s, it is held -- on a
+#: counter's top, or on its own thigh in a crouch -- and its command is set
+#: where its drivers read it (phase "held"), pressing on nothing. ⚠ Pressed
+#: on toward its rest, a jaw read 39-69 N on a counter's top for as long as
+#: nothing else moved the arm: 12 s into a withdraw's wait the robot went
+#: over backward, and a walk's hand-over walked it with the jaw on the top.
+HELD_S = 0.5
+#: ...first lifted this far straight up, m, and sent home again from there,
+#: at most this many times a way home -- never with another robot by
+#: (`keep_out`): a way judged from the top would take the way that comes
+#: least near it rather than be refused, as a verb's must (#678) -- and a
+#: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
+#: after its command arrived, is left held (`_raise_short`).
+LIFT_M, LIFTS = 0.05, 1
+#: The phases of an arm that keeps no hand at work: at its rest, carried at
+#: the side a walk carries it at (#682), or left where its way home was held
+#: (`HELD_S`) -- what the stand's return waits on (`_go_home`), and what a
+#: walk's hand-over and a restart's save let be.
+AT_EASE = ("rest", "carried", "held")
+#: ...and of an arm that is no hand out, for the walk's hand-over's let-go
+#: and for rest (`HumanoidWay._hand_out`): an arm left held is one -- an
+#: aside takes no arm home first.
+NOT_OUT = ("rest", "carried")
 #: The way OUT is judged so from its other end (`way_out`, #560): straight, a
 #: hanging hand at a table 13 cm out was driven into its top at 353-359 N.
 
@@ -1082,6 +1107,12 @@ class Reach:
     #: Whether the stand waits for an arm on its way home (`_go_home`, #693):
     #: asked once every arm is home or carried (`_update`).
     self.stand_home = False
+    #: By side, whether its way home is still to be read home by its drivers
+    #: (`_go_home`), how long they have read it held at its rest, s, and how
+    #: often it has been lifted since its way home began (`HELD_S`, `LIFTS`).
+    self.homing = {s: False for s in hm.SIDES}
+    self.held_for = {s: 0.0 for s in hm.SIDES}
+    self.lifted = {s: 0 for s in hm.SIDES}
 
   # ---- what a caller asks ----
 
@@ -1124,6 +1155,8 @@ class Reach:
     self.allowed[side] = [tuple(float(v) for v in p_) for p_ in postures]
     self.left[side], self.looks[side], self.looking[side] = [], 0, False
     self.phase[side] = "move"
+    # ...a way home it cut short is over: no later rest reads it held
+    self.homing[side] = False
     return True
 
   def clear_way(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
@@ -1616,6 +1649,7 @@ class Reach:
     self.q_to[side] = np.asarray(q, dtype=float).copy()
     self.looking[side] = False
     self.phase[side] = "joints"
+    self.homing[side] = False
 
   def stiffen(self, side: str, stiffness: float) -> None:
     """The stiffness the hand's commands carry from now (a share of
@@ -1637,10 +1671,12 @@ class Reach:
     already goes on."""
     if self.phase[side] in ("rest", "home", "retreat"):
       return
-    if self.phase[side] in ("joints", "move") or self.cmd[side] is None:
-      # an arm moved joint by joint (`set_joints`), or still walking out to
-      # its pre-grasp, has no line to come out along: home from where its
-      # command is (unhandled, a withdraw waited forever)
+    self.lifted[side] = 0
+    if self.phase[side] in ("joints", "move", "held") or self.cmd[side] is None:
+      # an arm moved joint by joint (`set_joints`), still walking out to its
+      # pre-grasp, or held where its way home stopped (`HELD_S`), has no
+      # line to come out along: home from where its command is (unhandled,
+      # a withdraw waited forever)
       self._go_home(side)
       return
     self.goal[side] = pregrasp(self.goal[side], approach)
@@ -1907,6 +1943,7 @@ class Reach:
       self.homes[side] = self.way_home(side)
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
+    self.homing[side], self.held_for[side] = True, 0.0
     # ...and the stand once no hand is out at its work -- one carried at the
     # side is none (#682); kept the reach's bow, a withdraw left it bowed --
     # but off the stand, an arm with none of it ahead of the robot's front
@@ -1920,7 +1957,7 @@ class Reach:
     # tables of 32). ⚠ NOR WITH THE OTHER ARM GOING HOME TOO, judged apart,
     # NOR A POSTURE STILL WALKING to a plan a retreat cut short (`settled`):
     # neither is the posture the way was judged in
-    if all(p in ("rest", "home", "carried") for p in self.phase.values()):
+    if all(p in (*AT_EASE, "home") for p in self.phase.values()):
       alone = [s for s in hm.SIDES if self.phase[s] == "home"] == [side]
       if self.posture.any() and alone and self.stand.settled and not self._ahead(side):
         self.stand_home = True
@@ -1932,6 +1969,71 @@ class Reach:
     read there by its driver (`HOME_RAD`)."""
     return self.phase[side] == "rest" and bool(
       np.abs(self.sensed[self.self_model.arm[side]] - self.rest[side]).max() <= HOME_RAD)
+
+  def held(self, side: str) -> bool:
+    """Whether an arm's way home stopped where something holds it, its
+    command eased there (`HELD_S`): out, until a way home begins again."""
+    return self.phase[side] == "held"
+
+  def _ease(self, side: str) -> np.ndarray:
+    """An arm left held: its command where its drivers read it, pressing on
+    nothing (phase "held"); returns that reading."""
+    q = self.sensed[self.self_model.arm[side]].copy()
+    self.q_cmd[side], self.q_to[side] = q, q.copy()
+    self.goal[side] = self.cmd[side] = None
+    self.homing[side], self.held_for[side] = False, 0.0
+    self.phase[side] = "held"
+    return q
+
+  def _stand_at_ease(self) -> None:
+    """The stand a way home kept from the robot (`stand_home`, #693), asked
+    once every arm is at ease (`AT_EASE`) -- however the last came to it:
+    home, carried, or left held (#693b's fourth review: left held, a raise held
+    too, the stand never came and the robot stayed bowed)."""
+    if self.stand_home and all(p in AT_EASE for p in self.phase.values()):
+      self.stand_home = False
+      self.hold_posture(0.0, 0.0)
+
+  def _raise_short(self, side: str) -> bool:
+    """Whether a raise (`_homed`) whose command has arrived has its arm
+    short of it: its grip, by its senses, more than `BLOCKED_M` from it."""
+    c, at = self.cmd[side], self.sensed_grip[side]
+    return (self.lifted[side] > 0 and not self.homing[side] and c is not None
+            and at is not None and float(np.linalg.norm(at - c.pos)) > BLOCKED_M)
+
+  def home_over(self, side: str) -> bool:
+    """Whether an arm's last way home is over by its drivers (`_homed`):
+    read home or held -- False only for one whose command reached its rest
+    and whose drivers have not yet read it either way, `HELD_S` at most."""
+    return not (self.homing[side] and self.phase[side] == "rest")
+
+  def _homed(self, side: str, dt: float) -> None:
+    """A way home's end as its drivers read it: home, or -- not home
+    `HELD_S` running with its rest commanded -- held, its command set where
+    they read it, pressing on nothing: lifted `LIFT_M` straight up and sent
+    home again from there (`_go_home`'s judgment) `LIFTS` times a way home,
+    then left there ("held")."""
+    if self.home(side):
+      self.homing[side], self.held_for[side] = False, 0.0
+      return
+    self.held_for[side] += dt
+    if self.held_for[side] < HELD_S:
+      return
+    q = self._ease(side)
+    if self.lifted[side] >= LIFTS or len(self.keep_out):
+      self._stand_at_ease()
+      return
+    self.lifted[side] += 1
+    # ...its grip where its drivers put it, on its model of itself as it
+    # stands, its line straight up from there; then `_go_home` from the top
+    sm = self._planner_model()
+    self._pose_planner(sm, None)
+    sm._set_arm(side, q)
+    pos, rot = sm.grip_pose(side)
+    self.cmd[side] = HandGoal(pos.copy(), rot.copy(), 1.0)
+    self.goal[side] = HandGoal(pos + np.array([0.0, 0.0, LIFT_M]), rot.copy(), 1.0)
+    self.speed[side], self.looking[side] = HAND_SPEED, False
+    self.phase[side] = "retreat"
 
   def done(self, side: str) -> bool:
     """Whether a hand has arrived where it was sent (or hangs), or stopped
@@ -2019,7 +2121,8 @@ class Reach:
   KEPT = ("phase", "goal", "cmd", "q_to", "q_cmd", "homes", "outs", "sensed", "miss", "slack",
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
-          "allowed", "left", "looks", "looking", "carry_q", "stand_home")
+          "allowed", "left", "looks", "looking", "carry_q", "stand_home", "homing",
+          "held_for", "lifted")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -2385,7 +2488,10 @@ class Reach:
         self._struck(s)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness
-      elif phase in ("rest", "move", "joints", "home", "carried"):
+      elif phase in ("rest", "move", "joints", "home", "carried", "held"):
+        if phase == "rest" and self.homing[s]:
+          # ...a way home is over once its drivers read it home, or held
+          self._homed(s, dt)
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
@@ -2403,10 +2509,10 @@ class Reach:
             self.q_to[s] = self.homes[s].pop(0)
           else:
             self.phase[s] = "rest" if self.carry_q[s] is None else "carried"
+            # ...a carry's way ends at its pose, never read home (#682)
+            self.homing[s] = self.homing[s] and self.carry_q[s] is None
             # ...home: the stand its way home kept from it (`_go_home`)
-            if self.stand_home and all(p in ("rest", "carried") for p in self.phase.values()):
-              self.stand_home = False
-              self.hold_posture(0.0, 0.0)
+            self._stand_at_ease()
       elif phase == "blocked":
         sm._set_arm(s, self.q_cmd[s])
         stiffness = self.cmd[s].stiffness
@@ -2441,7 +2547,17 @@ class Reach:
         if there and phase in ("approach", "pull"):
           self.phase[s] = "hold"
         elif there and phase == "retreat":
-          self._go_home(s)
+          if self._raise_short(s):
+            # ...a raise its arm did not follow -- held from above, or under
+            # an edge -- is no start for a way home: given `BLOCKED_S` to
+            # catch up, then left held where it is
+            self.held_for[s] += dt
+            if self.held_for[s] >= BLOCKED_S:
+              self._ease(s)
+              self._stand_at_ease()
+              sm._set_arm(s, self.q_cmd[s])
+          else:
+            self._go_home(s)
       self.arms[s].command(self.q_cmd[s], sm.gravity(s), stiffness)
     # ...and the waist to the posture's angle, the trunk above it held as
     # the arms are commanded

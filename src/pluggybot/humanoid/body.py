@@ -27,7 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, V_MIN,
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
-from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
 from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
@@ -580,8 +580,10 @@ class HumanoidBody(Body):
     a restart's save waits it out (`continuation.Keeper.busy`) -- but not
     one carried at its side (#682), held there as a hanging arm is, its
     pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
-    let-go, and saves held through it, a crash rolled the world back."""
-    return any(p not in ("rest", "carried") for p in self.reach.phase.values())
+    let-go, and saves held through it, a crash rolled the world back -- nor
+    an arm left where its way home was held (`Reach.HELD_S`), its command
+    kept where it is held, which lasts until a withdraw or a walk."""
+    return any(p not in AT_EASE for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -886,6 +888,9 @@ class HumanoidBody(Body):
   def carrying(self, side) -> bool:
     return self.reach.carried(side)
 
+  def arm_held(self, side) -> bool:
+    return self.reach.held(side)
+
   def stop_hand(self, side) -> bool:
     # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
     # fall let go of still says its hand moves, and stopping that used up a
@@ -941,7 +946,10 @@ class HumanoidBody(Body):
         return "fell"
       self.reach.retreat(side)
       for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
-        if self.mission.falls != falls or self.reach.home(side):
+        # ...or held, pressing on nothing where something holds it
+        # (`Reach.HELD_S`): pressed on, a jaw on a counter's top tipped the
+        # robot over backward inside this wait (#693's family)
+        if self.mission.falls != falls or self.reach.home(side) or self.reach.held(side):
           break
         yield STILL
       came_home = self.reach.home(side)

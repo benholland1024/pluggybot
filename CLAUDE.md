@@ -398,7 +398,17 @@ save a filmstrip PNG named after the script.
   top: 5 of 33 fell), one with some ahead as it sets off (held, the check
   lost 3 doors and 23 tables of 32); a withdraw and a walk's hand-over wait
   for the trunk still in the stand (`_posture_held`, `STAND_BACK_S` at
-  most), a withdraw's word the arm's as it came home. ⚠ BOTH WAYS KEEP OFF
+  most), a withdraw's word the arm's as it came home. ⚠ A WAY HOME IS OVER
+  BY ITS DRIVERS, NEVER ITS COMMAND (#693's live family; `Reach.HELD_S`,
+  `_homed`, `held`; SimNotes, "A way home something holds"): read off its
+  rest `HELD_S` (0.5 s) with its rest commanded, it is raised `LIFT_M` (5
+  cm) and sent home again `LIFTS` (1) times -- never with another robot by,
+  nor from a raise its arm did not follow -- then left where it is held,
+  pressing on nothing (phase "held": out, saved through as a carry is, never
+  rested with) -- left "rest" and pressed on toward it, a jaw on a counter's
+  top tipped Rowan over backward inside a withdraw's 15 s wait; a withdraw
+  ends there ("held"), and a walk's hand-over waits for it and goes with
+  an arm left held, its report saying so (`armHeld`). ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a

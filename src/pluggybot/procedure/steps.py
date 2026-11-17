@@ -64,6 +64,7 @@ from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_
                                      STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
                                      STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
+from pluggybot.humanoid.reach import LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
@@ -298,12 +299,14 @@ def _carried(life) -> dict:
   the walk takes the carry pose itself and says so): `carried`, each hand
   held at the side a walk carries it at -- its gripper said it held
   something as the walk began -- and, of those, `dropped`, each whose
-  gripper says it holds nothing now. None carried, nothing said."""
+  gripper says it holds nothing now; and `armHeld`, each arm left where its
+  way home was held, out as the walk ends (#693's family, `Body.arm_held`).
+  None of these, nothing said."""
   hands = [s for s in ("left", "right") if life.body.carrying(s)]
-  if not hands:
-    return {}
+  held = [s for s in ("left", "right") if life.body.arm_held(s)]
   dropped = [s for s in hands if not life.body.gripped(s)]
-  return {"carried": hands, **({"dropped": dropped} if dropped else {})}
+  return {**({"carried": hands} if hands else {}), **({"dropped": dropped} if dropped else {}),
+          **({"armHeld": held} if held else {})}
 
 
 def _walk_stopped(life, x: float, y: float) -> dict:
@@ -1389,6 +1392,11 @@ def _open_hand(life, args: dict) -> Routine:
   return {"ok": True, "hand": hand, "felt": felt}
 
 
+#: What a way home that something holds does (`humanoid.reach.HELD_S`, #693's
+#: family), as the verbs' texts and YOUR BODY say it.
+HELD_SAID = ((f"is raised {100 * HELD_LIFT_M:.0f} cm and sent home again, unless another "
+              "robot stands near you, and still held, it stays where it is held")
+             if HELD_LIFTS else "stays where it is held")
 #: What a `withdraw` whose arm did not get home says, by the body's why.
 WITHDRAW_WHY = {"fell": "you fell on the way home",
                 "held": "your {hand} arm did not get home: something holds it there"}
@@ -1668,7 +1676,9 @@ HANDS_VERBS: dict[str, Verb] = {
                    "hand back out along the way it went in, and its arm home -- straight "
                    "there, or out to your side first and down at your side where that keeps "
                    "the arm higher in front of you than straight would; ok once your arm is "
-                   "home. Its way home keeps clear of the body of another robot standing near "
+                   "home. An arm that something holds on its way home -- your hand come down "
+                   "on a counter's top -- " + HELD_SAID + ", pressing on nothing, and it reads "
+                   "false saying so. Its way home keeps clear of the body of another robot standing near "
                    "you: where no way does, your gripper stays as it is and your hand where it "
                    "is, and it reads false saying where that robot stands"),
 }
