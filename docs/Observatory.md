@@ -37,9 +37,9 @@ does:
   `busy`) and a model that would be asked (no cooloff, budget, purse or
   idle-run throttle refusing, the switch on `llm`), the hold ends with the
   plug in and the loop asks at once, the robot plugged in as at a run's end
-  (#654). Its cycle is carried to the `charge` that takes it up (one row;
-  each hold its own timeout) or banked where the plug comes out by hand;
-  History says "charge:
+  (#654). Nothing is banked there (a row cut at a chat read as a failed
+  charge): the part before the message is in no `charge` row, and the
+  `charge` that takes it up banks its own; History says "charge:
   stopped at N% for a message, my plug still in", a narration line says
   "CHARGE: a message came in at N% -- my plug stays in while I answer",
   and the robot's next turn is asked by `message_received` while it is

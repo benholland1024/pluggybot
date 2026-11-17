@@ -1083,10 +1083,9 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket_reply": (("text",), ()),
 }
 #: ...and in a field of its own, ANY field's name, everyday or coined, that
-#: the form's own separators cling to (`,` `:` and its braces): `,intend`
-#: and `tell:` in `say` are the form leaking into a field, never a
-#: sentence. Rowan said `,intend` to everyone (rooftop-media-2026 #518,
-#: 2026-11-15 16:00 UTC): `intend` is an everyday word. ⚠ Never in an
+#: the form's own separators cling to (`,` `:` and its braces): the form
+#: leaking into a field, never a sentence (`,intend` in a `say`;
+#: rooftop-media-2026 #518, docs/Overseer.md "Placeholders"). ⚠ Never in an
 #: object, whose act would go whole for a "Task:" that was meant, nor a
 #: quote or a bracket alone (`"Station"`), nor "Done!".
 FORM_MARKS = ",:{}"
@@ -4300,7 +4299,8 @@ class Overseer:
 
   def _refusal(self) -> str:
     """Why a call started now would not be made, or "": `_refuse`'s gates,
-    read and never moved."""
+    read and never moved (the budget forgets calls past their hour as it
+    counts, which moves no answer)."""
     if self.budget_left() <= 0:
       return "budget"
     if not self._allowance_ok():

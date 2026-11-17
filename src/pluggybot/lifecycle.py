@@ -1164,11 +1164,6 @@ class HubLifecycle:
     self._heard_new = False
     #: ...and the ids the model was shown at its last ask, which are no news.
     self._shown_visitors: set[str] = set()
-    #: A charge's cycle a message stopped, the plug still in (#518): what its
-    #: row is measured from, carried to the `charge` that takes it up or
-    #: banked where the plug comes out by hand. Not kept: a restart, a fall's
-    #: breakaway or a stand-up banks none.
-    self._charge_before: dict | None = None
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -1976,7 +1971,6 @@ class HubLifecycle:
     self.body.forget_world()
     self.floor_explored = False
     self.blacklist = set()
-    self._charge_before = None
 
   @property
   def reset_in_s(self) -> float | None:
@@ -2800,9 +2794,6 @@ class HubLifecycle:
       self._say(f"CHARGE: still plugged in at {self.battery.fraction:.0%} -- carrying on",
                 doing="CHARGE: still plugged in -- carrying on")
       return True
-    # ...and a plug-in of its own is a cycle of its own: one a message
-    # stopped ended when its plug came out
-    self._charge_before = None
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
     # Route-failure retry: when nothing is reachable, look round to buy map
@@ -2976,12 +2967,9 @@ class HubLifecycle:
     # What the evaluator measures this cycle against (issue #14). Read BEFORE
     # the charge, because "charged" is a gain in a real quantity -- a cycle
     # plugged in conducting nothing has an end fraction and no energy behind
-    # it. ...or where a message stopped its hold, the plug still in (#518):
-    # one cycle, one row. ⚠ The timeout is this hold's own, as it was: from
-    # where the cycle began, the time thought and idled plugged in counted
-    # against it, and a `charge` taken up past it said "complete" at 55 %.
-    before, self._charge_before = (self._charge_before or {
-      "t": t0, "frac": self.battery.fraction, "wh": self.battery.energy_wh}), None
+    # it.
+    before = {"t": t0, "frac": self.battery.fraction,
+              "wh": self.battery.energy_wh}
     # ⚠ CHARGING IS NOT TRAVEL: held on the charger for the whole cycle,
     # nothing the body does is counted (`Body.docked`; the rover's held
     # press once gained 828 mm of imaginary progress), and a contact that
@@ -2998,14 +2986,14 @@ class HubLifecycle:
         if self._hour_up:
           self._say(f"CHARGE: the run's time is up at {self.battery.fraction:.0%} -- "
                     "my plug stays in", doing="CHARGE: the run's time is up -- my plug stays in")
-          if self.data.time > before["t"]:
+          if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
           return
         if self._spoken_to:
-          # ⚠ NOT BANKED HERE: a row cut at a chat read as a charge that
-          # failed (`CHARGE_OK_FRAC`). The cycle is carried, plug in, to the
-          # `charge` that takes it up, or banked where the plug comes out.
-          self._charge_before = before
+          # ⚠ NOTHING BANKED: a row cut at a chat read as a charge that
+          # failed (`CHARGE_OK_FRAC`); carried to the next, it counted the
+          # think and the idle and was lost at a run's end. The `charge` that
+          # takes it up banks its own (Overseer.md §10).
           frac = f"{self.battery.fraction:.0%}"
           self._say(f"CHARGE: a message came in at {frac} -- my plug stays in "
                     "while I answer", doing="CHARGE: a message came in -- my plug stays in")
@@ -3028,7 +3016,7 @@ class HubLifecycle:
               doing="CHARGE complete -- backing off")
     # ...⚠ AND NO ROW FOR ONE THAT HELD NO MOMENT (#654, above too): plugged in
     # already and full, 0 Wh in 0 s reads as a charge that failed
-    if self.data.time > before["t"]:
+    if self.data.time > t0:
       self._bank(scoring.score_charge(self, before))
     yield from self.body.undock_routine()
     if self.body.charging():
@@ -3045,10 +3033,6 @@ class HubLifecycle:
     catch holds, and the walk stalls (#703)."""
     if not self.body.charging():
       return
-    if self._charge_before is not None:
-      # a cycle a message stopped, ended here (#518)
-      self._bank(scoring.score_charge(self, self._charge_before))
-      self._charge_before = None
     self._say(f"CHARGE: unplugging at {self.battery.fraction:.0%} -- {why}",
               doing="CHARGE: unplugging")
     yield from self.body.undock_routine()
@@ -6075,6 +6059,7 @@ class HubLifecycle:
     # while it thinks is news again (`_spoken_to`), and a fallback heard
     # nothing at all.
     shown, self._heard_new = self._heard_new, False
+    shown_ids = self._shown_visitors
     if self.inbox is not None:
       self._shown_visitors = {m.id for m in self.inbox.peek(VISITORS_SHOWN)}
     self.overseer.start(state)
@@ -6083,6 +6068,7 @@ class HubLifecycle:
     decision = self.overseer.result(state)
     if decision.scripted and len(self.true_deaths) == lives:
       self._heard_new = self._heard_new or shown
+      self._shown_visitors = shown_ids
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
       # or an unpaid bill lands mid-think): the answer is its own, and none

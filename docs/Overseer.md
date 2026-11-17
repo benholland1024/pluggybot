@@ -2894,12 +2894,12 @@ own row fails `busy` -- and the model would be asked
 (`HubLifecycle._spoken_to`, `Overseer.can_ask`, the idle-run throttle
 among its gates; Ben, 2026-11-16: a robot may answer while it charges); a
 fallback's order could walk off with a part-charged pack for an answer
-nobody gives. Nothing is banked there (a row cut at a chat read as a
-charge that failed, `CHARGE_OK_FRAC`): the cycle is carried, plug in, to
-the `charge` that takes it up, one row (each hold its own timeout), or
-banked where the plug comes out by hand (`_charge_before`; a fall's
-breakaway or a stand-up banks none); History says
-"charge: stopped at N% for a message, my plug still in". A message that
+nobody gives. Nothing is banked there: a row cut at a chat read as a
+charge that failed (`CHARGE_OK_FRAC`), and carried to the next charge it
+counted the think and the idle and was lost at a run's end. So the part
+before the message is in no `charge` row (the frames' battery has it), and
+the `charge` that takes it up banks its own. History says "charge: stopped
+at N% for a message, my plug still in". A message that
 comes while the model thinks is news again: the model hears what it was
 shown at the ask. The mind is asked plugged in, as at a run's end
 (#654): a `charge` goes straight on, what stands still leaves the plug in,

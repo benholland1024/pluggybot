@@ -234,21 +234,21 @@ def test_a_message_ends_a_charges_hold_with_its_plug_in_so_the_mind_answers():
     "the ask is the loop's to run"
   assert any("a message came in at 40%" in ln for ln in life.log), life.log[-3:]
   assert any("stopped at 40% for a message" in ln for ln in _history(life))
-  # ⚠ ...AND NOT BANKED THERE (found in review): a row cut at a chat read as
-  # a charge that failed (`CHARGE_OK_FRAC`). The cycle is carried to the
-  # `charge` that takes it up: one row, from 40 % (found in the next review:
-  # banked from where it was taken up, the 40 % before was in none).
+  # ⚠ ...AND NOTHING BANKED (found in review): a row cut at a chat read as a
+  # charge that failed (`CHARGE_OK_FRAC`); carried to the next charge, it
+  # counted the think and the idle, and was lost at a run's end (found in
+  # the next two). The `charge` that takes it up banks its own.
   assert not _charges(life)
   life.queued_row = None
   life.body.run(life._after_decision_routine(ov.Decision(action="charge")))
   [row] = _charges(life)
-  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+  assert row["metrics"]["startFrac"] > 0.4
   assert life.charge_cycles == 1 and not life.body.on_charger
 
 
-def test_a_cycle_a_message_stopped_is_banked_where_the_plug_comes_out():
-  """The mind may answer and go: the plug comes out by hand, and the cycle
-  the message stopped is banked there, once."""
+def test_a_mind_that_answers_and_goes_banks_no_failed_charge():
+  """Answered, the mind may go: the plug comes out by hand, and nothing
+  reads as a charge that failed for it."""
   from pluggybot.mind import events as ev
   life = _minded(ev.Row(event="message_received", action=ev.ASK))
   _say(life)
@@ -260,9 +260,7 @@ def test_a_cycle_a_message_stopped_is_banked_where_the_plug_comes_out():
     yield
   life.explore_routine = explore
   life.body.run(life._after_decision_routine(ov.Decision(action="explore")))
-  [row] = _charges(life)
-  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
-  assert life._charge_before is None
+  assert not life.body.on_charger and not _charges(life)
 
 
 def test_a_message_behind_a_periodic_ask_still_ends_the_hold():
@@ -312,24 +310,6 @@ def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish(refusing, tmp
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
 
-def test_a_carried_cycle_charges_on_whatever_time_passed_meanwhile():
-  """The timeout is each hold's own: measured from where the carried cycle
-  began, the time thought and idled plugged in counted against it, and a
-  `charge` taken up past it said "complete" at once, part-charged (found
-  in review)."""
-  life = _minded()
-  life._charge_before = {"t": float(life.data.time) - 1e6, "frac": 0.3,
-                         "wh": life.battery.capacity_wh * 0.3}
-  life.body.run(life.charge_routine())
-  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
-  [row] = _charges(life)
-  assert row["metrics"]["startFrac"] == pytest.approx(0.3)
-  # ...and a stand-up or a true death drops one (the plug is out by then)
-  life._charge_before = {"t": 0.0, "frac": 0.3, "wh": 1.0}
-  life._forget_world()
-  assert life._charge_before is None
-
-
 def test_the_other_robots_tell_and_a_message_the_model_was_shown_are_no_news():
   """Only a person's message the model has not been shown ends a charge's
   hold (found in review): the other robot's `tell` came in the same inbox
@@ -365,6 +345,14 @@ def test_what_the_model_is_shown_it_has_heard_and_nothing_else():
   life.body.run(life._decide_routine())
   assert life.decisions[-1]["source"].startswith("fallback"), life.decisions[-1]
   assert life._heard_new, "a fallback heard nothing"
+  # ...nor was shown anything: a message that came just before its ask, seen
+  # by the map a tick later, is news (found in review)
+  _say(life, 4)
+  life.body.run(life._decide_routine())
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life.decisions[-1]["source"].startswith("fallback")
+  assert "m_4" not in life._shown_visitors and life._heard_new
   life.overseer._cooloff_until = 0.0
   life.body.run(life._decide_routine())
   assert not life.decisions[-1]["source"].startswith("fallback"), life.decisions[-1]
