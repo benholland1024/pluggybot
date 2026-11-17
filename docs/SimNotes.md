@@ -10484,11 +10484,13 @@ given the rule.
 place is `Body.hand_sensed`: the place as the arm's loop read it at its
 last command (`Reach.sensed_grip`, every `EVERY_S`, 0.01 s, while that loop
 runs), drawing nothing and posing nothing; `Sensor.live` is gone, every
-sensor's `read` being what the body last measured. Before that loop's first
-reading -- a body's first instant, before its first physics step, or a
-stand-up's fresh reach before the next step -- there is none, and the read
-says so (`axes.NoReading`) where it read afresh. No served robot, no set-out
-of the attempt kit (its 0.5 s settle) and no tour flight reads there.
+sensor's `read` being what the body last measured. Where that loop is not
+reading -- before its first reading (a body's first instant, before its
+first physics step, or a stand-up's fresh reach before the next step), and
+while a get-up has the legs, as the watch is placed through nothing then --
+there is none, and the read says so (`axes.NoReading`) where it read afresh.
+No served robot, no set-out of the attempt kit (its 0.5 s settle) and no
+tour flight reads there, and a fall ends a run before its get-up.
 
 **Measured.** P1's instrument widened (R4, the loop of 11-17,
 `c/read_moves2.py`, on the bare floor under EGL): on `loop-staging`
@@ -10537,10 +10539,10 @@ unmoved (`c/fix_r4.sh`).
 
 **What is true now** (`axes._hand_sensed`, `Body.hand_sensed`,
 `tests/test_guard.py`): a procedure's `read` of a hand's place is the place
-as the arm's loop last read it, at most 0.01 s old while that loop runs; a
-read moves nothing, so a reference or a robot may read a hand's place to
-decide something without changing a flight where it decides nothing; before
-the arm's first reading a hand's place has no reading. `Body.hand_at` still
+as the arm's loop last read it, at most 0.01 s old; a read moves nothing,
+so a reference or a robot may read a hand's place to decide something
+without changing a flight where it decides nothing; before the arm's first
+reading and during a get-up a hand's place has no reading. `Body.hand_at` still
 reads afresh, and so its callers still draw where they read -- the verbs'
 own record of what a hand felt (`steps._sensed`: at a hand verb's start,
 every 0.25 s and at its end), `pull`'s start and end (`Reach.grip_now`), and

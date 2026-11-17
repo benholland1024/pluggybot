@@ -1308,8 +1308,8 @@ save a filmstrip PNG named after the script.
   verb's report has none and is refused; a hand's place as its loop last
   read it, `Body.hand_sensed`, as a procedure's `read` reads it too (#721:
   read afresh, a read nobody acted on moved the flight; none before the
-  loop's first reading), so a condition never met moves the flight not at
-  all), the first reading past stopping the hand where it is
+  loop's first reading nor during a get-up), so a condition never met moves
+  the flight not at all), the first reading past stopping the hand where it is
   (`Body.stop_hand`, `Reach.halt`: a carry or a pull where the hand IS, a
   reach where its arm is commanded -- ⚠ and its body where it had got to:
   held at its joints alone, the hand rode its plan's crouch and the next

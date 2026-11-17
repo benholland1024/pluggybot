@@ -12,6 +12,9 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A procedure's read of a hand's place moves nothing (#721, R4, `loop-721`) — opens when this PR is deployed
 
+Merged on Ben's call alone: on its standard draws Ben's bar was missed, by
+the held-out lid (below).
+
 **What the robots read does not move** (`prompt_sha` `75ec76e3…`, 69,505
 characters, 17 sections, and the session host's hello, sha1 `a61b6376…`,
 both as at `loop-staging` ac2538e8): no text the robots read says when a
@@ -25,8 +28,8 @@ drew on the drivers' noise and posed the model of itself again, so a read
 nobody acted on moved the rest of the flight. What a robot reads is the
 same kind of reading, a tick older at most; what changes is that its
 flight no longer moves when its procedure reads a hand's place. Before the
-arm's first reading (a body's first instant) a hand's place has no reading
-and says so; no served robot reads there.
+arm's first reading (a body's first instant) and during a get-up a hand's
+place has no reading and says so; no served robot reads there.
 
 **Measured** (one Vast pod, a Xeon E5-2698 v4, beside ac2538e8; SimNotes
 has the rest): the hands checks at 0-127 and the tour, 600 of 736 flights

@@ -78,8 +78,8 @@ and its feet, which the walking policy moves.
    rides `read(...)`, and `if verb(...)` reads its failure without ending
    the procedure. ⚠ A procedure's `read` moves nothing: every sensor is
    what the body last measured, a hand's place as its arm's loop last read
-   it -- at most 0.01 s old while that loop runs (a get-up holds it, and no
-   run reads then) -- and none before that loop's first reading (#721: read
+   it, at most 0.01 s old -- and none where that loop is not reading:
+   before its first reading, and while a get-up has the legs (#721: read
    afresh, a read nobody acted on drew on the drivers' noise and moved the
    flight). A verb's own record of what its hand felt still reads its
    joints afresh, as part of the verb.

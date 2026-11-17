@@ -1017,7 +1017,7 @@ class HumanoidBody(Body):
 
   def hand_sensed(self, side):
     got = self.reach.sensed_grip.get(side)
-    if got is None:
+    if got is None or self.mission.legs == "getup":
       return None
     p = self.to_world(got)
     return float(p[0]), float(p[1]), float(p[2])

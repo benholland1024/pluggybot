@@ -45,8 +45,7 @@ class Axis:
 class Sensor:
   """One scalar a program may read, measured off the world. ⚠ AS THE BODY
   LAST MEASURED IT: a read draws on no part's noise and poses nothing, so a
-  read nobody acts on moves the flight not at all (#554's stop condition,
-  #721's `read`: a hand's place read afresh drew on its drivers' noise)."""
+  read nobody acts on moves the flight not at all (#554, #721)."""
 
   name: str
   read: Callable[..., float]    # (life) -> float
@@ -195,14 +194,14 @@ def measured(key: str, taller: bool = False):
 
 def _hand_sensed(side: str, k: int):
   """`<side>.<x|y|z>`: the hand's place as its arm's loop last read it
-  (`Body.hand_sensed`: while that loop runs, at most `HAND_EVERY_S` old),
-  never read afresh (#721) -- and before that loop has read it, no
-  reading."""
+  (`Body.hand_sensed`, at most `HAND_EVERY_S` old), never read afresh
+  (#721) -- and where that loop is not reading (before its first reading,
+  or while a get-up has the legs), no reading."""
   def read(life) -> float:
     at = life.body.hand_sensed(side)
     if at is None:
-      raise NoReading(f"{side}.{'xyz'[k]} has no reading: your {side} arm has not "
-                      "read where its hand is yet")
+      raise NoReading(f"{side}.{'xyz'[k]} has no reading: your {side} arm is not "
+                      "reading where its hand is just now")
     return in_stance(life, at)[k]
   return read
 
