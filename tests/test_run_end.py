@@ -54,7 +54,7 @@ def _reported(life, peer) -> None:
   life.body.peer_on_the_goal = rule
 
 
-def _life(peer: bool = False, continuing: bool = True):
+def _life(peer: bool = False, continuing: bool = True, **kw):
   """The stub with its charge logic round the humanoids' station (as
   `test_rack_contention._life`), its world carrying on from this run, and
   no charge paid for by the walk or the draw: what is read is the plug."""
@@ -62,7 +62,7 @@ def _life(peer: bool = False, continuing: bool = True):
   x, y, yaw = cfg["dock"]
   body = StubBody(rack=RackPose(x, y, yaw + math.pi), grid_bounds=cfg["grid_bounds"],
                   draw_w=0.0, charge_w=energy.load("home_humanoid").charge_w)
-  life = stub_life(body=body)
+  life = stub_life(body=body, **kw)
   life.home_pose = tuple(float(v) for v in cfg["start"])
   life.continuing = continuing
   if peer:
@@ -186,6 +186,78 @@ def test_a_charge_decided_while_plugged_in_goes_straight_on():
   assert life.body.run(life.go_charge_routine()) is True
   assert float(life.data.time) == t0 and not drives and not docks
   assert any("CHARGE: still plugged in" in ln for ln in life.log), life.log[-3:]
+
+
+def _minded(*rows, client=None):
+  """Plugged in at 40 %, with a mind that can be asked, a map of `rows`
+  and an inbox: a visitor's message is offered with `_say`."""
+  from test_overseer import FakeClient, full
+
+  from pluggybot.lifecycle import board_book
+  from pluggybot.mind import events as ev
+  from pluggybot.mind.inbox import Inbox
+  menu = ov.Menu.for_world("home_humanoid", board_book("home_humanoid"))
+  boss = ov.Overseer(menu, origin="unseeded", client=client or FakeClient(full()),
+                     event_map=ev.EventMap(list(rows)))
+  life = _life(overseer=boss, inbox=Inbox())
+  life.max_sim_time = 1e9
+  _plugged_in(life, frac=0.4)
+  return life
+
+
+def _say(life, n: int = 1) -> None:
+  life.inbox.offer({"type": "message", "id": f"m_{n}", "from": "a visitor",
+                    "text": "are you there?"})
+
+
+def test_a_persons_message_waits_for_the_charge_to_end():
+  """rooftop-media-2026 #518: a robot answering while it charges (Ben's call
+  of 2026-11-16) was built and taken out before the wake, unfinished (six
+  review rounds each found real defects; its rebuild's brief is the issue
+  draft). Until it is rebuilt a charge's hold keeps a message waiting: the
+  map's `message_received -> ask` is queued, and the charge runs to full.
+  The base's behaviour, pinned."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  _say(life)
+  life.body.run(life.charge_routine())
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  assert life.queued_row == ev.Row(event="message_received", action=ev.ASK), \
+    "the ask waits for the loop, after the charge"
+  assert not any("a message came in" in ln for ln in life.log)
+
+
+def test_a_rating_or_a_reach_in_is_nobody_speaking():
+  """#518's fourth review: every inbound kind waits in one queue until code
+  drains it between errands, and `message_received` fired for a rating or
+  an admin's reach-in, so a map's `message_received -> ask` paid a call with
+  no message to answer. Shown to fail without the fix."""
+  from pluggybot.mind import events as ev
+  life = _minded(ev.Row(event="message_received", action=ev.ASK))
+  for seq in range(1, 6):                        # five of them, queued ahead
+    life.inbox.offer({"type": "rating", "seq": seq, "quality": 0.5})
+  life.inbox.offer({"type": "set_battery", "frac": 0.5})
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life.queued_row is None
+  _say(life)                                     # ...and a message is, even
+  life._next_events_check = 0.0                  # behind them (round 7)
+  life._events_step()
+  assert life.queued_row == ev.Row(event="message_received", action=ev.ASK)
+
+
+def test_the_model_is_shown_messages_and_never_what_code_drains():
+  """#518's eighth review: a rating or an admin's reach-in that came since
+  code last drained the queue (a hold between the drain and the ask) was
+  shown to the model among `visitorMessages`, a blank line in a message's
+  place -- and RATINGS NEVER REACH THE MODEL. The model and the map read
+  the same messages. Shown to fail on the tree before."""
+  from pluggybot.lifecycle import overseer_context
+  life = _minded()
+  life.inbox.offer({"type": "rating", "seq": 3, "quality": 0.5})
+  _say(life)
+  shown = overseer_context(life)["visitorMessages"]
+  assert [m["id"] for m in shown] == ["m_1"]
 
 
 def test_a_decided_charge_while_plugged_in_fills_the_pack_and_only_then_unplugs():

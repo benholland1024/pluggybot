@@ -111,7 +111,8 @@ JPEG_MAGIC = b"\xff\xd8\xff"
 #: Lines of the robot's chat a message carries from before it (issue #485;
 #: a follow-up carried its thread's exchanges since rooftop-media-2026
 #: #125): the newest this many are kept and the rest dropped at the door. A
-#: LINE is one message in the chat, somebody's or the robot's own -- Ben's
+#: LINE is one message in that person's conversation with the robot (#518),
+#: theirs or the robot's answer to them -- Ben's
 #: "the most recent ~6 messages" -- and `recall` reads further back
 #: (`thoughts.CHAT`). The website sends the same number, and both ends cap
 #: for the reason both cap a message's length.
@@ -138,9 +139,12 @@ def clean(text: object, limit: int = MAX_TEXT) -> str:
 
 @dataclass(frozen=True)
 class Line:
-  """One line of the robot's chat from before a message (issue #485), as
-  the WEBSITE holds it: what somebody said, or what the robot said -- an
-  answer (`to` whom, and its `outcome`) or something it said unasked.
+  """One line of the person's conversation with the robot from before a
+  message (issue #485; one person's since rooftop-media-2026 #518), as the
+  WEBSITE holds it: what they said, or the robot's answer to them (`to`
+  whom, and its `outcome`). A line said to everyone is in no conversation,
+  and a website that still sends one has it read as the robot's own, with
+  neither.
   Carried on every message because the chat is the website's state -- it
   outlives a mission, a restart and a generation -- and a network can
   carry a transcript. Cleaned like everything else that arrives on this
@@ -573,15 +577,19 @@ class Inbox:
     with self._lock:
       return len(self._queue)
 
-  def peek(self, limit: int = 8) -> list[VisitorMessage]:
-    """The oldest `limit` messages, WITHOUT removing them.
+  def peek(self, limit: int = 8, kinds: tuple[str, ...] | None = None) -> list[VisitorMessage]:
+    """The oldest `limit` messages, WITHOUT removing them -- of `kinds`
+    alone where it is given, counted among those (rooftop-media-2026 #518's
+    review: a rating or a reach-in waits in the same queue for code, and
+    peeked with the rest it took a message's place).
 
     What the overseer is shown. Left in place because a decision may fail, be
     scripted, or answer only one of them -- a message is consumed when it has
     actually been answered, not when it has been read.
     """
     with self._lock:
-      return list(self._queue)[:limit]
+      queued = [m for m in self._queue if kinds is None or m.kind in kinds]
+    return queued[:limit]
 
   def take(self, message_id: str) -> VisitorMessage | None:
     """Remove one message by id, once it has been answered."""

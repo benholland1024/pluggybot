@@ -1370,8 +1370,10 @@ save a filmstrip PNG named after the script.
   `tests/test_placeholders.py`): every field is required, and the model writes
   `n`, `none`, `:`, `test` or a field's name where `""` was meant -- its own,
   and in a field of its own any the form coined (`COINED`: `drop_goal`,
-  `unpin`), never an everyday one (`done`: "Done!" may be meant); an object
-  is judged by its own names alone (a finding is named for what it
+  `unpin`), never a bare everyday one (`done`: "Done!" may be meant) -- but
+  any field's name the form's separators cling to is one in a field of its
+  own, never an object's (`FORM_MARKS`, `,` `:` and braces;
+  rooftop-media-2026 #518); an object is judged by its own names alone (a finding is named for what it
   measures). `validate` reads one as `""` where it can stand
   (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an object whose content is one
   goes whole, a label is blanked); with `FILLED_FIELDS` (3) or more (one word
@@ -1869,7 +1871,9 @@ save a filmstrip PNG named after the script.
   (`unplug_routine`: an `explore`, a procedure's first verb not in
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
-  in. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  in. ⚠ A VISITOR'S MESSAGE WAITS FOR THE CHARGE'S END
+  (`test_a_persons_message_waits_for_the_charge_to_end`; why: Overseer.md
+  §10). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
@@ -1939,16 +1943,32 @@ save a filmstrip PNG named after the script.
   (`dropped` is in `VISITOR_OUTCOMES`, NOT in `DECIDED_OUTCOMES`). ⚠ ONE
   inbound kind, `message`; the OUTCOME carries the distinction, and legacy
   kinds and outcomes are folded at the door (`answered` must still render). ⚠
-  The header advertises `accepts` PER KIND. ⚠ Sanitising is NOT the security
-  boundary; the framing and the fixed menu are. ⚠ It is ONE CHAT PER ROBOT
-  (#485; threads since rooftop #125): every message carries `earlier`, the
-  chat's newest `MAX_EARLIER` (6) LINES, the website's state; the robot's
-  own lines are a SHAPE (`robot` on the wire, `you` to the model), never a
-  name, because a username can be `you`; an older site's thread exchanges
-  are read as their two lines. `sender` is stated by the CALLER of
+  The header advertises `accepts` PER KIND, as the switch is at the CONNECT,
+  and ⚠ every served `mode` message carries it as the switch leaves it
+  (`recorder.heard`, rooftop-media-2026 #518; protocol/README.md), or a
+  link opened while paused hears no message until the next run. ⚠
+  Sanitising is NOT the security
+  boundary; the framing and the fixed menu are. ⚠ EACH PERSON'S CHAT WITH
+  A ROBOT IS THEIR OWN (rooftop-media-2026 #518, Ben's call of 2026-11-17;
+  one room per robot since #485 before it): the site shows a visitor only
+  their messages and the replies to them, and every message carries
+  `earlier`, the newest `MAX_EARLIER` (6) LINES of THAT PERSON's
+  conversation with that robot, the website's state, never another
+  person's line nor a `say`; the VISITORS rule says so. ⚠ The VISITOR
+  narration says neither whose message nor what ("VISITOR message answered:
+  <outcome>"), and the site's hub relays the `visitor_reply` without its
+  words; ⚠ the robot's own lines still may: History holds every exchange
+  (its `record` events reach every viewer, and the rule says History is
+  read by everyone watching), and its `THINK` and `DECIDE` lines are its
+  thinking (the memory left as it was: Ben's to revisit). The
+  robot's own lines are a SHAPE (`robot` on the wire, `you` to the model),
+  never a name, because a username can be `you`; an older site's thread
+  exchanges are read as their two lines. `sender` is stated by the CALLER of
   `Inbox.offer`, never read off the wire. Each line is filed in History
-  under the topic `chat` by its role (a peer's `tell` under none), and
-  `read chat` widens the window. ⚠ The robot may `say` something unasked:
+  under the topic `chat` by its role (a peer's `tell` under none), every
+  conversation's (the robot remembers them all, and its memory is read by
+  everyone watching), and `read chat` widens the window. ⚠ The robot may
+  `say` something to everyone watching, unasked, in no one's conversation:
   a `chat` message, cut out loud as a reply is and RATIONED at `SAY_EVERY_S`
   (1200, a visitor's three an hour) off the STORE's clock
   (`ThoughtFiles.last_said`; a last line stamped after now is a clock gone

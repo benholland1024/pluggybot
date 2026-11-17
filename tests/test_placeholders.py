@@ -141,8 +141,8 @@ def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
   """`done`, `reason`, `tell`: a field named by an everyday word may hold that
   word meant -- "Done!" said in the chat, a lookup for "Reason" -- and
   counted as filler, it made this answer full of placeholders and left out
-  the `done`, the heart and the rating it meant (found in review). So
-  Rowan's `say` "tell:" (t=1110967.439) stands."""
+  the `done`, the heart and the rating it meant (found in review). So a
+  bare one stands; one the form's punctuation clings to does not (below)."""
   raw = _quiet(action="idle", reason="the tower is up", done="t_0758",
                say="Done!", lookup="Reason", tell={"to": "Rowan", "text": "done"},
                pin=",", intend="n", buy_heart=True, heart_for="Rowan",
@@ -153,8 +153,36 @@ def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
   assert (d.say, d.lookup, d.tell["text"]) == ("Done!", "Reason", "done")
   assert d.left_out == {"why": "placeholder", "fields": ["pin", "intend"],
                         "words": [",", "n"]}
-  assert _validate(_quiet(say="tell:")).say == "tell:"
+  assert _validate(_quiet(say="tell")).say == "tell", "a bare everyday name"
   assert _validate(_quiet(say="say")).say == "", "its own name is still one"
+
+
+def test_a_fields_name_with_the_forms_separators_on_it_is_empty_in_a_field_of_its_own():
+  """rooftop-media-2026 #518: Rowan's line to everyone at 2026-11-15 16:00
+  UTC was `,intend` -- the next field's name with a comma before it -- and it
+  went out to every visitor, because `intend` is an everyday word, judged
+  only as its own field's name. The form's own punctuation on a field's name
+  is the form leaking into a field, never a sentence: Rowan's `say` "tell:"
+  (t=1110967.439) was filler too (#462's closing reading)."""
+  d = _validate(_quiet(say=",intend"))
+  assert d.say == "", "Rowan said ',intend' to everyone"
+  assert d.left_out == {"why": "placeholder", "fields": ["say"],
+                        "words": [",intend"]}
+  assert _validate(_quiet(say="tell:")).say == ""
+  assert _validate(_quiet(intend="say:")).intend == ""
+  # ...never in an object, whose act would go whole for a "Task:" meant
+  d = _validate(_quiet(note={"topic": "", "title": "", "text": "Task:"}))
+  assert d.note["text"] == "Task:" and d.left_out is None
+  # ...and a sentence's punctuation is a sentence's, a quote a title's
+  assert _validate(_quiet(say="Done!")).say == "Done!"
+  assert _validate(_quiet(say="Note.")).say == "Note."
+  assert _validate(_quiet(say="Done,")).say == "Done,", "a fragment, never the form's"
+  assert _validate(_quiet(lookup='"Station"')).lookup == '"Station"'
+  assert _validate(_quiet(say="[note]")).say == "[note]"
+  # ...nor a label: "Station:" may head a ticket
+  d = _validate(_quiet(ticket={"kind": "question", "title": "Station:",
+                               "text": "the station's cup holds its plug loosely"}))
+  assert d.ticket["title"] == "Station:" and d.left_out is None
 
 
 def test_a_quote_of_a_findings_name_takes_the_finding_out():
