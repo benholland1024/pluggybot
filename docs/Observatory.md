@@ -12,9 +12,10 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### The table's served words say which left, and where an offer sets its pieces out (#723's option A, R6, `loop-723`) — opens when this PR is deployed
 
-**What the robots read moves** (`prompt_sha` `05a08141…`, 69,257
-characters, 17 sections, from `a38f86a9…`'s 69,205 at `loop-staging`
-1170bf3d; the session host's hello unmoved, sha1 `a61b6376…`; no geometry,
+**What the robots read moves** (`prompt_sha` `b4d1ec1f…`, 69,557
+characters, 17 sections, from `75ec76e3…`'s 69,505 at `loop-staging`
+ac2538e8, the table's row alone; R1's periods below are already on that
+tree; the session host's hello unmoved, sha1 `a61b6376…`; no geometry,
 no wire field and no `dataHashes` moved, since neither `challenges.json`
 nor `places.json` is hashed, and no committed recording carries a job):
 - The `set_table` row in the prompt's reward table, "...the fork 19 cm out
