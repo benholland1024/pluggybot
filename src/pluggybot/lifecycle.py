@@ -1158,6 +1158,12 @@ class HubLifecycle:
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
+    #: ...and whether one has arrived since the model was last asked, which
+    #: a charge's hold ends on (`_spoken_to`): the inbox's, so as it is not
+    #: kept.
+    self._heard_new = False
+    #: ...and the ids the model was shown at its last ask, which are no news.
+    self._shown_visitors: set[str] = set()
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -1928,6 +1934,9 @@ class HubLifecycle:
       self._interrupt_pending = None
       self._occurred.clear()
       self.event_clock = ev.EventClock()
+    # ...and no message the old robot was sent is news to the new one's
+    # charge (#518)
+    self._heard_new = False
     self.true_deaths.append({"t": round(t, 3), **archived})
     # ⚠ THE NEXT ROBOT IS ASKED (issue #303): the rule is "until the mind
     # has answered for itself", and the mind that answered is archived with
@@ -2665,6 +2674,26 @@ class HubLifecycle:
     finishes, and nothing is left plugged in for nobody."""
     return self.continuing and self.data.time >= getattr(self, "max_sim_time", math.inf)
 
+  @property
+  def _spoken_to(self) -> bool:
+    """Has a visitor's message arrived since the model was last asked, an
+    `ask` waiting and a mind there to answer? A charge's hold ends on it
+    with its plug in (Ben, 2026-11-16: a robot may answer while it charges;
+    rooftop-media-2026 #518, Overseer.md §10), and the mind is asked plugged
+    in, as at a run's end (#654): a `charge` goes straight on, what stands
+    still leaves the plug in, and what moves takes it out first.
+
+    ⚠ ANY ask, never the message's own row alone: the map queues one row,
+    and with a periodic ask waiting the message's fails `busy`, once. ⚠ AND
+    ONLY WHERE THE MODEL WOULD BE ASKED (`Overseer.can_ask`, the switch's
+    mode): its fallback's order may move the body, and cut a charge short
+    for an answer nobody gives."""
+    row = self.queued_row
+    return (self._heard_new and row is not None and row.action == ev.ASK
+            and self.overseer is not None
+            and (self.mode is None or self.mode.thinking)
+            and self.overseer.can_ask())
+
   # ---- phases --------------------------------------------------------------
 
   # ---- the branches, as routines (issue #58) --------------------------------
@@ -2959,6 +2988,16 @@ class HubLifecycle:
                     "my plug stays in", doing="CHARGE: the run's time is up -- my plug stays in")
           if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
+          return
+        if self._spoken_to:
+          # ⚠ NOTHING BANKED: a row cut at a chat read as a charge that
+          # failed (`CHARGE_OK_FRAC`); carried to the next, it counted the
+          # think and the idle and was lost at a run's end. The `charge` that
+          # takes it up banks its own (Overseer.md §10).
+          frac = f"{self.battery.fraction:.0%}"
+          self._say(f"CHARGE: a message came in at {frac} -- my plug stays in "
+                    "while I answer", doing="CHARGE: a message came in -- my plug stays in")
+          self._remember(f"charge: stopped at {frac} for a message, my plug still in")
           return
         yield from self.body.dock_hold_routine(0.25)
         if not self.charging_now:
@@ -5452,6 +5491,10 @@ class HubLifecycle:
       for msg in self.inbox.peek(VISITORS_SHOWN):
         if msg.id not in self._seen_visitors:
           self._seen_visitors.add(msg.id)
+          # ...a person's (never the other robot's `tell`) that the model
+          # was not shown at its last ask (#518)
+          if msg.sender == text_registry.VISITOR and msg.id not in self._shown_visitors:
+            self._heard_new = True
           self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
@@ -6012,10 +6055,20 @@ class HubLifecycle:
         self._after_decision_routine(decision))
       return
     lives = len(self.true_deaths)
+    # What the model is shown it hears, at the ASK: a message that comes
+    # while it thinks is news again (`_spoken_to`), and a fallback heard
+    # nothing at all.
+    shown, self._heard_new = self._heard_new, False
+    shown_ids = self._shown_visitors
+    if self.inbox is not None:
+      self._shown_visitors = {m.id for m in self.inbox.peek(VISITORS_SHOWN)}
     self.overseer.start(state)
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
+    if decision.scripted and len(self.true_deaths) == lives:
+      self._heard_new = self._heard_new or shown
+      self._shown_visitors = shown_ids
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
       # or an unpaid bill lands mid-think): the answer is its own, and none
@@ -7620,7 +7673,8 @@ def places_context(life) -> list[dict]:
 
 
 def attach_mode_stream(life, sinks, pacer=None,
-                       heartbeat_s: float = MODE_HEARTBEAT_S) -> None:
+                       heartbeat_s: float = MODE_HEARTBEAT_S,
+                       accepts=None) -> None:
   """Put the operator's switch on the wire, and keep the pacer honest.
 
   Three wirings, and each one exists for a failure that would otherwise be
@@ -7638,12 +7692,15 @@ def attach_mode_stream(life, sinks, pacer=None,
 
   `sinks` are emit callables (`WsPublisher.message`, `TelemetryRecorder.emit`);
   a run with neither passes an empty list and still gets the resync.
+  `accepts` is what the run was built to hear (the header's, before the
+  mode narrows it): handed it, every message says what the robot hears as
+  the switch leaves it (`mode_message`, rooftop-media-2026 #518).
   """
   if life.mode is None:
     return
 
   def emit(held_s: float = 0.0) -> None:
-    msg = mode_message(life.mode, float(life.data.time), held_s)
+    msg = mode_message(life.mode, float(life.data.time), held_s, accepts=accepts)
     for sink in sinks:
       sink(dict(msg))
 

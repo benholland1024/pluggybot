@@ -54,6 +54,35 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a `mode` message says what the robot hears now (`mode.accepts`, rooftop-media-2026 #518)
+
+The header's `accepts` is what the run hears AT ITS CONNECT, narrowed by
+the operator's switch then (`FrameBuilder.hears`), and a consumer narrows
+it by each `mode` message but can never widen past it. So a link opened
+while the switch said `paused` (the schedule's night, a deploy or a
+reconnect into a pause) named no `message` for its whole life: at the wake
+the robots woke and decided, and the site held every visitor's message
+`pending` ("No robot is awake right now") until the next run's header. 6 of
+the 8 messages delivered late from 2026-10-29 to 11-15 waited so, the
+robots awake and deciding, each delivered within a second of the next run's
+start; reproduced on a local site.
+
+Every `mode` message the served process sends now carries `accepts`: what
+the run was built to hear (the header's list before the switch narrows
+it), narrowed by the mode the message announces, on the header's rule
+(`telemetry.recorder.heard`).
+
+```jsonc
+{"type": "mode", "t": 162130.5, "robot": "pluggybot", "mode": "llm",
+ "heldS": 0.0, "accepts": ["message", "rating", "reset_robot", ...]}
+```
+
+A consumer takes it as the list the run hears from then on, wider or
+narrower, until the next `mode` or header; one older than the field reads
+the message as it did. A `mode` with no `accepts` (a demo's recording, an
+older sim) leaves the list as it was. No bump: the field is additive, and
+no committed fixture carries a switch.
+
 ### 0.21.0, additive: every fall a row (`fall`, pluggybot #707)
 
 A fall was on the wire only as a frame's `posture` (`getting_up`) and in

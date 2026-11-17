@@ -1059,8 +1059,8 @@ PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
 #: own, every one filler. ⚠ Not a field named by an everyday word (`done`,
 #: `reason`, `tell`): it may be meant there ("Done!" in the chat), and
 #: counted, it would make an answer filled and leave out the `done` it
-#: meant, so it is judged only as its own field's name (found in review;
-#: Rowan's `say` "tell:" stands). Nor in an object, judged by its own names:
+#: meant, so bare it is judged only as its own field's name (found in
+#: review; `FORM_MARKS` below). Nor in an object, judged by its own names:
 #: of the four findings named for a field, three were meant (`answer = 24
 #: -- calculated from 6×4`).
 COINED = tuple(name for name in FORM_FIELDS
@@ -1082,6 +1082,27 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
 }
+#: ...and in a field of its own, ANY field's name, everyday or coined, that
+#: the form's own separators cling to (`,` `:` and its braces): the form
+#: leaking into a field, never a sentence (`,intend` in a `say`;
+#: rooftop-media-2026 #518, docs/Overseer.md "Placeholders"). ⚠ Never in an
+#: object, whose act would go whole for a "Task:" that was meant, nor a
+#: quote or a bracket alone (`"Station"`), nor "Done!".
+FORM_MARKS = ",:{}"
+
+
+def _form_name(text) -> bool:
+  """Is `text` one of the form's field names with the form's separators on
+  it (`FORM_MARKS`)? ⚠ Never a comma after it alone: "Done," may begin a
+  sentence it never finished."""
+  said = str(text).strip().lower()
+  word = said.strip(PUNCTUATION)
+  if word not in FORM_FIELDS:
+    return False
+  before, _, after = said.partition(word)
+  return any(c in FORM_MARKS for c in before) or any(c in ":{}" for c in after)
+
+
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
 #: word in three of them is that answer's own (`keep`, `robot`, `watch_mouse`)
 #: and is read as empty wherever it is -- and the paperwork no placeholder
@@ -1134,7 +1155,8 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or (sub is None and _word(text) in COINED) or _word(text) in own]
+          or (sub is None and (_word(text) in COINED or _form_name(text)))
+          or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
   for name, sub, text in held:
@@ -4257,11 +4279,8 @@ class Overseer:
                        daemon=True).start()
 
   def _refuse(self, state: dict) -> str:
-    if self.budget_left() <= 0:
-      return "budget"
-    if not self._allowance_ok():
-      return "allowance"
-    if self._idle_run >= MAX_IDLE_RUN:
+    why = self._refusal()
+    if why == "idle-run":
       # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
       # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
       #
@@ -4276,12 +4295,30 @@ class Overseer:
       # fallbacks, arrived at from the other side: there, fallbacks fed the
       # streak; here, nothing could drain it.
       self._idle_run = 0
+    return why
+
+  def _refusal(self) -> str:
+    """Why a call started now would not be made, or "": `_refuse`'s gates,
+    read and never moved (the budget forgets calls past their hour as it
+    counts, which moves no answer)."""
+    if self.budget_left() <= 0:
+      return "budget"
+    if not self._allowance_ok():
+      return "allowance"
+    if self._idle_run >= MAX_IDLE_RUN:
       return "idle-run"
     if self.clock() < self._cooloff_until:
       return "cooloff"
     if self.client is None:
       return "no-client"
     return ""
+
+  def can_ask(self) -> bool:
+    """Would a decision started now go to the model, as far as this side can
+    tell? Not where `_refusal` says why not, nor with a call still out; an
+    endpoint that does not answer is found only by asking."""
+    with self._lock:                        # as `start` reads them
+      return not self._in_flight and not self._refusal()
 
   @property
   def pending(self) -> bool:

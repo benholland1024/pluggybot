@@ -10,6 +10,57 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A wake hears a visitor's message at once, a charge's hold ends on one, and a field's name with the form's separators on it is said nowhere (rooftop-media-2026 #518, P13, `loop-chat`) — opens when this PR is deployed
+
+**The prompt does not move** (`prompt_sha` `91f1a7bd…`, 68,855
+characters, 17 sections, as at `loop-staging` 3e000d65; the session host's
+hello is unmoved, sha1 `3cd41b6f…`). What reaches the robots (a message at
+the wake, an ask mid-charge, one History line) and what reaches visitors
+does:
+- **Every `mode` message carries `accepts`** as the switch leaves it
+  (`recorder.heard`, `mode_message(accepts=)`, `attach_mode_stream`;
+  protocol/README.md). The header's list is the switch's at the connect,
+  and a site may only narrow it: a link opened while paused named no
+  `message`, so at a wake the site held every visitor's message `pending`
+  and told the visitor "No robot is awake right now" while the robots
+  decided, until the next run's header. 6 of the 8 late deliveries of
+  2026-10-29 to 11-15 (`long_waits.psv` in the loop's folder: metadata
+  only) waited 58-93 minutes so, each delivered within a second of a run's
+  start; reproduced on a local site, the sim and the site at today's trees.
+  ⚠ The site's half (rooftop branch `loop-chat`) is what reads the field:
+  deployed before it, this period's sim changes nothing a visitor sees.
+- **A charge's hold ends on a visitor's message** (`HubLifecycle._spoken_to`,
+  `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a person's
+  message has come that the model was not shown at its last ask (never the
+  other robot's `tell`), with an ask waiting in the
+  map's slot (any: behind a periodic ask, the message's own row fails
+  `busy`) and a model that would be asked (no cooloff, budget, purse or
+  idle-run throttle refusing, the switch on `llm`), the hold ends with the
+  plug in and the loop asks at once, the robot plugged in as at a run's end
+  (#654). Nothing is banked there (a row cut at a chat read as a failed
+  charge): the part before the message is in no `charge` row, and the
+  `charge` that takes it up banks its own; History says "charge:
+  stopped at N% for a message, my plug still in", a narration line says
+  "CHARGE: a message came in at N% -- my plug stays in while I answer",
+  and the robot's next turn is asked by `message_received` while it is
+  plugged in. Before, the ask waited for the charge's end: 43 minutes once
+  on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
+  decision to the next.
+- **A field's name with the form's separators on it reads as empty** in
+  a field of its own, never an object's or a label's
+  (`overseer.FORM_MARKS`: `,` `:` and braces; `_form_name`): Rowan said
+  `,intend` to everyone at 2026-11-15 16:00 UTC. Such a `say` is said to
+  no one now, and the answer's `left_out` and History line say it; `tell:`
+  in a `say`, which stood since #462's review, goes too. "Done!", "Done,",
+  a bare everyday name and a quoted title still stand.
+
+**What to read off it.** A message's wait from `pw_messages` (`createdAt`
+to `deliveredAt` and `settledAt`; ⚠ `deliveredAt` is the LAST delivery's,
+overwritten by each re-delivery, and `deliveries` counts the flushes): at a
+wake none should wait for a run's start. A charge's hold a message ended
+is a `CHARGE: a message came in` narration line with a decision asked by
+`message_received` after it, the plug still in.
+
 ### A way home is over by its drivers: held, it is raised and sent home again, then left where it is held (#693's live family, P4, `loop-693b`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `91f1a7bd…`, 68,855
