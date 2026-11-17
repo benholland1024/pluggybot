@@ -430,7 +430,7 @@ log carries:
   wall minute: resident memory, its rate, and the sim clock. A runaway
   that has stopped the world shows as `t` standing still.
 - **`vitals: RUNAWAY -- ...`** when the rate has run over 50 MiB a minute
-  for three samples in a row. The first five samples of the world being
+  for two samples in a row. The first five samples of the world being
   built or running are a warm-up (the build and the carry-on: the grown
   world took a fresh process from 173 MiB to 1.3 GB over four minutes). A
   sample whose `t` stood still, its memory no faster than the rate, is a
@@ -466,9 +466,9 @@ Why the numbers are what they are:
   covered a slower box. The grown world took four minutes in the deployed
   process of 2026-11-12 (19:17-19:21 UTC, 173 MiB to 1.3 GB), and a warm-up
   of three set the alarm off with 4.6 MiB new at the onset. Five judges
-  nothing until the sixth sample: a load of up to six minutes passes, a
-  runaway that begins once the world is loaded is reported at its third
-  minute, and one from boot seven minutes in at the earliest.
+  nothing until the sixth sample: a load of up to five minutes passes, a
+  runaway that begins once the world is loaded is reported at its second
+  minute, and one from boot six minutes in at the earliest.
 - **A paused world's samples are not counted.** A process started into a
   pause builds its world, stops at its first step, and builds at the wake
   what a fresh process builds in its first minutes. That made three false
@@ -480,26 +480,26 @@ Why the numbers are what they are:
   still grew by up to +10 MiB a minute, and a clock standing with memory
   over the rate is no pause, so a runaway that stops the world is still
   judged.
-- **Three samples, not two.** The rule was set when each of a robot's two
-  cameras (the colour imager and the navigation camera) built a renderer of
-  its own at its first use and kept it: about 210 MiB under osmesa, 190
-  when it was built and 20-27 at its first picture, four in a pair, once a
-  process. A robot that began a process charging built both on its first
-  walk, a minute apart (2026-11-14 17:32-17:33 UTC: +207 and +239, then
-  flat), and two samples read that as a runaway. Its trace held 4.0 MiB:
-  `tracemalloc` sees only the renderer's own arrays, 20 of its 190 MiB.
-  Since #713 the four cameras draw through one renderer: measured on the
-  served pair under osmesa, the first camera's first use costs 285 MiB
-  (the renderer, the AprilTag detector and the process's first GL
-  context) and each other camera's 0-10, so only the first camera's first
-  use is a step. Whether the rule goes back to two samples is Ben's call
-  (#713). The cost of three is a
-  minute at any rate: a runaway of 115 MiB a minute (the deaths of
-  2026-09-24) is reported about 345 MiB in, where those died 7-9 minutes
-  in. One faster than about 170 MiB a minute from the pair's ~1.5 GB of
-  2026-11-14 reached the 2 GiB cap before its third sample; with #713's 640
-  MiB off it (measured off the box, its steady state there not yet read),
-  about 370.
+- **Two samples.** A runaway is reported at its second minute over the
+  rate: at the 115 MiB a minute of the deaths of 2026-09-24, about 230 MiB
+  in, where those died 7-9 minutes in. One faster than about 250 MiB a
+  minute from the pair's ~1.5 GB of 2026-11-14 reached the 2 GiB cap
+  before its second sample; with #713's 640 MiB off it (measured off the
+  box, its steady state there not yet read), about 570. A step is one
+  minute over the rate, and the steps a served process made after its
+  warm-up were its cameras' renderers: each of a robot's two cameras (the
+  colour imager and the navigation camera) built one of its own at its
+  first look, about 210 MiB under osmesa, and a robot that began a process
+  charging built both on its first walk, a minute apart (2026-11-14
+  17:32-17:33 UTC: +207 and +239, then flat), which two samples read as a
+  runaway. Its trace held 4.0 MiB: `tracemalloc` sees only the renderer's
+  own arrays. For a while the rule was three. Since #713 the four cameras
+  draw through one renderer, and `serve.py` builds it at boot, once the
+  world is built (`Body.build_cameras`): measured on the served pair under
+  osmesa, +257 MiB there (the renderer, the AprilTag detector and the
+  process's first GL context), then a camera's first look +22 at most (its
+  first picture; a navigation camera's +10), where the first camera's
+  first look had cost 278.
 - **Tracing starts at the onset, never at boot.** MEASURED on 2026-09-25,
   with the pair free-running on the dev machine (EGL, Python 3.14; the
   image runs 3.12), four interleaved runs, per wall minute after start-up:

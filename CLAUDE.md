@@ -1997,10 +1997,11 @@ save a filmstrip PNG named after the script.
 - **The served process watches its own memory and says why it ended** (issue
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
   `vitals: rss` line every wall minute; at a RUNAWAY (`RUNAWAY_MB_PER_MIN` 50
-  for THREE samples, after a warm-up of five that NO PAUSED SAMPLE counts:
-  the cameras' one renderer, 285 MiB at the first camera's first use, is a
-  step, and two again is Ben's call, #713) every thread's
-  stack, then the largest
+  for TWO samples, after a warm-up of five that NO PAUSED SAMPLE counts; ⚠
+  a served process builds its cameras' one renderer AT BOOT,
+  `Body.build_cameras`, 257 MiB inside the warm-up: built at a first look
+  it was a step, and two built a minute apart read as a runaway, #713)
+  every thread's stack, then the largest
   allocations `TRACE_S` later; every end Python sees prints `vitals: exiting
   -- <why>`, so a process with no such line was killed. `RunawayRule` is pure
   and pinned with made-up series (`tests/test_vitals.py`). ⚠ `tracemalloc`
@@ -2413,7 +2414,9 @@ save a filmstrip PNG named after the script.
   MuJoCo 3.10's close sends its deletes to whatever context is current, and
   under osmesa another renderer's next picture came out wrong in 626,450 of
   921,600 pixels. ⚠ Its key carries the process: a forked child builds its
-  own.
+  own. ⚠ A served process builds the cameras at boot (`Body.build_cameras`):
+  a renderer built at a first look is a step the memory alarm can read as a
+  runaway (the vitals bullet).
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step
