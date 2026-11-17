@@ -1703,8 +1703,8 @@ offers were `take_points`, the harm kind.
    make an answer filled and leave out the `done` it meant. ⚠ But any field's
    name with the form's own separators on it (`FORM_MARKS`: `,` `:` and the
    braces) is the form leaking into a field, never a sentence, and reads as
-   empty in a field or an object's content, never a label (a ticket's
-   title, a finding's topic or method: "Station:" may head a ticket):
+   empty in a field of its own -- never in an object, whose act would go
+   whole for a "Task:" that was meant, nor in a label:
    Rowan said `,intend` to everyone on 2026-11-15 at 16:00 UTC, the next
    field's name with a comma before it (rooftop-media-2026 #518), and its
    `say` "tell:" (below, filler) goes too. "Done!", a bare `note`, a quoted
@@ -2886,8 +2886,9 @@ carries `accepts` as the switch leaves it (protocol/README.md). And a
 `message_received -> ask` row waited behind a charge, which held one answer
 43 minutes on 10-29 (no decision in between, the pack at 0.89 after);
 charges on 11-07 and 11-08 ran 74 and 85 minutes from the decision to the
-next. A charge's hold now ends with its plug in once a message has come
-since the model was last asked (a fallback heard nothing), an ask is
+next. A charge's hold now ends with its plug in once a person's message has
+come (never the other robot's `tell`) that the model was not shown at its
+last ask (a fallback heard nothing), an ask is
 waiting -- any: with a periodic ask in the map's one slot, the message's
 own row fails `busy` -- and the model would be asked
 (`HubLifecycle._spoken_to`, `Overseer.can_ask`, the idle-run throttle
@@ -2895,8 +2896,9 @@ among its gates; Ben, 2026-11-16: a robot may answer while it charges); a
 fallback's order could walk off with a part-charged pack for an answer
 nobody gives. Nothing is banked there (a row cut at a chat read as a
 charge that failed, `CHARGE_OK_FRAC`): the cycle is carried, plug in, to
-the `charge` that takes it up, one row and one timeout from where it
-began, or banked where the plug comes out (`_charge_before`); History says
+the `charge` that takes it up, one row (each hold its own timeout), or
+banked where the plug comes out by hand (`_charge_before`; a fall's
+breakaway or a stand-up banks none); History says
 "charge: stopped at N% for a message, my plug still in". A message that
 comes while the model thinks is news again: the model hears what it was
 shown at the ask. The mind is asked plugged in, as at a run's end

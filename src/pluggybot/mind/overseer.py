@@ -1082,14 +1082,13 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
 }
-#: ...and in any of THOSE, an object's content included, ANY field's name,
-#: everyday or coined, that the form's own separators cling to (`,` `:` and
-#: its braces): `,intend` and `tell:` in `say` are the form leaking into a
-#: field, never a sentence. Rowan said `,intend` to everyone
-#: (rooftop-media-2026 #518, 2026-11-15 16:00 UTC): `intend` is an everyday
-#: word. ⚠ Never a label (a ticket's title, a finding's topic or method:
-#: "Station:" may head a ticket), nor a quote or a bracket alone, a
-#: sentence's or a title's (`"Station"`), nor "Done!".
+#: ...and in a field of its own, ANY field's name, everyday or coined, that
+#: the form's own separators cling to (`,` `:` and its braces): `,intend`
+#: and `tell:` in `say` are the form leaking into a field, never a
+#: sentence. Rowan said `,intend` to everyone (rooftop-media-2026 #518,
+#: 2026-11-15 16:00 UTC): `intend` is an everyday word. ⚠ Never in an
+#: object, whose act would go whole for a "Task:" that was meant, nor a
+#: quote or a bracket alone (`"Station"`), nor "Done!".
 FORM_MARKS = ",:{}"
 
 
@@ -1157,8 +1156,7 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or (sub is None and _word(text) in COINED)
-          or (_form_name(text) and (sub is None or sub in PLACEHOLDER_OBJECTS[name][0]))
+          or (sub is None and (_word(text) in COINED or _form_name(text)))
           or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
@@ -4319,9 +4317,8 @@ class Overseer:
     """Would a decision started now go to the model, as far as this side can
     tell? Not where `_refusal` says why not, nor with a call still out; an
     endpoint that does not answer is found only by asking."""
-    with self._lock:
-      in_flight = self._in_flight
-    return not in_flight and not self._refusal()
+    with self._lock:                        # as `start` reads them
+      return not self._in_flight and not self._refusal()
 
   @property
   def pending(self) -> bool:

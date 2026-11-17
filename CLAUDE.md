@@ -1349,8 +1349,8 @@ save a filmstrip PNG named after the script.
   `n`, `none`, `:`, `test` or a field's name where `""` was meant -- its own,
   and in a field of its own any the form coined (`COINED`: `drop_goal`,
   `unpin`), never a bare everyday one (`done`: "Done!" may be meant) -- but
-  any field's name the form's separators cling to is one in a field or an
-  object's content, never a label (`FORM_MARKS`, `,` `:` and braces;
+  any field's name the form's separators cling to is one in a field of its
+  own, never an object's (`FORM_MARKS`, `,` `:` and braces;
   rooftop-media-2026 #518); an object is judged by its own names alone (a finding is named for what it
   measures). `validate` reads one as `""` where it can stand
   (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an object whose content is one
@@ -1850,7 +1850,7 @@ save a filmstrip PNG named after the script.
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
   in. ⚠ ITS HOLD (`charge_routine`'s, never the walk there) ENDS SO ON A
-  VISITOR'S MESSAGE come since the model was last asked, an ask waiting and
+  PERSON'S MESSAGE the model was not shown at its last ask, an ask waiting and
   the model able to be asked (`_spoken_to`, `Overseer.can_ask`;
   rooftop-media-2026 #518, Ben: a robot may answer while it charges): this
   run's mind is asked at once on the same rules, the cycle carried to the

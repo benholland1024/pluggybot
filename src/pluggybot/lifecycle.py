@@ -1162,9 +1162,12 @@ class HubLifecycle:
     #: a charge's hold ends on (`_spoken_to`): the inbox's, so as it is not
     #: kept.
     self._heard_new = False
+    #: ...and the ids the model was shown at its last ask, which are no news.
+    self._shown_visitors: set[str] = set()
     #: A charge's cycle a message stopped, the plug still in (#518): what its
     #: row is measured from, carried to the `charge` that takes it up or
-    #: banked where the plug comes out. Not kept: a restart banks none.
+    #: banked where the plug comes out by hand. Not kept: a restart, a fall's
+    #: breakaway or a stand-up banks none.
     self._charge_before: dict | None = None
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
@@ -1973,6 +1976,7 @@ class HubLifecycle:
     self.body.forget_world()
     self.floor_explored = False
     self.blacklist = set()
+    self._charge_before = None
 
   @property
   def reset_in_s(self) -> float | None:
@@ -2973,7 +2977,9 @@ class HubLifecycle:
     # the charge, because "charged" is a gain in a real quantity -- a cycle
     # plugged in conducting nothing has an end fraction and no energy behind
     # it. ...or where a message stopped its hold, the plug still in (#518):
-    # one cycle, one row, and one timeout from where it began.
+    # one cycle, one row. ⚠ The timeout is this hold's own, as it was: from
+    # where the cycle began, the time thought and idled plugged in counted
+    # against it, and a `charge` taken up past it said "complete" at 55 %.
     before, self._charge_before = (self._charge_before or {
       "t": t0, "frac": self.battery.fraction, "wh": self.battery.energy_wh}), None
     # ⚠ CHARGING IS NOT TRAVEL: held on the charger for the whole cycle,
@@ -2988,7 +2994,7 @@ class HubLifecycle:
     try:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
-             and self.data.time - before["t"] < timeout):
+             and self.data.time - t0 < timeout):
         if self._hour_up:
           self._say(f"CHARGE: the run's time is up at {self.battery.fraction:.0%} -- "
                     "my plug stays in", doing="CHARGE: the run's time is up -- my plug stays in")
@@ -5501,7 +5507,10 @@ class HubLifecycle:
       for msg in self.inbox.peek(VISITORS_SHOWN):
         if msg.id not in self._seen_visitors:
           self._seen_visitors.add(msg.id)
-          self._heard_new = True
+          # ...a person's (never the other robot's `tell`) that the model
+          # was not shown at its last ask (#518)
+          if msg.sender == text_registry.VISITOR and msg.id not in self._shown_visitors:
+            self._heard_new = True
           self._occurred.append(("message_received", ""))
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
@@ -6066,11 +6075,13 @@ class HubLifecycle:
     # while it thinks is news again (`_spoken_to`), and a fallback heard
     # nothing at all.
     shown, self._heard_new = self._heard_new, False
+    if self.inbox is not None:
+      self._shown_visitors = {m.id for m in self.inbox.peek(VISITORS_SHOWN)}
     self.overseer.start(state)
     while self.overseer.pending:
       yield from self.body.hold_routine(THINK_SLICE_S)
     decision = self.overseer.result(state)
-    if decision.scripted:
+    if decision.scripted and len(self.true_deaths) == lives:
       self._heard_new = self._heard_new or shown
     if len(self.true_deaths) != lives:
       # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack

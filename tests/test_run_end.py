@@ -312,6 +312,43 @@ def test_a_message_no_mind_will_answer_leaves_the_charge_to_finish(refusing, tmp
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
 
 
+def test_a_carried_cycle_charges_on_whatever_time_passed_meanwhile():
+  """The timeout is each hold's own: measured from where the carried cycle
+  began, the time thought and idled plugged in counted against it, and a
+  `charge` taken up past it said "complete" at once, part-charged (found
+  in review)."""
+  life = _minded()
+  life._charge_before = {"t": float(life.data.time) - 1e6, "frac": 0.3,
+                         "wh": life.battery.capacity_wh * 0.3}
+  life.body.run(life.charge_routine())
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.3)
+  # ...and a stand-up or a true death drops one (the plug is out by then)
+  life._charge_before = {"t": 0.0, "frac": 0.3, "wh": 1.0}
+  life._forget_world()
+  assert life._charge_before is None
+
+
+def test_the_other_robots_tell_and_a_message_the_model_was_shown_are_no_news():
+  """Only a person's message the model has not been shown ends a charge's
+  hold (found in review): the other robot's `tell` came in the same inbox
+  and set the flag, and so did a message that reached the inbox just before
+  the ask, which the model was shown."""
+  from pluggybot.mind import text
+  life = _minded()
+  life.inbox.offer({"type": "message", "id": "t_1", "from": "Rowan", "text": "counter's yours"},
+                   sender=text.PEER)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert not life._heard_new, "the other robot's tell"
+  _say(life, 3)
+  life.body.run(life._decide_routine())              # shown it at the ask
+  life._next_events_check = 0.0
+  life._events_step()                                # ...and only then seen
+  assert not life._heard_new, "a message the model was shown"
+
+
 def test_what_the_model_is_shown_it_has_heard_and_nothing_else():
   """A message a fallback answered (a cooloff, a spent purse) is still
   unheard: a later charge's hold ends on it once the model can be asked

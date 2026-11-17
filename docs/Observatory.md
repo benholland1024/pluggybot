@@ -30,14 +30,16 @@ does:
   ⚠ The site's half (rooftop branch `loop-chat`) is what reads the field:
   deployed before it, this period's sim changes nothing a visitor sees.
 - **A charge's hold ends on a visitor's message** (`HubLifecycle._spoken_to`,
-  `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a message
-  has come since the model was last asked, with an ask waiting in the
+  `Overseer.can_ask`, `charge_routine`; Ben, 2026-11-16): once a person's
+  message has come that the model was not shown at its last ask (never the
+  other robot's `tell`), with an ask waiting in the
   map's slot (any: behind a periodic ask, the message's own row fails
   `busy`) and a model that would be asked (no cooloff, budget, purse or
   idle-run throttle refusing, the switch on `llm`), the hold ends with the
   plug in and the loop asks at once, the robot plugged in as at a run's end
-  (#654). Its cycle is carried to the `charge` that takes it up (one row,
-  one timeout) or banked where the plug comes out; History says "charge:
+  (#654). Its cycle is carried to the `charge` that takes it up (one row;
+  each hold its own timeout) or banked where the plug comes out by hand;
+  History says "charge:
   stopped at N% for a message, my plug still in", a narration line says
   "CHARGE: a message came in at N% -- my plug stays in while I answer",
   and the robot's next turn is asked by `message_received` while it is
@@ -45,8 +47,8 @@ does:
   on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
   decision to the next.
 - **A field's name with the form's separators on it reads as empty** in
-  a field or an object's content, never a label (`overseer.FORM_MARKS`:
-  `,` `:` and braces; `_form_name`): Rowan said
+  a field of its own, never an object's or a label's
+  (`overseer.FORM_MARKS`: `,` `:` and braces; `_form_name`): Rowan said
   `,intend` to everyone at 2026-11-15 16:00 UTC. Such a `say` is said to
   no one now, and the answer's `left_out` and History line say it; `tell:`
   in a `say`, which stood since #462's review, goes too. "Done!", "Done,",

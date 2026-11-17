@@ -157,7 +157,7 @@ def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
   assert _validate(_quiet(say="say")).say == "", "its own name is still one"
 
 
-def test_a_fields_name_with_the_forms_separators_on_it_is_empty_in_a_field_or_its_content():
+def test_a_fields_name_with_the_forms_separators_on_it_is_empty_in_a_field_of_its_own():
   """rooftop-media-2026 #518: Rowan's line to everyone at 2026-11-15 16:00
   UTC was `,intend` -- the next field's name with a comma before it -- and it
   went out to every visitor, because `intend` is an everyday word, judged
@@ -170,17 +170,16 @@ def test_a_fields_name_with_the_forms_separators_on_it_is_empty_in_a_field_or_it
                         "words": [",intend"]}
   assert _validate(_quiet(say="tell:")).say == ""
   assert _validate(_quiet(intend="say:")).intend == ""
-  # ...in an object's content too, which goes whole, as any placeholder there
-  d = _validate(_quiet(tell={"to": "Rowan", "text": ",intend"},
-                       note={"topic": "", "title": "", "text": "say:"}))
-  assert d.tell is None and d.note is None
+  # ...never in an object, whose act would go whole for a "Task:" meant
+  d = _validate(_quiet(note={"topic": "", "title": "", "text": "Task:"}))
+  assert d.note["text"] == "Task:" and d.left_out is None
   # ...and a sentence's punctuation is a sentence's, a quote a title's
   assert _validate(_quiet(say="Done!")).say == "Done!"
   assert _validate(_quiet(say="Note.")).say == "Note."
   assert _validate(_quiet(say="Done,")).say == "Done,", "a fragment, never the form's"
   assert _validate(_quiet(lookup='"Station"')).lookup == '"Station"'
   assert _validate(_quiet(say="[note]")).say == "[note]"
-  # ...and a label is never judged so: "Station:" may head a ticket
+  # ...nor a label: "Station:" may head a ticket
   d = _validate(_quiet(ticket={"kind": "question", "title": "Station:",
                                "text": "the station's cup holds its plug loosely"}))
   assert d.ticket["title"] == "Station:" and d.left_out is None
