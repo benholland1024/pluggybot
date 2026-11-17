@@ -681,7 +681,7 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
                         speed: float = 0.06, patience: float = 20.0,
-                        path=None, turns=None) -> Routine:
+                        path=None, turns=None, verb: bool = False) -> Routine:
     """A hand that is out -- reached, and holding there or moved on --
     carried along a straight line to `pos`, the believed world frame, m, at
     `speed`, m/s, the turn it was asked to hold kept, at `stiffness` --
@@ -694,7 +694,9 @@ class Body(abc.ABC):
     -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
     "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
-    where it began (`dx`, `dy`, `dz`, believed world frame, m)."""
+    where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
+    procedure's, whose posture the other hand's grip keeps (#719), never
+    the loop's own (a charge's)."""
 
   @abc.abstractmethod
   def hand_why(self, side: str) -> str:
@@ -713,7 +715,15 @@ class Body(abc.ABC):
     that robot stands in the stance frame, `home` (its way home, else its
     way out), `back` (a reach whose way home from there would meet it), and
     for a reach `other` (whether the other hand's way there keeps off it;
-    None where that hand does not reach) -- else None."""
+    None where that hand does not reach; "holds" where it is out holding
+    something and kept the body's posture, #719) -- else None."""
+
+  @abc.abstractmethod
+  def posture_kept_by(self, side: str) -> str | None:
+    """The other hand -- "left" or "right" -- out at its work with its
+    gripper reading it held something as this hand's last `reach_routine`,
+    `move_hand_routine` or `pull_routine` was asked, so that the body kept
+    the posture it was in (#719's option 2), else None."""
 
   @abc.abstractmethod
   def arm_kept(self) -> dict | None:
@@ -755,7 +765,8 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
-                   speed: float = 0.06, patience: float = 30.0, give: bool = True) -> Routine:
+                   speed: float = 0.06, patience: float = 30.0, give: bool = True,
+                   verb: bool = False) -> Routine:
     """THE PULL, a FORCE MOVE (#525): a hand that is out pulled -- or
     pushed -- along `direction` (the believed world frame) with at most
     `limit_n`, N, as the hand reads it, and at most `speed`, m/s; across
@@ -772,7 +783,8 @@ class Body(abc.ABC):
     how far the hand went (`moved`) and along its way (`along`), where it
     ended up from where it began (believed world frame, m), the way the hand
     was going at its end (`direction`, a unit vector: what it held allowed)
-    and the hardest it pushed along its way (`force`, N)."""
+    and the hardest it pushed along its way (`force`, N). `verb`: as
+    `move_hand_routine`'s."""
 
   @property
   @abc.abstractmethod
@@ -1335,7 +1347,7 @@ class StubBody(Body):
             "dx": dx, "dy": dy, "dz": dz}
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                        path=None, turns=None):
+                        path=None, turns=None, verb=False):
     """The hand there at once, as asked (a hand that is out)."""
     self.carried_paths.append((side, list(path or []), tuple(pos),
                                None if turns is None else list(turns)))
@@ -1353,6 +1365,10 @@ class StubBody(Body):
 
   def hand_kept(self, side) -> dict | None:
     """No other robot's body in any arm's way: none."""
+    return None
+
+  def posture_kept_by(self, side) -> str | None:
+    """No posture to keep: none."""
     return None
 
   def arm_kept(self) -> dict | None:
@@ -1379,7 +1395,7 @@ class StubBody(Body):
     return False
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
-                   give=True):
+                   give=True, verb=False):
     """The hand `distance_m` along `direction` at once: nothing holds it."""
     self.pulled.append((side, tuple(direction), float(limit_n), float(distance_m), bool(give)))
     if side not in self.hands:

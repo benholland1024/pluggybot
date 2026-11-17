@@ -472,7 +472,17 @@ save a filmstrip PNG named after the script.
   GRIPS WHAT IT PULLS TAKES ITS POSTURES AS IT DID: two of our door's 72
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
-  call. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
+  call. ⚠ WHILE ONE HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
+  SOMETHING, THE OTHER'S REACH, CARRY AND PULL -- A PROCEDURE'S (`verb`),
+  NEVER THE LOOP'S OWN (A CHARGE'S, A WALK'S LIFT) -- TAKE NO POSTURE BUT THE
+  ONE THE BODY STANDS IN, READ ONCE AS EACH IS
+  ASKED, AND PLAN NONE ON THEIR WAY (#719's option 2; `Reach.keep`,
+  `kept_by`, `Body.posture_kept_by`; SimNotes, "A posture change out of a
+  deep bow"): a rise and a turn asked with the other hand's jaws on a lever
+  tipped the body over backward, in stages too. A piece carried at the side
+  holds the body in nothing. One that does not reach from it, where another
+  posture would, says so (`REACH_KEPT`, `MOVE_KEPT`), and the three verbs'
+  texts say the rule. ⚠ A HAND AT WORK, STANDING, READS ITS FORCE OFF THE WHOLE BODY
   (#547 stage 2; `arms.SelfModel.felt`,
   `reach.FELT_PHASES`, `Reach.standing`; SimNotes, "A hand's force off the
   whole body"; `--feel`): the robot's balance in least squares over the
