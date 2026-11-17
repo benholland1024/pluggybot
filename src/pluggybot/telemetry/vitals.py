@@ -32,12 +32,14 @@ SAMPLE_S = 60.0
 #: +20 back to back (3518953, 2026-09-25), which a 30 would clear by only
 #: 1.3x. 50 sits ~2x from each.
 RUNAWAY_MB_PER_MIN = 50.0
-#: Three, not two: while each of a robot's cameras built a renderer of its
-#: own at its first use, two built a minute apart read as a runaway
-#: (2026-11-14). Since #713 only the first camera's first use is a step (285
-#: MiB, each other's 0-10: MEASURED, the served pair under osmesa), and two
-#: again is Ben's call (#713; Webserver.md, "Three samples, not two").
-RUNAWAY_MINUTES = 3
+#: Two: the cameras' one renderer (#713) is built at boot, inside the
+#: warm-up (`Body.build_cameras`), and a camera's first look after it is no
+#: step over the rate (MEASURED, the served pair under osmesa: +257 MiB at
+#: boot, then +22 at the first picture and +10 at a navigation camera's).
+#: While each camera built a renderer of its own at its first look, two
+#: built a minute apart read as a runaway (2026-11-14; Webserver.md, "Two
+#: samples").
+RUNAWAY_MINUTES = 2
 #: Calm samples in a row that end an episode.
 CALM_MINUTES = 2
 #: Samples that judge nothing, the world being built or running (a paused

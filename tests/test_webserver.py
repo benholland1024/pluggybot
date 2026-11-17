@@ -718,7 +718,11 @@ class _FakeLife:
     # The world it was built on, as the real lifecycle holds it.
     self.model, self.data = model, data
     self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing",
-                                      working=False, making_way=None)
+                                      working=False, making_way=None,
+                                      build_cameras=self._build_cameras)
+    # How often serve.py asked for its cameras, in all and by the time its
+    # day began (#713's tail).
+    self.cameras_built = self.cameras_built_by_run = 0
     self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []
     # The operator's switch and its two hook lists (issue #37). Held the way
@@ -771,8 +775,12 @@ class _FakeLife:
   def telemetry_status(self) -> dict:
     return {}
 
+  def _build_cameras(self) -> None:
+    self.cameras_built += 1
+
   def run(self, *a, **kw):
     self.run_args, self.run_kwargs = a, kw
+    self.cameras_built_by_run = self.cameras_built
     return {"state": "DONE", "charge_cycles": 1, "sim_time": 100.0,
             "errands": [], "boards": {}, "verdicts": [], "points": 0,
             "earned": 0}
@@ -1024,6 +1032,60 @@ def test_a_served_process_says_why_it_ended(monkeypatch, capsys):
     serve.main()
   assert ("vitals: exiting -- RuntimeError: the day loop broke"
           in capsys.readouterr().out)
+
+
+def test_a_served_robot_builds_its_cameras_before_its_day(monkeypatch):
+  """#713's tail: serve.py builds a robot's cameras at boot -- their one
+  renderer, ~257 MiB under osmesa -- inside the memory alarm's warm-up,
+  where at a first look after it the renderer was a step that two samples
+  over the rate could read as a runaway (`vitals.RUNAWAY_MINUTES`;
+  Webserver.md, "Two samples")."""
+  life, _, _ = _serve_wiring(monkeypatch, ["--free-run"])
+  assert life.cameras_built_by_run == life.cameras_built == 1
+
+
+def test_a_served_pair_builds_both_robots_cameras_before_its_day(monkeypatch,
+                                                                 tmp_path):
+  """...and the deployed world, a pair: each robot's colour imager and
+  navigation camera built through its own body (`Body.build_cameras`)
+  before the day begins, counted by a stand-in detector that builds no
+  renderer."""
+  from pluggybot import pair as pair_mod
+  from pluggybot.humanoid.body import TAG_CAMERA
+  from pluggybot.humanoid.places import NAV_CAMERA
+  from pluggybot.perception import tags
+  from pluggybot.robot import FIRST, SECOND
+  serve = _load_serve()
+  built: list = []
+
+  class _Counted:
+    def __init__(self, model, camera_name, **kw):
+      built.append(camera_name)
+
+    def close(self) -> None:
+      pass
+
+  at_day: dict = {}
+
+  def run_pair(lives, **kw):
+    at_day["cameras"] = sorted(built)
+    for life in lives:
+      life.body.close()
+    return [{"state": "DONE", "charge_cycles": 0, "sim_time": 1.0, "errands": [],
+             "boards": {}, "verdicts": [], "points": 0, "earned": 0}
+            for _ in lives]
+
+  monkeypatch.setattr(tags, "TagDetector", _Counted)
+  monkeypatch.setattr(serve, "WsPublisher", _FakePublisher)
+  monkeypatch.setattr(pair_mod, "run_pair", run_pair)
+  monkeypatch.setattr(sys, "argv", [
+    "serve.py", "--pair", "--world", "home", "--free-run",
+    "--thoughts", str(tmp_path / "t"),
+    "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
+  serve.main()
+  assert at_day["cameras"] == sorted(
+    robot.el(camera) for robot in (FIRST, SECOND)
+    for camera in (TAG_CAMERA, NAV_CAMERA))
 
 
 def _report(r, capsys, **kw):
