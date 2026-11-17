@@ -387,7 +387,9 @@ def test_a_failed_call_keeps_a_message_news_for_one_retry_and_no_more():
       raise ConnectionError("the endpoint is down")
   life = _minded(ev.Row(event="message_received", action=ev.ASK))
   life.overseer._client, life.overseer._client_ready = Down(None), True
-  came = lambda: sum("a message came in" in ln for ln in life.log)
+
+  def came() -> int:
+    return sum("a message came in" in ln for ln in life.log)
   _say(life)
   life.body.run(life.charge_routine())
   assert came() == 1 and life.queued_row is not None
