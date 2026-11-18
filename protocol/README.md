@@ -1658,7 +1658,10 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
 - `deleted` -- `from`, `ref`. Erased, open or closed; nothing paid.
 - `refused` -- the desk would not take the robot's `ticket` or
   `ticket_reply`: `verb`, `why` (a full desk, a closed ticket, an empty
-  report), and the `kind` / `title` or `id` it named.
+  report), and the `kind` / `title` or `id` it named. ...Or it failed on
+  an inbound reply, close or delete (#729): `verb` the inbound kind, `id`,
+  `ref`, `why` (the error's class). No acknowledgement: a website may send
+  the line again.
 - `unknown` -- an inbound reply, close or delete named a ticket this desk
   does not hold: `id`, `ref`, `why`, `verb`. The acknowledgement that stops
   a website re-sending it.
@@ -1680,6 +1683,8 @@ robot's OPEN tickets whole (`id`, `kind`, `title`, `text`, `t`, `state`,
 `thread: [{sender, from, text, t}]`, and the close fields, null while
 open). A website reconciles off it: a ticket it erased while the sim was
 away it says so again (`ticket_delete`); one it never saw it takes back.
+⚠ It rides the first physics step after a connect, and a paused world
+steps none: a website that connects during a pause reads it at the wake.
 A robot with no desk sends none, which is not an empty desk. Only
 `serve.py` and the pair recording hand the sinks a desk, so the
 committed fixtures are unchanged.
@@ -1700,7 +1705,8 @@ reach-in rule); `id` is the website's, echoed back as `ref`.
 
 A close PAYS: the reward table's `ticket` row, once, through the ledger's
 one door, at the moment the physics thread drains the message (the top of
-an arbitration pass -- minutes after the send, mid-errand). A website
+an arbitration pass -- minutes after the send, mid-errand -- or, while the
+world is paused, the next slice of the pause, a quarter second: #729). A website
 should hold a reply or a close until the `ticket` event with its `ref`
 arrives, and re-send an unacknowledged one on the next connect, bounded,
 as it re-sends a visitor's message: the sim dedupes by message id within

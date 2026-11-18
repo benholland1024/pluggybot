@@ -10,6 +10,38 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### An operator's ticket line lands while the world is paused (#729, T2, `loop-729`) — opens when this PR is deployed
+
+**What the robots read** is unmoved in its words: the prompt is
+`b4d1ec1f…` (69,557 characters, 17 sections) and the session host's hello
+`a61b6376…`, with the change and without it (`loop-staging` c7f78bc9). What
+moves is WHEN an operator's reply, close or delete reaches a robot: sent
+while the world is paused, it lands in the pause (its History line, its
+thread, a close's 25 points), where before it waited for the wake and a
+restart during the pause lost it; the `ticket_replied` it fires for a map
+still fires after the wake. A robot whose desk an operator clears while it
+sleeps wakes with slots free.
+
+**The change** (`HubLifecycle._ticket_lines_step`, `_ticket_failed`;
+`_mode_step`; Overseer.md §2g). The three ticket kinds are taken at the
+top of every arbitration pass, as before, and in every slice of a pause,
+each robot's on its own desk, none once a stop is asked; the `ticket`
+event acknowledging one leaves while paused. A line the desk fails on is
+`refused` (its error's class on the wire, its message in the console) and
+never ends the run; before, an exception there ended it.
+
+**Measured**: nothing flown (no physics moves); pinned on the stub and over
+a real socket (`tests/test_tickets.py`). On the wake of 11-13, the case it
+answers: ten lines sent at 15:22-15:23 UTC during a pause were never
+acknowledged, the release at 18:00 restarted the sim, the site's third
+delivery came at 18:01:01, and the release of 11-14 at 08:44 lost them;
+re-sent by hand on 11-18, they were acknowledged on their first delivery.
+
+**What to read**: `ticket` events with `t` frozen at a pause's instant and
+their `ref`s settled on the site before the wake; a `refused` with a `ref`
+(none expected); whether the robots, woken with a reply or a close in
+History from the pause, act on it as they did on one sent awake.
+
 ### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
 
 **What the robots read** is unmoved where it is read every turn: this

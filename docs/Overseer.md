@@ -650,6 +650,22 @@ command shown to the model:
 | `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the closing words whole and the points; `ticket_replied` |
 | `ticket_delete` | the ticket is erased, open or closed; nothing is paid | a History line saying it was removed (the record is append-only: the robot did file it) |
 
+**They land whenever they are sent, the world paused or not** (#729).
+They are taken at the top of every arbitration pass and, while the world
+is paused, in every slice of the pause, each robot's on its own desk
+(`_ticket_lines_step`, `_mode_step`); the `ticket` event that acknowledges
+one leaves on the publisher's own thread, with no frame. Taken at a pass
+alone, a line sent while paused waited in the inbox, in memory: on
+2026-11-13 an operator answered five tickets during a pause, a restart
+during it lost all ten lines once the site's three deliveries were spent,
+the site listed the tickets closed, and both desks stayed full, refusing
+the robots 33 new tickets in four days. None is taken once a stop is
+asked (the ending process might not get its acknowledgement out, and a
+reply sent again to the next one would land twice), and a line the desk
+fails on is answered `refused`, its error said, and never ends the run.
+Everything else sent while paused (a person's message, a rating, a
+reach-in) still waits for the wake.
+
 **A ticket's text is 500 characters in either direction, and a cut is
 said out loud** (`MAX_TICKET_CHARS`; the length follow-up). The first
 build gave a thread line a MESSAGE's cap, 280, on the reasoning that a
