@@ -389,12 +389,17 @@ class Inbox:
       # nothing is queued, deduped or narrated.
       self.renderer = msg.connected
       return msg
-    # ⚠ AN OPERATOR'S TICKET LINE IS NEVER DROPPED AS A REPLAY (#729): its
-    # desk is its dedupe (a reply by its id, `Desk.taken`; a close and a
-    # delete by what they do), and a copy sent again is the website asking
-    # for an acknowledgement it lost -- dropped here, it was never answered.
-    checked = bool(msg.id) and msg.kind not in TICKET_INBOUND_TYPES
+    # ⚠ AN OPERATOR'S TICKET LINE TAKEN ALREADY IS NEVER DROPPED AS A REPLAY
+    # (#729): its desk is its dedupe (a reply by its id, `Desk.taken`; a
+    # close and a delete by what they do), and a copy sent again is the
+    # website asking for an acknowledgement it lost -- dropped here, it was
+    # never answered. A copy of one still QUEUED is (its answer is coming).
+    ticket = msg.kind in TICKET_INBOUND_TYPES
+    checked = bool(msg.id) and not ticket
     with self._lock:
+      if ticket and msg.id and any(m.id == msg.id for m in self._queue):
+        self.dropped_invalid += 1
+        return None
       if checked and msg.id in self._seen_set:
         # A replay. The website resends on its own reconnect (it cannot know
         # whether we got the first copy), so this is expected traffic rather

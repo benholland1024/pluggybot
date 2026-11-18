@@ -356,8 +356,9 @@ class Desk:
 
   def taken(self, ticket_id: str, ref: str) -> Line | None:
     """The operator's line on the ticket's thread taken from the inbound
-    message `ref` (#729), open or closed, or None -- while the thread keeps
-    it (`MAX_THREAD`)."""
+    message `ref` (#729), open or closed, or None. ⚠ Only while the thread
+    keeps it, its newest `MAX_THREAD` lines: a copy sent after the line has
+    gone from it is taken again."""
     ticket = self.get(ticket_id)
     if ticket is None or not ref:
       return None
@@ -401,8 +402,13 @@ class Desk:
     ticket = self.get(ticket_id)
     if ticket is None:
       return
+    before = ticket.points, ticket.seq
     ticket.points, ticket.seq = int(points), int(seq)
-    self._save(ticket)
+    try:
+      self._save(ticket)
+    except Exception:
+      ticket.points, ticket.seq = before      # never a pay the record lacks (#729)
+      raise
 
   def delete(self, ticket_id: str) -> Ticket | None:
     """Erase a ticket, open or closed. None for one the desk does not hold.
@@ -417,8 +423,8 @@ class Desk:
     """Keep the newest `MAX_CLOSED` closed tickets. Run once a close is
     paid (`HubLifecycle._ticket_close`): the pay is measured off the desk."""
     for old in self.closed_tickets()[MAX_CLOSED:]:
+      self.store.remove(f"{old.id}{SUFFIX}")     # off the record first (#729)
       self.tickets.pop(old.id, None)
-      self.store.remove(f"{old.id}{SUFFIX}")
 
   def _refuse(self, reasons: list[str]) -> DeskRefused:
     # The newest few, for `stats()`: the record of a refusal is the

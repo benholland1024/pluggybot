@@ -154,6 +154,18 @@ def test_a_write_the_store_refuses_leaves_the_desk_as_it_was(tmp_path, monkeypat
   assert d.get("tk_0001") is not None
   monkeypatch.undo()
   assert d.close("tk_0001", by="ben", text="done", t=4.0)[1], "and it closes once it can"
+  monkeypatch.setattr(d.store, "write", full)
+  with pytest.raises(OSError):
+    d.pay("tk_0001", 25, 7)
+  assert (d.get("tk_0001").points, d.get("tk_0001").seq) == (None, None)
+  monkeypatch.undo()
+  for i in range(desk.MAX_CLOSED):                  # one more closed than kept
+    d.open("idea", f"t{i}", "more", t=5.0 + i)
+    d.close(f"tk_{i + 2:04d}", by="ben", text="", t=6.0 + i)
+  monkeypatch.setattr(d.store, "remove", full)
+  with pytest.raises(OSError):
+    d.trim()
+  assert d.get("tk_0001") is not None, "the oldest close, still on the record, still held"
 
 
 def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
@@ -1135,6 +1147,19 @@ def test_a_line_sent_again_to_the_same_process_is_answered(tmp_path):
     assert [x.text for x in life.tickets.get("tk_0001").thread] == ["which board?"]
   finally:
     life.body.close()
+
+
+def test_a_copy_of_a_ticket_line_still_queued_takes_no_second_place():
+  """...but a copy of one still waiting in the queue is dropped: its answer
+  is coming, and awake a line waits minutes for a pass while every connect
+  sends it again -- kept, the copies filled the queue and evicted people's
+  messages (#729's third review)."""
+  inbox = Inbox()
+  line = {"type": "ticket_close", "id": "tc_1", "from": "ben", "ticket": "tk_0001"}
+  assert inbox.offer(line) is not None
+  assert inbox.offer(line) is None and len(inbox) == 1
+  inbox.drain(("ticket_close",))
+  assert inbox.offer(line) is not None, "taken already, the copy is answered"
 
 
 def test_no_line_is_taken_awake_once_a_stop_is_asked(tmp_path, monkeypatch):
