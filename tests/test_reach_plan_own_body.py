@@ -93,6 +93,26 @@ def test_a_plan_in_the_trunk_with_no_other_solve_clear_takes_the_next_posture():
   assert r.postures == [TWO[1]] and _room(_pre(r)) >= 0.0 and r.own["left"] is None
 
 
+def test_the_other_solves_are_taken_in_turn_as_solve_seeded_ranks_them(monkeypatch):
+  """Stubbed: today's arm lies in the trunk; of the goal's other solves, the
+  one that is today's again (within `SAME_ARM_RAD`) is not planned twice,
+  the next lies in the trunk too, and the one after it, clear, is taken --
+  never a later one."""
+  today, again, inside, clear, later = (np.full(6, v) for v in (0.0, 0.002, 1.0, 2.0, 3.0))
+  monkeypatch.setattr(rc, "statue", lambda *a, **kw: None)
+  monkeypatch.setattr(rc, "_solutions", lambda *a, **kw: [today, again, inside, clear, later])
+  planned = []
+
+  def reached_from(sm, side, posture, q0, goal, pre, slack, lean, arms, start, seeded=True):
+    planned.append(float(start[0]) if start is not None else None)
+    return (start, start) if start is not None else (today, today)
+  monkeypatch.setattr(rc, "_reached_from", reached_from)
+  monkeypatch.setattr(rc, "in_trunk", lambda side, *arms: (
+    {"part": "torso", "m": -0.01} if float(arms[0][0]) in (0.0, 0.002, 1.0) else None))
+  got = rc._reached(None, "left", (0.0, 0.0, 0.0), None, LOW, LOW, True, None, None, None, clear=True)
+  assert float(got[0][0]) == 2.0 and got[2] is None and planned == [None, 1.0, 2.0]
+
+
 # ---- 3: none clear --------------------------------------------------------------------------
 
 
@@ -154,10 +174,10 @@ def test_a_grip_that_plans_only_in_the_trunk_is_planned_half_a_turn_round(monkey
 SQUARE = [(0.0, 0.0, 0.0), (-0.08, 0.0, 0.0), (-0.16, 0.0, 0.0)]
 
 
-def _looking(monkeypatch, inside):
-  """A bare reach's left hand at its pre-grasp in the stand; every posture
-  reaches, and its plan from the arm as it is lies in the trunk where
-  `inside` says so (`_reached` and `in_trunk` stubbed)."""
+def _looking(monkeypatch, inside, here=SQUARE[0]):
+  """A bare reach's left hand at its pre-grasp in posture `here`; every
+  posture reaches, and its plan from the arm as it is lies in the trunk
+  where `inside` says so (`_reached` and `in_trunk` stubbed)."""
   r = _stepped(_standing_reach())
   r.stand = NS(settled=True)
   r._posture_there = lambda dt: True
@@ -179,7 +199,7 @@ def _looking(monkeypatch, inside):
   r.self_model._set_arm("left", q)
   r.goal["left"] = HandGoal(np.array([0.40, 0.2, 0.9]), None, 1.0)
   r.allowed["left"] = list(SQUARE)
-  r.posture = np.array(SQUARE[0], dtype=float)
+  r.posture = np.array(here, dtype=float)
   r.phase["left"] = "move"
   return r
 
@@ -191,8 +211,12 @@ def test_a_look_passes_over_a_posture_whose_plan_lies_in_the_trunk(monkeypatch):
 
 
 def test_a_look_with_no_posture_clear_of_the_trunk_takes_todays(monkeypatch):
-  """...and with none clear, the least bent that reaches, as before: here
-  the posture it holds, so in it goes."""
+  """...and with none clear, the least bent that reaches, as before -- one
+  less bent than the posture it holds is taken; at the one it holds, in it
+  goes."""
+  r = _looking(monkeypatch, inside=set(SQUARE), here=SQUARE[1])
+  r._update(0.01)
+  assert r.looking["left"] and r.postures == [SQUARE[0]]
   r = _looking(monkeypatch, inside=set(SQUARE))
   r._update(0.01)
   assert r.phase["left"] == "approach" and not r.looking["left"] and not r.postures
