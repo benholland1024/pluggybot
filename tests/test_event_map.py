@@ -1478,22 +1478,25 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   for stamp in [i for i, _ in enumerate(src) if src.startswith("_stamp_ask()", i)]:
     assert stamp < src.index("yield from self._decide_routine(", stamp), \
         "the ask stamps the clock before the call, a failure cannot unstamp it"
-  assert src.count("_stamp_ask()") == 3, \
-      "the bootstrap, the consult a heart lost to silence is owed, and a " \
-      "charge's break with no row's stamp waiting for it (#730), and nothing " \
-      "else in this branch: a row stamped when it fired"
+  assert src.count("_stamp_ask()") == 2, \
+      "the bootstrap and the consult a heart lost to silence is owed, and " \
+      "nothing else in this branch: a row stamped when it fired"
   seam = inspect.getsource(HubLifecycle._events_step)
   assert seam.count("_stamp_ask()") == 1
   assert seam.index("_stamp_ask()") < seam.index('note_failure("busy")'), \
       "a row dropped `busy` fired its ask too"
   # ...and every OTHER write is a moment a life starts, never an answer
-  # arriving. Five: the constructor's zero, mission start, a stand-up,
-  # `_stamp_ask` itself, and a restart putting back the clock the save held
-  # (issue #345 -- the silence goes on across it). Counted so a sixth has
-  # to be argued for -- the one that would break this is a write next to a
-  # RESULT.
+  # arriving. Six: the constructor's zero, mission start, a stand-up,
+  # `_stamp_ask` itself, a restart putting back the clock the save held
+  # (issue #345 -- the silence goes on across it), and a charge's break
+  # asking the mind (#730: the death clock alone, before the call, its
+  # shown silence the rows'). Counted so a seventh has to be argued for --
+  # the one that would break this is a write next to a RESULT.
   whole = inspect.getsource(HubLifecycle)
-  assert whole.count("self._last_ask_t = ") == 5
+  assert whole.count("self._last_ask_t = ") == 6
+  arbitrate = inspect.getsource(HubLifecycle._arbitrate_routine)
+  assert arbitrate.index("self._last_ask_t = ") < arbitrate.index(
+    "yield from self._decide_routine(asked_by, plugged=True)")
   assert "self._last_ask_t = " in inspect.getsource(HubLifecycle.restore_kept)
   assert "_last_ask_t" not in inspect.getsource(
     HubLifecycle._after_decision_routine)

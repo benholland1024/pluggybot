@@ -2971,12 +2971,14 @@ a gate) takes nothing. An answer takes the message it answered and leaves
 the others it was shown owed, the model answering one a turn; one answered
 nobody at `OWED_SHOWINGS` (2) times is owed no more, nor one gone from the
 queue. A message in an ask's context is no news to the map, which seeing it
-a tick later paid for a second ask. A break's ask is stamped on the
-unminded clock only where none of its messages' own row stamps waits for
-it (`_owed`'s second field, spent by the ask that shows the message): a
-message still owed after an ask that showed it is asked again with no row
-fired, and another row's stamp since is no stand-in (dropped `busy`, it
-stood for an ask that never came). Only a map whose first row for a
+a tick later paid for a second ask. ⚠ A BREAK'S ASK RESETS THE CLOCK THAT
+KILLS A MIND NOBODY CONSULTS (`_last_ask_t`), always, and never the silence
+the mind is shown (`lastAskedSAgo`, the rows' stamps): a break may ask long
+after its message's row fired (a gate held it) or with no row behind it (a
+message still owed after an answer to somebody else), and three review
+rounds found a mind asked at a break that could die `unminded` off an
+older stamp; stamped as a row's, a row's ask a second before read as a
+silence of a second. Only a map whose first row for a
 message asks is told an ask's messages are no news: a row of another action
 (a greeting procedure, say) fires as it did, costing no call. History says
 the break, and an answer that did not come, once a charge. The walk to the station, the wait for a

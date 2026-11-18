@@ -1215,13 +1215,12 @@ class HubLifecycle:
     self._seen_visitors: set[str] = set()
     # ---- answering while it charges (#730; Overseer.md §10) ----
     #: THE ANSWER OWED: a person's messages the map's `message_received`
-    #: ask row fired for, each as [how many answers it was shown that
-    #: answered nobody, whether its row's stamp of the unminded clock still
-    #: waits for its ask] -- read by a charge's hold (`_spoken_to`), which
-    #: ends for one, its plug in, and kept until a call answers it, fails
-    #: with it shown, or answers nobody `OWED_SHOWINGS` times
-    #: (`_asked_about`). Not kept across a restart, as the inbox is not.
-    self._owed: dict[str, list] = {}
+    #: ask row fired for, each with how many answers it was shown that
+    #: answered nobody -- read by a charge's hold (`_spoken_to`), which ends
+    #: for one, its plug in, and kept until a call answers it, fails with it
+    #: shown, or answers nobody `OWED_SHOWINGS` times (`_asked_about`). Not
+    #: kept across a restart, as the inbox is not.
+    self._owed: dict[str, int] = {}
     #: ...the charge such a break left OPEN, as its `before` (one cycle
     #: however often broken: the charge that takes it up carries it on, and
     #: `_open_charge_step` closes it where nothing does) -- and whether the
@@ -5737,7 +5736,7 @@ class HubLifecycle:
       # robot's `tell` -- and whether the slot below takes the row or not:
       # a charge's hold ends on it (`_spoken_to`)
       for msg_id in persons:
-        self._owed.setdefault(msg_id, [0, False])[1] = True
+        self._owed.setdefault(msg_id, 0)
     # ⚠ AN `ask` ROW STAMPS THE UNMINDED CLOCK AS IT FIRES (issue #426), the
     # moment the map has done its part -- not when the loop runs it, and a
     # row dropped `busy` below included. The period moved on here, so a
@@ -6013,13 +6012,14 @@ class HubLifecycle:
       if self._consult is not None:
         asked_by = dict(self._consult)
         self._say(f"EVENT asking once: {self._consult['event'].replace('_', ' ')}")
-      if not any(self._owed[m.id][1] for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
-                 if m.id in self._owed):
-        # ...stamped as asked where no message's own row stamp waits for
-        # it: a message still owed after an ask that showed it is asked
-        # again with no row fired (`_asked_about`), and unstamped, a mind
-        # just asked could die `unminded`
-        self._stamp_ask()
+      # ...and the clock that kills a mind nobody consults is reset by it,
+      # always: a break may ask a message's question long after its row
+      # fired (a gate held it), or with no row behind it at all (a message
+      # still owed after an answer to somebody else), and off an older stamp
+      # a mind just asked could die `unminded`. ⚠ THAT CLOCK ALONE: the
+      # silence it is shown (`_stamp_ask`) stays the rows', or one row's
+      # ask a second before the break's read as a silence of a second.
+      self._last_ask_t = float(self.data.time)
       yield from self._decide_routine(asked_by, plugged=True)
       return
     if self._consult is not None and (self.mode is None or self.mode.thinking):
@@ -6412,17 +6412,15 @@ class HubLifecycle:
     off with it, a second person waited out the charge -- unless it answered
     nobody, which counts against each (`OWED_SHOWINGS`)."""
     for msg_id in newly:
-      self._owed.setdefault(msg_id, [0, False])
+      self._owed.setdefault(msg_id, 0)
     answered = (decision.respond_to
                 if not decision.scripted and decision.responds else "")
     for msg_id in shown & self._owed.keys():
-      owed = self._owed[msg_id]
-      owed[1] = False                     # ...its row's stamp spent by this ask
       if decision.scripted or msg_id == answered:
         del self._owed[msg_id]
       elif not answered:
-        owed[0] += 1
-        if owed[0] >= OWED_SHOWINGS:
+        self._owed[msg_id] += 1
+        if self._owed[msg_id] >= OWED_SHOWINGS:
           del self._owed[msg_id]
 
   def _order_after_charge_routine(self, decision, called: bool) -> Routine:

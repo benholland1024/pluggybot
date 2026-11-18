@@ -409,12 +409,13 @@ def test_a_stand_up_while_a_failed_answer_is_said_runs_nothing_after():
   assert not ran and life.charge_cycles == 0 and not _charges(life)
 
 
-def test_a_break_with_no_row_behind_it_stamps_the_unminded_clock():
-  """#730's second review: a message still owed after an answer to somebody
-  else is asked about again with no row fired for it, and an ask the clock
-  never heard of could leave a mind just asked to die `unminded`. A break's
-  ask stands on its row's stamp where one waits for it, and is stamped
-  where none does -- never twice for one ask."""
+def test_a_breaks_ask_resets_the_clock_that_kills_and_never_the_silence_shown():
+  """#730's second, third and fifth reviews: a break may ask a message's
+  question long after its row fired, or with no row behind it (a message
+  still owed after an answer to somebody else), and off an older stamp a
+  mind just asked could die `unminded`. Every break's ask resets that clock;
+  the silence the mind is shown (`lastAskedSAgo`) stays the rows' -- a row's
+  ask a second before the break's must not read as a silence of a second."""
   life, _ = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
                                        _answer("charge", to="m_2")])
   _say(life, 1)
@@ -422,11 +423,12 @@ def test_a_break_with_no_row_behind_it_stamps_the_unminded_clock():
   _charge(life)
   fired = life._asked_t                     # the messages' row stamped it
   assert fired is not None
-  _next_pass(life)                          # its own stamp: not stamped again
-  assert life._asked_t == fired
-  t = float(life.data.time)
-  _next_pass(life)                          # m_2 again, with no row fired: stamped
-  assert life._asked_t is not None and life._asked_t >= t > fired
+  t1 = float(life.data.time)
+  _next_pass(life)                          # break 1: m_1 answered, m_2 left owed
+  assert life._last_ask_t >= t1 and life._asked_t == fired
+  t2 = float(life.data.time)
+  _next_pass(life)                          # break 2, for m_2: no row of its own
+  assert life._last_ask_t >= t2 > t1 and life._asked_t == fired
 
 
 def test_a_charge_decided_as_the_pack_fills_is_one_charge():
@@ -500,8 +502,7 @@ def test_a_break_for_a_message_an_ask_showed_stamps_though_another_row_stamped()
   """#730's fifth review: a message left owed by an ask that answered
   somebody else is asked again with no row of its own; another ask row
   that stamped the clock since and was dropped `busy` stood in for it, and
-  a mind asked at the break could die `unminded` off that old stamp. A
-  break's ask stands on its own messages' row stamps alone."""
+  a mind asked at the break could die `unminded` off that old stamp."""
   life, _ = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
                                        _answer("charge", to="m_2")])
   _say(life, 1)
