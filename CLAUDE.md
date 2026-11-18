@@ -400,10 +400,20 @@ save a filmstrip PNG named after the script.
   a procedure's reach moves nothing, "own body", and the loop's own (a
   charge's: no wait frees it) takes the way that comes least near
   (`Reach.reach(verb=)`): straight, the wake's door runs drove the gripper
-  into the torso at 36-165 N. ⚠ NEVER
-  FROM A HAND AT REST: there the plan's own pre-grasp can lie in the trunk,
-  and refused, our cube's set-out 7 lost its pass. ⚠ MuJoCo 3.10 reads two
-  boxes apart as 0.0 at some poses (`reach.apart` reads them again). ⚠
+  into the torso at 36-165 N. ⚠ NEVER FROM A HAND AT REST -- ⚠ BUT THE PLAN
+  KEEPS THE ARM OFF THE TRUNK AT ITS PRE-GRASP AND ITS GOAL (#726; `plan`'s
+  `own`, `_reached`'s `clear`, `reach.in_trunk`; SimNotes, "A reach's plan
+  kept off the robot's own trunk"): today's where both keep clear, else the
+  goal's other solves in turn as `solve_seeded` ranks them, else the next
+  posture's (a plan at full stretch before one in the trunk with slack), else
+  the grip half a turn round; none, and a procedure's reach moves nothing,
+  "own body", the loop's own taking today's; `hand_reaches` answers so, and a
+  look at the pre-grasp passes over a posture whose plan from the arm as it is
+  lies in it. Flown over Ben's bar beside e629cddd: 5 of 736 moved, all the
+  cube's, 608 -> 610 passed and 8 -> 6 falls; of the 11-15 wake's 53 runs 4,
+  their torso presses gone and one fall with them; no reach was refused for
+  it. ⚠ MuJoCo 3.10 reads two boxes apart as 0.0 at some poses (`reach.apart`
+  reads them again). ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
