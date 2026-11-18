@@ -235,6 +235,77 @@ def test_a_later_fallback_while_the_charge_is_open_goes_back_on_it_too():
   assert life.charge_cycles == 1 and len(_charges(life)) == 1
 
 
+def test_a_charge_holds_a_moment_before_a_message_breaks_it():
+  """Round 6's fourth, its cause: carried on with a message come in while
+  it thought, the charge ended before a step, at the instant of the
+  decision, and every turn of a chat read "charge took no time"."""
+  life, _ = _life_asked(ASKS)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()                       # owed before the charge begins
+  t0 = float(life.data.time)
+  _charge(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  assert float(life.data.time) > t0, "broken before it held a moment"
+
+
+def test_a_failed_answers_order_waits_through_the_next_messages_break():
+  """Back on its charge after a failed call, the robot is broken again by
+  the next person's message: the order the failure left must not run then,
+  at the pack the break left (it is the next ask's to supersede), and the
+  charge goes on as one."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, client = _life_asked(ASKS, failed,
+                             answers=[ConnectionError("down"), _answer("charge", to="m_2")])
+  unplugs = _unplugs(life)
+  order: list = []
+
+  def explore(**kw):
+    order.append(round(life.battery.fraction, 3))
+    return "budget"
+    yield
+  life.explore_routine = explore
+  t0 = float(life.data.time)
+
+  def second():
+    if life.data.time > t0 + 40.0 and "m_2" not in {m.id for m in life.inbox.peek()}:
+      if not any(r["id"] == "m_2" for r in life.replies):
+        _say(life, 2)
+  life.body.step_hooks.append(second)
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # m_1's call fails: back on the charge...
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "...broken by m_2"
+  assert not order and not unplugs, "the failed answer's order ran at the next break"
+  _next_pass(life)                          # m_2's call is answered: carried on
+  assert [r["id"] for r in life.replies] == ["m_2"]
+  assert not order and min(unplugs) >= lc.CHARGED
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_a_failed_answers_order_waits_for_the_next_run_when_the_hour_cuts_the_charge():
+  """The run's hour cuts the charge the robot went back on: its plug stays
+  in and what it got is banked (#654), and the order is the next run's
+  mind's to give again -- run past the hour, an `explore` took the plug out
+  for a walk the run had no time for."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  order: list = []
+
+  def explore(**kw):
+    order.append(life.body.on_charger)
+    return "time"
+    yield
+  life.explore_routine = explore
+  _say(life)
+  _charge(life)
+  life.max_sim_time = float(life.data.time) + 20.0
+  _next_pass(life)
+  assert life.body.on_charger and not order
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+
+
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
   """N = 1 (#730, written first): with the endpoint down, a message is asked
   about once -- the last build retried it, and a retry spent on `busy` lost
@@ -367,6 +438,16 @@ def test_the_maps_first_row_for_a_message_decides():
   _charge(life)
   assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
   assert not client.calls
+  # ...and as the map stands when the hold looks: an ask that fired, its
+  # map edited since to put `idle` first, ends no hold
+  life, client = _life_asked(ASKS)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()                       # the ask fired as the message came
+  life.overseer.event_map = ev.EventMap([ev.Row(event="message_received", action="idle"),
+                                         ASKS])
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
 
 
 @pytest.mark.parametrize("refusing", ["cooloff", "allowance", "budget", "scripted", "no-client"])
