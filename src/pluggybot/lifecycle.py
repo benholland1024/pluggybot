@@ -713,7 +713,52 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   B, 2026-09-24), a model read "(4/4 steps)" as "all four steps landed",
   said `done`, and the grade found two blocks of three. ⚠ A FAULT INSIDE
   THE RUN is named, never quoted: the exception is the log's (issue #76),
-  and that path keeps no count to give."""
+  and that path keeps no count to give.
+
+  ⚠ A REASON WITH A SHORTER FORM (a step's `brief`, the start of its
+  `reason`; #728: a `spot` that saw nothing names its picture's sides, its
+  `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
+  each in the order the run made them, the lines in full where they are the
+  lines it had with that one reason the longer, inside the room, else in its
+  shorter form -- so with every one in its shorter form the lines are the
+  ones a run with no shorter forms makes, byte for byte. Said in full beside
+  a long stop or other tests, it crowded their reasons, or its own, out of
+  the line (Observatory.md). ⚠ A step whose reason no longer starts with its
+  `brief` (a fall's, said over the verb's) has none. ⚠ IT RESTS ON
+  `_outcome` LAYING THE LINES OUT BY THE REASONS' LENGTHS ALONE (a test pins
+  it)."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  steps = run.get("steps") or []
+  short = {i: s["brief"] for i, s in enumerate(steps)
+           if s.get("brief") and (s.get("reason") or "") != s["brief"]
+           and (s.get("reason") or "").startswith(s["brief"])}
+  if not short:
+    return _outcome(name, run)
+  # ...each such step's own mark, numbered among them (a `spot` a verb call,
+  # under `lang.MAX_STEPS`: inside the private use area, which no other
+  # text holds)
+  marks = {i: chr(0xE000 + k) for k, i in enumerate(short)}
+
+  def laid(form: dict) -> list[str]:
+    return _outcome(name, {**run, "steps": [{**s, "reason": marks[i] * len(form[i])}
+                                            if i in form else s for i, s in enumerate(steps)]})
+
+  form = dict(short)
+  now = laid(form)
+  for i in short:
+    if not any(marks[i] in x for x in now):
+      continue                      # ...not said either way
+    wider = {**form, i: steps[i]["reason"]}
+    lines = laid(wider)
+    if ([x.replace(marks[i] * len(wider[i]), marks[i] * len(form[i])) for x in lines] == now
+        and all(len(x) <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM for x in lines)):
+      form, now = wider, lines
+  return _outcome(name, {**run, "steps": [{**s, "reason": form[i]} if i in form else s
+                                          for i, s in enumerate(steps)]})
+
+
+def _outcome(name: str, run: dict) -> list[str]:
+  """`procedure_outcome`'s lines, each step's reason as it stands."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
   # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
   # room is less than the cap -- measured on the second review: a 397-char
