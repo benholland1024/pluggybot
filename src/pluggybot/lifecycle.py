@@ -1205,8 +1205,21 @@ class HubLifecycle:
     self._decided_at: tuple[float, str] | None = None
     self._stood_still = False
     #: Visitor message ids the map has already been told about, so
-    #: `message_received` is an arrival rather than a level.
+    #: `message_received` is an arrival rather than a level -- and those a
+    #: call took in its context, which are no news (#730, `_ask_takes`).
     self._seen_visitors: set[str] = set()
+    # ---- answering while it charges (#730; Overseer.md §10) ----
+    #: THE ANSWER OWED: a person's messages the map's `message_received`
+    #: ask row fired for, not yet in a call's context -- read by a charge's
+    #: hold (`_spoken_to`), which ends for one, its plug in. Not kept across
+    #: a restart, as the inbox is not.
+    self._owed: set[str] = set()
+    #: ...the charge such a break left OPEN, as its `before` (one cycle
+    #: however often broken: the charge that takes it up carries it on, and
+    #: `_open_charge_step` closes it where nothing does) -- and whether the
+    #: break's ask is still to be answered (`_arbitrate_routine` asks it).
+    self._open_charge: dict | None = None
+    self._break_owed = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -1424,6 +1437,7 @@ class HubLifecycle:
                                 else 0.0))
     self._death_step()
     self._restart_step()
+    self._open_charge_step()
 
   def _near_field_step(self) -> None:
     """One depth frame, at the sensor's rate, to its two consumers.
@@ -1953,6 +1967,11 @@ class HubLifecycle:
         self._fail_held(task, "the robot that took it ran out of lives")
     self._grade_pending = ""
     self._grade_waits = None
+    # ...and owes no visitor the old robot was asked for, nor carries on a
+    # charge it left open: banked after this, its row would be the next
+    # robot's (#730)
+    self._owed.clear()
+    self._open_charge, self._break_owed = None, False
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -2982,14 +3001,20 @@ class HubLifecycle:
   def charge_routine(self) -> Routine:
     """Stay plugged in until full, then unplug -- or until the run's end
     (`_hour_up`, #654), its plug left in and what it got banked: the next
-    run's mind decides whether to go on."""
-    t0 = self.data.time
+    run's mind decides whether to go on -- or until a person's message the
+    agent's map asks on (`_spoken_to`, #730), its plug in and the charge
+    left open for the loop's ask (`_break`)."""
     # What the evaluator measures this cycle against (issue #14). Read BEFORE
     # the charge, because "charged" is a gain in a real quantity -- a cycle
     # plugged in conducting nothing has an end fraction and no energy behind
-    # it.
-    before = {"t": t0, "frac": self.battery.fraction,
-              "wh": self.battery.energy_wh}
+    # it. ...or what a charge a message left open was (#730): this one
+    # carries it on, ONE charge however often broken, banked once from its
+    # start -- where the last build banked the part after the break alone.
+    before = self._open_charge or {"t": float(self.data.time),
+                                   "frac": self.battery.fraction,
+                                   "wh": self.battery.energy_wh}
+    self._open_charge = None
+    t0 = before["t"]
     # ⚠ CHARGING IS NOT TRAVEL: held on the charger for the whole cycle,
     # nothing the body does is counted (`Body.docked`; the rover's held
     # press once gained 828 mm of imaginary progress), and a contact that
@@ -2999,6 +3024,10 @@ class HubLifecycle:
     # verified that -- the robot's pose is known by construction, and a
     # shift's accumulated drift dies here instead of compounding.
     self.body.anchor_at_dock()
+    # ...⚠ AND A BREAK ONLY ONCE IT HAS HELD A MOMENT (#730): carried on with
+    # a message come in meanwhile, it returned before a step, and History
+    # read "charge took no time" on every turn of a chat
+    held = False
     try:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
@@ -3009,7 +3038,11 @@ class HubLifecycle:
           if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
           return
+        if held and self._spoken_to:
+          self._break(before)
+          return
         yield from self.body.dock_hold_routine(0.25)
+        held = True
         if not self.charging_now:
           # contact dropped: plug in again once, then give up on this attempt
           yield from self.body.redock_routine()
@@ -3034,6 +3067,76 @@ class HubLifecycle:
       # left the plug in read as one that took it out (#703)
       self._say(UNPLUG_FAILED, doing=True)
 
+  # ---- answering while it charges (#730; Overseer.md §10) ------------------
+
+  @property
+  def _spoken_to(self) -> bool:
+    """Has a person spoken whom the agent's map asks it about, and would the
+    mind be asked? A charge's hold ends on it with its plug in (Ben,
+    2026-11-16: a robot may answer while it charges). COMPUTED WHEN READ:
+    an answer owed (`_owed`) whose message is still in the window the model
+    is shown; the map's FIRST row for a message an `ask` (#518's reviews:
+    the first row decides, and the map may have been edited since it
+    fired); and a call that would go out -- ⚠ never in free mode, with a
+    call still out or behind a gate that stays shut (`Overseer.can_ask`):
+    a break that can ask nobody would be one a step, its message never
+    asked."""
+    if not self._owed or self.inbox is None or self.overseer is None:
+      return False
+    first = self.event_map.first("message_received") if self.event_map is not None else None
+    if first is None or first.action != ev.ASK:
+      return False
+    if self.mode is not None and not self.mode.thinking:
+      return False
+    if not any(m.id in self._owed and m.sender == text_registry.VISITOR
+               for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)):
+      return False
+    return self.overseer.can_ask()
+
+  def _break(self, before: dict) -> None:
+    """A charge's hold ended for a person's message (#730): its plug in, the
+    charge left open and nothing banked (a row cut here reads as a charge
+    that failed, `CHARGE_OK_FRAC`), and the loop's next pass asks
+    (`_arbitrate_routine`). Said in History once a charge (`before`'s own
+    record): said at each break, a chat filled it."""
+    self._open_charge = before
+    self._break_owed = True
+    frac = f"{self.battery.fraction:.0%}"
+    self._say(f"CHARGE: a message came in at {frac} -- I am asked with my plug in",
+              doing="CHARGE: a message came in -- I am asked with my plug in")
+    said = before.setdefault("said", set())
+    if "break" not in said:
+      said.add("break")
+      self._remember(f"charge: a message came in at {frac}, and I am asked with "
+                     "my plug still in")
+
+  def _open_charge_step(self) -> None:
+    """A charge a message left open closes on the seam where nothing carries
+    it on (#730): its plug out, or its pack full -- never while the break's
+    ask is still to be answered, whose `charge` carries it on as one."""
+    if self._open_charge is None:
+      return
+    if not self.charging_now or (self.battery.fraction >= CHARGED
+                                 and not self._break_owed):
+      self._close_open_charge()
+
+  def _close_open_charge(self) -> None:
+    """Close a charge a message left open (#730): full, as a charge's end
+    closes one -- its cycle, `task_complete charge` and its row (round 6:
+    a stand-still answer let the pack fill with none of the three, and a
+    map asking on `task_complete:charge` was never asked); short of full
+    (the plug out for what moves, the run's end), its row alone, as a
+    charge cut short always banks one (the hour, a plug that came out)."""
+    before, self._open_charge = self._open_charge, None
+    if before is None:
+      return
+    if self.battery.fraction >= CHARGED:
+      self.charge_cycles += 1
+      self._occur("task_complete", "charge")
+      self._say(f"CHARGE complete ({self.battery.fraction:.0%})", doing="CHARGE complete")
+    if self.data.time > before["t"]:
+      self._bank(scoring.score_charge(self, before))
+
   def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
     """The plug out by hand before the body goes anywhere (#654): a run's end
     leaves it in, and a mind may choose not to go on charging; a hand takes
@@ -3048,6 +3151,8 @@ class HubLifecycle:
     yield from self.body.undock_routine()
     if self.body.charging():
       self._say(UNPLUG_FAILED, doing=True)
+    else:
+      self._close_open_charge()             # ...a charge a message left open (#730)
 
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))
@@ -3505,6 +3610,9 @@ class HubLifecycle:
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.body.docked = False
+    # ...and a charge a message left open goes, as one it closes banks
+    # nothing (#348), and the break's ask with it (#730)
+    self._open_charge, self._break_owed = None, False
     # ...and never onto another robot (issue #387; `up_pose`). An admin's
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
@@ -5559,6 +5667,7 @@ class HubLifecycle:
     # this is an EDGE on the arrival of a message the robot has not seen
     # before and carries nothing about who sent it or what it said. A
     # stranger can trigger a row; a stranger cannot choose which one.
+    persons: set[str] = set()
     if self.inbox is not None:
       # ⚠ MESSAGES, never a rating, an admin's reach-in or a ticket's line,
       # which wait in the same queue for code to drain (#518's reviews):
@@ -5569,6 +5678,8 @@ class HubLifecycle:
           continue
         self._seen_visitors.add(msg.id)
         self._occurred.append(("message_received", ""))
+        if msg.sender == text_registry.VISITOR:
+          persons.add(msg.id)
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
                            else None),
@@ -5577,6 +5688,11 @@ class HubLifecycle:
     row = self.event_clock.fire(self.event_map, live, float(self.data.time))
     if row is None:
       return
+    if row.event == "message_received" and row.action == ev.ASK:
+      # ...THE ANSWER OWED (#730), a person's alone -- never the other
+      # robot's `tell` -- and whether the slot below takes the row or not:
+      # a charge's hold ends on it (`_spoken_to`)
+      self._owed |= persons
     # ⚠ AN `ask` ROW STAMPS THE UNMINDED CLOCK AS IT FIRES (issue #426), the
     # moment the map has done its part -- not when the loop runs it, and a
     # row dropped `busy` below included. The period moved on here, so a
@@ -5831,6 +5947,23 @@ class HubLifecycle:
     """
     if self.event_map is None:
       yield from self._decide_routine()
+      return
+    if self._break_owed:
+      # A CHARGE BROKEN FOR A MESSAGE IS ASKED NOW (#730), its plug in: ahead
+      # of the list, and with no moment stood first (the charge held one). A
+      # queued `ask` row is this ask -- the message's own, or another its
+      # slot held -- and a row of any other action waits its turn. The
+      # message's row stamped the clock as it fired (`_owed` is only ever
+      # set then). A consult owed is its why: the answer that pays it is
+      # this one.
+      row = self.queued_row
+      if row is not None and row.action == ev.ASK:
+        self.queued_row = None
+        self.overseer.rows_fired[row.event] = \
+            self.overseer.rows_fired.get(row.event, 0) + 1
+      asked_by = (dict(self._consult) if self._consult is not None
+                  else {"event": "message_received"})
+      yield from self._decide_routine(asked_by, plugged=True)
       return
     if self._consult is not None and (self.mode is None or self.mode.thinking):
       # A CONSULT IS OWED (`_consult`): ahead of the list, whose rows are what
@@ -6106,11 +6239,20 @@ class HubLifecycle:
   def _decide(self, asked_by: dict | None = None) -> None:
     return self.body.run(self._decide_routine(asked_by))
 
-  def _decide_routine(self, asked_by: dict | None = None) -> Routine:
+  def _decide_routine(self, asked_by: dict | None = None,
+                      plugged: bool = False) -> Routine:
     """Ask the overseer what to do next, and do it.
 
     `asked_by` says what brought the loop here (issue #221) and rides the
-    context as `askedBy`; None is the loop's own decision branch.
+    context as `askedBy`; None is the loop's own decision branch. `plugged`
+    is the ask of a charge a person's message broke (#730), its plug in: a
+    model's answer is acted on as given (#654's rules), and ⚠ A FALLBACK
+    GOES BACK ON THE CHARGE FIRST (Ben's call of 11-18): timed out,
+    offline, garbled, cut off or `busy`, its standing order (or its
+    `decision_failed` row) runs when the charge ends, at the pack it would
+    have run at without the break -- a `charge` being that charge -- and so
+    does any fallback while the charge the break left is open. Before, an
+    `explore` unplugged a robot the break had left at 40 % (round 6).
 
     Reached ONLY when the battery is fine and the errand queue is empty --
     `run()` checks `needs_charge` first and always will. The overseer cannot
@@ -6133,20 +6275,31 @@ class HubLifecycle:
       # to save money looks broken, and a robot that stops deciding looks
       # broken faster.
       decision = self.overseer.decide_scripted(state, "scripted-mode")
-      yield from self._until_stood_up_routine(
-        self._after_decision_routine(decision))
-      return
-    lives = len(self.true_deaths)
-    self.overseer.start(state)
-    while self.overseer.pending:
-      yield from self.body.hold_routine(THINK_SLICE_S)
-    decision = self.overseer.result(state)
-    if len(self.true_deaths) != lives:
-      # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
-      # or an unpaid bill lands mid-think): the answer is its own, and none
-      # of it is the next robot's -- not its list (`Overseer._starts_over`),
-      # its memory writes, its action, or the bootstrap it would spend.
-      self._say(f"ANSWER dropped: the robot that asked is gone ({decision.source})")
+      called = False
+    else:
+      lives = len(self.true_deaths)
+      took = self._ask_takes(state)
+      called = self.overseer.start(state)
+      if not called:
+        self._ask_gives_back(took)
+      while self.overseer.pending:
+        yield from self.body.hold_routine(THINK_SLICE_S)
+      decision = self.overseer.result(state)
+      if len(self.true_deaths) != lives:
+        # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat
+        # pack or an unpaid bill lands mid-think): the answer is its own,
+        # and none of it is the next robot's -- not its list
+        # (`Overseer._starts_over`), its memory writes, its action, or the
+        # bootstrap it would spend.
+        self._say(f"ANSWER dropped: the robot that asked is gone ({decision.source})")
+        return
+    if plugged:
+      self._break_owed = False
+    if (decision.scripted and decision.action != "charge"
+        and self._open_charge is not None and self.body.charging()):
+      # ...a later ask's too, while that charge is open, its plug in (an
+      # answer stood still): the charge left open is the robot's own
+      yield from self._order_after_charge_routine(decision, called)
       return
     # ⚠ NO `decision_failed` EVENT IS EMITTED HERE, and that is the
     # migration working rather than an omission (issue #127). The row is
@@ -6160,12 +6313,69 @@ class HubLifecycle:
     yield from self._until_stood_up_routine(
       self._after_decision_routine(decision))
 
+  def _ask_takes(self, state: dict) -> tuple[set, set]:
+    """The messages an ask's context holds, ⚠ EACH ITS ONE ASK DURING AN
+    OUTAGE (#730: N = 1): out of the answers owed, and no news to the map --
+    which, seeing one a tick after the context was built, paid for a second
+    ask about a message the model had been shown (round 6). Returned for an
+    ask that sends nobody its context to give back (`_ask_gives_back`)."""
+    shown = {m.get("id", "") for m in state.get("visitorMessages", ())} - {""}
+    took = (shown & self._owed, shown - self._seen_visitors)
+    self._owed -= shown
+    self._seen_visitors |= shown
+    return took
+
+  def _ask_gives_back(self, took: tuple[set, set]) -> None:
+    """An ask that sent nobody its context -- a call still out (`busy`), a
+    gate shut -- spent no message's ask: what it took goes back."""
+    owed, unseen = took
+    self._owed |= owed
+    self._seen_visitors -= unseen
+
+  def _order_after_charge_routine(self, decision, called: bool) -> Routine:
+    """A charge's break whose ask came back a fallback (#730, Ben's call of
+    11-18): the decision is said and remembered now, the robot goes back on
+    its charge -- the one the break left open -- and the order runs once it
+    ends, at the pack it would have run at without the break. ⚠ DROPPED
+    WHERE SOMETHING ELSE ENDED THE CHARGE: another message's break (whose
+    ask answers instead), the run's hour (the next run's mind is asked), a
+    death or a stand-up. Said in History once a charge, as the break is, and
+    only for a call that failed (`called`): a gate's refusal is no answer
+    that did not come, and its message keeps its ask (`_ask_gives_back`)."""
+    yield from self._after_decision_routine(decision, act=False)
+    before = self._open_charge
+    why = decision.source.partition(":")[2]
+    frac = f"{self.battery.fraction:.0%}"
+    self._say(f"CHARGE: no answer came ({why}) -- back on my charge at {frac}, and "
+              f"{decision.action} once it ends",
+              doing="CHARGE: no answer came -- back on my charge")
+    said = before.setdefault("said", set())
+    if called and "back" not in said:
+      said.add("back")
+      self._remember(f"charge: no answer came ({why}) at {frac} -- back on my "
+                     f"charge, and {decision.action} once it ends")
+    self.state = "CHARGE"
+    self._charge_trip = True
+    try:
+      ended = yield from self._until_stood_up_routine(self.charge_routine())
+    finally:
+      self._charge_trip = False
+    if (ended is STOOD_UP or self._break_owed or self._hour_up
+        or self.dead is not None):
+      self._say(f"DECIDE: {decision.action} dropped -- my charge ended otherwise")
+      return
+    self.state = "DECIDE"
+    self._decided_at = (float(self.data.time), decision.action)
+    yield from self._until_stood_up_routine(self._act_routine(decision))
+
   def _after_decision(self, decision) -> str:
     return self.body.run(self._after_decision_routine(decision))
 
-  def _after_decision_routine(self, decision) -> Routine:
+  def _after_decision_routine(self, decision, act: bool = True) -> Routine:
     """Narrate a decision, remember it, answer whoever it answered, and DO
-    it. Split out of `_decide` so free mode (issue #37) runs the identical
+    it (`_act_routine`; not yet where `act` is False: a charge's break's
+    fallback runs once the charge ends, #730). Split out of `_decide` so
+    free mode (issue #37) runs the identical
     path -- a scripted decision the operator asked for must reach the world
     exactly as a chosen one does, or "the world keeps running and looks
     alive" is only true of the narration.
@@ -6280,7 +6490,13 @@ class HubLifecycle:
       # minute late, 15 of 15. Never at the rack, as the loop's grade.
       yield from self._leave_rack_routine()
       yield from self._grade_routine()
+    if not act:
+      return ""                             # ...its action later (#730)
+    return (yield from self._act_routine(decision))
 
+  def _act_routine(self, decision) -> Routine:
+    """DO a decision `_after_decision_routine` has said and remembered: its
+    action, with what it returns (one of `events.ACTION_FAILURES`, or "")."""
     if decision.action == "take_task":
       # The overseer accepting a job somebody offered (issue #21), through
       # the same claim the loop with no mind uses -- whose energy gate,
@@ -7216,6 +7432,10 @@ class HubLifecycle:
       # DONE in the other robot's way in, 0.37 m off it on the pair
       # recording's day until asked aside, and 0.88 m off it from then on
       yield from self._leave_rack_routine()
+    # ...and a charge a message left open banks what it got, as the hour's
+    # cut does, its plug left in (#730): nothing is kept of it to carry on
+    self._close_open_charge()
+    self._break_owed = False
     # ...`CHARGE` still where a charge's plug is in (#654): it is one, and
     # the next run's first line goes by it (`_resumed_line`)
     self.state = "CHARGE" if self.dead is None and self.body.charging() else "DONE"

@@ -2911,18 +2911,54 @@ its whole life. From 2026-10-29 to 11-15, six messages waited 58-93 minutes
 for delivery while their robots were awake and deciding, each delivered
 within a second of the next run's start (reproduced on a local site). Every
 `mode` message now carries `accepts` as the switch leaves it
-(protocol/README.md). ⚠ A charge's hold still keeps a message waiting: a
-`message_received -> ask` row waits behind it, which held one answer 43
-minutes on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from
-the decision to the next. Answering while charging (Ben, 2026-11-16) was
-built (the hold ended with the plug in on a person's message) and taken
-out unfinished before the wake of 11-18: six review rounds each found real
-defects in it, the worst a failed call's fallback unplugging a robot at a
-low pack. Its rebuild's brief is #518's issue draft from the loop of 11-17.
-⚠ Only a `message` is somebody speaking: a rating, a reach-in or a
-ticket's line waits in the same queue for code, and fires no
+(protocol/README.md). ⚠ Only a `message` is somebody speaking: a rating, a
+reach-in or a ticket's line waits in the same queue for code, and fires no
 `message_received` (a map's `message_received -> ask` paid a call for
 one).
+
+**A robot answers while it charges** (#730; Ben's calls of 2026-11-16 and
+11-18). A charge's hold kept a message waiting behind it -- 43 minutes on
+10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
+decision to the next. Now a charge's hold ends, its plug in, for a person's
+message (`charge_routine`, `_spoken_to`), and the loop's next pass asks at
+once (`_break_owed`, ahead of the list and taking a queued `ask` row) --
+where all of these hold, each read when the hold looks, never stored:
+- the agent's map asked for it: its `message_received` row was an `ask` as
+  the message came (`_owed`, set where that row fires, queued or dropped
+  `busy`), the map's FIRST row for a message is still one, and the message
+  is still in the window the model is shown. Never the other robot's
+  `tell`, a periodic ask, or a map that asks on no message;
+- a call would go out (`Overseer.can_ask`): never in free mode, with a call
+  still out (`busy`), cooling off, or its purse or hour spent -- but through
+  the idle-run throttle, which refuses one ask and opens again;
+- the charge has held a moment: carried on with a message come in while it
+  thought, a charge that broke before a step "took no time", every turn.
+
+The answer is acted on as given, plugged in, on #654's rules: a `charge`
+goes straight on, what stands still leaves the plug in, what moves takes
+it out first. ⚠ A FALLBACK GOES BACK ON THE CHARGE (Ben's call of 11-18;
+`_order_after_charge_routine`): timed out, offline, garbled, cut off or
+`busy`, the decision is said and remembered then, and its standing order
+or `decision_failed` row runs when the charge ends, at the pack it would
+have run at without the break -- dropped where another message's break,
+the run's hour, a death or a stand-up ended the charge. Round 6 of the last
+build found the death path: an `explore` order unplugged a robot the break
+had left at about 15 %. ⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`):
+a break banks nothing (a row cut there reads as a failed charge, below 85
+%); the `charge` that carries it on banks one row from where it began, and
+one where nothing does closes it on the seam (`_open_charge_step`) -- full,
+with its cycle and `task_complete charge` (round 6: a robot that answered
+`idle` filled its pack with none of the three, and a map asking on
+`task_complete:charge` was never asked); its plug out short, or the run
+ending, its row alone, as a charge cut short always banks one. ⚠ N = 1: a
+message is asked about once during an outage, by the first CALL whose
+context held it, whatever came of the call (`_ask_takes`); an ask that sent
+nobody its context (`busy`, a gate) gives it back. And a message in an
+ask's context is no news to the map (round 6: one seen a tick after the
+context was built paid for a second ask about a message the model had
+answered). History says the break, and an answer that did not come, once a
+charge. The walk to the station, the wait for a taken one and the stand-by
+still hold a message (#730's follow-up).
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,

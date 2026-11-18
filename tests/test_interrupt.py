@@ -92,7 +92,11 @@ def test_the_agent_is_told_which_rows_can_reach_it_mid_job(menu):
   text = make(menu).system[0]["text"]
   assert "MID-JOB" in text
   assert "battery_below" in text and "points_below" in text
-  assert "Everything else waits until you are done." in text
+  assert ("Everything else waits until you are done -- but for a person's message "
+          "while you charge, below.") in text
+  # ...and that one is said (#730): asked plugged in, a failed answer charging on
+  assert "A PERSON'S MESSAGE REACHES YOU WHILE YOU CHARGE" in text
+  assert "If no answer comes, you carry on charging" in text
   # ...and that stopping is not free, which is the whole of what makes the
   # question answerable.
   assert "Stopping is never free" in text
