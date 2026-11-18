@@ -334,7 +334,11 @@ what its code did. A test that reads false lets the run go on, and this line
 is where its reason reaches the robot (#629): said to the log alone, Rowan's
 run of 82 calls, 80 of them measures out of its camera's view, read "(2
 steps)" and "stopped (error)", and two tickets went on theories built from
-it. **A fall is never a test's to read** (#671): it ends the run where it
+it. A reason with a shorter form is said in full only where that moves
+nothing else in the run's lines, else in that form, byte for byte as before
+(#728: a `spot` that saw nothing names its picture's sides where they fit,
+its top alone where they would crowd out another reason, or its own;
+Observatory.md). **A fall is never a test's to read** (#671): it ends the run where it
 comes, inside whatever verb it came in (`steps.run_verb` ends that verb the
 step the body's fall watch counts it), and the line says it as the step the
 run stopped at: "it stopped at line 14, reach: you fell on the way there,
