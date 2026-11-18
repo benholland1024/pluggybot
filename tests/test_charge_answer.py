@@ -1009,3 +1009,16 @@ def test_an_answer_past_the_runs_hour_is_still_acted_on():
   assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
   assert life.charge_cycles == 0
 
+
+@pytest.mark.parametrize("seed,pair,sim_s", [(12, False, 900.0), (23, True, 600.0)])
+def test_seeded_days_keep_every_invariant_the_wake_needs(seed, pair, sim_s):
+  """The coordinator's fuzz (#730): seeded random days on the stub -- people
+  and the other robot writing, ratings and ticket lines, answers of every
+  action and failure kind, slow calls, deaths, stand-ups, the run's hour,
+  one robot or a pair -- every invariant read after every step
+  (`fuzz_charge_answer`). A cheap slice: thousands fly offline as a
+  measurement, and what they find becomes a test above."""
+  from fuzz_charge_answer import fly
+  out = fly(seed, sim_s=sim_s, pair=pair)
+  assert out["simS"] >= sim_s and all(out["breaks"]), out     # ...each robot broken for a message
+
