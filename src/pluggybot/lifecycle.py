@@ -4021,12 +4021,15 @@ class HubLifecycle:
     ticket line as a replay); acknowledged, it was. ⚠ The report never
     raises itself."""
     try:
-      if not any(e.get("ref") == msg.id for e in self.ticket_events[said:]):
+      taken = any(e.get("ref") == msg.id for e in self.ticket_events[said:])
+      if not taken:
         self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
                            sender=tickets_desk.OPERATOR,
                            why=f"the desk could not take it ({type(error).__name__})")
       self._say(f"TICKET {msg.kind.removeprefix('ticket_')} from "
-                f"{msg.who or 'the operator'} not taken: the desk failed on it",
+                f"{msg.who or 'the operator'} "
+                + ("taken, but what follows it failed" if taken
+                   else "not taken: the desk failed on it"),
                 detail=f"{type(error).__name__}: {error}")
       traceback.print_exc()
     except Exception:                             # noqa: BLE001 -- see docstring
@@ -4119,11 +4122,11 @@ class HubLifecycle:
       # ⚠ ACKNOWLEDGED ONCE THE DESK HAS IT, WHATEVER FAILS AFTER (#729): a
       # `refused` would have it sent again, and the copy finds it closed;
       # what the ledger paid said where the desk's record of it failed
-      paid = entry if ticket.points is None and entry is not None else {
+      recorded = entry if ticket.points is None and entry is not None else {
         "points": ticket.points, "seq": ticket.seq}
       self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
-                         text=ticket.closed_text, points=paid["points"],
-                         seq=paid["seq"], ref=msg.id, paid=changed,
+                         text=ticket.closed_text, points=recorded["points"],
+                         seq=recorded["seq"], ref=msg.id, paid=changed,
                          **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:

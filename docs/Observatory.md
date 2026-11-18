@@ -19,7 +19,8 @@ moves is WHEN an operator's reply, close or delete reaches a robot: sent
 while the world is paused, it lands in the pause (its History line, its
 thread, a close's 25 points), where before it waited for the wake and a
 restart during the pause lost it; the `ticket_replied` it fires for a map
-still fires after the wake. A robot whose desk an operator clears while it
+fires after the wake, unless the process restarts in between (it is held
+in memory, never saved). A robot whose desk an operator clears while it
 sleeps wakes with slots free.
 
 **The change** (`HubLifecycle._ticket_lines_step`, `_ticket_failed`;

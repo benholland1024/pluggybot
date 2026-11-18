@@ -1122,6 +1122,8 @@ def test_a_close_is_acknowledged_once_the_desk_has_it_and_never_before(tmp_path,
     life._visitor_step()
     assert [(m["outcome"], m["paid"]) for m in _acks(sent, "tc_2")] == [("closed", True)]
     assert ledger.balance() == 50 and not life.tickets.get("tk_0002").open
+    #  ...and the console says it was taken, never "not taken" (#729's sixth review)
+    assert life.status == "TICKET close from ben taken, but what follows it failed"
   finally:
     life.body.close()
 
