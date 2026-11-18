@@ -662,7 +662,11 @@ the site listed the tickets closed, and both desks stayed full, refusing
 the robots 33 new tickets in four days. None is taken once a stop is
 asked (the ending process might not get its acknowledgement out, and a
 reply sent again to the next one would land twice), and a line the desk
-fails on is answered `refused`, its error said, and never ends the run.
+fails on is answered `refused`, its error said, and never ends the run
+(taken again if sent again; never once its acknowledgement has gone out).
+A reply sent again after its acknowledgement was lost is answered `again`
+and never put on the thread twice: the desk keeps the id each operator
+line came in under (`Desk.taken`), which the robot is never shown.
 Everything else sent while paused (a person's message, a rating, a
 reach-in) still waits for the wake.
 

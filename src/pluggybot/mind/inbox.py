@@ -601,6 +601,14 @@ class Inbox:
           return msg
     return None
 
+  def forget(self, message_id: str) -> None:
+    """Take a copy of this id again when it is sent again: a line the
+    physics thread could not apply and said so (#729, an operator's ticket
+    line the desk failed on), which the replay check would otherwise drop
+    unanswered for the rest of the process."""
+    with self._lock:
+      self._seen_set.discard(message_id)
+
   def drain(self, kinds: tuple[str, ...] = INBOUND_TYPES) -> list[VisitorMessage]:
     """Remove and return every queued message of the given kinds.
 

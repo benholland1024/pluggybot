@@ -1009,6 +1009,37 @@ def test_a_close_landed_while_paused_is_paid_once_across_a_restart_still_paused(
     second.body.close()
 
 
+def test_a_reply_sent_again_to_the_next_process_is_answered_and_never_put_twice(tmp_path):
+  """A reply taken whose acknowledgement went with its process is sent
+  again to the next one (and the site sends what a robot is owed again at
+  every snapshot, #729's other half): the desk keeps the id each operator
+  line came in under, so the copy is answered `again` and the thread and
+  History keep the line once. The id never reaches what the robot is
+  shown. Shown to fail on c7f78bc9, where the line landed twice."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  line = {"type": "ticket_reply", "id": "tr_1", "from": "ben", "ticket": "tk_0001",
+          "text": "which board?"}
+  first = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  try:
+    first.inbox.offer(line)
+    first._visitor_step()
+  finally:
+    first.body.close()
+  second = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(second)
+  try:
+    second.inbox.offer(line)
+    second._visitor_step()
+    assert [(m["outcome"], m.get("again"), m["text"]) for m in _acks(sent, "tr_1")] == [
+      ("replied", True, "which board?")]
+    assert [x.text for x in second.tickets.get("tk_0001").thread] == ["which board?"]
+    assert second.thoughts.read("History.md").count("ben replied on my ticket tk_0001") == 1
+    assert desk.Desk(tmp_path / "tickets").get("tk_0001").thread[0].ref == "tr_1"
+    assert "tr_1" not in json.dumps(second.tickets.as_context())
+  finally:
+    second.body.close()
+
+
 def test_a_line_sent_as_the_world_stops_is_left_for_the_next_process(tmp_path, monkeypatch):
   """...but none once a stop is asked: what the ending process took, the
   site might never hear acknowledged, and a reply sent again to the next
@@ -1048,6 +1079,7 @@ def test_a_line_the_desk_cannot_take_is_answered_in_words_and_never_raises(
   d.open("bug", "one", "first", t=1.0)
   d.open("idea", "two", "second", t=2.0)
   d.close("tk_0002", by="ben", text="done", t=3.0)
+  d.open("question", "three", "third", t=4.0)
   ledger = Ledger()
   life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
   sent = _events(life)
@@ -1080,8 +1112,8 @@ def test_a_line_the_desk_cannot_take_is_answered_in_words_and_never_raises(
     assert (seen["tr_2"]["outcome"], seen["tr_2"]["why"]) == (
       "unknown", "ticket tk_0002 is closed; open a new one")
     failed = seen["tr_1"]
-    assert (failed["outcome"], failed["verb"], failed["id"]) == (
-      "refused", "ticket_reply", "tk_0001")
+    assert (failed["outcome"], failed["verb"], failed["id"], failed["sender"]) == (
+      "refused", "ticket_reply", "tk_0001", "operator"), "never the robot's own refusal"
     assert "could not" in failed["why"] and "OSError" in failed["why"]
     assert any("OSError" in line and "No space left" in line for line in life.log), \
       "the error's class and message reach the console"
@@ -1092,5 +1124,23 @@ def test_a_line_the_desk_cannot_take_is_answered_in_words_and_never_raises(
     life.inbox.offer(dict(lines[2], id="tr_1b"))
     life._visitor_step()
     assert by_ref()["tr_1b"]["outcome"] == "refused"
+    # ...a refused line sent again is taken again, never dropped as a
+    # replay: here answered as the desk now stands, tk_0001 closed
+    monkeypatch.setattr(life.tickets, "reply", real)
+    life.inbox.offer(lines[2])
+    life._visitor_step()
+    assert [m["outcome"] for m in sent if m.get("ref") == "tr_1"] == ["refused", "unknown"]
+
+    # ...and one that failed after its acknowledgement went out was taken,
+    # and is not refused as well
+    def history_full(*args, **kw):
+      raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(life, "_remember", history_full)
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_3", "from": "ben",
+                      "ticket": "tk_0003", "text": "noted"})
+    life._visitor_step()
+    assert [m["outcome"] for m in sent if m.get("ref") == "tr_3"] == ["replied"]
+    assert life.tickets.get("tk_0003").thread[-1].text == "noted"
   finally:
     life.body.close()

@@ -27,8 +27,12 @@ sleeps wakes with slots free.
 top of every arbitration pass, as before, and in every slice of a pause,
 each robot's on its own desk, none once a stop is asked; the `ticket`
 event acknowledging one leaves while paused. A line the desk fails on is
-`refused` (its error's class on the wire, its message in the console) and
-never ends the run; before, an exception there ended it.
+`refused`, `sender: "operator"` (its error's class on the wire, its
+message in the console), taken again if sent again, and never ends the
+run; before, an exception there ended it. A reply sent again after its
+acknowledgement was lost is answered `replied` with `again: true` and put
+on the thread once (the desk keeps each operator line's `ref`); before,
+a copy sent to the next process landed twice.
 
 **Measured**: nothing flown (no physics moves); pinned on the stub and over
 a real socket (`tests/test_tickets.py`). On the wake of 11-13, the case it
@@ -38,9 +42,10 @@ delivery came at 18:01:01, and the release of 11-14 at 08:44 lost them;
 re-sent by hand on 11-18, they were acknowledged on their first delivery.
 
 **What to read**: `ticket` events with `t` frozen at a pause's instant and
-their `ref`s settled on the site before the wake; a `refused` with a `ref`
-(none expected); whether the robots, woken with a reply or a close in
-History from the pause, act on it as they did on one sent awake.
+their `ref`s settled on the site before the wake; a `refused` with
+`sender: "operator"` (none expected) and a `replied` with `again` (rare);
+whether the robots, woken with a reply or a close in History from the
+pause, act on it as they did on one sent awake.
 
 ### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
 

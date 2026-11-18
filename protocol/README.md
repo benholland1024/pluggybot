@@ -1650,7 +1650,9 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
   ticket's surface, not a message's), `cut` on the robot's own as above;
   an operator's line carries `ref`, the id of the
   inbound message it acknowledges, so the website settles the row it is
-  holding.
+  holding, and `again: true` where the desk had taken that message already
+  (#729: a copy sent again after its acknowledgement was lost, answered
+  with the line as it was taken, nothing added to the thread).
 - `closed` -- `from` (who closed it), `text` (the closing message, may be
   empty), `points` (what the reward table paid) and `seq` (the ledger
   entry), `ref`, and `paid`: true the first time, FALSE on a replayed close
@@ -1659,9 +1661,10 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
 - `refused` -- the desk would not take the robot's `ticket` or
   `ticket_reply`: `verb`, `why` (a full desk, a closed ticket, an empty
   report), and the `kind` / `title` or `id` it named. ...Or it failed on
-  an inbound reply, close or delete (#729): `verb` the inbound kind, `id`,
-  `ref`, `why` (the error's class). No acknowledgement: a website may send
-  the line again.
+  an inbound reply, close or delete (#729): `sender: "operator"`, `verb`
+  the inbound kind, `id`, `ref`, `why` (the error's class). No
+  acknowledgement: a website may send the line again, and the sim takes it
+  again.
 - `unknown` -- an inbound reply, close or delete named a ticket this desk
   does not hold: `id`, `ref`, `why`, `verb`. The acknowledgement that stops
   a website re-sending it.
@@ -1680,8 +1683,8 @@ deleted ticket's number is gone); a consumer keys a ticket by (`robot`,
 **Upstream, on open: the `tickets` message** (`TICKETS_MESSAGE`; the
 `goals` slot, for the `goals` reason) -- `{robot, t, tickets: [...]}`, the
 robot's OPEN tickets whole (`id`, `kind`, `title`, `text`, `t`, `state`,
-`thread: [{sender, from, text, t}]`, and the close fields, null while
-open). A website reconciles off it: a ticket it erased while the sim was
+`thread: [{sender, from, text, t}]`, an operator's line with the `ref` it
+was taken from since #729, and the close fields, null while open). A website reconciles off it: a ticket it erased while the sim was
 away it says so again (`ticket_delete`); one it never saw it takes back.
 ⚠ It rides the first physics step after a connect, and a paused world
 steps none: a website that connects during a pause reads it at the wake.
@@ -1710,7 +1713,8 @@ world is paused, the next slice of the pause, a quarter second: #729). A website
 should hold a reply or a close until the `ticket` event with its `ref`
 arrives, and re-send an unacknowledged one on the next connect, bounded,
 as it re-sends a visitor's message: the sim dedupes by message id within
-a process, a replayed close pays nothing, and an `unknown` settles the
+a process, and an operator's reply by its id on the desk across a restart
+(#729, `again`), a replayed close pays nothing, and an `unknown` settles the
 row for good. A delete is best effort and the `tickets` snapshot is the
 repair.
 

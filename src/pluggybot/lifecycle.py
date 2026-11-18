@@ -24,6 +24,7 @@ import json
 import math
 import os
 import time
+import traceback
 import uuid
 from pathlib import Path
 from typing import Callable, Literal
@@ -3985,41 +3986,45 @@ class HubLifecycle:
   def _ticket_lines_step(self) -> None:
     """The operator's side of a ticket (issue #284): a reply, a close, a
     delete, applied by code like every admin kind. What the robot is shown
-    is the thread, on its next turn.
+    is the thread, on its next turn. At the top of every arbitration pass,
+    and in every slice of a pause for every robot on the loop (#729,
+    `_mode_step`; Overseer.md §2g).
 
-    Run at the top of every arbitration pass and, while the world is
-    PAUSED, in every slice of the pause, for every robot on the loop
-    (`_mode_step`, #729): a paused world runs no pass, so a line waited in
-    the inbox -- in memory -- and a restart during the pause lost it. Five
-    tickets an operator answered on 2026-11-13 never reached the robots
-    that way, and both desks stayed full for days.
-
-    ⚠ A LINE NEVER ENDS THE RUN: one the desk fails on is answered
-    `refused`, its error said (`_ticket_failed`), and the next one goes on.
-    Raised in a pause, it would kill the process, which restarts paused and
-    is sent the same line at the next connect."""
+    ⚠ A LINE NEVER ENDS THE RUN (`_ticket_failed`): raised in a pause, the
+    process would die, restart paused, and be sent the line again."""
     if self.inbox is None:
       return
     for kind, apply in (("ticket_reply", self._ticket_reply),
                         ("ticket_close", self._ticket_close),
                         ("ticket_delete", self._ticket_delete)):
       for msg in self.inbox.drain((kind,)):
+        said = len(self.ticket_events)
         try:
           apply(msg)
         except Exception as e:                    # noqa: BLE001 -- see docstring
-          self._ticket_failed(msg, e)
+          self._ticket_failed(msg, e, said)
 
-  def _ticket_failed(self, msg, error: Exception) -> None:
-    """An operator's line the desk failed on (#729): `refused`, which the
-    site does not settle, so it may send the line again; the error's class
-    on the wire and its message in the console (`_say`'s `detail`, issue
-    #76), never in History -- the robot was told nothing."""
-    who = msg.who or "the operator"
-    verb = msg.kind.removeprefix("ticket_")
-    self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
-                       why=f"the desk could not take it ({type(error).__name__})")
-    self._say(f"TICKET {verb} from {who} not taken: the desk failed on it",
-              detail=f"{type(error).__name__}: {error}")
+  def _ticket_failed(self, msg, error: Exception, said: int) -> None:
+    """An operator's line the desk failed on (#729): said in the console
+    (`_say`'s `detail`, issue #76, and the traceback), never in History.
+    ⚠ ANSWERED `refused` (`sender` the operator's) ONLY WHERE NO EVENT HAS
+    ACKNOWLEDGED IT (`said`, the run record's length before it): one that
+    failed after its `replied` went out was taken, and a `refused` after it
+    would contradict it. ⚠ A COPY SENT AGAIN IS TAKEN AGAIN (`Inbox.forget`),
+    or the replay check would drop it unanswered for the rest of the
+    process. ⚠ The report never raises itself."""
+    try:
+      if not any(e.get("ref") == msg.id for e in self.ticket_events[said:]):
+        self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
+                           sender=tickets_desk.OPERATOR,
+                           why=f"the desk could not take it ({type(error).__name__})")
+        self.inbox.forget(msg.id)
+      self._say(f"TICKET {msg.kind.removeprefix('ticket_')} from "
+                f"{msg.who or 'the operator'} not taken: the desk failed on it",
+                detail=f"{type(error).__name__}: {error}")
+      traceback.print_exc()
+    except Exception:                             # noqa: BLE001 -- see docstring
+      pass
 
   def _ticket_reply(self, msg) -> None:
     """An operator's line on one of the robot's tickets (issue #284): onto
@@ -4029,9 +4034,19 @@ class HubLifecycle:
     hold, or one already closed, is answered `unknown` -- the fate that
     stops a website re-sending it."""
     who = msg.who or "the operator"
+    was = self.tickets.taken(msg.ticket, msg.id)
+    if was is not None:
+      # ⚠ TAKEN ALREADY (#729): sent again, its acknowledgement lost --
+      # answered again, `again`, and never put on the thread twice
+      self._ticket_event("replied", self.tickets.get(msg.ticket),
+                         sender=tickets_desk.OPERATOR, **{"from": was.who},
+                         text=was.text, ref=msg.id, again=True,
+                         **({"cut": True} if was.cut else {}))
+      return
     try:
       ticket = self.tickets.reply(msg.ticket, msg.text, float(self.data.time),
-                                  sender=tickets_desk.OPERATOR, who=who)
+                                  sender=tickets_desk.OPERATOR, who=who,
+                                  ref=msg.id)
     except DeskRefused as e:
       self._ticket_event("unknown", id=msg.ticket, ref=msg.id, why=str(e),
                          verb="ticket_reply")
@@ -5870,12 +5885,10 @@ class HubLifecycle:
     process has held it. A process started into a pause counted from its own
     start, and on 11-01 a wake said 117 s.
 
-    ⚠ AN OPERATOR'S TICKET LINES LAND IN THE PAUSE (#729), each robot's on
-    its own desk and account (`_ticket_lines_step`): taken at a pass alone,
-    a line sent while paused waited in memory and a restart during the
-    pause lost it. Its `ticket` event leaves on the publisher's own thread,
-    with no frame. Everything else sent while paused -- a person's message,
-    a rating, a reach-in -- waits for the wake, as before.
+    ⚠ AN OPERATOR'S TICKET LINES ARE TAKEN IN THE PAUSE (#729), each
+    robot's on its own desk and account (`_ticket_lines_step`), their
+    `ticket` events leaving with no frame; everything else waits for the
+    wake (Overseer.md §2g).
     """
     if self.mode is None:
       return
@@ -5890,10 +5903,8 @@ class HubLifecycle:
       life._say("PAUSED by the operator -- physics stopped, stream alive")
       life._remember("paused by the operator")
     while self.mode.poll(force=True) == "paused" and not self.stopping:
-      # ...but never once a stop is asked (the test above): what an ending
-      # process took, the site might never hear acknowledged, and a reply
-      # sent again to the next process would land twice. Left queued, it
-      # goes with the process and is sent again whole.
+      # ...never once a stop is asked (the test above): what an ending
+      # process takes, the site may never hear acknowledged
       for life in told:
         life._ticket_lines_step()
       time.sleep(PAUSE_SLICE_S)

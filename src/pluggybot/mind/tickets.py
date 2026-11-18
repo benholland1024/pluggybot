@@ -132,11 +132,19 @@ class Line:
   #: shown wherever the line is, so whoever reads it knows they are not
   #: reading all of it.
   cut: bool = False
+  #: An operator's line: the id of the inbound message it was taken from
+  #: (#729), so a copy sent again after its acknowledgement was lost is
+  #: answered and never put on the thread twice (`Desk.taken`). On the
+  #: record and the wire's snapshot, never in what the robot is shown.
+  ref: str = ""
 
   def as_dict(self) -> dict:
     return {"sender": self.sender, "from": self.who, "text": self.text,
             "t": round(float(self.t), 3),
             **({"cut": True} if self.cut else {})}
+
+  def as_record(self) -> dict:
+    return {**self.as_dict(), **({"ref": self.ref} if self.ref else {})}
 
 
 @dataclass
@@ -172,7 +180,7 @@ class Ticket:
   def as_record(self) -> dict:
     return {"id": self.id, "kind": self.kind, "title": self.title,
             "text": self.text, "t": round(float(self.t), 3), "state": self.state,
-            "thread": [line.as_dict() for line in self.thread],
+            "thread": [line.as_record() for line in self.thread],
             "closedBy": self.closed_by, "closedText": self.closed_text,
             "closedCut": self.closed_cut,
             "closedT": self.closed_t, "closedN": self.closed_n,
@@ -182,7 +190,7 @@ class Ticket:
   def from_record(cls, rec: dict) -> "Ticket":
     thread = [Line(str(x.get("sender", OPERATOR)), str(x.get("from", "")),
                    str(x.get("text", "")), float(x.get("t", 0.0)),
-                   bool(x.get("cut")))
+                   bool(x.get("cut")), str(x.get("ref", "")))
               for x in rec.get("thread", ()) if isinstance(x, dict)]
     return cls(id=str(rec["id"]), kind=str(rec.get("kind", "")),
                title=str(rec.get("title", "")), text=str(rec.get("text", "")),
@@ -316,10 +324,11 @@ class Desk:
     return ticket
 
   def reply(self, ticket_id: str, text: str, t: float,
-            sender: str = ROBOT, who: str = "") -> Ticket:
+            sender: str = ROBOT, who: str = "", ref: str = "") -> Ticket:
     """A line on an OPEN ticket's thread, from the robot or the operator
-    (`sender` is stated by the caller, never read off the wire). The
-    thread keeps its newest `MAX_THREAD` lines."""
+    (`sender` is stated by the caller, never read off the wire; `ref` the
+    inbound message an operator's came in, `Line.ref`). The thread keeps
+    its newest `MAX_THREAD` lines."""
     ticket = self.get(ticket_id)
     text, cut = _cut(text, MAX_LINE)
     if ticket is None:
@@ -330,10 +339,21 @@ class Desk:
       raise self._refuse(["a reply says something: `text` is empty"])
     if sender not in TICKET_SENDERS:
       raise ValueError(f"a thread line's sender is one of {TICKET_SENDERS}")
-    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut))
+    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut,
+                              _clean(ref, 64)))
     del ticket.thread[:-MAX_THREAD]
     self._save(ticket)
     return ticket
+
+  def taken(self, ticket_id: str, ref: str) -> Line | None:
+    """The operator's line on the ticket's thread taken from the inbound
+    message `ref` (#729), open or closed, or None -- while the thread keeps
+    it (`MAX_THREAD`)."""
+    ticket = self.get(ticket_id)
+    if ticket is None or not ref:
+      return None
+    return next((line for line in ticket.thread
+                 if line.sender == OPERATOR and line.ref == ref), None)
 
   # ---- the operator's two -------------------------------------------------------------
 
