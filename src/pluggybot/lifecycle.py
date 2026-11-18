@@ -3092,9 +3092,9 @@ class HubLifecycle:
     mind be asked? A charge's hold ends on it with its plug in (Ben,
     2026-11-16: a robot may answer while it charges). COMPUTED WHEN READ:
     an answer owed (`_owed`) whose message is still in the window the model
-    is shown; the map's FIRST row for a message an `ask` (#518's reviews:
-    the first row decides, and the map may have been edited since it
-    fired); and a call that would go out -- ⚠ never in free mode, with a
+    is shown; the map's FIRST row for a message an `ask` (the first row is
+    the one that fires, and the map may have been edited since it fired);
+    and a call that would go out -- ⚠ never in free mode, with a
     call still out or behind a gate that stays shut (`Overseer.can_ask`):
     a break that can ask nobody would be one a step, its message never
     asked."""
@@ -3114,8 +3114,8 @@ class HubLifecycle:
   @property
   def _asks_on_messages(self) -> bool:
     """Is the map's FIRST row for a message an `ask` (#730)? The row that
-    fires is the first one for its event (#518's reviews: an `idle` ahead
-    of an `ask` never asks), read as the map stands now."""
+    fires is the first one for its event (an `idle` ahead of an `ask` never
+    asks), read as the map stands now."""
     first = self.event_map.first("message_received") if self.event_map is not None else None
     return first is not None and first.action == ev.ASK
 
@@ -6789,8 +6789,7 @@ class HubLifecycle:
       # drops the errand it waits on, so it never begins
       "gradeWaits": self._grade_waits is not None,
       # ...and whether a charge that closed full, its plug left in, was
-      # counted (#730's seventh review): forgotten, the next run's `charge`
-      # counted it again
+      # counted (#730): forgotten, the next run's `charge` counted it again
       "chargedPlugged": self._charged_plugged,
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened

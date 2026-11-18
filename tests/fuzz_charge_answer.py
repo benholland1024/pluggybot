@@ -3,8 +3,8 @@ messages from people and from the other robot, ratings and ticket lines,
 answers of every action and every failure kind, slow calls that outlive
 their deadline, `message_received`, periodic and failure rows, charges at
 random packs, deaths, stand-ups and the run's hour -- one robot or a pair
-on one physics loop -- with the invariants Saturday's wake needs read
-after every step (`Watch`):
+on one physics loop -- with the invariants a served day needs read after
+every step (`Watch`):
 
   1. never unplugged below `CHARGED` but by an answer or a row of the
      agent's own that moves the body, or a charge's own end;
@@ -60,7 +60,7 @@ FAILURES = ("timeout", "offline", "garbled", "cutoff", "slow")
 
 
 class Violation(AssertionError):
-  """An invariant the wake needs, broken: what, when, and the day's seed."""
+  """An invariant a served day needs, broken: what, when, and the day's seed."""
 
 
 class _Mode:

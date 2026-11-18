@@ -1031,7 +1031,7 @@ def test_an_answer_past_the_runs_hour_is_still_acted_on():
 
 
 @pytest.mark.parametrize("seed,pair,sim_s", [(12, False, 900.0), (23, True, 600.0)])
-def test_seeded_days_keep_every_invariant_the_wake_needs(seed, pair, sim_s):
+def test_seeded_days_keep_every_invariant_a_served_day_needs(seed, pair, sim_s):
   """The coordinator's fuzz (#730): seeded random days on the stub -- people
   and the other robot writing, ratings and ticket lines, answers of every
   action and failure kind, slow calls, deaths, stand-ups, the run's hour,
