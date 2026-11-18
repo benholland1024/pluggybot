@@ -10635,9 +10635,8 @@ robot's own body. Two readings of one depth may part by 0.1 mm
   pre-grasps 0.8-4.2 cm into it, a lever standing 0.2 m ahead of the
   robot's middle). But our cube at set-out 7 passes with its pre-grasp 3.5
   mm into the head's back on the model, touching nothing: refused, the pass
-  would go. The plan's to keep clear: of the plan's seeds, others reach
-  those door pre-grasps 2-4.5 cm clear (`solve_seeded` keeps the one
-  nearest the arm as it is).
+  would go. Since #726 the plan keeps the pre-grasp and the goal clear of
+  the trunk (the next section).
 - *MuJoCo 3.10 reads two boxes apart as 0.0* at some poses
   (`mj_geomDistance`: the gripper against the torso at 1.4 % of an arm's
   random poses, its from-to then a segment centimetres long, and in runs of
@@ -10679,6 +10678,109 @@ pressed the torso at 165 N; its procedure then steps back, and the step's
 hand-over brings the arm home from the lever through the torso at 107 N.
 Nothing judges the world: a hand's way still swings through what it never
 looked at (#708 stops what would tip the robot).
+
+## A reach's plan kept off the robot's own trunk (issue #726)
+
+A reach plans its arm at the goal and at the pre-grasp 8 cm short of it on
+the robot's model of itself (`plan`, `_reached`), the solve nearest the arm
+as it is (`solve_seeded`), and nothing judged either arm against the robot's
+own torso or head: #722 judged a way out from a hand already out, and never
+one from the arm hanging, because there the plan's own pre-grasp could lie
+in the trunk.
+
+**Counted first** (the loop of 11-18, T3; `loop-staging` e629cddd -- the
+flights of c7f78bc9 -- on one Vast pod, a Xeon Gold 6140;
+`~/pluggybot-training/loop-1118/t3-726/`, batch t3a; every plan recorded with
+how near its arm at the pre-grasp and at the goal lay to the trunk, on a
+private copy of the model): of Ben's bar's 736 flights, 7 hold a plan or a
+look in the trunk -- one reach's plan, the cube's at set-out 7 (the deep bow
+at 30 deg of waist, its pre-grasp 3.5 mm into the head's back and its goal
+2.6 cm into the head's dome; flown, it passes touching nothing), five looks
+at the pre-grasp (the cube's at set-outs 2, 46, 91 and 112, their goals
+1.2-3.1 cm into the head's back -- 2 and 46 fall -- and at 7, its pre-grasp
+6.5 mm into it), and two refusals' words
+(the drawer at set-outs 82 and 122: the other hand's plan 0.2-1.1 mm into
+the torso); the tour's none (`door_29`, which met the visor on ac2538e8,
+passes on this tree, its nearest 9.6 mm off). Of the 11-15 wake's 53 runs at
+their live draws, 5 (all door runs): 13 reaches planned into the torso --
+5 from the arm hanging, three of whose ways pressed it at 23-52 N, and 8
+from the hand out, which #722 already refuses -- 8 refusals' words saying
+the right hand "could reach it as asked" of a plan 3.5-4.2 cm into the
+torso, and 3 looks.
+
+**The rule** (`plan`'s `own`, `_reached`'s `clear`, `_solutions`,
+`in_trunk`; `Reach._planned`). In each posture, today's plan where its arm
+at the pre-grasp and at the goal keeps off the trunk above the waist
+(#722's `own_rooms`, each pair of parts no nearer than `OWN_CLEAR_M` less
+the `OWN_SLACK_M` two readings may part by), else the goal's other solves in
+turn as `solve_seeded` ranks them (nearest the arm as it is), each planned on
+from there as the first is, the first that keeps clear; else the next
+posture's, in today's order -- every posture with room to spare first, so a
+plan at full stretch is taken before one in the trunk with room to spare;
+else the grip half a turn round (#493's flip, the same grip). Where every
+plan that reaches puts the arm in the trunk, a procedure's reach moves
+nothing and reads false in #722's words ("own body"), `own` saying how near
+the first came, and the loop's own reach (a charge's: no wait frees it)
+takes that first plan, today's. Asked whether it would plan, the reach says
+so only of a plan that keeps clear (`plans`, `Body.hand_reaches`, so a
+refusal's words about the other hand or another turn); `clear_way` says
+"own". A look at the pre-grasp (#627) passes over a posture whose plan from
+the arm as it is lies in the trunk -- at the goal it goes in to, and in
+another posture at the pre-grasp too, its arm re-solved there as the body
+moves; in the one it holds the hand is at its pre-grasp already -- never for
+another seed's arm, as the hand goes in from where it is, and with none clear
+takes the least bent that reaches, as before. Where today's plan keeps clear
+nothing changes: the check costs 0.3 ms a plan.
+- *The posture a look holds, judged at the goal alone.* As first written the
+  look judged it at the pre-grasp too: the 11-15 wake's t_0408 (Luca's
+  `door_run31`) crouched at 41.56 s over a re-plan whose pre-grasp lay 0.3 mm
+  in the torso and whose goal kept 1.6 cm clear, its hand already out
+  there, and its flight went another way -- to a walk's hand-over whose way
+  home dragged the jaws over the cupboard's lever at up to 678 N, and a fall
+  (#693's family).
+
+**Measured after** (the same pod beside e629cddd: the candidate 4003a741,
+batch t3d; the rule as first written, b36d3ea1, batch t3b): Ben's bar met --
+610 of 736 passed with 6 falls where the base passed 608 with 8, and the 5
+of the 736 that moved at all are the cube's flights whose plan or look lay
+in the head: set-outs 2 and 46 no longer fall (46 passes), 112 passes, 7
+still passes (1.8 cm in 37 s for 2.1 in 47; it takes the grip half a turn
+round at the stand, the waist turned 15 deg, where its plan lay in the head
+in the deep bow, and its way home no longer meets the head's rim at 127 N),
+and 91 fails still (its way home begins on the head's back, 49 N for 40);
+none held out worse, and the tour's 160 and every slowest pass are the
+base's. No reach was refused for its own trunk, and the drawer's words at
+set-outs 82 and 122 stand (the right hand's other solve keeps 2 cm clear).
+Of the 11-15 wake's 53 runs the 4 whose reaches were planned into the torso
+moved, none falling more: t_0360 (`door_run31`) now opens the door (98 deg
+in 81 s), t_0331's fall is gone, and so are t_0415's and t_0422's presses on
+the torso (23 and 52 N); #722's 8 refusals there went to none, the reaches
+planned clear. The first rule moved t_0408 too (above) and nothing else: the
+two differ in 1 of the 789 flights. The station's checks are the base's: 39
+of 39 approaches docked and unplugged and 20 of 20 lost near docked, row for
+row, and 140 of 140 seats plugged in and out on both trees -- 5 of them
+moved, the loop's own reach planning otherwise, each plugged in at its first
+push (one with the first grip where the base needed the second). The
+counter's recorded attempt is the committed fixture's, line for line, and
+the pair's recorded day the base's, line for line. Of T1's 193 flights of
+the 11-18 wake's tries at their live draws (its `fly_t1.py`), 10 moved, the
+same 34 passed, and two more fell: seven of Luca's `door_final45` -- whose
+reaches come near the torso (#722 refused two at one key) -- and three cube
+tries; both new falls are #693's way home in a step's hand-over, the jaws
+dragged over the cupboard's lever (59 N) and its boss (690 N), as the base
+falls at two other keys, and T1's two drawer falls are as they were. A plan
+costs 0.3 ms more where today's keeps clear (paired call by call over the
+live runs' unmoved plans, +6 ms at the median on the loaded pod: its noise);
+one that searched took 0.36-2.1 s there.
+
+**What it does not do.** A way out from the arm hanging is still judged
+against nothing of the robot's own body (now that its end keeps clear, it
+could be), nor a way home, nor a pull: in the 11-18 wake's drawer runs a
+pull brought the hand into the torso and the way home from there pressed it
+(T1's flights; #693's chain). The trunk is judged on the plan's statue, not
+the body as it will stand: in a deep bow the live lean moves the trunk a
+few centimetres against the goal, and the cube's set-out 7 planned its
+pre-grasp 3.5 mm into the head's back where its arm, flown, touched nothing.
 
 ## A procedure's read of a hand's place (issue #721)
 

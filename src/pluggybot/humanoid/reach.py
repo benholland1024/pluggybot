@@ -716,28 +716,44 @@ def _arm(side: str, q_arm) -> dict:
   return {f"{side}_{j}": float(v) for j, v in zip(hm.ARM, q_arm)}
 
 
-def solve_seeded(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
-                 ) -> tuple[np.ndarray, float, float]:
-  """`SelfModel.solve` from each of `SEEDS` (and `start`), the best kept:
+def _ranked(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
+            ) -> list[tuple[bool, np.ndarray, float, float]]:
+  """`SelfModel.solve` from `start` and each of `SEEDS`, every one, ranked:
   within tolerance and nearest `start` -- or, with none, nearest the arm
-  hanging -- else the least off. ⚠ NEAREST, NEVER THE FIRST TO REACH: kept
-  in its seeds' order, the hanging arm's own solve took the shoulder thrown
-  back and the arm over the top where five other seeds reached the same
-  point with the arm in front -- and an arm so bent leant the standing
-  policy 4.4 cm forward where the other leant it 0.8 back (#627)."""
+  hanging -- first, then the rest by how far off, ties in their seeds' order;
+  (within tolerance, q, ep, er) each."""
   tries = [seed(side, s) for s in SEEDS]
   if start is not None:
     tries.insert(0, np.asarray(start, dtype=float))
   near = tries[0]
-  best, best_key = None, None
-  for q0 in tries:
+  got = []
+  for k, q0 in enumerate(tries):
     sm.q[sm.arm[side]] = q0
     q, ep, er = sm.solve(side, pos, rot, iters=80)
     ok = ep < REACH_POS_TOL and er < REACH_ROT_TOL
-    key = (not ok, float(np.abs(q - near).max()) if ok else ep + 0.1 * er)
-    if best_key is None or key < best_key:
-      best, best_key = (q, ep, er), key
-  return best
+    got.append(((not ok, float(np.abs(q - near).max()) if ok else ep + 0.1 * er), k, (ok, q, ep, er)))
+  return [g[2] for g in sorted(got, key=lambda g: g[:2])]
+
+
+def solve_seeded(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
+                 ) -> tuple[np.ndarray, float, float]:
+  """`SelfModel.solve` from each of `SEEDS` (and `start`), the best kept:
+  within tolerance and nearest `start` -- or, with none, nearest the arm
+  hanging -- else the least off (`_ranked`'s first). ⚠ NEAREST, NEVER THE
+  FIRST TO REACH: kept in its seeds' order, the hanging arm's own solve took
+  the shoulder thrown back and the arm over the top where five other seeds
+  reached the same point with the arm in front -- and an arm so bent leant
+  the standing policy 4.4 cm forward where the other leant it 0.8 back
+  (#627)."""
+  return _ranked(sm, side, pos, rot, start)[0][1:]
+
+
+def _solutions(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
+               ) -> list[np.ndarray]:
+  """Every arm `solve_seeded` solves that puts the grip at `pos` (turned to
+  `rot`) within the reach's tolerance as `sm` is posed, in the order it
+  ranks them: its own pick first (#726)."""
+  return [q for ok, q, _, _ in _ranked(sm, side, pos, rot, start) if ok]
 
 
 def _reaching(sm: SelfModel, side: str, pos, rot, start=None, seeded: bool = True):
@@ -774,18 +790,21 @@ def _goal_arm(sm: SelfModel, side: str, goal: HandGoal, slack: bool, start=None,
   return q_goal if q_far is not None else None
 
 
-def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
-             pre: HandGoal, slack: bool, lean: "Lean | None", arms: dict | None, start):
+def _reached_from(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
+                  pre: HandGoal, slack: bool, lean: "Lean | None", arms: dict | None, start,
+                  seeded: bool = True):
   """(the arm at the pre-grasp, the arm at the goal) where `posture` puts
   `goal` in `side`'s reach -- with its slack -- on the robot as it would
   stand there (`statue`): with this arm where `arms` puts it (else hanging),
   then balanced with it where that solve put it and solved again from
-  there, as an arm held out moves the trunk; or None."""
+  there, as an arm held out moves the trunk; or None. The goal's first
+  solve nearest `start` (`solve_seeded`), or -- not `seeded` -- from `start`
+  alone first."""
   others = dict(arms or {})
   statue(sm, posture, q0, others, lean, fast=True)
   if out_of_reach(sm, side, goal.pos, REACH_MARGIN_M if slack else 0.0):
     return None
-  q = _goal_arm(sm, side, goal, slack, start)
+  q = _goal_arm(sm, side, goal, slack, start, seeded)
   if q is None:
     return None
   statue(sm, posture, q0, {**others, **_arm(side, q)}, lean, fast=True)
@@ -796,9 +815,47 @@ def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
   return None if q_pre is None else (q_pre, q)
 
 
+#: Two of the goal's solves are one arm within this of each other, rad,
+#: every joint: from seeds that end in one branch the solve lands on one
+#: arm to well under this.
+SAME_ARM_RAD = 0.01
+
+
+def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
+             pre: HandGoal, slack: bool, lean: "Lean | None", arms: dict | None, start,
+             clear: bool = False):
+  """`_reached_from`'s (the arm at the pre-grasp, the arm at the goal), or
+  None. ⚠ `clear` (#726): A REACH'S PLAN KEEPS ITS ARM OFF THE ROBOT'S OWN
+  TRUNK, at the pre-grasp and at the goal (`in_trunk`) -- today's, else the
+  goal's other solves in turn as `solve_seeded` ranks them (`_solutions`),
+  each planned on from there, the first that keeps off it: (q_pre, q,
+  None); with none, today's and how near it comes ((q_pre, q, {part, m}))."""
+  got = _reached_from(sm, side, posture, q0, goal, pre, slack, lean, arms, start)
+  if not clear or got is None:
+    return got
+  near = in_trunk(side, *got)
+  if near is None:
+    return (*got, None)
+  # ...the goal's other solves, as the first was solved: on the statue with
+  # this arm hanging
+  statue(sm, posture, q0, dict(arms or {}), lean, fast=True)
+  solves = _solutions(sm, side, goal.pos, goal.rot, start)
+  # ...the first is `solve_seeded`'s pick, today's plan's own start: planned
+  # on from there it is today's again
+  tried = solves[:1]
+  for q in solves[1:]:
+    if any(float(np.abs(q - t).max()) <= SAME_ARM_RAD for t in tried):
+      continue
+    tried.append(q)
+    other = _reached_from(sm, side, posture, q0, goal, pre, slack, lean, arms, q, seeded=False)
+    if other is not None and in_trunk(side, *other) is None:
+      return (*other, None)
+  return (*got, near)
+
+
 def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
          postures=REACH_POSTURES, approach: float = APPROACH_M, lean: "Lean | None" = None,
-         arms: dict | None = None, start=None):
+         arms: dict | None = None, start=None, own: dict | None = None):
   """The least-bent posture from which `side`'s hand reaches `goal` -- and
   its pre-grasp, `approach` short of it -- WITH `REACH_MARGIN_M` to spare,
   else the least bent that reaches it at full stretch; and the arm's
@@ -808,17 +865,30 @@ def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
   reads it (#627; with none, over the soles' middle), the other arm where
   `arms` puts it and this one where its solve does (`_reached`). Returns
   ((height, pitch, yaw), arm at the pre-grasp, arm at the goal, whether it
-  has slack), or None if no posture reaches it."""
+  has slack), or None if no posture reaches it. With `own`, a dict (#726):
+  the arm at both kept off the robot's own trunk (`_reached`'s `clear`) --
+  where every posture that reaches puts it in the trunk, None, and `own`
+  says how near the first of them came (`part`, `m`) and holds its plan,
+  the one planned without the trunk (`plan`)."""
   sm = model or SelfModel()
   q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
   pre = pregrasp(goal, approach)
+  first = None
   for slack in (True, False):
     for posture in postures:
       if not stands(sm, posture, q0) or out_of_reach(sm, side, goal.pos, -LEAN_MOST_M):
         continue
-      got = _reached(sm, side, posture, q0, goal, pre, slack, lean, arms, start)
-      if got is not None:
-        return tuple(posture), got[0], got[1], slack
+      got = _reached(sm, side, posture, q0, goal, pre, slack, lean, arms, start,
+                     clear=own is not None)
+      if got is None:
+        continue
+      found = (tuple(posture), got[0], got[1], slack)
+      if own is None or got[2] is None:
+        return found
+      if first is None:
+        first = (found, got[2])
+  if first is not None:
+    own.update(first[1], plan=first[0])
   return None
 
 
@@ -1074,8 +1144,37 @@ def own_room(sm: SelfModel, side: str, q0, ways) -> tuple[float, str]:
 
 
 #: The one model of itself a way is judged against its own trunk on
-#: (`_own_model`): posed by an arm's joints alone, so shared.
+#: (`own_model`): posed by an arm's joints alone, so shared.
 _OWN: SelfModel | None = None
+
+
+def own_model() -> SelfModel:
+  """The model of itself an arm is judged against its own trunk on
+  (`own_rooms`): posed by that arm's joints alone, apart from the
+  planner's, whose pose a judgment's callers go on reading -- one for every
+  robot (`_OWN`)."""
+  global _OWN
+  if _OWN is None:
+    _OWN = SelfModel()
+  return _OWN
+
+
+def in_trunk(side: str, *arms) -> dict | None:
+  """Where some arm of `arms` (each its six joints) lies within the
+  robot's own trunk on its model of itself (#726; `own_rooms`, each pair of
+  parts closer than `OWN_CLEAR_M`, less the `OWN_SLACK_M` two readings may
+  part by): the deepest's part of the trunk ("torso", or "head" for the
+  head and the LIDAR in it) and its room, m, negative through it, as #722's
+  `own` says them; else None."""
+  sm = own_model()
+  worst = None
+  for q in arms:
+    rooms = own_rooms(sm, side, np.asarray(q, dtype=float), [])
+    i = int(np.argmin(rooms))
+    if rooms[i] < OWN_CLEAR_M - OWN_SLACK_M and (worst is None or rooms[i] < worst[1]):
+      worst = (UPPER_GEOMS[i % len(UPPER_GEOMS)], float(rooms[i]))
+  return None if worst is None else {"part": "torso" if worst[0] == "torso" else "head",
+                                     "m": round(worst[1], 3)}
 
 
 def _same_way(a, b) -> bool:
@@ -1261,15 +1360,25 @@ class Reach:
     out, its way out keeps off its own trunk too (#722, `_own_kept`): none
     that does, and a `verb`'s moves nothing (`own` says how); the loop's own
     (a charge's: no wait frees it) takes the way that comes least near it.
-    ⚠ NO OTHER POSTURE
+    And its PLAN keeps the arm off its own trunk at the pre-grasp and at the
+    goal (#726, `plan`'s `own`): where every plan that reaches puts it in
+    the trunk, a `verb`'s moves nothing (`own` says how near the first came),
+    and the loop's own takes that one. ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
     `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
     (a charge's)."""
     kept = self.keep(side, verb)
     if kept is not None:
       postures = (kept,)
-    plan_, goal = self._planned(side, goal, approach, postures, flip)
+    plan_, goal, own = self._planned(side, goal, approach, postures, flip)
     self.kept[side] = self.judged_home[side] = self.own[side] = None
+    if own is not None:
+      # every plan that reaches puts the arm in its own trunk (#726): a
+      # verb's moves nothing; the loop's own -- no wait frees it -- takes it
+      self.own[side] = {"part": own["part"], "m": own["m"]}
+      if refuse and verb:
+        return False
+      plan_, goal = own["plan"], own["goal"]
     if plan_ is None:
       return False
     posture, q_pre, _, slack = plan_
@@ -1303,11 +1412,11 @@ class Reach:
                 postures=REACH_POSTURES, flip: bool = True) -> bool | str | None:
     """Whether `reach` would plan `goal` for `side` and take a way out that
     keeps off every other robot's body (#678) -- None where it plans none,
-    "own" where every way out would pass through its own trunk (#722);
-    nothing moved, `kept` and `own` as they were."""
-    plan_, _ = self._planned(side, goal, approach, postures, flip)
+    "own" where every plan, or every way out, would put the arm in its own
+    trunk (#726, #722); nothing moved, `kept` and `own` as they were."""
+    plan_, _, in_own = self._planned(side, goal, approach, postures, flip)
     if plan_ is None:
-      return None
+      return "own" if in_own is not None else None
     kept, own = self.kept[side], self.own[side]
     self.own[side] = None
     out = self.way_out(side, plan_[1], plan_[0])
@@ -1326,20 +1435,33 @@ class Reach:
 
   def plans(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
             postures=REACH_POSTURES, flip: bool = True) -> bool:
-    """Whether `reach` would plan `goal` for `side` -- nothing moved."""
+    """Whether a procedure's `reach` would plan `goal` for `side`: its arm
+    kept off its own trunk (#726) -- nothing moved."""
     return self._planned(side, goal, approach, postures, flip)[0] is not None
 
   def _planned(self, side, goal, approach, postures, flip):
+    """(the plan, its goal -- half a turn round where that grip was tried --
+    and None), its arm kept off its own trunk (#726, `plan`'s `own`); or,
+    where every plan that reaches puts it in the trunk, (None, the goal,
+    `own`: how near the first came, its `plan` and its `goal`)."""
     # ...on the robot as it reads itself standing, the other arm where it is
     # and this one's answer nearest it as it is (#627)
     sm = self._planner_model()
     kw = {"lean": self._lean(), "arms": self._arms(but=side), "start": self.q_cmd[side]}
-    plan_ = plan(side, goal, sm, approach=approach, postures=postures, **kw)
+    own: dict = {}
+    plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=own, **kw)
+    if own:
+      own["goal"] = goal
     if plan_ is None and goal.rot is not None and flip:
       flipped = np.asarray(goal.rot, dtype=float) @ np.diag([-1.0, -1.0, 1.0])
       goal = HandGoal(np.asarray(goal.pos, dtype=float), flipped, goal.stiffness)
-      plan_ = plan(side, goal, sm, approach=approach, postures=postures, **kw)
-    return plan_, goal
+      # ...where the grip asked reaches only through the trunk too: the same
+      # grip half a turn round may keep off it (#493)
+      also: dict = {}
+      plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=also, **kw)
+      if also and not own:
+        own = dict(also, goal=goal)
+    return plan_, goal, (own or None) if plan_ is None else None
 
   def _lean(self) -> Lean | None:
     """How the robot reads itself standing now (`Lean.read`): its model of
@@ -1733,7 +1855,14 @@ class Reach:
     once there; its hand waits at its pre-grasp meanwhile (`looking`). ⚠
     EITHER WAY: the table's cup is reached by an arm over the top, which leant
     the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
-    plan bows deeper than it need -- out of its tags' view."""
+    plan bows deeper than it need -- out of its tags' view. ⚠ A POSTURE
+    WHOSE PLAN FROM THE ARM AS IT IS PUTS IT IN ITS OWN TRUNK IS PASSED OVER
+    (#726, `in_trunk`): at the goal it goes in to, and -- another posture --
+    at the pre-grasp its arm holds the hand at while the body takes it; in
+    the one it holds the hand is at its pre-grasp already (judged there too,
+    a look crouched over a plan 0.3 mm into the torso). Never for another
+    seed's arm: the hand goes in from where it is. With none that keeps off
+    it, the least bent that reaches is taken all the same."""
     if self.looks[side] >= LOOKS or self.kept_by[side]:
       return True
     self.looks[side] += 1
@@ -1744,18 +1873,23 @@ class Reach:
     lean, arms = self._lean(), self._arms()
     here = tuple(float(v) for v in self.posture)
     gone = {tuple(float(v) for v in p_) for p_ in self.left[side]}
-    chosen = None
+    chosen = first = None
     for slack in (True, False):
       for posture in (tuple(float(v) for v in p_) for p_ in self.allowed[side]):
         if (posture in gone or not stands(sm, posture, q0)
             or out_of_reach(sm, side, goal.pos, -LEAN_MOST_M)):
           continue
-        if _reached(sm, side, posture, q0, goal, pre, slack, lean, arms,
-                    self.q_cmd[side]) is not None:
+        got = _reached(sm, side, posture, q0, goal, pre, slack, lean, arms, self.q_cmd[side])
+        if got is None:
+          continue
+        first = first or posture
+        q_pre, q = got[:2]
+        if (in_trunk(side, q) if posture == here else in_trunk(side, q_pre, q)) is None:
           chosen = posture
           break
       if chosen is not None:
         break
+    chosen = chosen or first
     if chosen is None or chosen == here:
       return True
     self.left[side].append(here)
@@ -2042,9 +2176,10 @@ class Reach:
     lies in the trunk, every way ending there. Returns that way, and the
     judge of any other (`_kept_off`'s) -- none where no way keeps clear: then
     another robot's ways are weighed as #678 weighs them. ⚠ NEVER A WAY FROM A HAND
-    AT REST: there the plan's pre-grasp itself can lie in the trunk
-    (SimNotes), and refused, our cube's set-out 7 lost its pass."""
-    own = self._own_model()
+    AT REST: there the plan's pre-grasp itself could lie in the trunk, and
+    refused, our cube's set-out 7 lost its pass; since #726 a procedure's
+    plan keeps it off (`plan`'s `own`), so it could be judged -- not yet."""
+    own = own_model()
     rooms: dict = {}
 
     def rooms_of(w) -> np.ndarray:
@@ -2081,16 +2216,6 @@ class Reach:
     part = UPPER_GEOMS[i % len(UPPER_GEOMS)]
     self.own[side] = {"part": "torso" if part == "torso" else "head", "m": round(float(r[i]), 3)}
     return (None, clear) if refuse else (best_way, None)
-
-  def _own_model(self) -> SelfModel:
-    """The model of itself an arm is judged against its own trunk on
-    (`own_rooms`): posed by that arm's joints alone, apart from the
-    planner's, whose pose a judgment's callers go on reading -- one for
-    every robot (`_OWN`)."""
-    global _OWN
-    if _OWN is None:
-      _OWN = SelfModel()
-    return _OWN
 
   def _picked(self, sm, side: str, q0, q1, out: bool):
     """`_judged`'s way with nobody by, and how far a way dips (`_dips`; None
