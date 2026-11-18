@@ -481,6 +481,74 @@ def test_a_hold_a_gate_keeps_shut_looks_once_a_second():
   assert len(looked) <= held_s / lc.EVENTS_CHECK_S + 2, (len(looked), held_s)
 
 
+def test_a_break_takes_a_queued_ask_under_that_rows_name():
+  """#730's third review: the break's ask takes an `ask` row its map queued
+  (a periodic one, say), and was labelled the message's -- the row's own
+  reason never reached the mind. It is named as that row's ask would be;
+  the message is in its context either way."""
+  every = ev.Row(event="every", action=ev.ASK, value=900.0)
+  life, _ = _life_asked(ASKS, every, answers=[_answer("charge")])
+  life.queued_row = every
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert life._asked_by == {"event": "every", "kind": "", "value": 900.0}
+  assert [r["id"] for r in life.replies] == ["m_1"] and life.queued_row is None
+
+
+def test_an_interrupts_ask_spends_the_stamp_it_stands_for():
+  """#730's third review: a row's stamp is spent by the ask it stands for,
+  and an interrupt's ask is one; left unspent, a later break's ask took it
+  for its own and the clock stayed at the old stamp."""
+  life, _ = _life_asked(ASKS, answers=[{"continue_errand": True, "reason": "fine"}])
+  life._stamp_ask()
+  assert life._stamp_unspent
+  life._errand_name = "a job"
+  life.body.run(life._ask_interrupt_routine(ev.Row(event="battery_below", value=0.5,
+                                                   action=ev.ASK)))
+  assert not life._stamp_unspent
+
+
+def test_a_message_shown_before_the_map_saw_it_is_owed_as_the_map_would_owe_it():
+  """#730's third review: a person's message that reached the inbox just
+  before an ask was shown in it, so the map never fired for it and nothing
+  owed it an answer -- answered past, that person waited out the charge."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                            _answer("charge", to="m_2")])
+  _say(life, 1)
+  life._next_events_check = 0.0
+  life._events_step()                       # the map has seen m_1
+  _say(life, 2)                             # ...and not m_2, as the ask is made
+  life.body.run(life._decide_routine())     # m_1 answered, and a charge chosen
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "not broken for m_2"
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2"]
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+@pytest.mark.parametrize("gate", ["busy", "cooloff", "budget", "allowance"])
+def test_the_rule_names_every_gate_a_break_waits_behind(gate):
+  """#730's third review: the rule said a person's message is asked about
+  while the robot charges, and a gate shut kept the message waiting for the
+  charge's end: the rule names each gate `can_ask` waits behind, in the
+  words a failed decision is named by."""
+  life, _ = _life_asked(ASKS)
+  boss = life.overseer
+  if gate == "busy":
+    boss._in_flight = True
+  elif gate == "cooloff":
+    boss._cooloff_until = boss.clock() + 1e9
+  elif gate == "budget":
+    boss.budget_left = lambda: 0
+  else:
+    boss._allowance_ok = lambda: False
+  assert not boss.can_ask()
+  rule = ov.EVENT_MAP_RULE
+  said = rule[rule.index("A PERSON'S MESSAGE REACHES YOU"):]
+  said = said[:said.index("\n\n")]
+  assert f"`{gate}`" in said and gate in ov.FALLBACK_REASONS
+
+
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
   """N = 1 (#730, written first): with the endpoint down, a message is asked
   about once -- the last build retried it, and a retry spent on `busy` lost

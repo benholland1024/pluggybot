@@ -13,13 +13,15 @@ observatory is NOT a result: it reports into the issue it informs.
 ### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `b4d1ec1f…` (69,557
-characters, 17 sections, `loop-staging` e629cddd) becomes `8f386693…`
-(70,051, 17 sections). The event map's rule says a person's message
+characters, 17 sections, `loop-staging` e629cddd) becomes `12e26802…`
+(70,212, 17 sections). The event map's rule says a person's message
 reaches a robot while it charges where its `message_received` rule asks,
-that it is asked with its plug in, what a `charge`, a stand-still answer
+that it is asked with its plug in unless asking is held off (`busy`,
+`cooloff`, `budget`, `allowance`), what a `charge`, a stand-still answer
 and a move then do, and that a failed answer goes on charging, its order
-running once the charge ends; and its two sentences that said every other
-`ask` waits until the robot is free now say this one does not. The session
+running once the charge ends unless a new question comes first; and its
+two sentences that said every other `ask` waits until the robot is free
+now say this one does not. The session
 host's hello `a61b6376…` is unmoved. History gains two lines, each said
 once a charge: `charge: a message came in at N%, and I am asked with my
 plug still in`, and `charge: no answer came (<why>) at N% -- back on my

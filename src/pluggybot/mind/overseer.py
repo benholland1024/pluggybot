@@ -2677,10 +2677,12 @@ whatever you had done is scored as it stands.
 
 ⚠ A PERSON'S MESSAGE REACHES YOU WHILE YOU CHARGE, where your \
 `message_received` rule says `ask`: you are asked then, with your plug \
-still in. `charge` carries on charging where you are, what you do standing \
-still leaves the plug in, and anything that moves you takes it out first. If \
-no answer comes, you carry on charging, and what you have set for a failed \
-decision happens once the charge ends.
+still in -- unless asking you is held off (`busy`, `cooloff`, `budget` or \
+`allowance`, above), and then it waits for the charge to end. `charge` \
+carries on charging where you are, what you do standing still leaves the \
+plug in, and anything that moves you takes it out first. If no answer \
+comes, you carry on charging, and what you have set for a failed decision \
+happens once the charge ends, unless a new question comes first.
 
 ⚠ A RULE CAN FAIL, AND NOTHING WILL STOP IT. There is no check on the list \
 you write; the actions are simply attempted, and an action that cannot \
