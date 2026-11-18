@@ -1137,18 +1137,34 @@ def test_a_line_sent_again_to_the_same_process_is_answered(tmp_path):
     life.body.close()
 
 
-def test_no_line_is_taken_awake_once_a_stop_is_asked(tmp_path):
-  """...as in a pause: what an ending process takes, the site may never
-  hear acknowledged, and the line left goes with it to be sent again."""
-  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+def test_no_line_is_taken_awake_once_a_stop_is_asked(tmp_path, monkeypatch):
+  """...as in a pause, and a line at a time (a deploy's signal lands between
+  any two): what an ending process takes, the site may never hear
+  acknowledged, and the line left goes with it to be sent again."""
+  d = desk.Desk(tmp_path / "tickets")
+  d.open("bug", "left over", "from yesterday", t=1.0)
+  d.open("idea", "two", "second", t=2.0)
   life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
   sent = _events(life)
+  real = life._ticket_close
   try:
     life.stopping = "SIGTERM"
     life.inbox.offer(_close("tc_1"))
     life._visitor_step()
     assert len(life.inbox) == 1 and not _acks(sent, "tc_1")
     assert life.tickets.get("tk_0001").open
+    life.stopping = ""
+
+    def close_then_stop(msg):
+      real(msg)
+      life.stopping = "SIGTERM"
+
+    monkeypatch.setattr(life, "_ticket_close", close_then_stop)
+    life.inbox.offer(_close("tc_2", ticket="tk_0002"))
+    life._visitor_step()                       # tc_1, still queued, then tc_2
+    assert [m["outcome"] for m in _acks(sent, "tc_1")] == ["closed"]
+    assert not _acks(sent, "tc_2") and life.tickets.get("tk_0002").open, \
+      "the line after the stop was taken"
   finally:
     life.body.close()
 

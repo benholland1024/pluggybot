@@ -1712,10 +1712,12 @@ an arbitration pass -- minutes after the send, mid-errand -- or, while the
 world is paused, the next slice of the pause, a quarter second: #729). A website
 should hold a reply or a close until the `ticket` event with its `ref`
 arrives, and re-send an unacknowledged one on the next connect, bounded,
-as it re-sends a visitor's message: the sim dedupes by message id within
-a process, and an operator's reply by its id on the desk across a restart
-(#729, `again`), a replayed close pays nothing, and an `unknown` settles the
-row for good. A delete is best effort and the `tickets` snapshot is the
+as it re-sends a visitor's message: the desk takes each line once, a
+reply by its id across a restart too (#729, `again`), a replayed close pays
+nothing, and an `unknown` settles the row for good. ⚠ The sim answers
+every copy, the same process's too (#729: the inbox drops a repeated id as
+a replay for every other kind, and a reconnect drains what the publisher
+had queued, so a lost acknowledgement was never sent again). A delete is best effort and the `tickets` snapshot is the
 repair.
 
 ### 0.21.0, additive: the eye -- a `look` event per picture the robot asked for, and the `image` inbound kind

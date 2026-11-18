@@ -1652,10 +1652,11 @@ save a filmstrip PNG named after the script.
   `ticket_close` / `ticket_delete`), ⚠ TAKEN IN A PAUSE TOO, every robot's
   on its own desk, none once a stop is asked (#729; `_ticket_lines_step` in
   `_mode_step`'s slice): taken at a pass alone, ten lines sent while paused
-  were lost to a restart; ⚠ one the desk fails on is `refused`, said, and
-  never ends the run; ⚠ a reply sent again after its acknowledgement was
-  lost is answered `again`, never put twice (`Desk.taken`, off the `ref`
-  the desk keeps). A close PAYS the `ticket` row ONCE through
+  were lost to a restart; ⚠ one the desk fails on is `refused`, said, the
+  desk as it was (a write it cannot make rolls back), and never ends the
+  run; ⚠ EVERY COPY IS ANSWERED, the same process's too (the inbox drops
+  no ticket line as a replay): a reply sent again `again`, never put twice
+  (`Desk.taken`, off the `ref` the desk keeps). A close PAYS the `ticket` row ONCE through
   `scoring.evaluate` + `_bank` (a replayed close answers `paid: false`; ⚠ NOT
   the visitor tier's `settle`: a true death restarts the ledger's `seq`). ⚠
   CLOSES ARE ORDERED BY THE DESK'S OWN COUNT (one from before the count by

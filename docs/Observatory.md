@@ -28,11 +28,12 @@ top of every arbitration pass, as before, and in every slice of a pause,
 each robot's on its own desk, none once a stop is asked; the `ticket`
 event acknowledging one leaves while paused. A line the desk fails on is
 `refused`, `sender: "operator"` (its error's class on the wire, its
-message in the console), taken again if sent again, and never ends the
-run; before, an exception there ended it. A reply sent again after its
-acknowledgement was lost is answered `replied` with `again: true` and put
-on the thread once (the desk keeps each operator line's `ref`); before,
-a copy sent to the next process landed twice.
+message in the console), the desk as it was, and never ends the run;
+before, an exception there ended it. Every copy of a line is answered,
+the same process's too: a reply sent again is `replied` with `again:
+true` and put on the thread once (the desk keeps each operator line's
+`ref`), where before a copy sent to the next process landed twice and one
+sent to the same process was dropped unanswered.
 
 **Measured**: nothing flown (no physics moves); pinned on the stub and over
 a real socket (`tests/test_tickets.py`). On the wake of 11-13, the case it

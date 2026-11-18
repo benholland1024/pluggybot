@@ -660,13 +660,16 @@ alone, a line sent while paused waited in the inbox, in memory: on
 during it lost all ten lines once the site's three deliveries were spent,
 the site listed the tickets closed, and both desks stayed full, refusing
 the robots 33 new tickets in four days. None is taken once a stop is
-asked (the ending process might not get its acknowledgement out, and a
-reply sent again to the next one would land twice), and a line the desk
-fails on is answered `refused`, its error said, and never ends the run
-(taken again if sent again; never once its acknowledgement has gone out).
-A reply sent again after its acknowledgement was lost is answered `again`
-and never put on the thread twice: the desk keeps the id each operator
-line came in under (`Desk.taken`), which the robot is never shown.
+asked, awake or paused (the ending process might not get its
+acknowledgement out, and a reply sent again to the next one would land
+twice). A line the desk fails on never ends the run: a write the desk
+cannot make leaves it as it was, the line is answered `refused` and its
+error said, and a copy sent again is taken whole; one that failed after
+the desk had it is acknowledged as taken. Every copy of a line is
+answered, the same process's too (the inbox drops no ticket line as a
+replay): a reply sent again is answered `again` and never put on the
+thread twice, since the desk keeps the id each operator line came in
+under (`Desk.taken`, never shown to the robot), and a close `paid: false`.
 Everything else sent while paused (a person's message, a rating, a
 reach-in) still waits for the wake.
 
