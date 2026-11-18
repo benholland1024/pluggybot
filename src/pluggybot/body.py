@@ -606,11 +606,11 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def hand_reaches(self, side: str, pos, rot=None, verb: bool = False) -> bool:
     """Whether `reach_routine` would plan a hand's grip to `pos` (the
-    believed world frame) at the turn `rot`, or any -- asked of its model of
-    itself, nothing moved: what a reach out of reach says of the other hand
-    (#493). `verb`: as a procedure's reach would plan it now, from the
-    posture the body is in alone where the other hand is out holding
-    something (#719); else from any posture."""
+    believed world frame) at the turn `rot`, or any, its arm kept off its own
+    trunk (#726) -- asked of its model of itself, nothing moved: what a reach
+    out of reach says of the other hand (#493). `verb`: as a procedure's
+    reach would plan it now, from the posture the body is in alone where the
+    other hand is out holding something (#719); else from any posture."""
 
   @abc.abstractmethod
   def step_routine(self, ahead: float, left: float = 0.0, turn: float = 0.0,

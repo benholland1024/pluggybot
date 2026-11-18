@@ -210,7 +210,7 @@ def _at_lever():
   r = _standing_reach()
   r.q_cmd["left"], r.phase["left"] = AT_LEVER.copy(), "hold"
   plan_ = ((0.0, 0.0, 0.0), LEVER_AGAIN.copy(), LEVER_AGAIN.copy(), True)
-  r._planned = lambda side, goal, approach, postures, flip: (plan_, goal)
+  r._planned = lambda side, goal, approach, postures, flip: (plan_, goal, None)
   return r, HandGoal(np.array([0.3, 0.1, 0.9]), None, 1.0)
 
 
