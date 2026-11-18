@@ -1656,8 +1656,9 @@ save a filmstrip PNG named after the script.
   desk as it was (a write it cannot make rolls back), and never ends the
   run; ⚠ EVERY COPY OF A LINE TAKEN IS ANSWERED, the same process's too
   (the inbox drops no ticket line as a replay, only a copy still queued): a
-  reply sent again `again`, not put twice (`Desk.taken`, off the `ref` the
-  desk keeps). A close PAYS the `ticket` row ONCE through
+  reply sent again `again`, not put twice (`Desk.taken`, off the ids the
+  desk keeps apart from the thread, `Ticket.refs`); ⚠ a stop
+  (`MissionAborted`) is never caught as a desk failure. A close PAYS the `ticket` row ONCE through
   `scoring.evaluate` + `_bank` (a replayed close answers `paid: false`; ⚠ NOT
   the visitor tier's `settle`: a true death restarts the ledger's `seq`). ⚠
   CLOSES ARE ORDERED BY THE DESK'S OWN COUNT (one from before the count by

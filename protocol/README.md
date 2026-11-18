@@ -1688,7 +1688,9 @@ deleted ticket's number is gone); a consumer keys a ticket by (`robot`,
 `goals` slot, for the `goals` reason) -- `{robot, t, tickets: [...]}`, the
 robot's OPEN tickets whole (`id`, `kind`, `title`, `text`, `t`, `state`,
 `thread: [{sender, from, text, t}]`, an operator's line with the `ref` it
-was taken from since #729, and the close fields, null while open). A website reconciles off it: a ticket it erased while the sim was
+was taken from since #729, `refs` -- the ids of the operator's lines the
+desk took, the newest 32, kept after the thread lets a line go (#729) --
+and the close fields, null while open). A website reconciles off it: a ticket it erased while the sim was
 away it says so again (`ticket_delete`); one it never saw it takes back.
 ⚠ It rides the first physics step after a connect, and a paused world
 steps none: a website that connects during a pause reads it at the wake.

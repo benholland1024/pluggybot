@@ -144,10 +144,11 @@ def test_a_write_the_store_refuses_leaves_the_desk_as_it_was(tmp_path, monkeypat
   monkeypatch.setattr(d.store, "write", full)
   with pytest.raises(OSError):
     d.open("idea", "two", "second", t=1.5)
-  assert d.open_ids() == ("tk_0001",) and d.seq == 1, "the robot's own verb too"
+  assert d.open_ids() == ("tk_0001",) and d.seq == 2, \
+    "the robot's own verb too, and its id spent: ids never repeat"
   with pytest.raises(OSError):
     d.reply("tk_0001", "which board?", 2.0, sender=desk.OPERATOR, who="ben", ref="tr_1")
-  assert d.get("tk_0001").thread == [] and d.taken("tk_0001", "tr_1") is None
+  assert d.get("tk_0001").thread == [] and not d.taken("tk_0001", "tr_1")
   with pytest.raises(OSError):
     d.close("tk_0001", by="ben", text="done", t=3.0)
   assert d.get("tk_0001").open and d.closes == 0 and d.get("tk_0001").closed_by == ""
@@ -163,8 +164,7 @@ def test_a_write_the_store_refuses_leaves_the_desk_as_it_was(tmp_path, monkeypat
   assert (d.get("tk_0001").points, d.get("tk_0001").seq) == (None, None)
   monkeypatch.undo()
   for i in range(desk.MAX_CLOSED):                  # one more closed than kept
-    d.open("idea", f"t{i}", "more", t=5.0 + i)
-    d.close(f"tk_{i + 2:04d}", by="ben", text="", t=6.0 + i)
+    d.close(d.open("idea", f"t{i}", "more", t=5.0 + i).id, by="ben", text="", t=6.0 + i)
   monkeypatch.setattr(d.store, "remove", full)
   with pytest.raises(OSError):
     d.trim()
@@ -1148,6 +1148,76 @@ def test_a_line_sent_again_to_the_same_process_is_answered(tmp_path):
     assert [(m["outcome"], m.get("paid")) for m in _acks(sent, "tc_1")] == [
       ("closed", True), ("closed", False)]
     assert [x.text for x in life.tickets.get("tk_0001").thread] == ["which board?"]
+  finally:
+    life.body.close()
+
+
+def test_a_reply_sent_again_after_the_thread_let_it_go_is_still_answered(tmp_path):
+  """#729's fifth review: the robot's own lines push an operator's out of
+  the thread's newest eight, so the desk keeps the ids it took apart from
+  the thread (`Ticket.refs`): a copy sent after that is still answered
+  `again`, never put on the thread a second time."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  line = {"type": "ticket_reply", "id": "tr_1", "from": "ben", "ticket": "tk_0001",
+          "text": "which board?"}
+  try:
+    life.inbox.offer(line)
+    life._visitor_step()
+    for i in range(desk.MAX_THREAD):
+      life.tickets.reply("tk_0001", f"more on it, {i}", 2.0 + i, sender=desk.ROBOT)
+    assert "which board?" not in [x.text for x in life.tickets.get("tk_0001").thread]
+    life.inbox.offer(line)
+    life._visitor_step()
+    assert [(m["outcome"], m.get("again")) for m in _acks(sent, "tr_1")] == [
+      ("replied", None), ("replied", True)]
+    assert "which board?" not in [x.text for x in life.tickets.get("tk_0001").thread]
+    assert desk.Desk(tmp_path / "tickets").taken("tk_0001", "tr_1"), "kept on the record"
+  finally:
+    life.body.close()
+
+
+def test_a_stop_raised_while_a_line_is_taken_is_never_called_a_desk_failure(tmp_path):
+  """#729's fifth review: the guard that keeps a line from ending the run
+  must not swallow a stop (`MissionAborted`), which every routine lets
+  through (`run_errand`'s rule)."""
+  from pluggybot.tick import MissionAborted
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+
+  def stop(t, line):
+    raise MissionAborted("stopping: SIGTERM")
+
+  life.say_hooks.append(stop)
+  try:
+    life.inbox.offer(_close("tc_1"))
+    with pytest.raises(MissionAborted):
+      life._visitor_step()
+    assert not [m for m in sent if m.get("outcome") == "refused"]
+  finally:
+    life.body.close()
+
+
+def test_a_close_whose_pay_the_desk_could_not_record_says_what_the_ledger_paid(tmp_path, monkeypatch):
+  """#729's fifth review: where the ledger paid and the desk's record of
+  it failed, the acknowledgement says what the ledger paid, never null."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+
+  def full(*args, **kw):
+    raise OSError(28, "No space left on device")
+
+  monkeypatch.setattr(life.tickets, "pay", full)
+  try:
+    life.inbox.offer(_close("tc_1"))
+    life._visitor_step()
+    assert [(m["outcome"], m["paid"], m["points"]) for m in _acks(sent, "tc_1")] == [
+      ("closed", True, 25)]
+    assert ledger.balance() == 25
   finally:
     life.body.close()
 

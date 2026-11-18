@@ -668,9 +668,10 @@ error said, and a copy sent again is taken whole; one that failed after
 the desk had it is acknowledged as taken. Every copy of a line taken is
 answered, the same process's too (the inbox drops no ticket line as a
 replay, only a copy of one still queued): a reply sent again is answered
-`again` and not put on the thread twice while the thread keeps it, since
-the desk keeps the id each operator line came in under (`Desk.taken`,
-never shown to the robot), and a close `paid: false`. ⚠ What fails after
+`again` and not put on the thread twice, since the desk keeps the ids of
+the operator's lines it took (`Ticket.refs`, the newest 32, apart from the
+thread its own lines push them out of; `Desk.taken`; never shown to the
+robot), and a close `paid: false`. ⚠ What fails after
 the desk took a line (the ledger's pay, History) is said in the console
 and not repaired: the line was taken and acknowledged, and a copy sent
 again is answered as one taken.

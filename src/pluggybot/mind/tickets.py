@@ -71,6 +71,9 @@ MAX_LINE = registry.BY_NAME["operator"].cap
 #: is the record and four is what the robot needs in front of it.
 MAX_THREAD = 8
 THREAD_SHOWN = 4
+#: The operator's line ids a ticket keeps as taken (`Ticket.refs`): many
+#: more than a website holds owed at once.
+MAX_REFS = 32
 #: Closed tickets kept in the record (the newest), and how many the
 #: context shows with their closing message -- what came of asking is
 #: the one thing that teaches what is worth asking.
@@ -176,6 +179,10 @@ class Ticket:
   seq: int | None = None
   #: Did the REPORT arrive longer than `MAX_TEXT`? `Line.cut`'s terms.
   cut: bool = False
+  #: The ids of the operator's lines the desk took for it, newest last, at
+  #: most `MAX_REFS` (#729): what `Desk.taken` answers by after the line
+  #: itself has left the thread (the robot's own lines push it out).
+  refs: list[str] = field(default_factory=list)
 
   @property
   def open(self) -> bool:
@@ -188,7 +195,8 @@ class Ticket:
             "closedBy": self.closed_by, "closedText": self.closed_text,
             "closedCut": self.closed_cut,
             "closedT": self.closed_t, "closedN": self.closed_n,
-            "points": self.points, "seq": self.seq, "cut": self.cut}
+            "points": self.points, "seq": self.seq, "cut": self.cut,
+            **({"refs": list(self.refs)} if self.refs else {})}
 
   @classmethod
   def from_record(cls, rec: dict) -> "Ticket":
@@ -206,7 +214,8 @@ class Ticket:
                closed_t=rec.get("closedT"),
                closed_n=(None if rec.get("closedN") is None else int(rec["closedN"])),
                points=rec.get("points"), seq=rec.get("seq"),
-               cut=bool(rec.get("cut")))
+               cut=bool(rec.get("cut")),
+               refs=[str(r) for r in rec.get("refs", ()) if r][-MAX_REFS:])
 
   def as_dict(self) -> dict:
     """The wire's shape: the record, whole (the `tickets` message)."""
@@ -327,11 +336,8 @@ class Desk:
       self._save_counter()
       self._save(ticket)
     except Exception:
-      # never a ticket the record lacks (#729's review), its slot held and
-      # its id spent; an id the counter's file took stays spent
-      del self.tickets[ticket.id]
-      self.seq -= 1
-      raise
+      del self.tickets[ticket.id]        # never a ticket the record lacks;
+      raise                              # its id stays spent (ids never repeat)
     return ticket
 
   def reply(self, ticket_id: str, text: str, t: float,
@@ -350,22 +356,28 @@ class Desk:
       raise self._refuse(["a reply says something: `text` is empty"])
     if sender not in TICKET_SENDERS:
       raise ValueError(f"a thread line's sender is one of {TICKET_SENDERS}")
-    before = list(ticket.thread)
-    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut,
-                              _clean(ref, 64)))
+    before, refs = list(ticket.thread), list(ticket.refs)
+    ref = _clean(ref, 64)
+    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut, ref))
     del ticket.thread[:-MAX_THREAD]
+    if ref:
+      ticket.refs = (ticket.refs + [ref])[-MAX_REFS:]
     try:
       self._save(ticket)
     except Exception:
-      ticket.thread[:] = before          # never a line the record lacks (#729)
+      ticket.thread[:], ticket.refs = before, refs   # never a line the record lacks
       raise
     return ticket
 
-  def taken(self, ticket_id: str, ref: str) -> Line | None:
-    """The operator's line on the ticket's thread taken from the inbound
-    message `ref` (#729), open or closed, or None. ⚠ Only while the thread
-    keeps it, its newest `MAX_THREAD` lines: a copy sent after the line has
-    gone from it is taken again."""
+  def taken(self, ticket_id: str, ref: str) -> bool:
+    """Did the desk take the operator's line `ref` for this ticket, open or
+    closed (#729)? Off `Ticket.refs`, so a line the thread has since let go
+    of is still known: a copy sent again is answered, never put twice."""
+    ticket = self.get(ticket_id)
+    return ticket is not None and bool(ref) and ref in ticket.refs
+
+  def line(self, ticket_id: str, ref: str) -> Line | None:
+    """The operator's line `ref` on the ticket's thread, while it keeps it."""
     ticket = self.get(ticket_id)
     if ticket is None or not ref:
       return None

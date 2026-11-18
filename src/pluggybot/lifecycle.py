@@ -4006,6 +4006,8 @@ class HubLifecycle:
         said = len(self.ticket_events)
         try:
           apply(msg)
+        except MissionAborted:
+          raise                                   # a stop, never the desk's
         except Exception as e:                    # noqa: BLE001 -- see docstring
           self._ticket_failed(msg, e, said)
 
@@ -4038,14 +4040,16 @@ class HubLifecycle:
     hold, or one already closed, is answered `unknown` -- the fate that
     stops a website re-sending it."""
     who = msg.who or "the operator"
-    was = self.tickets.taken(msg.ticket, msg.id)
-    if was is not None:
+    if self.tickets.taken(msg.ticket, msg.id):
       # ⚠ TAKEN ALREADY (#729): sent again, its acknowledgement lost --
-      # answered again, `again`, and never put on the thread twice
+      # answered again, `again`, and never put on the thread twice; as it
+      # was taken while the thread keeps it, else as it came
+      was = self.tickets.line(msg.ticket, msg.id)
       self._ticket_event("replied", self.tickets.get(msg.ticket),
-                         sender=tickets_desk.OPERATOR, **{"from": was.who},
-                         text=was.text, ref=msg.id, again=True,
-                         **({"cut": True} if was.cut else {}))
+                         sender=tickets_desk.OPERATOR,
+                         **{"from": was.who if was else who},
+                         text=was.text if was else msg.text, ref=msg.id,
+                         again=True, **({"cut": True} if was and was.cut else {}))
       return
     try:
       ticket = self.tickets.reply(msg.ticket, msg.text, float(self.data.time),
@@ -4089,6 +4093,7 @@ class HubLifecycle:
                          verb="ticket_close")
       self._say(f"TICKET close from {who} ignored: no ticket {msg.ticket!r}")
       return
+    entry = None
     try:
       if changed:
         # Measured off the desk AFTER the close was applied (`sample_ticket`),
@@ -4112,10 +4117,13 @@ class HubLifecycle:
         self._occur("ticket_replied")
     finally:
       # ⚠ ACKNOWLEDGED ONCE THE DESK HAS IT, WHATEVER FAILS AFTER (#729): a
-      # `refused` would have it sent again, and the copy finds it closed
+      # `refused` would have it sent again, and the copy finds it closed;
+      # what the ledger paid said where the desk's record of it failed
+      paid = entry if ticket.points is None and entry is not None else {
+        "points": ticket.points, "seq": ticket.seq}
       self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
-                         text=ticket.closed_text, points=ticket.points,
-                         seq=ticket.seq, ref=msg.id, paid=changed,
+                         text=ticket.closed_text, points=paid["points"],
+                         seq=paid["seq"], ref=msg.id, paid=changed,
                          **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:
