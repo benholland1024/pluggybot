@@ -24,8 +24,8 @@ running once the charge ends unless a new question comes first; and its
 two sentences that said every other `ask` waits until the robot is free
 now say this one does not. The session
 host's hello `a61b6376…` is unmoved. History gains two lines, each said
-once a charge: `charge: a message came in at N%, and I am asked with my
-plug still in`, and `charge: no answer came (<why>) at N% -- back on my
+once a charge: `charge: at N% a message waits for an answer, and I am
+asked with my plug still in`, and `charge: no answer came (<why>) at N% -- back on my
 charge, and <action> once it ends` (a failed call only).
 
 **The change** (Overseer.md §10, "A robot answers while it charges";
@@ -40,7 +40,10 @@ charge`, whether the `charge` answered carries it on or the pack fills
 while the robot stands still or the run ends; cut short of full by a
 move, the run's end or a plug that came out, its row alone. A message is asked about once, by the first call
 that held it, and a message in an ask's context fires no `message_received`
-after it (one did, a tick later, and paid for a second ask).
+after it (one did, a tick later, and paid for a second ask). ⚠ A
+`message_received` row dropped `busy` (the slot full) as the robot charges
+is still asked by a break: that `busy` counts the slot, never a message
+left unasked.
 
 **What the period is for.**
 - **The acceptance**: a person's message during a charge answered in the

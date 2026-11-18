@@ -125,7 +125,9 @@ def test_a_message_is_answered_plugged_in_and_the_charge_carries_on_as_one():
   assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.002), row["metrics"]
   assert told.count(("task_complete", "charge")) == 1
   assert unplugs and min(unplugs) >= lc.CHARGED, unplugs
-  assert any("a message came in" in ln for ln in _history(life))
+  # ...said as a message waiting, never one come in: a message answered
+  # past before the charge breaks it too (#730's eleventh review)
+  assert any("a message waits for an answer" in ln for ln in _history(life))
 
 
 def test_a_stand_still_answer_closes_the_charge_when_the_pack_fills():
@@ -667,6 +669,47 @@ def test_a_charge_closed_full_standing_is_counted_once_across_a_restart():
   assert not _charges(after) and not after.body.on_charger
 
 
+def test_answering_the_other_robot_passes_a_persons_message_over():
+  """#730's eleventh review: an answer to somebody else left a person's
+  message owed, and the other robot's `tell` was somebody -- a mind that
+  answered the other robot at every break was asked about a person it never
+  answered at every moment of the charge. Answering the other robot passes
+  a person over as answering nobody does."""
+  answers = [_answer("charge", to=f"t_{n}") for n in (1, 2, 3)]
+  life, client = _life_asked(ASKS, answers=answers)
+  _say(life)
+  for n in (1, 2, 3):
+    life.inbox.offer({"type": "message", "id": f"t_{n}", "from": "Rowan",
+                      "text": "hello"}, sender=text_registry.PEER)
+  _charge(life)
+  for _ in range(lc.OWED_SHOWINGS + 2):
+    if life.charge_cycles:
+      break
+    _next_pass(life)
+  assert len(client.calls) == lc.OWED_SHOWINGS
+  assert [r["id"] for r in life.replies] == ["t_1", "t_2"]
+
+
+def test_a_pack_taken_down_with_the_plug_in_is_a_charge_of_its_own():
+  """#730's eleventh review: a charge closed full standing was counted, its
+  plug left in; an admin's `set_battery` took the pack down, and the charge
+  after it -- broken by a message, carried on as the pack filled in the ask
+  -- read as "full already" and was counted nowhere."""
+  life, _ = _life_asked(ASKS, answers=[_answer("idle"), _answer("charge", to="m_2")])
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.charge_cycles == 1 and life.body.on_charger
+  life.battery.energy_wh = life.battery.capacity_wh * 0.3    # the admin's
+  _say(life, 2)
+  _charge(life)
+  assert life._break_owed
+  life.battery.energy_wh = life.battery.capacity_wh * 0.95   # ...filled in the ask
+  _next_pass(life)
+  assert life.charge_cycles == 2 and len(_charges(life)) == 2
+
+
 def test_a_dead_robot_breaks_no_charge_and_is_told_it_is_asked_by_nothing():
   """#730's fifth review: a robot dead with its plug in holds its charge
   until it is stood up, and a message ended the hold: History said "I am
@@ -676,7 +719,7 @@ def test_a_dead_robot_breaks_no_charge_and_is_told_it_is_asked_by_nothing():
   _say(life)
   _charge(life)
   assert life.charge_cycles == 1 and not client.calls
-  assert not any("a message came in" in ln for ln in life.log)
+  assert not any("a message waits" in ln for ln in life.log)
 
 
 def test_a_break_is_asked_before_the_station_is_cleared():
@@ -796,7 +839,7 @@ def test_a_visitor_writing_through_every_think_is_said_once():
     _next_pass(life)
   assert [r["id"] for r in life.replies] == ["m_1", "m_2", "m_3", "m_4"]
   history = _history(life)
-  said = [ln for ln in history if "a message came in" in ln or "for a message" in ln]
+  said = [ln for ln in history if "a message waits" in ln or "for a message" in ln]
   assert len(said) == 1, said
   assert not any("took no time" in ln for ln in history), history
   assert life.charge_cycles == 1 and len(_charges(life)) == 1

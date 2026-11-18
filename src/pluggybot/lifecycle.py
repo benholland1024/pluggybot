@@ -487,10 +487,11 @@ VISITORS_SHOWN = 5
 #: ...of these inbound kinds alone: a person's message or the other robot's
 #: `tell`, never what code drains (a rating, a reach-in, a ticket's line).
 SHOWN_KINDS = ("message",)
-#: How many answers that answered nobody a person's message may be shown in
-#: before a charge's hold no longer ends for it (#730, `_asked_about`): an
-#: answer to somebody else leaves it owed, and a mind that ignores it is
-#: asked about it no more than this -- each break a paid call.
+#: How many answers that answered no person a person's message may be shown
+#: in before a charge's hold no longer ends for it (#730, `_asked_about`): an
+#: answer to another person leaves it owed, and a mind that passes it over --
+#: answering nobody, or the other robot -- is asked about it no more than
+#: this, each break a paid call.
 OWED_SHOWINGS = 2
 
 
@@ -1451,8 +1452,9 @@ class HubLifecycle:
     self._death_step()
     self._restart_step()
     self._open_charge_step()
-    if self._charged_plugged and not self.charging_now:
-      self._charged_plugged = False
+    if self._charged_plugged and (not self.charging_now
+                                  or self.battery.fraction < CHARGED):
+      self._charged_plugged = False         # ...a pack taken down is a charge of its own
 
   def _near_field_step(self) -> None:
     """One depth frame, at the sensor's rate, to its two consumers.
@@ -3128,13 +3130,14 @@ class HubLifecycle:
     self._open_charge = before
     self._break_owed = True
     frac = f"{self.battery.fraction:.0%}"
-    self._say(f"CHARGE: a message came in at {frac} -- I am asked with my plug in",
-              doing="CHARGE: a message came in -- I am asked with my plug in")
+    self._say(f"CHARGE: at {frac} a message waits for an answer -- I am asked "
+              "with my plug in",
+              doing="CHARGE: a message waits for an answer -- I am asked with my plug in")
     said = before.setdefault("said", set())
     if "break" not in said:
       said.add("break")
-      self._remember(f"charge: a message came in at {frac}, and I am asked with "
-                     "my plug still in")
+      self._remember(f"charge: at {frac} a message waits for an answer, and I "
+                     "am asked with my plug still in")
 
   def _open_charge_step(self) -> None:
     """A charge a message left open closes on the seam where nothing carries
@@ -6417,15 +6420,20 @@ class HubLifecycle:
     outage, whatever came of it); an answer takes the message it answered,
     and leaves the others it held owed -- it answers one a turn, and taken
     off with it, a second person waited out the charge -- unless it answered
-    nobody, which counts against each (`OWED_SHOWINGS`)."""
+    no person, which counts against each (`OWED_SHOWINGS`): answering the
+    other robot at every break, a mind was asked about a person it never
+    answered at every moment of a charge."""
     for msg_id in newly:
       self._owed.setdefault(msg_id, 0)
     answered = (decision.respond_to
                 if not decision.scripted and decision.responds else "")
+    person = bool(answered) and self.inbox is not None and any(
+      m.id == answered and m.sender == text_registry.VISITOR
+      for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS))
     for msg_id in shown & self._owed.keys():
       if decision.scripted or msg_id == answered:
         del self._owed[msg_id]
-      elif not answered:
+      elif not person:
         self._owed[msg_id] += 1
         if self._owed[msg_id] >= OWED_SHOWINGS:
           del self._owed[msg_id]

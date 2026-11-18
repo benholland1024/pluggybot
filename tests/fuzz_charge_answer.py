@@ -17,7 +17,8 @@ every step (`Watch`):
      is lost: answered, shown in a call, still waiting, or put out of the
      full queue and said so (`dropped`, as it always was);
   5. no call is made for a message the model answered, and none for one
-     an answer to nobody has met `OWED_SHOWINGS` times.
+     answers to no person (nobody, or the other robot) have passed over
+     `OWED_SHOWINGS` times.
 
 Not collected (no `test_` prefix): `test_charge_answer.py` flies a cheap
 seeded slice of it in the default run. The thousands of seeds #730's PR
@@ -320,10 +321,12 @@ class Watch:
         if msg_id in self.answered:
           self.fail(f"asked again for {msg_id}, answered already")
         self.asked_for[msg_id] = self.asked_for.get(msg_id, 0) + 1
-        if not decision.scripted and not decision.responds:
-          # ...an answer to nobody counts against it: a mind that ignores a
-          # message is asked about it no more than `OWED_SHOWINGS` times (an
-          # answer to somebody else answers a message the queue then loses)
+        if not decision.scripted and not (decision.responds
+                                          and decision.respond_to in self.offered):
+          # ...an answer to no person counts against it: a mind that passes
+          # a message over -- answering nobody, or the other robot -- is
+          # asked about it no more than `OWED_SHOWINGS` times (an answer to
+          # another person answers a message the queue then loses)
           self.nobody_for[msg_id] = self.nobody_for.get(msg_id, 0) + 1
           if self.nobody_for[msg_id] > lc.OWED_SHOWINGS:
             self.fail(f"{self.nobody_for[msg_id]} answers to nobody asked for {msg_id}")
@@ -468,7 +471,8 @@ def fly(seed: int, sim_s: float = 900.0, pair: bool = False) -> dict:
   return {"seed": seed, "pair": pair, "simS": round(float(data.time), 1),
           "wallS": round(time.monotonic() - wall0, 2),
           "calls": [len(m.calls_made) for _, m, _ in robots],
-          "breaks": [sum(1 for ln in life.log if "a message came in" in ln) for life in lives],
+          "breaks": [sum(1 for ln in life.log if "a message waits for an answer" in ln)
+                     for life in lives],
           "episodes": [len(w.episodes) for w in watches],
           "deaths": [len(life.deaths) for life in lives],
           "dropped": [len(w.dropped) for w in watches]}
