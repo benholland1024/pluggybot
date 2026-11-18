@@ -435,7 +435,8 @@ def fly(seed: int, sim_s: float = 900.0, pair: bool = False) -> dict:
         life.inbox.offer({"type": "reset_robot", "from": "admin"})
       elif roll < 0.85 and first.mode is not None:
         first.mode.mode = "scripted" if first.mode.mode == "llm" else "llm"
-      elif roll < 0.92:
+      elif roll < 0.92 and not life.body.on_charger:
+        # ...a hungry stretch (never with the plug in: a pack charging falls not)
         life.battery.energy_wh = max(0.0, life.battery.energy_wh - life.battery.capacity_wh * 0.2)
     for w in watches:
       w.step()
