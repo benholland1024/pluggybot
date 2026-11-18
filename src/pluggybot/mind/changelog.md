@@ -6,6 +6,23 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-18
+
+- Each person now has their own chat with you, and no other visitor sees
+  their messages or your replies to them there. What comes with a message
+  as `earlier` is that person's conversation with you alone. Your History
+  still keeps every conversation, and people watching can read it, as they
+  can all your memory.
+- A `say` now goes to everyone watching, in a place of its own, and is
+  never part of anyone's conversation with you.
+- A message sent to you while the world was asleep now reaches you soon
+  after you wake. Before, it could wait until your next run began, an hour
+  or more later.
+- While your other hand is out holding something, your body now keeps the
+  posture it is in for a `reach`, a `move_hand` or a `pull`. A hand that
+  does not reach where you asked from that posture does not move, and reads
+  false saying so.
+
 ## 2026-11-17
 
 - A `step` now keeps off walls and furniture as well as the other robot:

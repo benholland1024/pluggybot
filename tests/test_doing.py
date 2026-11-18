@@ -292,8 +292,23 @@ PRIVATE_DOORS = {
     lambda a: a._set_points(SimpleNamespace(who="ada_admin", points=5555)),
     ("ada_admin", "5555")),
   "an admin's reset": (_an_operators_reset, ("ada_admin", "reset me")),
-  "a visitor's line": (_a_visitor_answered, ("vera", "my plans to myself")),
+  #  ...which since rooftop-media-2026 #518 names neither whose message it
+  #  answered nor what it said (`test_inbox.py` pins that): the line itself
+  #  is still the robot's own.
+  "a visitor's line": (_a_visitor_answered, ("VISITOR message answered: replied",)),
 }
+
+
+def test_a_visitors_name_and_the_answer_are_nowhere_in_the_others_context():
+  """#518's review: the visitor door above checks the narration's generic
+  line, which no longer carries whose message it was or the answer; so
+  here the other robot's whole context is read for those, as the door read
+  it before."""
+  from pluggybot.mind.inbox import Inbox
+  a, b = stub_pair(inboxes=(Inbox(), Inbox()))
+  _a_visitor_answered(a)
+  seen = json.dumps(overseer_context(b))
+  assert "vera" not in seen.lower() and "my plans to myself" not in seen
 
 
 @pytest.mark.parametrize("door", sorted(PRIVATE_DOORS))

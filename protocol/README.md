@@ -54,6 +54,64 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, no new shape: a person's chat is their own, and the narration says neither whose nor what (rooftop-media-2026 #518)
+
+Ben's call of 2026-11-17: a chat is like texting one robot. The website
+shows each visitor only their own conversation with a robot, and the
+`earlier` it sends with a message is that person's conversation alone
+(their lines and the robot's answers to them, never another person's line
+nor a `chat` line said to everyone): the shape is as it was.
+
+What changes on the wire is the narration of an answer, which rides every
+frame as `status` and is drawn under the portrait every viewer sees. It
+said whose message it was and what the robot answered:
+
+```jsonc
+"status": "VISITOR message from ada -- replied: b is free now"   // before
+"status": "VISITOR message answered: replied"                     // now
+"status": "VISITOR message dropped: the inbox was full"           // a drop
+```
+
+The `visitor_reply` is unchanged: it carries `reply`, `from` and `id` for
+the website to settle the person's row with. The website's hub relays it to
+its viewers without those (`server/pluggyworld.ts`), as a cue that a chat
+moved. ⚠ History's two lines of an exchange (*ada said: ...*, *replied to
+ada: ...*, `record` events) are unchanged too, and say who said what to
+every viewer: the robot's memory, which the prompt says everyone watching
+can read. No bump.
+
+### 0.21.0, additive: a `mode` message says what the robot hears now (`mode.accepts`, rooftop-media-2026 #518)
+
+The header's `accepts` is what the run hears AT ITS CONNECT, narrowed by
+the operator's switch then (`FrameBuilder.hears`), and a consumer narrows
+it by each `mode` message but can never widen past it. So a link opened
+while the switch said `paused` (the schedule's night, a deploy or a
+reconnect into a pause) named no `message` for its whole life: at the wake
+the robots woke and decided, and the site held every visitor's message
+`pending` ("No robot is awake right now") until the next run's header. 6 of
+the 8 messages delivered late from 2026-10-29 to 11-15 waited so, the
+robots awake and deciding, each delivered within a second of the next run's
+start; reproduced on a local site.
+
+Every `mode` message the served process sends now carries `accepts`: what
+the run was built to hear (the header's list before the switch narrows
+it), narrowed by the mode the message announces, on the header's rule
+(`telemetry.recorder.heard`).
+
+```jsonc
+{"type": "mode", "t": 162130.5, "robot": "pluggybot", "mode": "llm",
+ "heldS": 0.0, "accepts": ["message", "rating", "reset_robot", ...]}
+```
+
+A consumer takes it as the list the run hears from then on, wider or
+narrower, until the next `mode` or header; one older than the field reads
+the message as it did. A `mode` with no `accepts` (a demo's recording, an
+older sim) leaves the list as it was. ⚠ `serve.py`'s own recording
+(`--record`) carries it on its `mode` lines and on its header (the run's
+list before the switch narrows it), where it carried none before; a demo's
+(`run_demo`) carries none on either. No bump: the field is additive, and
+no committed fixture carries a switch.
+
 ### 0.21.0, additive: every fall a row (`fall`, pluggybot #707)
 
 A fall was on the wire only as a frame's `posture` (`getting_up`) and in

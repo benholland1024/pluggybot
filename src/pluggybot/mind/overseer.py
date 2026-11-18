@@ -562,9 +562,10 @@ class Decision:
   respond_to: str = ""
   outcome: str = ""
   reply: str = ""
-  #: ...and something said in the robot's chat UNASKED (issue #485): to
-  #: everyone reading it, answering nobody. Rationed (`SAY_EVERY_S`) and
-  #: cut at a reply's length, each out loud (`lifecycle._chat`).
+  #: ...and something said UNASKED (issue #485): to everyone watching,
+  #: answering nobody, in nobody's conversation (rooftop-media-2026 #518).
+  #: Rationed (`SAY_EVERY_S`) and cut at a reply's length, each out loud
+  #: (`lifecycle._chat`).
   say: str = ""
   #: The task board (issue #21). Which offered job `take_task` means, by the
   #: id the SIM gave it. Like `respond_to`, and for the same reason: the
@@ -923,8 +924,8 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
   ("reply", "always", "HOW YOUR LIFE WORKS",
    "what goes back to whoever wrote to you."),
   ("say", "always", "HOW YOUR LIFE WORKS",
-   "something said in your chat that answers nobody; everyone reading "
-   "your chat sees it."),
+   "something said to everyone watching that answers nobody; it is never "
+   "part of anyone's conversation with you."),
   ("pin", "always", "HOW YOUR LIFE WORKS",
    "add one line to `Top_of_mind.md`, which is in front of you every turn."),
   ("unpin", "always", "HOW YOUR LIFE WORKS",
@@ -1059,8 +1060,8 @@ PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
 #: own, every one filler. ⚠ Not a field named by an everyday word (`done`,
 #: `reason`, `tell`): it may be meant there ("Done!" in the chat), and
 #: counted, it would make an answer filled and leave out the `done` it
-#: meant, so it is judged only as its own field's name (found in review;
-#: Rowan's `say` "tell:" stands). Nor in an object, judged by its own names:
+#: meant, so bare it is judged only as its own field's name (found in
+#: review; `FORM_MARKS` below). Nor in an object, judged by its own names:
 #: of the four findings named for a field, three were meant (`answer = 24
 #: -- calculated from 6×4`).
 COINED = tuple(name for name in FORM_FIELDS
@@ -1082,6 +1083,27 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
 }
+#: ...and in a field of its own, ANY field's name, everyday or coined, that
+#: the form's own separators cling to (`,` `:` and its braces): the form
+#: leaking into a field, never a sentence (`,intend` in a `say`;
+#: rooftop-media-2026 #518, docs/Overseer.md "Placeholders"). ⚠ Never in an
+#: object, whose act would go whole for a "Task:" that was meant, nor a
+#: quote or a bracket alone (`"Station"`), nor "Done!".
+FORM_MARKS = ",:{}"
+
+
+def _form_name(text) -> bool:
+  """Is `text` one of the form's field names with the form's separators on
+  it (`FORM_MARKS`)? ⚠ Never a comma after it alone: "Done," may begin a
+  sentence it never finished."""
+  said = str(text).strip().lower()
+  word = said.strip(PUNCTUATION)
+  if word not in FORM_FIELDS:
+    return False
+  before, _, after = said.partition(word)
+  return any(c in FORM_MARKS for c in before) or any(c in ":{}" for c in after)
+
+
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
 #: word in three of them is that answer's own (`keep`, `robot`, `watch_mouse`)
 #: and is read as empty wherever it is -- and the paperwork no placeholder
@@ -1134,7 +1156,8 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or (sub is None and _word(text) in COINED) or _word(text) in own]
+          or (sub is None and (_word(text) in COINED or _form_name(text)))
+          or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
   for name, sub, text in held:
@@ -2204,7 +2227,7 @@ from (`#123 #140`), when it was drawn from some.
 - RECALL is how you read what is not in front of you: a note's text, an \
 old History line, what somebody said last week, a line you unpinned. Choose \
 `recall` and set `read` to a key -- a note's `topic/title`, a whole topic, \
-`history` for more of your history, `chat` for more of your chat, \
+`history` for more of your history, `chat` for more of your chats, \
 `changelog` for the changelog, or a line's number like `#123` -- and/or \
 `find` to a few words to search for. You stand still for ten seconds and the \
 lines arrive on your next turn as `recalled`, each with its number. They \
@@ -2252,19 +2275,23 @@ answered, a greeting returned, somebody told what you are up to. Answer from \
 what you actually know -- your state, your recent tasks, what is on the \
 boards -- and if you do not know, say so. A friendly message deserves a \
 friendly answer; it does not have to become work.
-- What people say to you and what you say back are ONE chat, and everyone \
-watching can read all of it. A message comes with `earlier` when anything \
-was said in your chat before it: its last %(lines)d lines, oldest first -- \
-what people said (`from`, `text`; `dropped` means it never reached you) and \
-what you said (`you`, with `to` and `outcome` where you were answering \
-somebody). Answer as the one who said those things, not as a stranger. \
-`recall` with `read` set to `chat` shows you more of it.
-- You may also say something in your chat that answers nobody: set `say`, \
-on any answer. Everyone reading your chat sees it. Like a reply, try to \
-keep it to %(aim)d characters or fewer; it is kept up to %(chars)d. You may \
-say one such thing every %(minutes)d minutes: while you may not, \
-`sayAgainInS` says how many seconds are left, and a `say` sent anyway is \
-not said, and you are told.
+- Each person has their own chat with you, and no other visitor sees their \
+messages or your replies to them there. A message comes with `earlier` when that \
+person has said something to you before: the last %(lines)d lines of your \
+conversation with them, oldest first -- what they said (`from`, `text`; \
+`dropped` means it never reached you) and what you answered them (`you`, \
+with `to` and `outcome`). It never holds another person's lines, or what \
+you said to everyone. Answer as the one who said those things, not as a \
+stranger. Every conversation is also kept in your History, which people \
+watching can read, as they can all your memory: `recall` with `read` set to \
+`chat` shows you more of them.
+- You may also say something to everyone watching that answers nobody: set \
+`say`, on any answer. Everyone watching sees it, in a place of its own: it \
+is never part of anyone's conversation with you. Like a reply, try to keep \
+it to %(aim)d characters or fewer; it is kept up to %(chars)d. You may say \
+one such thing every %(minutes)d minutes: while you may not, `sayAgainInS` \
+says how many seconds are left, and a `say` sent anyway is not said, and you \
+are told.
 """ % {"chars": MAX_REPLY, "aim": AIM_REPLY, "lines": MAX_EARLIER,
        "minutes": round(SAY_EVERY_S / 60)}
 
