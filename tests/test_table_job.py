@@ -7,6 +7,7 @@ table`'s.
 """
 
 import math
+import re
 
 import mujoco
 import numpy as np
@@ -128,7 +129,7 @@ def test_an_offer_sets_the_place_out_and_a_settled_job_puts_it_away(tmp_path):
   life = _life(tmp_path)
   assert not _out(life), "compiled put away"
   task = _offer(life)
-  assert "The plate, the fork and the cup were set out at t=" in task.description, "says when (#659)"
+  assert "The pieces were set out at t=" in task.description, "says when (#659)"
   k = task.secret["draw"]
   so, load = ct.table_set_out(k), dw.draw(k)
   for p, (x, y, _) in so.pieces.items():
@@ -437,9 +438,98 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
     for p, (a, b) in table.SPOTS.items():
       assert f"{100 * a:g} cm out" in words, (kind, p)
       if b:
-        assert f"{100 * abs(b):g} cm {'left' if b > 0 else 'right'}" in words, (kind, p)
+        side = "left" if b > 0 else "right"
+        assert re.search(rf"\b{100 * abs(b):g} cm (?:to your )?{side}\b", words), (kind, p)
     assert f"{100 * table.PLACE_M:g} cm" in words and f"{table.HOLD_S:g} s later" in words, kind
     assert len(words.format(minutes=999, offered=99_999_999)) <= MAX_DESCRIPTION, kind
+
+
+#: The kinds whose place is laid at the table, each by its set-out.
+TABLE_KINDS = list(restaurant.SET_OUTS)
+
+
+def _offered() -> set:
+  """Every kind a world's cadence offers, its own block's or the default's,
+  off the committed `cadence.json` -- never a cached world's nor
+  `$PLUGGY_CADENCE`'s."""
+  import json
+  from pluggybot.economy import cadence
+  worlds = ["", *json.loads(cadence.CADENCE_PATH.read_text())["worlds"]]
+  return {k for w in worlds for k in cadence.Cadence.load(w, cadence.CADENCE_PATH).kinds}
+
+
+def test_the_tables_words_say_which_left_the_graders_is():
+  """#723: the grader's left is the diner's (`table.place_frame`), the left
+  of one who faces the card's face, as the robot laying the place does; so
+  each row that states the place says each side as the robot's own, and so
+  does each offered kind's sentence as it is offered -- the side read off the
+  grader's frame and `SPOTS`, never typed (why: #723's period in
+  Observatory.md)."""
+  from pluggybot.mind.overseer import Menu
+  assert {k for k, kind in KINDS.items() if kind.target_kind == "table"} == set(TABLE_KINDS), \
+    "every kind at the table has a set-out"
+  model, data = _table_world()
+  so = ct.table_set_out(0)
+  restaurant.set_out(model, data, restaurant.TABLE, so.k)
+  mujoco.mj_forward(model, data)
+  _, toward, left, _ = table.place_frame(model, data)
+  # one who faces the card's face looks against `toward`: its left is theirs
+  assert np.cross(-toward, left)[2] == pytest.approx(1.0), "a quarter turn anticlockwise"
+  facing = np.array([math.cos(so.start[2]), math.sin(so.start[2]), 0.0])
+  assert facing @ toward == pytest.approx(-1.0), "the robot at the place faces the card's face"
+  rewards = default_table()
+  served = {r["task"]: r["detail"] for r in rewards.as_context(
+    challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
+  assert served["set_table"] == rewards["set_table"].detail
+  sides = {p: ("left" if b > 0 else "right", f"{100 * abs(b):g}")
+           for p, (_, b) in table.SPOTS.items() if b}
+  offered = _offered()
+  for kind in TABLE_KINDS:
+    row = rewards[kind].detail
+    assert "as you face the card" in row, kind
+    for p, (side, cm) in sides.items():
+      assert f"{cm} cm to the line's {side} (your {side}" in row, (kind, p)
+    if kind in offered:
+      said = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
+        kind, restaurant.TABLE, 0.0).description
+      for p, (side, cm) in sides.items():
+        assert f"{cm} cm to your {side}" in said, (kind, p)
+
+
+#: "Near the card", m: an offer here sets each piece out within this of the
+#: card's foot (0.33 at the farthest a set-out draws, `counter.TABLE_SOURCES`).
+NEAR_CARD_M = 0.35
+
+
+def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
+  """#723: the place's directions say where an offer there sets the pieces
+  out -- on the table near the card, as the practice's job says they wait
+  (`practice.TABLE_JOB`) -- and that none is where it goes: true of every
+  kind a world offers at the table, over 32 set-outs, by the grader's own
+  measure. The directions are the area's, so every kind's offer there
+  carries them: one that sets its pieces out elsewhere (the pass's, #682's
+  stage C, whose row says where) is offered by no world, and offering it
+  moves these words (why: #723's period in Observatory.md)."""
+  offered = _offered()
+  here = [k for k in TABLE_KINDS if k in offered]
+  assert "set_table" in here
+  model, data = _table_world()
+  for kind in here:
+    words = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
+      kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
+    assert ("the plate, the cup and the fork are set out on the table near the card, "
+            "none of them where it goes") in words, kind
+    for k in range(32):
+      restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
+      mujoco.mj_forward(model, data)
+      got = table.measure(model, data)
+      origin, toward, left, _ = table.place_frame(model, data)
+      for p in dw.PIECES:
+        rel = data.xpos[model.body(p).id] - origin
+        assert abs(got[p]["aboveM"]) <= table.RESTING_M, (kind, k, p, "on the table")
+        assert math.hypot(rel @ toward, rel @ left) <= NEAR_CARD_M, \
+          (kind, k, p, "set out further from the card than near it: the words move with it")
+        assert got[p]["offM"] > table.PLACE_M, (kind, k, p, "where it goes")
 
 
 # ---- the place laid from the pass (#682's stage C, easy mode) ------------------------------

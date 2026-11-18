@@ -697,8 +697,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   if maker is not None and snap is None and not tasks.open_tasks():
     maker.seed(t=opened.t or 0.0, pack_wh=life.fundable_wh)
 
-  wall0 = time.monotonic()
   try:
+    # The cameras' renderer inside the memory alarm's warm-up (#713): built
+    # at a robot's first look, it is a step. In here, a failure to build it
+    # is a crash on the wire, as it was at a first look.
+    life.body.build_cameras()
+    wall0 = time.monotonic()
     r = life.run(cfg["start"], max_sim_time=args.max_sim_time,
                  explore_budget=cfg["explore_budget"], resume=snap,
                  start_over_t=opened.start_over_t)
@@ -888,8 +892,11 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   if maker is not None and snap is None and not tasks.open_tasks():
     maker.seed(t=opened.t or 0.0, pack_wh=first.fundable_wh)
 
-  wall0 = time.monotonic()
   try:
+    # Each robot's cameras here, as `serve` builds one robot's, and why.
+    for life in lives:
+      life.body.build_cameras()
+    wall0 = time.monotonic()
     results = run_pair(lives, max_sim_time=args.max_sim_time,
                        explore_budget=cfg["explore_budget"], resume=snap,
                        start_over_t=opened.start_over_t)

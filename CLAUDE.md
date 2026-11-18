@@ -352,8 +352,8 @@ save a filmstrip PNG named after the script.
   a jaw back over the door's top pressing down on it, and stopped there --
   on the whole reading at 20-40 N, or on its pull alone at 30 N -- the door
   fell more or passed fewer. ⚠ It reads a push on the robot's own body as
-  the world's (a way out from a hand already out, judged against nothing,
-  drove a gripper into the torso: 46-61 N; SimNotes). ⚠ OUR DOOR'S AND LID'S
+  the world's (a gripper driven into the torso stopped there at 46-61 N;
+  SimNotes). ⚠ OUR DOOR'S AND LID'S
   REFERENCES, A REACH FAILED (THE LID'S: STOPPED SHORT, ITS HAND OUT), TRY
   THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT (`hands_check.DOOR`,
   `LID`; SimNotes, "The door's reach the stop sends back"): tilted at once,
@@ -390,7 +390,21 @@ save a filmstrip PNG named after the script.
   driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
+  home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
+  TRUNK (#722; `Reach._own_kept`, `reach.own_rooms`, `OWN_CLEAR_M`;
+  SimNotes, "A way out from a hand already out"): sampled on its model of
+  itself, the upper arm, forearm and gripper against the torso, the head and
+  the LIDAR, its end included -- straight where it never goes through them,
+  or, a pair of parts begun in each other, that pair no deeper; else the
+  side way or the way drawn in that keeps so and dips no deeper ahead; else
+  a procedure's reach moves nothing, "own body", and the loop's own (a
+  charge's: no wait frees it) takes the way that comes least near
+  (`Reach.reach(verb=)`): straight, the wake's door runs drove the gripper
+  into the torso at 36-165 N. ⚠ NEVER
+  FROM A HAND AT REST: there the plan's own pre-grasp can lie in the trunk,
+  and refused, our cube's set-out 7 lost its pass. ⚠ MuJoCo 3.10 reads two
+  boxes apart as 0.0 at some poses (`reach.apart` reads them again). ⚠
+  JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
   straight, unchecked -- has the stand once it is home (asked as it set
@@ -982,8 +996,14 @@ save a filmstrip PNG named after the script.
   set-outs 0-31 (the bar 24), one pod, the procedure the served lay is. ⚠ ITS LEFT GRIP CARRIES
   ONLY TAKEN HALF A TURN ROUND (#560 (c2)): the reference asks it the other
   way round, tilted 60 deg; each reach is aimed at its grip (#627), a carry
-  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ SERVED, ITS
-  DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
+  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ ITS ROWS AND
+  ITS OFFER SAY EACH SIDE AS THE ROBOT'S OWN AS IT FACES THE CARD -- the
+  grader's left is the diner's -- AND THE PLACE'S DIRECTIONS THAT AN OFFER
+  SETS THE PIECES OUT ON THE TABLE NEAR THE CARD, NONE WHERE IT GOES (#723;
+  two tests read the side off `table.place_frame` and the set-out off
+  `table.measure`): the directions ride every kind's offer there, so a kind
+  a world offers that sets them out elsewhere, the pass's, moves those
+  words. ⚠ SERVED, ITS DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
   `place`): a metre under the floor, contacts off -- ⚠ the BODY's
   broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
   second) -- weight held (`gravcomp`), in `cull.PARKED_GROUP` -- ⚠ EVERY
@@ -1028,13 +1048,16 @@ save a filmstrip PNG named after the script.
   flights a walker; at the middle none of 64), ⚠ brought down to it by
   `move_hand` (by `pull` it drifted onto the lid's rim), ⚠ takes the plate
   from 0.50 m and brings it back by `move_hand`, never `pull` (that far, a
-  pull bowed over the counter and fell), ⚠ eases it before its let-go (let
-  go tilted, it dropped), ⚠ brings the fork back in two pulls (one of 0.24
-  m or more bowed 31 deg, stood up out of it and fell, 6 of 21) and ⚠ tries
-  the cup's pick again where its descent is held back on the lid (every
-  such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32 over the tour,
-  a fall failing the try) IS NOT MET: 16 of 32 on walk2 (round 4), held
-  out 19, the carry walker 0 (each miss: SimNotes).
+  pull bowed over the counter and fell), ⚠ in two moves, the last to no
+  nearer the body's middle than 0.25 m (in one, a grip near the middle took
+  the waist turned 30-60 deg and fell, 3 of 64 legs), ⚠ eases it before its
+  let-go (let go tilted, it dropped), ⚠ brings the fork back in two pulls
+  (one of 0.24 m or more bowed 31 deg, stood up out of it and fell, 6 of
+  21) and ⚠ tries the cup's pick again where its descent is held back on
+  the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
+  over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
+  (round 5), held out 15, the carry walker 0 (each miss, and round 4's
+  reference read beside it: SimNotes).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -2017,10 +2040,11 @@ save a filmstrip PNG named after the script.
 - **The served process watches its own memory and says why it ended** (issue
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
   `vitals: rss` line every wall minute; at a RUNAWAY (`RUNAWAY_MB_PER_MIN` 50
-  for THREE samples, after a warm-up of five that NO PAUSED SAMPLE counts:
-  the cameras' one renderer, 285 MiB at the first camera's first use, is a
-  step, and two again is Ben's call, #713) every thread's
-  stack, then the largest
+  for TWO samples, after a warm-up of five that NO PAUSED SAMPLE counts; ⚠
+  a served process builds its cameras' one renderer AT BOOT,
+  `Body.build_cameras`, 257 MiB inside the warm-up: built at a first look
+  it was a step, and two built a minute apart read as a runaway, #713)
+  every thread's stack, then the largest
   allocations `TRACE_S` later; every end Python sees prints `vitals: exiting
   -- <why>`, so a process with no such line was killed. `RunawayRule` is pure
   and pinned with made-up series (`tests/test_vitals.py`). ⚠ `tracemalloc`
@@ -2433,7 +2457,9 @@ save a filmstrip PNG named after the script.
   MuJoCo 3.10's close sends its deletes to whatever context is current, and
   under osmesa another renderer's next picture came out wrong in 626,450 of
   921,600 pixels. ⚠ Its key carries the process: a forked child builds its
-  own.
+  own. ⚠ A served process builds the cameras at boot (`Body.build_cameras`):
+  a renderer built at a first look is a step the memory alarm can read as a
+  runaway (the vitals bullet).
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step

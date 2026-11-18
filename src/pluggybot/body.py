@@ -426,6 +426,13 @@ class Body(abc.ABC):
     """One tag decode from its working camera: `{id: {t, yaw, center}}`."""
 
   @abc.abstractmethod
+  def build_cameras(self) -> None:
+    """Build now the cameras it decodes tags through, which are otherwise
+    built at their first look: a served process asks at boot, so that
+    their renderer's memory comes inside the memory alarm's warm-up
+    (#713; docs/Webserver.md, "Two samples")."""
+
+  @abc.abstractmethod
   def spot(self, tag: int, at_height: float | None = None) -> dict | None:
     """One tag's centre in the believed world frame off one decode, or None
     where it does not decode from here (issue #264)."""
@@ -707,7 +714,9 @@ class Body(abc.ABC):
     (it stopped on its way: pushing on something, or out of reach as the
     body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
-    `hand_kept`), "fell", "out of time" -- or "" where it held (#493)."""
+    `hand_kept`), "own body" (#722: every way out would pass through its
+    own trunk, so nothing moved), "fell", "out of time" -- or "" where it
+    held (#493)."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -718,7 +727,8 @@ class Body(abc.ABC):
     way out), `back` (a reach whose way home from there would meet it), and
     for a reach `other` (whether the other hand's way there keeps off it;
     None where that hand does not reach; "holds" where it is out holding
-    something and kept the body's posture, #719) -- else None."""
+    something and kept the body's posture, #719; "own" where its every way
+    there passes through the robot's own trunk, #722) -- else None."""
 
   @abc.abstractmethod
   def posture_kept_by(self, side: str) -> str | None:
@@ -1206,6 +1216,9 @@ class StubBody(Body):
 
   def detect_tags(self) -> dict:
     return {}
+
+  def build_cameras(self) -> None:
+    pass
 
   def spot(self, tag, at_height=None):
     return None

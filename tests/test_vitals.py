@@ -139,6 +139,15 @@ FIRST_WALK = [
   ("17:39:10", 1469), ("17:40:10", 1485), ("17:41:10", 1484),
   ("17:42:10", 1490), ("17:43:10", 1490), ("17:44:10", 1490),
   ("17:45:10", 1483)]
+# The cameras' one renderer (#713) as a served process builds it, at boot
+# (`Body.build_cameras`), and what a camera's first look costs after it.
+# MEASURED on the served pair under osmesa (2026-11-17): +257 MiB at boot,
+# then +22 at the first camera's first picture and +10 at a navigation
+# camera's.
+BOOT_MIB, FIRST_LOOKS_MIB = 257.0, (22.0, 10.0)
+# A renderer of a camera's own, built at its first look, as the deployed box
+# read one at a time (2026-11-14 20:00:38 and 20:33:38 UTC, #713).
+OWN_RENDERER_MIB = (222.0, 223.0)
 
 
 def test_a_wake_into_a_world_that_never_ran_is_its_warm_up(tmp_path):
@@ -148,59 +157,78 @@ def test_a_wake_into_a_world_that_never_ran_is_its_warm_up(tmp_path):
   rule read as a runaway, its warm-up spent on the pause's samples. A sample
   whose clock stood still, its memory calm, is a pause's, and the warm-up
   does not count it. A runaway once the woken world has warmed up still
-  fires."""
+  fires, at its second minute."""
   for rows in (WAKE_1112, WAKE_1114, WAKE_1115):
     assert _watched(tmp_path, rows) == [], rows[-1][0]
-  # The old rule -- two minutes, the clock unread -- fired on each at the
-  # live alarm's own sample (shown); the clock alone keeps all three quiet,
-  # and three minutes alone do not keep the 43-hour pause's wake quiet.
+  # Read without the clock, the rule fired on each at the live alarm's own
+  # sample (shown); the clock keeps all three quiet, and three minutes
+  # without it would not have kept the 43-hour pause's wake quiet.
   for rows, alarm in ((WAKE_1112, "17:01:32"), (WAKE_1114, "16:01:58"),
                       (WAKE_1115, "08:46:04")):
-    assert _ruled(RunawayRule(minutes=2), rows, clock=False) == [_at(rows, alarm)]
-    assert _ruled(RunawayRule(minutes=2), rows) == [], alarm
-  assert _ruled(RunawayRule(), WAKE_1114, clock=False) == [
+    assert _ruled(RunawayRule(), rows, clock=False) == [_at(rows, alarm)]
+    assert _ruled(RunawayRule(), rows) == [], alarm
+  assert _ruled(RunawayRule(minutes=3), WAKE_1114, clock=False) == [
     _at(WAKE_1114, "16:03:18")]
   t = WAKE_1112[-1][2]
   runaway = [(f"17:{11 + i}:52", 1394 + 115.0 * (i + 1), t + 50.0 * (i + 1))
              for i in range(6)]
-  assert _watched(tmp_path, WAKE_1112 + runaway) == [len(WAKE_1112) + 2]
+  assert _watched(tmp_path, WAKE_1112 + runaway) == [len(WAKE_1112) + 1]
 
 
-def test_a_robots_first_walk_after_a_charge_is_a_step_not_a_runaway():
+def test_a_renderer_built_at_a_first_walk_read_as_a_runaway_so_it_is_built_at_boot():
   """11-14 17:33 UTC: +207 and +239 MiB a minute as a robot that began the
-  process charging walked off its station, then flat; the trace held 4.0
+  process charging walked off its station, each of its two cameras building
+  a renderer of its own at its first look, then flat; the trace held 4.0
   MiB, because the step is MuJoCo's and osmesa's, not Python's. Two minutes
-  over the rate are a step; a runaway is the third."""
-  rule = RunawayRule()
-  assert [i for i, (hms, mib) in enumerate(FIRST_WALK)
-          if rule.sample(_utc(hms), mib)] == []
-  rule = RunawayRule(minutes=2)
-  assert [i for i, (hms, mib) in enumerate(FIRST_WALK)
-          if rule.sample(_utc(hms), mib)] == [21], "two read it as a runaway"
+  over the rate read that as a runaway (shown). No first look builds a
+  renderer now: the cameras draw through one (#713), which a served process
+  builds at boot, inside the warm-up. That day with its renderer built in
+  its first minute, and each of its first walk's two minutes a look's cost
+  after it in place of a renderer's (whatever else those minutes grew
+  kept), reads quiet under two; a runaway after it is reported at its
+  second minute."""
+  def fired(rows):
+    rule = RunawayRule()
+    return [i for i, (hms, mib) in enumerate(rows) if rule.sample(_utc(hms), mib)]
+
+  assert fired(FIRST_WALK) == [21], "two read it as a runaway"
+  steps = [b[1] - a[1] for a, b in zip(FIRST_WALK, FIRST_WALK[1:])]
+  steps[0] += BOOT_MIB                       # built at boot, with the world
+  walk = _at(FIRST_WALK, "17:32:50")         # the minute of the first look
+  for i, look, own in zip((walk - 1, walk), FIRST_LOOKS_MIB, OWN_RENDERER_MIB):
+    steps[i] += look - own
+  booted = FIRST_WALK[:1]
+  for (hms, _), step in zip(FIRST_WALK[1:], steps):
+    booted.append((hms, booted[-1][1] + step))
+  assert fired(booted) == []
+  last = booted[-1][1]
+  runaway = [("17:46:10", last + 115.0), ("17:47:10", last + 230.0),
+             ("17:48:10", last + 345.0)]
+  assert fired(booted + runaway) == [len(booted) + 1]
 
 
 def test_a_pause_mid_run_keeps_its_warm_up():
   """A world paused once it has run keeps what it built (11-12 21:00 to
   11-13 10:36 UTC: 1450 MiB, +0.0 MiB/min, every minute for 13.6 hours),
   so its wake is no warm-up: a runaway begun at the wake is reported at its
-  third minute, as anywhere in a running world."""
+  second minute, as anywhere in a running world."""
   rule = RunawayRule()
   ran = [(60.0 * i, 1400.0 + i, 50.0 * i) for i in range(10)]
   paused = [(60.0 * i, 1409.0, ran[-1][2]) for i in range(10, 30)]
   woken = [(60.0 * i, 1409.0 + 115.0 * (i - 29), ran[-1][2] + 50.0 * (i - 29))
            for i in range(30, 36)]
   assert [i for i, row in enumerate(ran + paused + woken)
-          if rule.sample(*row)] == [32]
+          if rule.sample(*row)] == [31]
 
 
 def test_a_runaway_that_stops_the_world_is_judged_in_its_warm_up_too():
   """A runaway that stops the world stands its clock still, as a pause
   does; its memory does not, so the warm-up counts its samples, and one from
-  boot is reported seven minutes in, as with the clock running."""
+  boot is reported six minutes in, as with the clock running."""
   boot = [(0.0, 174.0, None)] + [(60.0 * i, 174.0 + 115.0 * i, 30.0)
                                  for i in range(1, 9)]
   rule = RunawayRule()
-  assert [i for i, row in enumerate(boot) if rule.sample(*row)] == [7]
+  assert [i for i, row in enumerate(boot) if rule.sample(*row)] == [6]
 
 
 def test_the_resting_rate_and_the_startup_never_fire():
@@ -216,37 +244,39 @@ def test_the_grown_worlds_four_minute_start_never_fires_and_a_runaway_after_it_d
   """11-12 19:21 UTC: a fresh process loading the grown world took four
   minutes, which a warm-up of three read as a runaway at two minutes over
   the rate (shown); a runaway once it has loaded is still caught at its
-  third minute."""
+  second minute."""
   grown = _day(RESTING, GROWN_START)
   assert _feed(RunawayRule(), grown) == []
   assert _feed(RunawayRule(warmup=3, minutes=2), grown) != []
+  # ...nor that load with the cameras' renderer built at its end, a fifth
+  # minute of it (`BOOT_MIB`)
+  booted = GROWN_START + [GROWN_START[-1] + BOOT_MIB]
+  assert _feed(RunawayRule(), _day(RESTING, booted)) == []
   late = _day(RESTING[:2] + [115.0] * 8, GROWN_START)
   first_fast = len(GROWN_START) + 2          # the sample closing minute one
-  assert _feed(RunawayRule(), late) == [first_fast + 2]
-  # ...and the window Webserver.md states: a load of six minutes passes, one
-  # of seven does not -- a runaway from boot is reported seven minutes in
-  ramp = [173.0 + 232.0 * i for i in range(8)]
-  assert _feed(RunawayRule(), _day(RESTING, ramp[:7])) == []
-  assert _feed(RunawayRule(), _day(RESTING, ramp)) == [7]
+  assert _feed(RunawayRule(), late) == [first_fast + 1]
+  # ...and the window Webserver.md states: a load of five minutes passes, one
+  # of six does not -- a runaway from boot is reported six minutes in
+  ramp = [173.0 + 232.0 * i for i in range(7)]
+  assert _feed(RunawayRule(), _day(RESTING, ramp[:6])) == []
+  assert _feed(RunawayRule(), _day(RESTING, ramp)) == [6]
 
 
 def test_the_threshold_keeps_its_margin_on_both_sides():
   """Why 50 and not the issue's example 30: the busiest resting minutes read
-  +23 and +20 back to back, which 30 clears by only 1.3x, and a two-minute
-  rule just under them fires on a process at rest (shown); three minutes
-  in a row only widen it. 50 is ~2x from the resting pair and ~2x from the
-  measured runaway; moving it is a decision."""
+  +23 and +20 back to back, which 30 clears by only 1.3x, and a rule just
+  under them fires on a process at rest (shown). 50 is ~2x from the resting
+  pair and ~2x from the measured runaway; moving it is a decision."""
   assert vitals.RUNAWAY_MB_PER_MIN > 22.9 * 2
   assert 115.0 > vitals.RUNAWAY_MB_PER_MIN * 2
-  assert _feed(RunawayRule(mb_per_min=19.0, minutes=2), _day(RESTING)) != []
-  assert _feed(RunawayRule(mb_per_min=19.0), _day(RESTING)) == []
+  assert _feed(RunawayRule(mb_per_min=19.0), _day(RESTING)) != []
 
 
-def test_a_runaway_fires_once_at_its_third_minute():
+def test_a_runaway_fires_once_at_its_second_minute():
   """The a803c83 deaths: ~115 MiB a minute for eight minutes to the cap."""
   series = _day(RESTING[:10] + [115.0] * 8)
   first_fast = len(STARTUP) + 10             # the sample closing minute one
-  assert _feed(RunawayRule(), series) == [first_fast + 2]
+  assert _feed(RunawayRule(), series) == [first_fast + 1]
 
 
 def test_one_fast_minute_is_not_a_runaway():
@@ -293,7 +323,7 @@ def test_the_onset_dumps_the_stacks_and_the_report_names_the_allocation(tmp_path
       if dog.tick():
         break
       assert tracemalloc.is_tracing() == was_tracing, "never before the onset"
-    assert i == 7 and tracemalloc.is_tracing()
+    assert i == 6 and tracemalloc.is_tracing()
     for _ in range(i + 1, len(series)):
       assert not dog.tick(), "once per episode"
     held.append(bytearray(4 << 20))          # what the runaway allocates
