@@ -800,3 +800,297 @@ def test_the_stream_opens_with_the_open_tickets_where_there_is_a_desk(tmp_path):
   assert [(m["type"], m["robot"], [t["id"] for t in m["tickets"]]) for m in with_desk] == [
     ("tickets", "pluggybot", ["tk_0001"])]
   assert FrameBuilder(model, data).tickets_messages(2.0) == []
+
+
+# ---- the operator's lines while the world is paused (issue #729) ---------------
+
+
+def _pause(life, tmp_path, monkeypatch):
+  """`life`'s world paused by the operator's switch, its slices cut to a
+  few milliseconds (the served world's are a quarter second); returns the
+  switch's file."""
+  from pluggybot import lifecycle
+  from pluggybot.mind.mode import ModeSwitch
+  monkeypatch.setattr(lifecycle, "PAUSE_SLICE_S", 0.005)
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "paused"}))
+  life.mode = ModeSwitch(path)
+  return path
+
+
+def _while_paused(life, path, offer, landed, end=None, within_s=3.0):
+  """Hold `life`'s world paused: `offer()` at the pause's first beat -- the
+  site sending while the world sleeps -- then, beat by beat, `landed()`
+  until it reads something, returned as it read BEFORE the world woke; or
+  None, the pause ended after `within_s` with nothing landed. `end` ends
+  the pause: by default the switch flipped back."""
+  got = {"beats": 0, "landed": None}
+  wake = end or (lambda: path.write_text(json.dumps({"mode": "llm"})))
+
+  def beat(held_s: float) -> None:
+    got["beats"] += 1
+    if got["beats"] == 1:
+      offer()
+      return
+    seen = landed()
+    if seen or held_s >= within_s:
+      got["landed"] = seen or None
+      wake()
+
+  life.pause_hooks.append(beat)
+  try:
+    life._mode_step()
+  finally:
+    life.pause_hooks.remove(beat)
+  return got["landed"]
+
+
+def _close(ref="tc_1", ticket="tk_0001", text="fixed the standoff") -> dict:
+  return {"type": "ticket_close", "id": ref, "from": "ben", "ticket": ticket,
+          "text": text}
+
+
+def _acks(sent, ref) -> list[dict]:
+  return [m for m in sent if m.get("type") == "ticket" and m.get("ref") == ref]
+
+
+def test_a_close_sent_while_the_world_is_paused_lands_before_it_wakes(tmp_path, monkeypatch):
+  """⚠ #729: on 2026-11-13 an operator replied to and closed five tickets
+  while the world was paused, and none reached the robots. The desk took an
+  operator's line at the top of an arbitration pass and a paused world runs
+  none, so the lines waited in the inbox -- in memory -- until a restart
+  during the pause lost them, the site's deliveries spent. Now a close sent
+  while paused is applied in the pause: the desk's file closed, the close
+  paid on the ledger's file, History told, and the `ticket` event the site
+  settles its row by sent, all before the world wakes. Shown to fail on
+  c7f78bc9, where it waited for the first pass after the wake."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(path=tmp_path / "ledger.json"),
+               thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)                     # what `serve.py` hands the publisher
+  path = _pause(life, tmp_path, monkeypatch)
+  try:
+    def landed():
+      acks = _acks(sent, "tc_1")
+      return acks and {
+        "acks": acks,
+        "file": json.loads((tmp_path / "tickets" / "tk_0001.ticket.json").read_text()),
+        "balance": Ledger(path=tmp_path / "ledger.json").balance(),
+        "history": life.thoughts.read("History.md")}
+
+    seen = _while_paused(life, path, lambda: life.inbox.offer(_close()), landed)
+    assert seen is not None, "the close waited for the wake"
+    assert [(m["outcome"], m["paid"], m["points"]) for m in seen["acks"]] == [
+      ("closed", True, 25)]
+    assert (seen["file"]["state"], seen["file"]["closedBy"],
+            seen["file"]["points"]) == ("closed", "ben", 25)
+    assert seen["balance"] == 25, "the ledger's file pays it as it lands"
+    assert ("ben closed my ticket tk_0001: fixed the standoff -- +25 points"
+            in seen["history"])
+    assert life.status.startswith("RESUMED"), "and the world woke as ever"
+  finally:
+    life.body.close()
+
+
+def test_the_acknowledgement_goes_up_the_socket_before_the_wake(tmp_path, monkeypatch):
+  """...and it reaches the SITE, not only the desk. A paused world steps no
+  physics, so no frame is built and the publisher's step hook never runs:
+  the `ticket` event the site settles its row by leaves on the sender's
+  own thread or not at all. A fake site sends a close down the ingest
+  socket while the world sleeps, and reads the acknowledgement off it
+  before the world wakes. Shown to fail on c7f78bc9."""
+  import mujoco
+  from test_telemetry import MINI_XML
+  from test_webserver import Sink
+
+  from pluggybot.telemetry.publisher import WsPublisher
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  path = _pause(life, tmp_path, monkeypatch)
+  site = Sink()
+  model = mujoco.MjModel.from_xml_string(MINI_XML)
+  pub = WsPublisher(model, mujoco.MjData(model), site.endpoint, hz=20.0)
+  pub.on_inbound.append(life.inbox.offer)        # as `serve.py` wires the two
+  life.on_event.append(pub.message)
+  try:
+    assert site.wait_live(), "the publisher never connected"
+    heard = _while_paused(life, path, lambda: site.send(_close()),
+                          lambda: _acks([m for s in site.sessions for m in s], "tc_1"))
+    assert heard, "the site heard nothing before the wake"
+    assert [(m["outcome"], m["paid"]) for m in heard] == [("closed", True)]
+    assert pub.frames_sent == 0, "and no frame carried it"
+  finally:
+    pub.close()
+    site.stop()
+    life.body.close()
+
+
+def test_a_paused_pair_lands_each_robots_lines_on_its_own_desk(tmp_path, monkeypatch):
+  """⚠ A pair's one switch is the first robot's, and its hook holds the one
+  loop both robots live in, so the second robot's arbitration never runs
+  while paused either. Rowan's lines -- its own inbox, addressed `r2_` --
+  land in the same pause, on Rowan's desk and Rowan's account, and Luca's
+  on Luca's. Shown to fail on c7f78bc9."""
+  from test_two_minds import stub_pair
+  inboxes = (Inbox(), Inbox())
+  first, second = stub_pair(root=tmp_path, ledger_state=tmp_path / "ledger.json",
+                            inboxes=inboxes)
+  sent: list = []
+  for life in (first, second):
+    life.on_event.append(sent.append)
+    life.tickets.open("bug", f"{life.robot_name}'s lamp", "the hall is dark", t=1.0)
+  path = _pause(first, tmp_path, monkeypatch)
+
+  def offer():
+    inboxes[0].offer({"type": "ticket_reply", "id": "tr_a", "from": "ben",
+                      "ticket": "tk_0001", "text": "which hall?"})
+    inboxes[1].offer(_close("tc_b", text="lit it"))
+
+  def landed():
+    by_ref = {m.get("ref"): m for m in sent if m.get("type") == "ticket"}
+    return {"tr_a", "tc_b"} <= set(by_ref) and by_ref
+
+  try:
+    seen = _while_paused(first, path, offer, landed)
+    assert seen, "a line of the pair waited for the wake"
+    assert (seen["tr_a"]["robot"], seen["tr_a"]["outcome"]) == ("pluggybot", "replied")
+    assert (seen["tc_b"]["robot"], seen["tc_b"]["outcome"], seen["tc_b"]["paid"]) == (
+      "r2_pluggybot", "closed", True)
+    luca, rowan = first.tickets.get("tk_0001"), second.tickets.get("tk_0001")
+    assert luca.open and luca.thread[-1].text == "which hall?" and not rowan.open
+    assert (first.ledger.balance(), second.ledger.balance()) == (0, 25), \
+      "each robot's own account"
+    assert "ben closed my ticket tk_0001" in second.thoughts.read("History.md")
+    assert "ben replied on my ticket tk_0001" in first.thoughts.read("History.md")
+    assert "closed my ticket" not in first.thoughts.read("History.md")
+  finally:
+    first.body.close()
+
+
+def test_a_close_landed_while_paused_is_paid_once_across_a_restart_still_paused(
+    tmp_path, monkeypatch):
+  """A stop asked while paused ends the pause and the process (#594: a
+  deploy's SIGTERM), and the next process starts paused; the site then
+  sends whatever it holds unacknowledged -- here the close whose
+  acknowledgement went with the first process. The desk and the ledger are
+  on the volume, so the replay is answered `paid: false` with the same
+  figure: one close, one payment, one ledger row, one History line. Shown
+  to fail on c7f78bc9, where neither process took it while paused."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+
+  def process():
+    life = _life(inbox=Inbox(), ledger=Ledger(path=tmp_path / "ledger.json"),
+                 thoughts=ThoughtFiles.open(tmp_path))
+    return life, _events(life), _pause(life, tmp_path, monkeypatch)
+
+  first, sent, path = process()
+  try:
+    def stop():
+      first.stopping = "SIGTERM"                # `Keeper.request_stop`'s flag
+    assert _while_paused(first, path, lambda: first.inbox.offer(_close()),
+                         lambda: _acks(sent, "tc_1"), end=stop), \
+      "the close waited for a wake that never came"
+    assert first.status == "STOPPING while paused: SIGTERM"
+  finally:
+    first.body.close()
+  second, sent, path = process()                 # ...the acknowledgement lost
+  try:
+    seen = _while_paused(second, path, lambda: second.inbox.offer(_close()),
+                         lambda: _acks(sent, "tc_1"))
+    assert [(m["outcome"], m["paid"], m["points"]) for m in seen or ()] == [
+      ("closed", False, 25)], "the replay is answered, and pays nothing"
+    ledger = Ledger(path=tmp_path / "ledger.json")
+    assert ledger.balance() == 25
+    assert [e["task"] for e in ledger.entries()] == ["ticket"]
+    kept = desk.Desk(tmp_path / "tickets")
+    assert kept.closes == 1 and kept.get("tk_0001").closed_n == 1
+    assert second.thoughts.read("History.md").count("ben closed my ticket tk_0001") == 1
+  finally:
+    second.body.close()
+
+
+def test_a_line_sent_as_the_world_stops_is_left_for_the_next_process(tmp_path, monkeypatch):
+  """...but none once a stop is asked: what the ending process took, the
+  site might never hear acknowledged, and a reply sent again to the next
+  process would land twice. Left queued, it goes with the process and is
+  sent again whole."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  path = _pause(life, tmp_path, monkeypatch)
+
+  def offer_and_stop():
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
+                      "ticket": "tk_0001", "text": "which board?"})
+    life.stopping = "SIGTERM"
+
+  try:
+    _while_paused(life, path, offer_and_stop, lambda: False)
+    assert life.status == "STOPPING while paused: SIGTERM"
+    assert len(life.inbox) == 1 and not _acks(sent, "tr_1")
+    assert life.tickets.get("tk_0001").thread == []
+  finally:
+    life.body.close()
+
+
+def test_a_line_the_desk_cannot_take_is_answered_in_words_and_never_raises(
+    tmp_path, monkeypatch):
+  """A paused world that raised on an operator's line would die, restart
+  still paused, and be sent the same line at the next connect: #729's
+  worst case. So every line is answered in words: one naming a ticket the
+  desk does not hold, or a closed one, `unknown` with why (which settles
+  the site's row); one the desk failed on, `refused` with why (which does
+  not: the site may send it again), said in the narration with the error
+  in its detail -- and the lines after it still land, the world still
+  wakes, and an awake pass is held to the same rule. Shown to fail on
+  c7f78bc9."""
+  d = desk.Desk(tmp_path / "tickets")
+  d.open("bug", "one", "first", t=1.0)
+  d.open("idea", "two", "second", t=2.0)
+  d.close("tk_0002", by="ben", text="done", t=3.0)
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  path = _pause(life, tmp_path, monkeypatch)
+  real = life.tickets.reply
+
+  def reply(ticket_id, *args, **kw):
+    if kw.get("sender") == desk.OPERATOR and ticket_id == "tk_0001":
+      raise OSError(28, "No space left on device")
+    return real(ticket_id, *args, **kw)
+
+  monkeypatch.setattr(life.tickets, "reply", reply)
+  lines = ({"type": "ticket_reply", "id": "tr_9", "from": "ben",
+            "ticket": "tk_0099", "text": "hello?"},
+           {"type": "ticket_reply", "id": "tr_2", "from": "ben",
+            "ticket": "tk_0002", "text": "and one more thing"},
+           {"type": "ticket_reply", "id": "tr_1", "from": "ben",
+            "ticket": "tk_0001", "text": "which board?"},
+           _close("tc_1"))
+
+  def by_ref():
+    return {m.get("ref"): m for m in sent if m.get("type") == "ticket"}
+
+  try:
+    seen = _while_paused(life, path, lambda: [life.inbox.offer(m) for m in lines],
+                         lambda: len(by_ref()) == len(lines) and by_ref())
+    assert seen, "a line waited for the wake, or the pause raised"
+    assert (seen["tr_9"]["outcome"], seen["tr_9"]["why"]) == (
+      "unknown", "no ticket 'tk_0099' on the desk")
+    assert (seen["tr_2"]["outcome"], seen["tr_2"]["why"]) == (
+      "unknown", "ticket tk_0002 is closed; open a new one")
+    failed = seen["tr_1"]
+    assert (failed["outcome"], failed["verb"], failed["id"]) == (
+      "refused", "ticket_reply", "tk_0001")
+    assert "could not" in failed["why"] and "OSError" in failed["why"]
+    assert any("OSError" in line and "No space left" in line for line in life.log), \
+      "the error's class and message reach the console"
+    assert (seen["tc_1"]["outcome"], seen["tc_1"]["paid"]) == ("closed", True), \
+      "the line after the one that failed still landed"
+    assert life.status.startswith("RESUMED")
+    # ...and awake, at the top of an arbitration pass, by the same rule
+    life.inbox.offer(dict(lines[2], id="tr_1b"))
+    life._visitor_step()
+    assert by_ref()["tr_1b"]["outcome"] == "refused"
+  finally:
+    life.body.close()

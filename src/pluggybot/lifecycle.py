@@ -3317,15 +3317,9 @@ class HubLifecycle:
     # `dropped` visitor reply for a message nobody sent).
     for msg in self.inbox.drain(("image",)):
       self.eye.offer(msg, t=float(self.data.time))
-    # The operator's side of a ticket (issue #284): a reply, a close, a
-    # delete -- applied here by code, like every admin kind. What the
-    # robot is shown is the thread, on its next turn.
-    for msg in self.inbox.drain(("ticket_reply",)):
-      self._ticket_reply(msg)
-    for msg in self.inbox.drain(("ticket_close",)):
-      self._ticket_close(msg)
-    for msg in self.inbox.drain(("ticket_delete",)):
-      self._ticket_delete(msg)
+    # The operator's side of a ticket (issue #284), applied by code like
+    # every admin kind -- and in a pause too (#729, `_mode_step`).
+    self._ticket_lines_step()
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -3987,6 +3981,45 @@ class HubLifecycle:
         self._remember(f"replied on ticket {ticket.id} ({ticket.title})"
                        f"{text_registry.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                        f"{line.text}")
+
+  def _ticket_lines_step(self) -> None:
+    """The operator's side of a ticket (issue #284): a reply, a close, a
+    delete, applied by code like every admin kind. What the robot is shown
+    is the thread, on its next turn.
+
+    Run at the top of every arbitration pass and, while the world is
+    PAUSED, in every slice of the pause, for every robot on the loop
+    (`_mode_step`, #729): a paused world runs no pass, so a line waited in
+    the inbox -- in memory -- and a restart during the pause lost it. Five
+    tickets an operator answered on 2026-11-13 never reached the robots
+    that way, and both desks stayed full for days.
+
+    ⚠ A LINE NEVER ENDS THE RUN: one the desk fails on is answered
+    `refused`, its error said (`_ticket_failed`), and the next one goes on.
+    Raised in a pause, it would kill the process, which restarts paused and
+    is sent the same line at the next connect."""
+    if self.inbox is None:
+      return
+    for kind, apply in (("ticket_reply", self._ticket_reply),
+                        ("ticket_close", self._ticket_close),
+                        ("ticket_delete", self._ticket_delete)):
+      for msg in self.inbox.drain((kind,)):
+        try:
+          apply(msg)
+        except Exception as e:                    # noqa: BLE001 -- see docstring
+          self._ticket_failed(msg, e)
+
+  def _ticket_failed(self, msg, error: Exception) -> None:
+    """An operator's line the desk failed on (#729): `refused`, which the
+    site does not settle, so it may send the line again; the error's class
+    on the wire and its message in the console (`_say`'s `detail`, issue
+    #76), never in History -- the robot was told nothing."""
+    who = msg.who or "the operator"
+    verb = msg.kind.removeprefix("ticket_")
+    self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
+                       why=f"the desk could not take it ({type(error).__name__})")
+    self._say(f"TICKET {verb} from {who} not taken: the desk failed on it",
+              detail=f"{type(error).__name__}: {error}")
 
   def _ticket_reply(self, msg) -> None:
     """An operator's line on one of the robot's tickets (issue #284): onto
@@ -5836,6 +5869,13 @@ class HubLifecycle:
     (the file's `at`, `ModeSwitch.at`), where that is longer than this
     process has held it. A process started into a pause counted from its own
     start, and on 11-01 a wake said 117 s.
+
+    ⚠ AN OPERATOR'S TICKET LINES LAND IN THE PAUSE (#729), each robot's on
+    its own desk and account (`_ticket_lines_step`): taken at a pass alone,
+    a line sent while paused waited in memory and a restart during the
+    pause lost it. Its `ticket` event leaves on the publisher's own thread,
+    with no frame. Everything else sent while paused -- a person's message,
+    a rating, a reach-in -- waits for the wake, as before.
     """
     if self.mode is None:
       return
@@ -5850,6 +5890,12 @@ class HubLifecycle:
       life._say("PAUSED by the operator -- physics stopped, stream alive")
       life._remember("paused by the operator")
     while self.mode.poll(force=True) == "paused" and not self.stopping:
+      # ...but never once a stop is asked (the test above): what an ending
+      # process took, the site might never hear acknowledged, and a reply
+      # sent again to the next process would land twice. Left queued, it
+      # goes with the process and is sent again whole.
+      for life in told:
+        life._ticket_lines_step()
       time.sleep(PAUSE_SLICE_S)
       for hook in list(self.pause_hooks):
         hook(time.monotonic() - wall0)
