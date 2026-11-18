@@ -363,6 +363,11 @@ def test_each_steps_shorter_form_is_its_own():
   assert line == ("ran the procedure p to its end (5 steps; 3 tests read false -- line 3, spot: "
                   "tag 1 is not seen; held; line 5, spot: tag 1 is not seen, a; line 7, spot: "
                   "tag 1 is not seen, b)")
+  # ...and one's shorter form as long as another's full one
+  run = {"ok": True, "completed": 5, "steps": [read(5, "x" * 20 + "y" * 10, "x" * 20),
+                                               read(7, "z" * 10 + "w" * 10, "z" * 10)]}
+  [line] = lc.procedure_outcome("p", run)
+  assert "x" * 20 + "y" * 10 in line and "z" * 10 + "w" * 10 in line, line
 
 
 def test_no_reader_of_a_step_is_shown_its_shorter_form():
