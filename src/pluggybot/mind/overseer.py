@@ -4314,14 +4314,14 @@ class Overseer:
       self._idle_run = 0
     return why
 
-  def _refusal(self) -> str:
+  def _refusal(self, throttle: bool = True) -> str:
     """Why a call started now would not be made, or "": `_refuse`'s gates,
-    read and never moved."""
+    read and never moved -- the idle-run throttle's only where `throttle`."""
     if self.budget_left() <= 0:
       return "budget"
     if not self._allowance_ok():
       return "allowance"
-    if self._idle_run >= MAX_IDLE_RUN:
+    if throttle and self._idle_run >= MAX_IDLE_RUN:
       return "idle-run"
     if self.clock() < self._cooloff_until:
       return "cooloff"
@@ -4333,10 +4333,11 @@ class Overseer:
     """Would a decision started now go to the model, as far as this side can
     tell (#730: a charge's hold is broken for a message only then)? Never
     with a call still out (`busy`) nor behind a gate that stays shut -- but
-    through the idle-run throttle, which shuts one ask and opens again. An
-    endpoint that fails is found only by asking."""
+    through the idle-run throttle, which shuts one ask and opens again (and
+    read past it: found first, it hid a cooloff behind it). An endpoint
+    that fails is found only by asking."""
     with self._lock:                        # as `start` reads them
-      return not self._in_flight and self._refusal() in ("", "idle-run")
+      return not self._in_flight and not self._refusal(throttle=False)
 
   @property
   def pending(self) -> bool:

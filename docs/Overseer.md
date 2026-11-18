@@ -2951,9 +2951,13 @@ with its cycle and `task_complete charge` (round 6: a robot that answered
 `idle` filled its pack with none of the three, and a map asking on
 `task_complete:charge` was never asked); its plug out short, or the run
 ending, its row alone, as a charge cut short always banks one. ⚠ N = 1: a
-message is asked about once during an outage, by the first CALL whose
-context held it, whatever came of the call (`_ask_takes`); an ask that sent
-nobody its context (`busy`, a gate) gives it back. And a message in an
+message is asked about once during an outage -- a CALL that went out with
+it in its context and failed takes it off what is owed, whatever the
+failure (`_asked_about`); an ask that sent nobody its context (`busy`, a
+gate) takes nothing. An answer takes the message it answered and leaves the
+others it was shown owed, the model answering one a turn (a second person
+waited out the charge in #730's first review), unless it answered nobody,
+which a message may meet `OWED_SHOWINGS` (2) times. And a message in an
 ask's context is no news to the map (round 6: one seen a tick after the
 context was built paid for a second ask about a message the model had
 answered). History says the break, and an answer that did not come, once a

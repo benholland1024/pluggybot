@@ -336,6 +336,79 @@ def test_a_charge_closed_as_the_failure_is_said_leaves_its_order_to_run_now():
   assert order == [False] and len(_charges(life)) == 1
 
 
+def test_a_second_persons_message_is_answered_in_the_charge_too():
+  """#730's first review: two people write as the robot charges, the break
+  shows it both, and it may answer one a turn. Taken off what was owed as
+  soon as a call held it, the second waited out the whole charge; it is
+  owed until an answer answers it, and the charge breaks for it again."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                            _answer("charge", to="m_2")])
+  _say(life, 1)
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)                          # both shown; m_1 answered, and charging on
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "not broken for m_2"
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2"]
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1 and len(client.calls) == 2
+
+
+def test_a_message_a_mind_will_not_answer_breaks_the_charge_no_more_than_twice():
+  """...and one the mind answers nobody at is shown `OWED_SHOWINGS` times
+  at most: each break is a paid call."""
+  life, client = _life_asked(ASKS, answers=[full(action="charge", reason="later")])
+  _say(life)
+  _charge(life)
+  for _ in range(lc.OWED_SHOWINGS + 2):
+    if life.charge_cycles:
+      break
+    _next_pass(life)
+  assert len(client.calls) == lc.OWED_SHOWINGS
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_a_break_never_meets_a_gate_the_throttle_hid():
+  """#730's first review: `can_ask` read the gates in `_refuse`'s order, and
+  the idle-run throttle, read first, hid a cooloff behind it: the hold was
+  broken for a call that could not be made."""
+  life, client = _life_asked(ASKS)
+  life.overseer._idle_run = ov.MAX_IDLE_RUN
+  life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  assert not life.overseer.can_ask()
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
+
+
+def test_a_stand_up_while_a_failed_answer_is_said_runs_nothing_after():
+  """#730's first review: what a failed answer says may step the world, and
+  a stand-up there ends it as it ends any decision's: the robot is up at
+  its start, and neither the charge nor the order is the new moment's."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  ran: list = []
+
+  def explore(**kw):
+    ran.append(True)
+    return "budget"
+    yield
+  life.explore_routine = explore
+  said = life._after_decision_routine
+
+  def said_then_stood_up(decision, act=True):
+    out = yield from said(decision, act=act)
+    if not act:
+      life.dead = {"t": float(life.data.time), "cause": "unpaid", "why": "a test"}
+      life._stand_up("timer", auto=True, was=life.dead)
+      yield from life.body.hold_routine(0.1)
+    return out
+  life._after_decision_routine = said_then_stood_up
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert not ran and life.charge_cycles == 0 and not _charges(life)
+
+
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
   """N = 1 (#730, written first): with the endpoint down, a message is asked
   about once -- the last build retried it, and a retry spent on `busy` lost
