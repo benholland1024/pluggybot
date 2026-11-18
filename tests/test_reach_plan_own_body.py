@@ -93,6 +93,21 @@ def test_a_plan_in_the_trunk_with_no_other_solve_clear_takes_the_next_posture():
   assert r.postures == [TWO[1]] and _room(_pre(r)) >= 0.0 and r.own["left"] is None
 
 
+def test_the_goals_solves_are_ranked_as_solve_seeded_ranks_them():
+  """`_solutions`: every solve that reaches, `solve_seeded`'s own first, then
+  each nearer the arm it starts from than the next."""
+  sm = SelfModel()
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  start = q0[sm.arm["left"]]
+  for goal, posture in ((LOW, BOWED[0]), (AHEAD, STAND[0]), (HIGHER, STAND[0])):
+    rc.statue(sm, posture, q0)
+    pos = goal.pos
+    solves = rc._solutions(sm, "left", pos, None, start)
+    best = rc.solve_seeded(sm, "left", pos, None, start)[0]
+    near = [float(np.abs(q - start).max()) for q in solves]
+    assert len(solves) > 1 and np.array_equal(solves[0], best) and near == sorted(near)
+
+
 def test_the_other_solves_are_taken_in_turn_as_solve_seeded_ranks_them(monkeypatch):
   """Stubbed: today's arm lies in the trunk; of the goal's other solves, the
   one that is today's again (within `SAME_ARM_RAD`) is not planned twice,
@@ -143,29 +158,32 @@ def test_the_loops_own_reach_whose_every_plan_lies_in_the_trunk_takes_todays():
 
 def test_a_grip_that_plans_only_in_the_trunk_is_planned_half_a_turn_round(monkeypatch):
   """`plan` stubbed: the grip asked plans only in the trunk, half a turn
-  round it plans clear -- that is taken; and where that plans nothing, the
-  loop's own reach takes the grip asked, as planned without the trunk."""
+  round it plans clear -- that is taken; and where that plans nothing, or
+  only in the trunk too, the loop's own reach takes the grip asked, as
+  planned without the trunk."""
   r = _standing_reach()
   asked = np.eye(3)
   inside = _today(r, INTO_TORSO, STAND)
   clear = _today(r, AHEAD, rc.REACH_POSTURES)
-  turned = {"plans": True}
+  turned = {"plans": "clear"}
 
   def plan(side, goal, sm, postures=rc.REACH_POSTURES, own=None, **kw):
-    if np.allclose(goal.rot, asked):
+    if np.allclose(goal.rot, asked) or turned["plans"] == "inside":
       if own is None:
         return inside
-      own.update(part="torso", m=-0.083, plan=inside)
+      own.update(part="torso", m=-0.083 if np.allclose(goal.rot, asked) else -0.05, plan=inside)
       return None
-    return clear if turned["plans"] else None
+    return clear if turned["plans"] == "clear" else None
   monkeypatch.setattr(rc, "plan", plan)
   assert r.reach("left", HandGoal(INTO_TORSO.pos, asked, 1.0), verb=True)
   assert np.allclose(r.goal["left"].rot, np.diag([-1.0, -1.0, 1.0])) and np.array_equal(_pre(r), clear[1])
-  turned["plans"] = False
-  r = _standing_reach()
-  assert not r.reach("left", HandGoal(INTO_TORSO.pos, asked, 1.0), verb=True)
-  assert r.reach("left", HandGoal(INTO_TORSO.pos, asked, 1.0), verb=False)
-  assert np.allclose(r.goal["left"].rot, asked) and np.array_equal(_pre(r), inside[1])
+  for plans in ("none", "inside"):
+    turned["plans"] = plans
+    r = _standing_reach()
+    assert not r.reach("left", HandGoal(INTO_TORSO.pos, asked, 1.0), verb=True)
+    assert r.reach("left", HandGoal(INTO_TORSO.pos, asked, 1.0), verb=False)
+    assert np.allclose(r.goal["left"].rot, asked) and np.array_equal(_pre(r), inside[1])
+    assert r.own["left"]["m"] == -0.083, plans
 
 
 # ---- 5: a look at the pre-grasp --------------------------------------------------------------
