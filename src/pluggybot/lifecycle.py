@@ -3988,9 +3988,10 @@ class HubLifecycle:
     delete, applied by code like every admin kind. What the robot is shown
     is the thread, on its next turn. At the top of every arbitration pass,
     and in every slice of a pause for every robot on the loop (#729,
-    `_mode_step`; Overseer.md §2g); none once a stop is asked, a line at a
-    time -- what an ending process takes, the site may never hear
-    acknowledged, and the line left goes with the process to be sent again.
+    `_mode_step`; Overseer.md §2g); none once a stop is asked, checked
+    before each line -- what an ending process takes, the site may never
+    hear acknowledged, and a line it leaves, queued or drained, goes with
+    the process to be sent again.
 
     ⚠ A LINE NEVER ENDS THE RUN (`_ticket_failed`): raised in a pause, the
     process would die, restart paused, and be sent the line again."""

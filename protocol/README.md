@@ -1656,8 +1656,12 @@ open, three inbound kinds; no header change beyond `accepts`, no bump.
 - `closed` -- `from` (who closed it), `text` (the closing message, may be
   empty), `points` (what the reward table paid) and `seq` (the ledger
   entry), `ref`, and `paid`: true the first time, FALSE on a replayed close
-  (the same figure back, nothing banked again).
-- `deleted` -- `from`, `ref`. Erased, open or closed; nothing paid.
+  (the same figure back, nothing banked again). ⚠ `paid` says which close
+  this was, and `points` and `seq` what the desk recorded: null where the
+  pay failed after the desk took the close (#729's reviews), which is not
+  tried again.
+- `deleted` -- `from`, `ref`. Erased, open or closed; nothing paid. A
+  copy sent again finds no ticket, and is `unknown`.
 - `refused` -- the desk would not take the robot's `ticket` or
   `ticket_reply`: `verb`, `why` (a full desk, a closed ticket, an empty
   report), and the `kind` / `title` or `id` it named. ...Or it failed on

@@ -323,8 +323,15 @@ class Desk:
                     title=title or text[:MAX_TITLE], text=text, t=float(t),
                     cut=cut)
     self.tickets[ticket.id] = ticket
-    self._save_counter()
-    self._save(ticket)
+    try:
+      self._save_counter()
+      self._save(ticket)
+    except Exception:
+      # never a ticket the record lacks (#729's review), its slot held and
+      # its id spent; an id the counter's file took stays spent
+      del self.tickets[ticket.id]
+      self.seq -= 1
+      raise
     return ticket
 
   def reply(self, ticket_id: str, text: str, t: float,

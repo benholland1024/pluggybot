@@ -143,6 +143,9 @@ def test_a_write_the_store_refuses_leaves_the_desk_as_it_was(tmp_path, monkeypat
 
   monkeypatch.setattr(d.store, "write", full)
   with pytest.raises(OSError):
+    d.open("idea", "two", "second", t=1.5)
+  assert d.open_ids() == ("tk_0001",) and d.seq == 1, "the robot's own verb too"
+  with pytest.raises(OSError):
     d.reply("tk_0001", "which board?", 2.0, sender=desk.OPERATOR, who="ben", ref="tr_1")
   assert d.get("tk_0001").thread == [] and d.taken("tk_0001", "tr_1") is None
   with pytest.raises(OSError):
