@@ -206,16 +206,48 @@ def test_watch_waits_for_its_first_reading_and_ends_with_the_procedure():
   assert body.watched == [53, None], "stopped at the procedure's end"
 
 
-def test_a_spot_that_sees_nothing_says_which_camera_did_not():
+def test_a_spot_that_sees_nothing_says_which_camera_did_not_and_where_its_picture_ends():
   """#660: `spot`'s refusal, as `watch`'s, names the colour camera it read,
   never the head camera, and the top of its picture, which no bow raises:
   "from where you stand" alone sent a robot off to stand elsewhere for a tag
-  above that picture."""
+  above that picture. #728: and its sides, which no bow widens: told the
+  top alone, a robot turned 32-36 deg from square, its door's lever 48-52
+  deg from where its head faced, read every refusal as the top edge's and
+  called that edge "stance-dependent". The numbers are `spot`'s text's
+  (`test_hands.py` reads them off the model)."""
   ran = _fly('def a():\n    if not spot(53):\n        pass\n', _Watching(_sighting()))
   assert ran["ok"] and ran["steps"][0]["reason"] == (
     "tag 53 is not in your colour camera's picture from where you stand, or too near or too far "
     "to read: "
-    f"it shows nothing higher than {st.SPOT_TOP_DEG:.0f} degrees below level")
+    f"it shows nothing higher than {st.SPOT_TOP_DEG:.0f} degrees below level, nor further than "
+    f"{st.SPOT_SIDE_TOP_DEG:.0f} degrees to either side of where your head faces at that top "
+    f"(more than {st.SPOT_SIDE_BOTTOM_TENS} at its bottom)")
+
+
+@pytest.mark.parametrize("held", [None, {"asked": 0.45, "bow": 0.43, "m": 0.99},
+                                  {"asked": 0.45, "bow": 0.0, "m": 0.99}])
+def test_a_spot_that_sees_nothing_is_said_whole_in_its_runs_history_line(held):
+  """#728, #629: History's run line says each false test's first reason
+  inside its 400 characters, the stamp's room kept (`procedure_outcome`),
+  and one that does not fit is not said at all. Every refusal of a `spot`
+  that saw nothing -- its bow held as #717 holds one at its widest digits,
+  or not held -- at the largest tag the language takes, is said whole beside
+  a run that ended and beside one it stopped, at the longest name a
+  procedure may have and a 4-digit line: so a held bow's says the top and
+  the bow, never the sides as well (beside it, 351-374 characters, it was
+  said by no run that ended)."""
+  from pluggybot import lifecycle as lc
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  body = _Watching(_sighting())
+  body.bow_held = held
+  tag = int(st.HANDS_VERBS["spot"].args["tag"].hi)
+  reason = _fly(f'def a():\n    if not spot({tag}):\n        pass\n', body)["steps"][0]["reason"]
+  assert ("your LIDAR reads" in reason) is (held is not None), reason
+  step = {"i": 0, "verb": "spot", "line": 1234, "ok": False, "reason": reason}
+  for run in ({"ok": True, "completed": lang.MAX_STEPS, "steps": [{**step, "tested": True}]},
+              {"ok": False, "completed": lang.MAX_STEPS, "failedAt": 0, "steps": [step]}):
+    [line] = lc.procedure_outcome("p" * lang.MAX_NAME_CHARS, run)
+    assert reason in line and len(line) <= MAX_LINE_CHARS - lc.HISTORY_STAMP_ROOM, line
 
 
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():

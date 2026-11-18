@@ -643,14 +643,20 @@ def _spot(life, args: dict) -> Routine:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
     forget_readings(life, "spot")
-    # what the bows could not change, the picture's top (#660), and short:
-    # History's line says each false test's reason inside its 400 characters
+    # what the bows could not change, the picture's top (#660) and its sides
+    # (#728: named alone, the top was blamed for a tag beside the picture),
+    # and short: History's line says each false test's reason inside its 400
+    # characters, and says none that does not fit
     reason = (f"tag {int(tag)} is not in your colour camera's picture from where you "
               "stand, or too near or too far to read: it shows nothing higher than "
               f"{SPOT_TOP_DEG:.0f} degrees below level")
     if held:
-      # ...and a bow its head's room held (#717): what kept it, and how far
+      # ...and a bow its head's room held (#717): what kept it, and how far --
+      # in place of the sides, which beside it would not fit
       reason += "; " + _bow_said(held)
+    else:
+      reason += (f", nor further than {SPOT_SIDE_TOP_DEG:.0f} degrees to either side of where "
+                 f"your head faces at that top (more than {SPOT_SIDE_BOTTOM_TENS} at its bottom)")
     return {"ok": False, "tag": int(tag), "reason": reason}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
