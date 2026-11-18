@@ -5932,7 +5932,10 @@ class HubLifecycle:
 
     ⚠ THE CLOCK IS RESET BY THE ASK AND NOT BY THE ANSWER -- see
     `UNMINDED_AFTER_S`. This is the only place that does both, so the gap
-    the robot is shown and the clock that kills it can never disagree.
+    the robot is shown and the clock that kills it disagree only after a
+    charge's break, whose ask resets the clock that kills alone (#730,
+    `_arbitrate_routine`): that clock the fresher, a mind can only believe
+    itself nearer its limit than it is.
     """
     t = float(self.data.time)
     self._asked_after_s = (None if self._asked_t is None

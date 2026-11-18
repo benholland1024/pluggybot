@@ -1471,7 +1471,8 @@ save a filmstrip PNG named after the script.
     `ask` ROW STAMPS IT AS IT FIRES on the seam (#426: `_events_step`), a
     row dropped `busy` and a mid-errand interrupt included, never again when
     it runs: a restart, a full slot or a charge between the two lost the
-    period (4 of 19 deaths on legs). The queued row is KEPT across a
+    period (4 of 19 deaths on legs) -- but a charge's break's ask resets the
+    death clock alone, never the silence shown (#730). The queued row is KEPT across a
     restart. Armed ONLY where there is a map; NOT prevented in code (a map
     that cannot remove its own `ask` row is a rail).
     ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS ANSWERED FOR ITSELF
