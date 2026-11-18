@@ -13,11 +13,12 @@ observatory is NOT a result: it reports into the issue it informs.
 ### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `b4d1ec1f…` (69,557
-characters, 17 sections, `loop-staging` e629cddd) becomes `12e26802…`
-(70,212, 17 sections). The event map's rule says a person's message
+characters, 17 sections, `loop-staging` e629cddd) becomes `3c8617a0…`
+(70,239, 17 sections). The event map's rule says a person's message
 reaches a robot while it charges where its `message_received` rule asks,
 that it is asked with its plug in unless asking is held off (`busy`,
-`cooloff`, `budget`, `allowance`), what a `charge`, a stand-still answer
+`cooloff`, `budget`, `allowance`: then it waits until the robot can be
+asked, or for the charge's end), what a `charge`, a stand-still answer
 and a move then do, and that a failed answer goes on charging, its order
 running once the charge ends unless a new question comes first; and its
 two sentences that said every other `ask` waits until the robot is free

@@ -547,6 +547,66 @@ def test_the_rule_names_every_gate_a_break_waits_behind(gate):
   said = rule[rule.index("A PERSON'S MESSAGE REACHES YOU"):]
   said = said[:said.index("\n\n")]
   assert f"`{gate}`" in said and gate in ov.FALLBACK_REASONS
+  # ...and that it waits until the robot can be asked, as `can_ask` is read
+  # once a second (#730's fourth review: "for the charge to end" alone)
+  assert "until you can be asked" in said
+
+
+def test_a_message_rows_other_action_still_fires_for_a_message_an_ask_showed():
+  """#730's fourth review: a message in an ask's context is no news to a map
+  that asks on one (a second paid ask), and marked so whatever the row, a
+  greeting the agent mapped to `message_received` never ran for a message
+  that came a moment before an ask."""
+  greet = ev.Row(event="message_received", action="idle")
+  life, _ = _life_asked(greet, answers=[full(action="idle", reason="hm")], delay=0.02)
+  _say(life)                                # ...queued; the seam has not looked yet
+  life.body.run(life._decide_routine())     # shown it, before the map could fire
+  assert life.queued_row == greet, "the map's own row for a message never fired"
+
+
+def test_an_ask_that_sent_nothing_gives_its_messages_back_to_the_map():
+  """An ask the idle-run throttle refused sent nobody its context: a message
+  that came a moment before it is still the map's news, and its row fires."""
+  life, client = _life_asked(ASKS, answers=[_answer("idle")])
+  life.overseer._idle_run = ov.MAX_IDLE_RUN
+  _say(life)
+  life.body.run(life._decide_routine())     # refused: no call
+  assert not client.calls
+  life.body.run(life.body.hold_routine(2.0))
+  assert life.queued_row == ASKS, "the message was taken for asked"
+
+
+def test_a_true_death_as_the_call_flies_leaves_the_next_robot_owing_nothing():
+  """#730's fourth review: what a call did to the answers owed was counted
+  before the answer was found to be a dead robot's, and the next robot
+  owed the old one's visitor a break."""
+  from pluggybot.economy.ledger import Ledger
+  life = _minded(ASKS, client=FakeClient(_answer("charge", to="m_1"), delay=0.05))
+  life.ledger = Ledger()
+  _say(life, 1)
+  life._next_events_check = 0.0
+  life._events_step()
+  _say(life, 2)                             # shown before the map saw it
+
+  def die():
+    if life.overseer.pending and not life.true_deaths:
+      life._true_death(float(life.data.time))
+  life.body.step_hooks.append(die)
+  life.body.run(life._decide_routine())
+  assert life.true_deaths and not life._owed
+
+
+def test_a_refused_ask_after_a_break_says_it_was_not_asked():
+  """#730's fourth review: a fallback no call made (the idle-run throttle)
+  read "no answer came" under the robot's portrait, though nothing was
+  asked."""
+  life, _ = _life_asked(ASKS, answers=[_answer("charge")])
+  life.overseer._idle_run = ov.MAX_IDLE_RUN
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert any("CHARGE: not asked (idle-run)" in ln for ln in life.log), life.log[-4:]
+  assert not any("no answer came" in ln for ln in life.log)
 
 
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():

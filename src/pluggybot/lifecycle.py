@@ -3092,8 +3092,7 @@ class HubLifecycle:
     asked."""
     if not self._owed or self.inbox is None or self.overseer is None:
       return False
-    first = self.event_map.first("message_received") if self.event_map is not None else None
-    if first is None or first.action != ev.ASK:
+    if not self._asks_on_messages:
       return False
     if self.mode is not None and not self.mode.thinking:
       return False
@@ -3101,6 +3100,14 @@ class HubLifecycle:
                for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)):
       return False
     return self.overseer.can_ask()
+
+  @property
+  def _asks_on_messages(self) -> bool:
+    """Is the map's FIRST row for a message an `ask` (#730)? The row that
+    fires is the first one for its event (#518's reviews: an `idle` ahead
+    of an `ask` never asks), read as the map stands now."""
+    first = self.event_map.first("message_received") if self.event_map is not None else None
+    return first is not None and first.action == ev.ASK
 
   def _break(self, before: dict) -> None:
     """A charge's hold ended for a person's message (#730): its plug in, the
@@ -6335,7 +6342,8 @@ class HubLifecycle:
       while self.overseer.pending:
         yield from self.body.hold_routine(THINK_SLICE_S)
       decision = self.overseer.result(state)
-      if called:
+      if called and len(self.true_deaths) == lives:
+        # ...never the next robot's, a true death made as the call flew
         self._asked_about(shown, newly, decision)
       if len(self.true_deaths) != lives:
         # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat
@@ -6370,18 +6378,20 @@ class HubLifecycle:
     seeing one a tick after the context was built, it paid for a second ask
     about a message the model had been shown -- those the map had not seen
     yet, which an ask that sends nobody its context gives back
-    (`_ask_routine`), and of them a person's where the map's first row for
-    a message asks: owed as that row would have made them, or one shown
-    before the map could fire for it and answered past waited out the
-    charge (`_asked_about`)."""
+    (`_ask_routine`), and of them a person's: owed as the map's row would
+    have made them, or one shown before the map could fire for it and
+    answered past waited out the charge (`_asked_about`). All this only
+    where the map's first row for a message asks: a row of another action
+    is no second paid ask, and marked seen it never ran."""
     shown = {m.get("id", "") for m in state.get("visitorMessages", ())} - {""}
+    if not self._asks_on_messages or self.inbox is None:
+      # ...a row of another action (a greeting procedure, say) fires as it
+      # always did: it costs no call
+      return shown, set(), set()
     unseen = shown - self._seen_visitors
     self._seen_visitors |= shown
-    first = self.event_map.first("message_received") if self.event_map is not None else None
-    newly = ({m.id for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
-              if m.id in unseen and m.sender == text_registry.VISITOR}
-             if unseen and first is not None and first.action == ev.ASK
-             and self.inbox is not None else set())
+    newly = {m.id for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
+             if m.id in unseen and m.sender == text_registry.VISITOR}
     return shown, unseen, newly
 
   def _asked_about(self, shown: set, newly: set, decision) -> None:
@@ -6425,9 +6435,9 @@ class HubLifecycle:
       return
     why = decision.source.partition(":")[2]
     frac = f"{self.battery.fraction:.0%}"
-    self._say(f"CHARGE: no answer came ({why}) -- back on my charge at {frac}, and "
-              f"{decision.action} once it ends",
-              doing="CHARGE: no answer came -- back on my charge")
+    self._say(f"CHARGE: {'no answer came' if called else 'not asked'} ({why}) -- back "
+              f"on my charge at {frac}, and {decision.action} once it ends",
+              doing=f"CHARGE: {'no answer came' if called else 'not asked'} -- back on my charge")
     said = before.setdefault("said", set())
     if called and "back" not in said:
       said.add("back")

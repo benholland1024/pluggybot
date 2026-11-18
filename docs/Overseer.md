@@ -2933,7 +2933,9 @@ these hold, each read as it looks, never stored:
 - a call would go out (`Overseer.can_ask`): never in free mode, with a call
   still out (`busy`), cooling off, or with the purse or the hour's calls
   spent -- but through the idle-run throttle, which refuses one ask and
-  opens again. The rule names these gates;
+  opens again. The rule names these gates, and says the message waits
+  until the robot can be asked; a fallback no call made says it was not
+  asked;
 - the charge has held a moment (one that broke before a step "took no
   time", every turn of a chat).
 
@@ -2966,7 +2968,9 @@ queue. A message in an ask's context is no news to the map, which seeing it
 a tick later paid for a second ask. A break's ask is stamped on the
 unminded clock only where no row's stamp waits for it (`_stamp_unspent`,
 spent by any ask): a message still owed after an answer to somebody else
-is asked again with no row fired. History says the break, and an answer
+is asked again with no row fired. Only a map whose first row for a message
+asks is told an ask's messages are no news: a row of another action (a
+greeting procedure, say) fires as it did, costing no call. History says the break, and an answer
 that did not come, once a charge. The walk to the station, the wait for a
 taken one and the stand-by still hold a message (#730's follow-up).
 
