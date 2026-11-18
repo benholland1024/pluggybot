@@ -2677,9 +2677,9 @@ whatever you had done is scored as it stands.
 
 ⚠ A PERSON'S MESSAGE REACHES YOU WHILE YOU CHARGE, where your \
 `message_received` rule says `ask`: you are asked then, with your plug \
-still in -- unless asking you is held off (`busy`, `cooloff`, `budget` or \
-`allowance`, above), and then it waits until you can be asked, or for the \
-charge to end. `charge` \
+still in -- unless asking you is held off (`busy`, `cooloff`, `budget`, \
+`allowance` or `scripted-mode`, above), and then it waits until you can be \
+asked, or for the charge to end. `charge` \
 carries on charging where you are, what you do standing still leaves the \
 plug in, and anything that moves you takes it out first. If no answer \
 comes, you carry on charging, and what you have set for a failed decision \

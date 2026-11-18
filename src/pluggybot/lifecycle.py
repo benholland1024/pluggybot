@@ -1215,24 +1215,25 @@ class HubLifecycle:
     self._seen_visitors: set[str] = set()
     # ---- answering while it charges (#730; Overseer.md §10) ----
     #: THE ANSWER OWED: a person's messages the map's `message_received`
-    #: ask row fired for, each with how many answers it was shown that
-    #: answered nobody -- read by a charge's hold (`_spoken_to`), which ends
-    #: for one, its plug in, and kept until a call answers it, fails with it
-    #: shown, or answers nobody `OWED_SHOWINGS` times (`_asked_about`). Not
-    #: kept across a restart, as the inbox is not.
-    self._owed: dict[str, int] = {}
+    #: ask row fired for, each as [how many answers it was shown that
+    #: answered nobody, whether its row's stamp of the unminded clock still
+    #: waits for its ask] -- read by a charge's hold (`_spoken_to`), which
+    #: ends for one, its plug in, and kept until a call answers it, fails
+    #: with it shown, or answers nobody `OWED_SHOWINGS` times
+    #: (`_asked_about`). Not kept across a restart, as the inbox is not.
+    self._owed: dict[str, list] = {}
     #: ...the charge such a break left OPEN, as its `before` (one cycle
     #: however often broken: the charge that takes it up carries it on, and
     #: `_open_charge_step` closes it where nothing does) -- and whether the
     #: break's ask is still to be answered (`_arbitrate_routine` asks it).
     self._open_charge: dict | None = None
     self._break_owed = False
-    #: ...whether a stamp of the unminded clock (`_stamp_ask`) waits for the
-    #: ask it stands for -- spent as an ask starts (`_decide_routine`) -- and
-    #: whether an ask is being made, from its start to its action (a charge
-    #: left open closes on a full pack only between them, `_open_charge_step`)
-    self._stamp_unspent = False
+    #: ...whether an ask is being made, from its start to its action (a
+    #: charge left open closes on a full pack only between them,
+    #: `_open_charge_step`) -- and whether one closed so, its plug still in
+    #: (a `charge` then counts it again no more, `charge_routine`)
     self._asking = False
+    self._charged_plugged = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -1451,6 +1452,8 @@ class HubLifecycle:
     self._death_step()
     self._restart_step()
     self._open_charge_step()
+    if self._charged_plugged and not self.charging_now:
+      self._charged_plugged = False
 
   def _near_field_step(self) -> None:
     """One depth frame, at the sensor's rate, to its two consumers.
@@ -3069,7 +3072,13 @@ class HubLifecycle:
     finally:
       # Cleared before the undock, which is REAL travel and must be counted.
       self.body.docked = False
-    self._charge_complete(before, " -- backing off")
+    if self._charged_plugged and before["t"] == self.data.time:
+      # ...a charge that closed full with its plug in, standing (#730):
+      # counted then, never again for a `charge` that finds it so
+      self._say("CHARGE: full already -- backing off", doing=True)
+    else:
+      self._charge_complete(before, " -- backing off")
+    self._charged_plugged = False
     yield from self.body.undock_routine()
     if self.body.charging():
       # ...said as the run's own unplug says it: unsaid, a charge's end that
@@ -3092,6 +3101,8 @@ class HubLifecycle:
     asked."""
     if not self._owed or self.inbox is None or self.overseer is None:
       return False
+    if self.dead is not None:
+      return False                          # ...nobody is asked while dead
     if not self._asks_on_messages:
       return False
     if self.mode is not None and not self.mode.thinking:
@@ -3148,7 +3159,7 @@ class HubLifecycle:
     if self.data.time > before["t"]:
       self._bank(scoring.score_charge(self, before))
 
-  def _close_open_charge(self) -> None:
+  def _close_open_charge(self, count: bool = True) -> None:
     """Close a charge a message left open (#730): full, as a charge's end
     closes one -- its cycle, `task_complete charge` and its row (without
     them, a pack filled standing still after a break left a map that asks on
@@ -3158,8 +3169,9 @@ class HubLifecycle:
     before, self._open_charge = self._open_charge, None
     if before is None:
       return
-    if self.battery.fraction >= CHARGED:
+    if count and self.battery.fraction >= CHARGED:
       self._charge_complete(before)
+      self._charged_plugged = self.charging_now
     elif self.data.time > before["t"]:
       self._bank(scoring.score_charge(self, before))
 
@@ -5725,7 +5737,7 @@ class HubLifecycle:
       # robot's `tell` -- and whether the slot below takes the row or not:
       # a charge's hold ends on it (`_spoken_to`)
       for msg_id in persons:
-        self._owed.setdefault(msg_id, 0)
+        self._owed.setdefault(msg_id, [0, False])[1] = True
     # ⚠ AN `ask` ROW STAMPS THE UNMINDED CLOCK AS IT FIRES (issue #426), the
     # moment the map has done its part -- not when the loop runs it, and a
     # row dropped `busy` below included. The period moved on here, so a
@@ -5903,7 +5915,6 @@ class HubLifecycle:
     left at `DECIDE`, a robot walking its procedure on read as deciding.
     """
     was, self.state = self.state, "DECIDE"
-    self._stamp_unspent = False             # ...an ask (#730, `_stamp_unspent`)
     try:
       self.overseer.start_interrupt(
         overseer_context(self), self._errand_name,
@@ -5928,7 +5939,6 @@ class HubLifecycle:
     self._asked_after_s = (None if self._asked_t is None
                            else round(t - self._asked_t, 1))
     self._asked_t = self._last_ask_t = t
-    self._stamp_unspent = True
 
   def _new_moment_routine(self) -> Routine:
     """Stand still `DECIDED_IDLE_S` when the last decision was acted on at
@@ -6003,9 +6013,10 @@ class HubLifecycle:
       if self._consult is not None:
         asked_by = dict(self._consult)
         self._say(f"EVENT asking once: {self._consult['event'].replace('_', ' ')}")
-      if not self._stamp_unspent:
-        # ...stamped as asked where no row's stamp stands for it: a message
-        # still owed after an answer that answered somebody else is asked
+      if not any(self._owed[m.id][1] for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
+                 if m.id in self._owed):
+        # ...stamped as asked where no message's own row stamp waits for
+        # it: a message still owed after an ask that showed it is asked
         # again with no row fired (`_asked_about`), and unstamped, a mind
         # just asked could die `unminded`
         self._stamp_ask()
@@ -6313,7 +6324,6 @@ class HubLifecycle:
     """
     self.state = "DECIDE"
     self._asked_by = dict(asked_by or {"event": "loop"})
-    self._stamp_unspent = False
     self._asking = True
     try:
       yield from self._ask_routine(plugged)
@@ -6402,15 +6412,17 @@ class HubLifecycle:
     off with it, a second person waited out the charge -- unless it answered
     nobody, which counts against each (`OWED_SHOWINGS`)."""
     for msg_id in newly:
-      self._owed.setdefault(msg_id, 0)
+      self._owed.setdefault(msg_id, [0, False])
     answered = (decision.respond_to
                 if not decision.scripted and decision.responds else "")
     for msg_id in shown & self._owed.keys():
+      owed = self._owed[msg_id]
+      owed[1] = False                     # ...its row's stamp spent by this ask
       if decision.scripted or msg_id == answered:
         del self._owed[msg_id]
       elif not answered:
-        self._owed[msg_id] += 1
-        if self._owed[msg_id] >= OWED_SHOWINGS:
+        owed[0] += 1
+        if owed[0] >= OWED_SHOWINGS:
           del self._owed[msg_id]
 
   def _order_after_charge_routine(self, decision, called: bool) -> Routine:
@@ -7485,8 +7497,10 @@ class HubLifecycle:
         # touch, and this is the whole of what it touched.
         # ...and never AT the rack (issue #346): a swap, a charge or a
         # failed pick ends there, and a robot thinking where it stands
-        # holds the other robot's bay for as long as the call flies.
-        yield from self._leave_rack_routine()
+        # holds the other robot's bay for as long as the call flies -- but
+        # a charge a message broke is asked at once, its plug in (#730)
+        if not self._break_owed:
+          yield from self._leave_rack_routine()
         yield from self._arbitrate_routine()
       elif not self.floor_explored:
         self._cleared_rack = False
@@ -7523,8 +7537,9 @@ class HubLifecycle:
       # recording's day until asked aside, and 0.88 m off it from then on
       yield from self._leave_rack_routine()
     # ...and a charge a message left open banks what it got, as the hour's
-    # cut does, its plug left in (#730): nothing is kept of it to carry on
-    self._close_open_charge()
+    # cut does, its plug left in (#730): nothing is kept of it to carry on,
+    # and the next run's `charge` counts its end
+    self._close_open_charge(count=False)
     self._break_owed = False
     # ...`CHARGE` still where a charge's plug is in (#654): it is one, and
     # the next run's first line goes by it (`_resumed_line`)

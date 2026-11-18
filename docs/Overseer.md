@@ -2930,14 +2930,18 @@ these hold, each read as it looks, never stored:
   it before the map could fire for it -- and it is a person's, never the
   other robot's `tell`; the map's FIRST row for a message is still an `ask`,
   and the message is still in the window the model is shown;
-- a call would go out (`Overseer.can_ask`): never in free mode, with a call
-  still out (`busy`), cooling off, or with the purse or the hour's calls
-  spent -- but through the idle-run throttle, which refuses one ask and
-  opens again. The rule names these gates, and says the message waits
-  until the robot can be asked; a fallback no call made says it was not
-  asked;
+- a call would go out (`Overseer.can_ask`): never in free mode, while dead,
+  with a call still out (`busy`), cooling off, or with the purse or the
+  hour's calls spent -- but through the idle-run throttle, which refuses one
+  ask and opens again. The rule names these gates, and says the message
+  waits until the robot can be asked; a fallback no call made says it was
+  not asked;
 - the charge has held a moment (one that broke before a step "took no
   time", every turn of a chat).
+
+The break's ask comes before the loop clears the station for the other
+robot (cleared first, a pack that filled meanwhile was unplugged and walked
+off, and the ask said to come with the plug in came without it).
 
 The answer is acted on as given, plugged in, on #654's rules: a `charge`
 goes straight on, what stands still leaves the plug in, what moves takes
@@ -2955,8 +2959,10 @@ row cut there reads as a failed charge, below 85 %); the `charge` that
 carries it on banks one row from where it began; where nothing does, the
 seam closes it (`_open_charge_step`) -- at a full pack, between asks
 (`_asking`), with its cycle, its row and `task_complete charge`, which a
-map may ask on; with the plug out short, or at the run's end, its row
-alone, as a charge cut short always banks one.
+map may ask on (a `charge` chosen after that, the plug still in, backs off
+counting nothing: "full already"); with the plug out short, or at the
+run's end, its row alone, as a charge cut short always banks one (the next
+run's `charge` counts its end).
 
 ⚠ N = 1: a message is asked about once during an outage -- a CALL that went
 out with it in its context and failed takes it off what is owed, whatever
@@ -2966,12 +2972,14 @@ the others it was shown owed, the model answering one a turn; one answered
 nobody at `OWED_SHOWINGS` (2) times is owed no more, nor one gone from the
 queue. A message in an ask's context is no news to the map, which seeing it
 a tick later paid for a second ask. A break's ask is stamped on the
-unminded clock only where no row's stamp waits for it (`_stamp_unspent`,
-spent by any ask): a message still owed after an answer to somebody else
-is asked again with no row fired. Only a map whose first row for a message
-asks is told an ask's messages are no news: a row of another action (a
-greeting procedure, say) fires as it did, costing no call. History says the break, and an answer
-that did not come, once a charge. The walk to the station, the wait for a
+unminded clock only where none of its messages' own row stamps waits for
+it (`_owed`'s second field, spent by the ask that shows the message): a
+message still owed after an ask that showed it is asked again with no row
+fired, and another row's stamp since is no stand-in (dropped `busy`, it
+stood for an ask that never came). Only a map whose first row for a
+message asks is told an ask's messages are no news: a row of another action
+(a greeting procedure, say) fires as it did, costing no call. History says
+the break, and an answer that did not come, once a charge. The walk to the station, the wait for a
 taken one and the stand-by still hold a message (#730's follow-up).
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last

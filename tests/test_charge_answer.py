@@ -496,17 +496,25 @@ def test_a_break_takes_a_queued_ask_under_that_rows_name():
   assert [r["id"] for r in life.replies] == ["m_1"] and life.queued_row is None
 
 
-def test_an_interrupts_ask_spends_the_stamp_it_stands_for():
-  """#730's third review: a row's stamp is spent by the ask it stands for,
-  and an interrupt's ask is one; left unspent, a later break's ask took it
-  for its own and the clock stayed at the old stamp."""
-  life, _ = _life_asked(ASKS, answers=[{"continue_errand": True, "reason": "fine"}])
-  life._stamp_ask()
-  assert life._stamp_unspent
-  life._errand_name = "a job"
-  life.body.run(life._ask_interrupt_routine(ev.Row(event="battery_below", value=0.5,
-                                                   action=ev.ASK)))
-  assert not life._stamp_unspent
+def test_a_break_for_a_message_an_ask_showed_stamps_though_another_row_stamped():
+  """#730's fifth review: a message left owed by an ask that answered
+  somebody else is asked again with no row of its own; another ask row
+  that stamped the clock since and was dropped `busy` stood in for it, and
+  a mind asked at the break could die `unminded` off that old stamp. A
+  break's ask stands on its own messages' row stamps alone."""
+  life, _ = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                       _answer("charge", to="m_2")])
+  _say(life, 1)
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)                          # m_1 answered, m_2 left owed: charging on
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  life._stamp_ask()                         # ...another row stamps, its ask dropped `busy`
+  stamped = life._last_ask_t
+  life.body.run(life.body.hold_routine(30.0))
+  _next_pass(life)                          # the break for m_2
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2"]
+  assert life._last_ask_t > stamped + 20.0, "asked, and the clock left at the old stamp"
 
 
 def test_a_message_shown_before_the_map_saw_it_is_owed_as_the_map_would_owe_it():
@@ -526,12 +534,15 @@ def test_a_message_shown_before_the_map_saw_it_is_owed_as_the_map_would_owe_it()
   assert life.charge_cycles == 1 and len(_charges(life)) == 1
 
 
-@pytest.mark.parametrize("gate", ["busy", "cooloff", "budget", "allowance"])
-def test_the_rule_names_every_gate_a_break_waits_behind(gate):
-  """#730's third review: the rule said a person's message is asked about
-  while the robot charges, and a gate shut kept the message waiting for the
-  charge's end: the rule names each gate `can_ask` waits behind, in the
-  words a failed decision is named by."""
+@pytest.mark.parametrize("gate", ["busy", "cooloff", "budget", "allowance", "scripted-mode"])
+def test_the_rule_names_every_gate_a_break_waits_behind(gate, tmp_path):
+  """#730's third and fifth reviews: the rule said a person's message is
+  asked about while the robot charges, and a gate shut kept the message
+  waiting: the rule names each gate a break waits behind (`can_ask`'s, and
+  free mode's), in the words a failed decision is named by."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
   life, _ = _life_asked(ASKS)
   boss = life.overseer
   if gate == "busy":
@@ -540,9 +551,16 @@ def test_the_rule_names_every_gate_a_break_waits_behind(gate):
     boss._cooloff_until = boss.clock() + 1e9
   elif gate == "budget":
     boss.budget_left = lambda: 0
-  else:
+  elif gate == "allowance":
     boss._allowance_ok = lambda: False
-  assert not boss.can_ask()
+  else:
+    switch = tmp_path / "mode.json"
+    switch.write_text(json.dumps({"mode": "scripted"}))
+    life.mode = ModeSwitch(switch)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._owed and not life._spoken_to
   rule = ov.EVENT_MAP_RULE
   said = rule[rule.index("A PERSON'S MESSAGE REACHES YOU"):]
   said = said[:said.index("\n\n")]
@@ -607,6 +625,82 @@ def test_a_refused_ask_after_a_break_says_it_was_not_asked():
   _next_pass(life)
   assert any("CHARGE: not asked (idle-run)" in ln for ln in life.log), life.log[-4:]
   assert not any("no answer came" in ln for ln in life.log)
+
+
+def test_a_charge_closed_full_standing_is_counted_once_whatever_comes_after():
+  """#730's fifth review: the pack filled as the robot stood after a break,
+  the seam closed the charge (its cycle, `task_complete charge`), and a
+  `charge` chosen after it, the plug still in, counted it again."""
+  on_full = ev.Row(event="task_complete", kind="charge", action=ev.ASK)
+  life, _ = _life_asked(ASKS, on_full, answers=[_answer("idle"),
+                                                full(action="charge", reason="top up")])
+  told = _occurred(life)
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.charge_cycles == 1 and life.body.on_charger
+  _next_pass(life)                          # task_complete charge -> ask: `charge`
+  assert life.charge_cycles == 1 and told.count(("task_complete", "charge")) == 1
+  assert len(_charges(life)) == 1 and not life.body.on_charger
+  assert any("full already" in ln for ln in life.log), life.log[-3:]
+
+
+def test_a_dead_robot_breaks_no_charge_and_is_told_it_is_asked_by_nothing():
+  """#730's fifth review: a robot dead with its plug in holds its charge
+  until it is stood up, and a message ended the hold: History said "I am
+  asked with my plug still in", and nothing asked a dead robot."""
+  life, client = _life_asked(ASKS)
+  life.dead = {"t": 0.0, "cause": "unpaid", "why": "a test"}
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
+  assert not any("a message came in" in ln for ln in life.log)
+
+
+def test_a_break_is_asked_before_the_station_is_cleared():
+  """#730's fifth review: the loop clears the station before it decides
+  (with the other robot about), and a pack that filled between the break
+  and its ask was unplugged and walked off -- the ask that History said
+  came with the plug in came without it."""
+  from test_run_end import _at_the_station, _life
+
+  from pluggybot.lifecycle import board_book
+  from pluggybot.mind.inbox import Inbox
+  menu = ov.Menu.for_world("home_humanoid", board_book("home_humanoid"))
+  client = FakeClient(_answer("charge"))
+  boss = ov.Overseer(menu, origin="unseeded", client=client,
+                     event_map=ev.EventMap([ASKS]))
+  life = _life(peer=True, overseer=boss, inbox=Inbox())
+  other = life.peers[0]                     # ...as the context reads one
+  other.dead, other.doing, other.body.rights_itself = None, "", False
+  life.max_sim_time = 1e9
+  life.body.on_charger = True
+  life.battery.energy_wh = life.battery.capacity_wh * 0.4
+  _at_the_station(life)
+  cleared: list = []
+  leave = life._leave_rack_routine
+
+  def spy():
+    cleared.append(life._break_owed)
+    return (yield from leave())
+  life._leave_rack_routine = spy
+  _say(life)
+  _charge(life)
+  assert life._break_owed
+  day = life.begin((life.body.x, life.body.y, 0.0), max_sim_time=1e9)
+
+  class _Asked(Exception):
+    pass
+
+  def stop():
+    if client.calls:
+      raise _Asked
+  life.at_loop_top.append(stop)
+  with pytest.raises(_Asked):
+    life.body.run(day)
+  assert True not in cleared, "the station cleared with a break's ask owed"
+  assert client.calls
 
 
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
@@ -878,6 +972,19 @@ def test_the_runs_end_banks_a_charge_left_open_and_leaves_the_plug_in():
   [row] = _charges(life)
   assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
   assert summary["charge_cycles"] == 0 and life.body.on_charger
+
+
+def test_a_charge_left_open_full_at_the_runs_end_is_counted_by_the_next_run():
+  """#730's fifth review: closed at the run's end with a cycle where its pack
+  was full, a charge was counted again by the next run's `charge`, which
+  finds the plug in and counts its end: the run's end banks a row alone."""
+  life, _ = _life_asked(ASKS)
+  _say(life)
+  _charge(life)
+  assert life._break_owed                   # ...its ask owed, so the seam held it open
+  life.battery.energy_wh = life.battery.capacity_wh * 0.95
+  summary = life.run(start=(life.body.x, life.body.y, 0.0), max_sim_time=float(life.data.time))
+  assert len(_charges(life)) == 1 and summary["charge_cycles"] == 0
 
 
 def test_an_answer_past_the_runs_hour_is_still_acted_on():
