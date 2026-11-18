@@ -995,17 +995,76 @@ def test_the_runs_end_banks_a_charge_left_open_and_leaves_the_plug_in():
   assert summary["charge_cycles"] == 0 and life.body.on_charger
 
 
-def test_a_charge_left_open_full_at_the_runs_end_is_counted_by_the_next_run():
-  """#730's fifth review: closed at the run's end with a cycle where its pack
-  was full, a charge was counted again by the next run's `charge`, which
-  finds the plug in and counts its end: the run's end banks a row alone."""
+def test_a_charge_left_open_full_at_the_runs_end_is_counted_there_once():
+  """#730's ninth review: its pack full as the run ended (an ask out, the
+  seam held it open), a charge left open banked its row alone, and was
+  counted only if the next run's first act was a `charge` -- whose plug
+  still in, it counts nothing more (the fifth review: counted at the run's
+  end, the next run's `charge` counted it again, before the save kept
+  whether it was)."""
+  import json
   life, _ = _life_asked(ASKS)
+  told = _occurred(life)
   _say(life)
   _charge(life)
   assert life._break_owed                   # ...its ask owed, so the seam held it open
   life.battery.energy_wh = life.battery.capacity_wh * 0.95
   summary = life.run(start=(life.body.x, life.body.y, 0.0), max_sim_time=float(life.data.time))
-  assert len(_charges(life)) == 1 and summary["charge_cycles"] == 0
+  assert len(_charges(life)) == 1 and summary["charge_cycles"] == 1
+  assert told.count(("task_complete", "charge")) == 1 and life.body.on_charger
+  state, arrays = life.kept_state()
+  after, _ = _life_asked(ASKS)
+  after.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  _charge(after)
+  assert after.charge_cycles == 0 and not _charges(after)
+
+
+def test_a_consult_is_said_only_where_the_breaks_ask_reaches_a_mind(tmp_path):
+  """#730's ninth review: free mode may come between a break and its ask,
+  which then asks nobody -- 'EVENT asking once' is not said, and the
+  consult stays owed for an answer of the mind's own."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
+  life, client = _life_asked(ASKS)
+  _say(life)
+  _charge(life)
+  assert life._break_owed
+  life._consult = {"event": "unminded", "note": lc.UNMINDED_NOTE}
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "scripted"}))
+  life.mode = ModeSwitch(switch)
+  _next_pass(life)
+  assert not client.calls and life._consult is not None
+  assert not any("asking once" in ln for ln in life.log), life.log[-4:]
+
+
+def test_an_order_dropped_as_the_runs_hour_comes_says_so():
+  """#730's ninth review: a failed answer's order waited on the charge, the
+  charge ended full, and the run's hour came in its undock -- dropped, the
+  order said the charge had ended otherwise."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  ran: list = []
+
+  def explore(**kw):
+    ran.append(True)
+    return "time"
+    yield
+  life.explore_routine = explore
+  undock = life.body.undock_routine
+
+  def undocking():
+    yield from life.body.hold_routine(3.0)    # ...a body's undock steps
+    return (yield from undock())
+  life.body.undock_routine = undocking
+  _say(life)
+  _charge(life)
+  life.battery.energy_wh = life.battery.capacity_wh * lc.CHARGED - 1e-6
+  life.max_sim_time = float(life.data.time) + 2.0
+  _next_pass(life)
+  assert life.charge_cycles == 1 and not ran
+  assert any("dropped -- the run's time is up" in ln for ln in life.log), life.log[-4:]
 
 
 def test_an_answer_past_the_runs_hour_is_still_acted_on():

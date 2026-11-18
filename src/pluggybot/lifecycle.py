@@ -3158,17 +3158,19 @@ class HubLifecycle:
     if self.data.time > before["t"]:
       self._bank(scoring.score_charge(self, before))
 
-  def _close_open_charge(self, count: bool = True) -> None:
+  def _close_open_charge(self) -> None:
     """Close a charge a message left open (#730): full, as a charge's end
     closes one -- its cycle, `task_complete charge` and its row (without
     them, a pack filled standing still after a break left a map that asks on
-    `task_complete:charge` unasked); short of full
-    (the plug out for what moves, the run's end), its row alone, as a
-    charge cut short always banks one (the hour, a plug that came out)."""
+    `task_complete:charge` unasked), its plug still in or not kept
+    (`_charged_plugged`, which a save keeps: a `charge` that finds it so
+    counts nothing more); short of full (the plug out for what moves, the
+    run's end), its row alone, as a charge cut short always banks one (the
+    hour, a plug that came out)."""
     before, self._open_charge = self._open_charge, None
     if before is None:
       return
-    if count and self.battery.fraction >= CHARGED:
+    if self.battery.fraction >= CHARGED:
       self._charge_complete(before)
       self._charged_plugged = self.charging_now
     elif self.data.time > before["t"]:
@@ -6012,7 +6014,9 @@ class HubLifecycle:
         self.overseer.rows_fired[row.event] = \
             self.overseer.rows_fired.get(row.event, 0) + 1
         asked_by = {"event": row.event, "kind": row.kind, "value": row.value}
-      if self._consult is not None:
+      if self._consult is not None and (self.mode is None or self.mode.thinking):
+        # ...said only where a mind is asked: free mode come since the break
+        # asks nobody, and the consult stays owed
         asked_by = dict(self._consult)
         self._say(f"EVENT asking once: {self._consult['event'].replace('_', ' ')}")
       # ...and the clock that kills a mind nobody consults is reset by it,
@@ -6464,7 +6468,8 @@ class HubLifecycle:
       self._charge_trip = False
     if (ended is STOOD_UP or self._break_owed or self._hour_up
         or self.dead is not None):
-      self._say(f"DECIDE: {decision.action} dropped -- my charge ended otherwise")
+      why = "the run's time is up" if self._hour_up else "my charge ended otherwise"
+      self._say(f"DECIDE: {decision.action} dropped -- {why}")
       return
     self.state = "DECIDE"
     self._decided_at = (float(self.data.time), decision.action)
@@ -7542,9 +7547,11 @@ class HubLifecycle:
       # recording's day until asked aside, and 0.88 m off it from then on
       yield from self._leave_rack_routine()
     # ...and a charge a message left open banks what it got, as the hour's
-    # cut does, its plug left in (#730): nothing is kept of it to carry on,
-    # and the next run's `charge` counts its end
-    self._close_open_charge(count=False)
+    # cut does, its plug left in (#730) -- and its cycle where the pack is
+    # full: left to the next run's `charge`, a pack that filled during an
+    # ask the hour came through was counted only if that run's first act
+    # was one
+    self._close_open_charge()
     self._break_owed = False
     # ...`CHARGE` still where a charge's plug is in (#654): it is one, and
     # the next run's first line goes by it (`_resumed_line`)

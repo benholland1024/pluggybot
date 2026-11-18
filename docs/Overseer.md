@@ -2960,9 +2960,11 @@ carries it on banks one row from where it began; where nothing does, the
 seam closes it (`_open_charge_step`) -- at a full pack, between asks
 (`_asking`), with its cycle, its row and `task_complete charge`, which a
 map may ask on (a `charge` chosen after that, the plug still in, backs off
-counting nothing: "full already"); with the plug out short, or at the
-run's end, its row alone, as a charge cut short always banks one (the next
-run's `charge` counts its end).
+counting nothing: "full already", which a save keeps); with the plug out
+short of full, or the run's end short of it, its row alone, as a charge
+cut short always banks one -- the run's end with a full pack counts it
+there (left to the next run's `charge`, a pack that filled in an ask the
+hour came through was counted only if that run's first act was one).
 
 ⚠ N = 1: a message is asked about once during an outage -- a CALL that went
 out with it in its context and failed takes it off what is owed, whatever

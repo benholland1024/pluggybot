@@ -37,8 +37,8 @@ once, and acts on the answer as given (#654's rules). A fallback goes back
 on the charge, and its order runs when the charge ends. The charge stays
 one: one `charge` row from where it began, one cycle and one `task_complete
 charge`, whether the `charge` answered carries it on or the pack fills
-while the robot stands still; cut by a move, the run's end or a plug that
-came out, its row alone. A message is asked about once, by the first call
+while the robot stands still or the run ends; cut short of full by a
+move, the run's end or a plug that came out, its row alone. A message is asked about once, by the first call
 that held it, and a message in an ask's context fires no `message_received`
 after it (one did, a tick later, and paid for a second ask).
 
