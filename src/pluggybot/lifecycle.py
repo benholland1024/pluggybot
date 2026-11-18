@@ -719,12 +719,13 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
   each in the order the run made them, the lines in full where they are the
   lines it had with that one reason the longer, inside the room, else in its
-  shorter form -- so with none in full the lines are c7f78bc9's, byte for
-  byte. Said in full beside a long stop or other tests, it crowded their
-  reasons, or its own, out of the line (Observatory.md). ⚠ A step whose
-  reason no longer starts with its `brief` (a fall's, said over the verb's)
-  has none. ⚠ IT RESTS ON `_outcome` LAYING THE LINES OUT BY THE REASONS'
-  LENGTHS ALONE (a test pins it)."""
+  shorter form -- so with every one in its shorter form the lines are the
+  ones a run with no shorter forms makes, byte for byte. Said in full beside
+  a long stop or other tests, it crowded their reasons, or its own, out of
+  the line (Observatory.md). ⚠ A step whose reason no longer starts with its
+  `brief` (a fall's, said over the verb's) has none. ⚠ IT RESTS ON
+  `_outcome` LAYING THE LINES OUT BY THE REASONS' LENGTHS ALONE (a test pins
+  it)."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
   steps = run.get("steps") or []
   short = {i: s["brief"] for i, s in enumerate(steps)

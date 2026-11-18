@@ -234,7 +234,7 @@ def _refused(tag=55, held=None, line=9, tested=True) -> dict:
 
 
 def _today(run: dict) -> dict:
-  """`run` as c7f78bc9 kept it: each reason with a shorter form, that form."""
+  """`run` as it was kept before #728: each reason with a shorter form, that form."""
   return {**run, "steps": [{k: v for k, v in s.items() if k != "brief"}
                            | ({"reason": s["brief"]} if s.get("brief") else {})
                            for s in run["steps"]]}
@@ -296,7 +296,7 @@ def test_a_spot_whose_sides_would_crowd_its_runs_line_says_what_it_said_before(c
   readout off the line: of the 74 runs with a refused `spot` of the 11-14
   and 11-15 wakes, a reason or a name was gone in 40 (the `spot`'s own in
   24), and the readout off the line in 8 more. Where they would move
-  anything, the line is c7f78bc9's byte for byte: the top alone."""
+  anything, the line is as it was before, byte for byte: the top alone."""
   from pluggybot import lifecycle as lc
   name, run = _crowded(case)
   spot = next(s for s in run["steps"] if s["verb"] == "spot")
@@ -308,7 +308,7 @@ def test_a_spot_whose_sides_would_crowd_its_runs_line_says_what_it_said_before(c
 
 
 def test_a_spot_whose_sides_fit_says_them_and_moves_nothing_else():
-  """#728: with room, the line is c7f78bc9's with the `spot`'s reason the
+  """#728: with room, the line is as it was with the `spot`'s reason the
   longer, its sides said and every other word where it was."""
   from pluggybot import lifecycle as lc
   run = {"ok": True, "completed": 5, "locals": {"a": 1.5},
@@ -472,7 +472,7 @@ def test_no_reader_of_a_step_is_shown_its_shorter_form():
 ])
 def test_a_run_with_no_shorter_reason_says_what_it_said_before(name, run, said):
   """#728: a run none of whose steps carries a shorter form of its reason
-  -- every run but a `spot` that saw nothing -- is c7f78bc9's line byte for
+  -- every run but a `spot` that saw nothing -- is the line it was, byte for
   byte (these are its lines)."""
   from pluggybot import lifecycle as lc
   assert lc.procedure_outcome(name, run) == said
