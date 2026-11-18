@@ -647,17 +647,19 @@ def _spot(life, args: dict) -> Routine:
     # (#728), and short: History's run line drops whole a false test's reason
     # past what its run leaves, about 307 characters less the procedure's
     # name and the line's digits (#629; tests/test_watch.py pins the fit)
-    reason = (f"tag {int(tag)} is not in your colour camera's picture from where you "
-              "stand, or too near or too far to read: it shows nothing higher than "
-              f"{SPOT_TOP_DEG:.0f} degrees below level")
+    top = (f"tag {int(tag)} is not in your colour camera's picture from where you "
+           "stand, or too near or too far to read: it shows nothing higher than "
+           f"{SPOT_TOP_DEG:.0f} degrees below level")
     if held:
       # ...and a bow its head's room held (#717): what kept it, and how far --
       # in place of the sides, which beside it would not fit
-      reason += "; " + _bow_said(held)
-    else:
-      reason += (f", nor further than {SPOT_SIDE_TOP_DEG:.0f} degrees to either side of where "
-                 f"your head faces at that top (more than {SPOT_SIDE_BOTTOM_TENS} at its bottom)")
-    return {"ok": False, "tag": int(tag), "reason": reason}
+      return {"ok": False, "tag": int(tag), "reason": f"{top}; {_bow_said(held)}"}
+    # ...the top alone (`brief`) where the sides would move anything else
+    # History's line says (`lifecycle.procedure_outcome`)
+    return {"ok": False, "tag": int(tag), "brief": top,
+            "reason": (f"{top}, nor further than {SPOT_SIDE_TOP_DEG:.0f} degrees to either side "
+                       f"of where your head faces at that top (more than "
+                       f"{SPOT_SIDE_BOTTOM_TENS} at its bottom)")}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}

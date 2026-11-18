@@ -678,7 +678,7 @@ def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool)
               else "FAILED")
       said = {k: v for k, v in step.items()
               if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt", "tested",
-                           "in", "entry", "fell")}
+                           "in", "entry", "fell", "brief")}
       lines.append(f"  line {step.get('line', '?')} {step.get('verb')}{_in(step)}: {word}"
                    + (f" -- {step['reason']}" if step.get("reason") else "")
                    + (f" {json.dumps(said, default=str)}" if said else ""))

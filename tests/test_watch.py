@@ -224,6 +224,22 @@ def test_a_spot_that_sees_nothing_says_which_camera_did_not_and_where_its_pictur
     f"(more than {st.SPOT_SIDE_BOTTOM_TENS} at its bottom)")
 
 
+def _refused(tag=55, held=None, line=9, tested=True) -> dict:
+  """A `spot` that saw nothing, its step's record as a run keeps it, at `line`."""
+  body = _Watching(_sighting())
+  body.bow_held = held
+  step = _fly(f'def a():\n    if not spot({tag}):\n        pass\n', body)["steps"][0]
+  step = {**step, "line": line}
+  return step if tested else {k: v for k, v in step.items() if k != "tested"}
+
+
+def _today(run: dict) -> dict:
+  """`run` as c7f78bc9 kept it: each reason with a shorter form, that form."""
+  return {**run, "steps": [{k: v for k, v in s.items() if k != "brief"}
+                           | ({"reason": s["brief"]} if s.get("brief") else {})
+                           for s in run["steps"]]}
+
+
 @pytest.mark.parametrize("held", [None, {"asked": 0.45, "bow": 0.43, "m": 0.99},
                                   {"asked": 0.45, "bow": 0.0, "m": 0.99}])
 def test_a_spot_that_sees_nothing_is_said_whole_in_its_runs_history_line(held):
@@ -233,21 +249,125 @@ def test_a_spot_that_sees_nothing_is_said_whole_in_its_runs_history_line(held):
   that saw nothing -- its bow held as #717 holds one at its widest digits,
   or not held -- at the largest tag the language takes, is said whole beside
   a run that ended and beside one it stopped, at the longest name a
-  procedure may have and a 4-digit line: so a held bow's says the top and
-  the bow, never the sides as well (beside it, 351-374 characters, it was
-  said by no run that ended)."""
+  procedure may have and a 4-digit line: with room, the sides; with a bow
+  held, the top and the bow, never the sides as well (beside it, 351-374
+  characters, it was said by no run that ended)."""
   from pluggybot import lifecycle as lc
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
-  body = _Watching(_sighting())
-  body.bow_held = held
-  tag = int(st.HANDS_VERBS["spot"].args["tag"].hi)
-  reason = _fly(f'def a():\n    if not spot({tag}):\n        pass\n', body)["steps"][0]["reason"]
+  step = _refused(int(st.HANDS_VERBS["spot"].args["tag"].hi), held, line=1234, tested=False)
+  reason = step["reason"]
   assert ("your LIDAR reads" in reason) is (held is not None), reason
-  step = {"i": 0, "verb": "spot", "line": 1234, "ok": False, "reason": reason}
+  assert ("to either side" in reason) is (held is None), reason
   for run in ({"ok": True, "completed": lang.MAX_STEPS, "steps": [{**step, "tested": True}]},
-              {"ok": False, "completed": lang.MAX_STEPS, "failedAt": 0, "steps": [step]}):
+              {"ok": False, "completed": lang.MAX_STEPS, "failedAt": step["i"], "steps": [step]}):
     [line] = lc.procedure_outcome("p" * lang.MAX_NAME_CHARS, run)
     assert reason in line and len(line) <= MAX_LINE_CHARS - lc.HISTORY_STAMP_ROOM, line
+
+
+def _crowded(case: str) -> tuple[str, dict]:
+  """A run whose History line has room for a refused `spot`'s top alone,
+  each crowded another way."""
+  def read(line, verb, reason):
+    return {"verb": verb, "line": line, "ok": False, "tested": True, "reason": reason}
+  why = "your right hand stopped short on its way: out of reach from how you truly stand"
+  if case == "its own":
+    return "p", {"ok": True, "completed": 5, "steps": [read(4, "measure", "m" * 120), _refused()]}
+  if case == "another test's":
+    return "p", {"ok": True, "completed": 5, "steps": [_refused(line=3), read(8, "reach", why)]}
+  if case == "a stop condition's":
+    return "p", {"ok": True, "completed": 5, "steps": [
+      _refused(line=3), read(5, "reach", why),
+      {"i": 4, "verb": "pull", "line": 6, "ok": True, "why": "until",
+       "until": "right.fx read 3.626 (above 3) 0.18 s in"}]}
+  if case == "the readout's":
+    return "p", {"ok": True, "completed": 5, "steps": [_refused(line=3)],
+                 "locals": {f"v{k}": 0.25 * k for k in range(8)}}
+  # ...the step it stopped at, beside a test that read false before it
+  step = _refused(tested=False)
+  return "p", {"ok": False, "completed": 5, "failedAt": step["i"],
+               "steps": [read(4, "measure", "m" * 60), step]}
+
+
+@pytest.mark.parametrize("case", ["its own", "another test's", "a stop condition's",
+                                  "the readout's", "the step it stopped at"])
+def test_a_spot_whose_sides_would_crowd_its_runs_line_says_what_it_said_before(case):
+  """#728: said in full, the sides crowded History's run line -- the
+  `spot`'s own reason, another test's, a stop condition's reading, the
+  readout off the line -- in 42 of the 74 runs with a refused `spot` of the
+  11-14 and 11-15 wakes. Where they would move anything, the line is
+  c7f78bc9's byte for byte: the top alone."""
+  from pluggybot import lifecycle as lc
+  name, run = _crowded(case)
+  spot = next(s for s in run["steps"] if s["verb"] == "spot")
+  assert lc._outcome(name, run) != [x.replace(spot["brief"], spot["reason"])
+                                    for x in lc._outcome(name, _today(run))], "not crowded"
+  said = lc.procedure_outcome(name, run)
+  assert said == lc.procedure_outcome(name, _today(run)), said
+  assert spot["reason"] not in "".join(said)
+
+
+def test_a_spot_whose_sides_fit_says_them_and_moves_nothing_else():
+  """#728: with room, the line is c7f78bc9's with the `spot`'s reason the
+  longer, its sides said and every other word where it was."""
+  from pluggybot import lifecycle as lc
+  run = {"ok": True, "completed": 5, "locals": {"a": 1.5},
+         "steps": [_refused(line=3), {"verb": "wait", "line": 4, "ok": False, "tested": True,
+                                      "reason": "no"}]}
+  spot = run["steps"][0]
+  said = lc.procedure_outcome("p", run)
+  assert said == [x.replace(spot["brief"], spot["reason"])
+                  for x in lc.procedure_outcome("p", _today(run))], said
+  assert "nor further than" in said[0] and said[0].endswith("-- it ended with a = 1.5")
+
+
+def test_a_reason_whose_full_form_runs_past_historys_room_says_its_shorter_one():
+  """#728: a full form that moves nothing else but would run the line past
+  History's room, which would cut it, is said in its shorter form."""
+  from pluggybot import lifecycle as lc
+  step = {"i": 4, "verb": "pull", "line": 9, "ok": False, "reason": "x " * 190, "brief": "short"}
+  run = {"ok": False, "completed": 5, "failedAt": 4, "steps": [step]}
+  assert lc.procedure_outcome("p", run) == lc.procedure_outcome("p", _today(run))
+
+
+@pytest.mark.parametrize("name, run, said", [
+  ("p", {"ok": True, "completed": 4, "total": 4, "steps": [
+    {"verb": "measure", "line": 4, "ok": False, "tested": True,
+     "reason": "no flat top seen round (1, 0) from where you stand"},
+    {"verb": "measure", "line": 4, "ok": False, "tested": True,
+     "reason": "no flat top seen round (2, 0) from where you stand"},
+    {"i": 2, "verb": "wait", "line": 5, "ok": True},
+    {"verb": "expr", "line": 8, "ok": False, "tested": True, "reason": "division by zero",
+     "in": "grip"}]},
+   ["ran the procedure p to its end (4 steps; 3 tests read false -- line 4, measure (2 times): "
+    "no flat top seen round (1, 0) from where you stand; line 8, an expression (in grip): "
+    "division by zero)"]),
+  ("reach_far", {"ok": True, "completed": 9, "total": 9, "locals": {"a": 1.5, "b": 2.0},
+                 "steps": [{"verb": "reach", "line": 10 + k, "ok": False, "tested": True,
+                            "reason": "your right hand stopped short on its way: out of reach "
+                                      "from how you truly stand, or pushing on something"}
+                           for k in range(4)]},
+   ["ran the procedure reach_far to its end (9 steps; 4 tests read false -- line 10, reach: your "
+    "right hand stopped short on its way: out of reach from how you truly stand, or pushing on "
+    "something; line 11, reach: your right hand stopped short on its way: out of reach from how "
+    "you truly stand, or pushing on something (+2 more)) -- it ended with a = 1.5, b = 2"]),
+  ("door_try", {"ok": False, "completed": 7, "total": 9, "failedAt": 6,
+                "locals": {"lx": 0.61, "ly": -0.2}, "steps": [
+    {"verb": "step", "line": 3, "ok": False, "tested": True,
+     "reason": "your step got nowhere: something stands in your way"},
+    {"i": 4, "verb": "reach", "line": 6, "ok": True, "why": "until",
+     "until": "right.fx read 3.626 (above 3) 0.18 s in"},
+    {"i": 6, "verb": "pull", "line": 9, "ok": False, "reason": "you fell on the way there"}]},
+   ["the procedure door_try did not finish -- it stopped at line 9, pull: you fell on the way "
+    "there (7 steps had run; 1 test read false -- line 3, step: your step got nowhere: something "
+    "stands in your way; 1 stop condition said -- line 6, reach: right.fx read 3.626 (above 3) "
+    "0.18 s in) -- it ended with lx = 0.61, ly = -0.2"]),
+])
+def test_a_run_with_no_shorter_reason_says_what_it_said_before(name, run, said):
+  """#728: a run none of whose steps carries a shorter form of its reason
+  -- every run but a `spot` that saw nothing -- is c7f78bc9's line byte for
+  byte (these are its lines)."""
+  from pluggybot import lifecycle as lc
+  assert lc.procedure_outcome(name, run) == said
 
 
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():
