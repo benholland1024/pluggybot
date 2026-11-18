@@ -617,16 +617,23 @@ def test_a_true_death_as_the_call_flies_leaves_the_next_robot_owing_nothing():
   assert life.true_deaths and not life._owed
 
 
-def test_a_refused_ask_after_a_break_says_it_was_not_asked():
-  """#730's fourth review: a fallback no call made (the idle-run throttle)
-  read "no answer came" under the robot's portrait, though nothing was
-  asked."""
-  life, _ = _life_asked(ASKS, answers=[_answer("charge")])
-  life.overseer._idle_run = ov.MAX_IDLE_RUN
+def test_a_refused_ask_after_a_break_says_it_was_not_asked(tmp_path):
+  """#730's fourth review: a fallback no call made read "no answer came"
+  under the robot's portrait, though nothing was asked -- here free mode,
+  come between the break and its ask (the idle-run throttle, which did it
+  then, a break's ask passes now)."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
+  life, client = _life_asked(ASKS, answers=[_answer("charge")])
   _say(life)
   _charge(life)
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "scripted"}))
+  life.mode = ModeSwitch(switch)
   _next_pass(life)
-  assert any("CHARGE: not asked (idle-run)" in ln for ln in life.log), life.log[-4:]
+  assert not client.calls
+  assert any("CHARGE: not asked (scripted-mode)" in ln for ln in life.log), life.log[-4:]
   assert not any("no answer came" in ln for ln in life.log)
 
 
@@ -688,6 +695,29 @@ def test_answering_the_other_robot_passes_a_persons_message_over():
     _next_pass(life)
   assert len(client.calls) == lc.OWED_SHOWINGS
   assert [r["id"] for r in life.replies] == ["t_1", "t_2"]
+
+
+def test_an_answer_to_a_person_the_queue_put_out_in_the_think_is_to_a_person():
+  """#730's twelfth review: who an answer went to was read off the queue
+  after the think, and the full queue had put out the message it answered
+  -- read as an answer to nobody, it charged every other person's message a
+  showing. Who was shown is the context's, as the model saw it."""
+  box: list = []
+
+  class Crowd(FakeClient):
+    def create(self, **kwargs):
+      for n in range(31):                   # ...the queue full: m_1 put out
+        box[0].inbox.offer({"type": "message", "id": f"x_{n}", "from": "a visitor",
+                            "text": "hello"})
+      return super().create(**kwargs)
+  life = _minded(ASKS, client=Crowd(_answer("charge", to="m_1")))
+  box.append(life)
+  _say(life)
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)
+  assert "m_1" not in {m.id for m in life.inbox.peek(len(life.inbox))}
+  assert life._owed.get("m_2") == 0, life._owed
 
 
 def test_a_pack_taken_down_with_the_plug_in_is_a_charge_of_its_own():
@@ -954,23 +984,20 @@ def test_a_message_no_mind_would_answer_waits_for_the_charge_to_end(refusing, tm
   assert not client.calls
 
 
-def test_the_idle_run_throttle_costs_a_message_no_answer():
-  """The throttle (`MAX_IDLE_RUN`) answers one ask `idle-run` and opens
-  again: a break that meets it goes back on its charge without a call, and
-  the next break, a moment on, asks the model -- the message keeps its one
-  ask, which only a call spends."""
+def test_a_breaks_ask_passes_the_idle_run_throttle():
+  """#730's twelfth review: the throttle (`MAX_IDLE_RUN`) refused a break's
+  ask -- the robot went back on its charge with its order, broke again a
+  moment on, dropped the order and was asked anyway: a fallback row, its
+  lines, and no call saved. A person's message is no idle run, and the
+  break's ask passes the throttle; the next ask of another kind meets it."""
   life, client = _life_asked(ASKS, answers=[_answer("charge")])
   life.overseer._idle_run = ov.MAX_IDLE_RUN
   _say(life)
   _charge(life)
-  _next_pass(life)                          # throttled: back on the charge, no call
-  assert not client.calls and not life.replies
-  assert life.body.on_charger and life.charge_cycles == 0, "broken again, a moment on"
-  _next_pass(life)                          # ...and asked
-  assert [r["id"] for r in life.replies] == ["m_1"]
-  assert len(client.calls) == 1
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1"] and len(client.calls) == 1
+  assert not any(d["source"].startswith("fallback:") for d in life.decisions)
   assert life.charge_cycles == 1 and len(_charges(life)) == 1
-  assert not any("no answer came" in ln for ln in _history(life)), "a refusal is no failed call"
 
 
 # ---- what a death, a stand-up and the run's end do to it ----------------------

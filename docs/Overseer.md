@@ -2932,10 +2932,12 @@ these hold, each read as it looks, never stored:
   and the message is still in the window the model is shown;
 - a call would go out (`Overseer.can_ask`): never in free mode, while dead,
   with a call still out (`busy`), cooling off, or with the purse or the
-  hour's calls spent -- but through the idle-run throttle, which refuses one
-  ask and opens again. The rule names these gates, and says the message
-  waits until the robot can be asked; a fallback no call made says it was
-  not asked;
+  hour's calls spent -- but past the idle-run throttle, which the break's
+  own ask passes too (`start(throttle=False)`): a person's message is no
+  idle run, and refused, the robot went back on its charge with an order it
+  dropped a moment later, and was asked anyway. The rule names these gates,
+  and says the message waits until the robot can be asked; a fallback no
+  call made says it was not asked;
 - the charge has held a moment (one that broke before a step "took no
   time", every turn of a chat).
 
@@ -2972,9 +2974,9 @@ not read yet is kept with the world.
 out with it in its context and failed takes it off what is owed, whatever
 the failure (`_asked_about`); an ask that sent nobody its context (`busy`,
 a gate) takes nothing. An answer takes the message it answered and leaves
-the others it was shown owed, the model answering one a turn; one answered
-nobody at `OWED_SHOWINGS` (2) times is owed no more, nor one gone from the
-queue. A message in an ask's context is no news to the map, which seeing it
+the others it was shown owed, the model answering one a turn; one passed
+over `OWED_SHOWINGS` (2) times -- an answer to nobody, or to the other
+robot -- is owed no more, nor one gone from the queue. A message in an ask's context is no news to the map, which seeing it
 a tick later paid for a second ask. ⚠ A BREAK'S ASK RESETS THE CLOCK THAT
 KILLS A MIND NOBODY CONSULTS (`_last_ask_t`), always, and never the silence
 the mind is shown (`lastAskedSAgo`, the rows' stamps): a break may ask long

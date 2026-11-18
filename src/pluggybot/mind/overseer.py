@@ -4268,10 +4268,13 @@ class Overseer:
       return ""
     return row.action
 
-  def start(self, state: dict) -> bool:
+  def start(self, state: dict, throttle: bool = True) -> bool:
     """Dispatch a decision. Returns immediately -- whether a call went out
     (the model sent `state`), False for one resolved at once (`busy`, a
-    gate) -- and the answer is polled for with `pending`."""
+    gate) -- and the answer is polled for with `pending`. ⚠ `throttle`
+    False passes the idle-run throttle: a charge's break asks for a person's
+    message, never for an idle run (#730: refused, it went back on its
+    charge with an order it dropped a moment later, and asked anyway)."""
     with self._lock:
       self._asked_for = self._starts_over
       self._pending_state = dict(state)
@@ -4285,7 +4288,7 @@ class Overseer:
         self._slot = {"decision": self.fallback(state, "busy")}
         return False
       self._slot = {}
-      why = self._refuse(state)
+      why = self._refuse(state, throttle)
       if why:
         # Nothing to dispatch: budget spent, cooling off, no client, or too
         # many idle turns in a row. Resolve now so the caller never waits for
@@ -4298,8 +4301,8 @@ class Overseer:
                        daemon=True).start()
       return True
 
-  def _refuse(self, state: dict) -> str:
-    why = self._refusal()
+  def _refuse(self, state: dict, throttle: bool = True) -> str:
+    why = self._refusal(throttle)
     if why == "idle-run":
       # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
       # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
@@ -4336,9 +4339,9 @@ class Overseer:
     """Would a decision started now go to the model, as far as this side can
     tell (#730: a charge's hold is broken for a message only then)? Never
     with a call still out (`busy`) nor behind a gate that stays shut -- but
-    through the idle-run throttle, which shuts one ask and opens again (and
-    read past it: found first, it hid a cooloff behind it). An endpoint
-    that fails is found only by asking."""
+    past the idle-run throttle, which the break's own ask passes too
+    (`start`'s `throttle`; read past, found first, it hid a cooloff behind
+    it). An endpoint that fails is found only by asking."""
     with self._lock:                        # as `start` reads them
       return not self._in_flight and not self._refusal(throttle=False)
 

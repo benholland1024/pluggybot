@@ -137,7 +137,7 @@ class SimMind(ov.Overseer):
                               "action": rng.choice(("remove", "ask", "idle"))}]
     return ("ok", answer)
 
-  def start(self, state: dict) -> bool:
+  def start(self, state: dict, throttle: bool = True) -> bool:
     self.plan = self._draw(state)
     self.hold_until = (self.clock() + self.rng.choice((0.0, 0.5, 5.0, 30.0, 90.0))
                        if self.plan[0] != "slow" else 0.0)
@@ -146,7 +146,7 @@ class SimMind(ov.Overseer):
                                    Event=real.Event)
     self._deferred = None
     try:
-      called = super().start(state)
+      called = super().start(state, throttle)
     finally:
       ov.threading = real
     if self._deferred is not None:
@@ -315,7 +315,7 @@ class Watch:
     life._decide_routine = deciding
     asked = life._asked_about
 
-    def asked_about(shown, newly, decision):
+    def asked_about(shown, newly, decision, persons):
       owed = set(shown) & (set(life._owed) | set(newly))
       for msg_id in owed:
         if msg_id in self.answered:
@@ -337,7 +337,7 @@ class Watch:
       self.shown |= set(shown)
       if not decision.scripted and decision.responds:
         self.answered.add(decision.respond_to)
-      asked(shown, newly, decision)
+      asked(shown, newly, decision, persons)
     life._asked_about = asked_about
     evicted = life.inbox.drain_evicted
 

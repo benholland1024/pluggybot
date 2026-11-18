@@ -6353,8 +6353,8 @@ class HubLifecycle:
       called = False
     else:
       lives = len(self.true_deaths)
-      shown, unseen, newly = self._ask_takes(state)
-      called = self.overseer.start(state)
+      shown, unseen, newly, persons = self._ask_takes(state)
+      called = self.overseer.start(state, throttle=not plugged)
       if not called:
         # ...an ask that sent nobody its context -- a call still out
         # (`busy`), a gate shut -- spent no message's ask
@@ -6364,7 +6364,7 @@ class HubLifecycle:
       decision = self.overseer.result(state)
       if called and len(self.true_deaths) == lives:
         # ...never the next robot's, a true death made as the call flew
-        self._asked_about(shown, newly, decision)
+        self._asked_about(shown, newly, decision, persons)
       if len(self.true_deaths) != lives:
         # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat
         # pack or an unpaid bill lands mid-think): the answer is its own,
@@ -6393,7 +6393,7 @@ class HubLifecycle:
     yield from self._until_stood_up_routine(
       self._after_decision_routine(decision))
 
-  def _ask_takes(self, state: dict) -> tuple[set, set, set]:
+  def _ask_takes(self, state: dict) -> tuple[set, set, set, set]:
     """The messages an ask's context holds -- no news to the map now (#730):
     seeing one a tick after the context was built, it paid for a second ask
     about a message the model had been shown -- those the map had not seen
@@ -6402,19 +6402,23 @@ class HubLifecycle:
     have made them, or one shown before the map could fire for it and
     answered past waited out the charge (`_asked_about`). All this only
     where the map's first row for a message asks: a row of another action
-    is no second paid ask, and marked seen it never ran."""
+    is no second paid ask, and marked seen it never ran. And the people's
+    among them, as the context shows them: read after the think, the queue
+    may have put out the one the model answered."""
     shown = {m.get("id", "") for m in state.get("visitorMessages", ())} - {""}
-    if not self._asks_on_messages or self.inbox is None:
+    if self.inbox is None:
+      return shown, set(), set(), set()
+    persons = {m.id for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
+               if m.id in shown and m.sender == text_registry.VISITOR}
+    if not self._asks_on_messages:
       # ...a row of another action (a greeting procedure, say) fires as it
       # always did: it costs no call
-      return shown, set(), set()
+      return shown, set(), set(), persons
     unseen = shown - self._seen_visitors
     self._seen_visitors |= shown
-    newly = {m.id for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
-             if m.id in unseen and m.sender == text_registry.VISITOR}
-    return shown, unseen, newly
+    return shown, unseen, persons & unseen, persons
 
-  def _asked_about(self, shown: set, newly: set, decision) -> None:
+  def _asked_about(self, shown: set, newly: set, decision, persons: set) -> None:
     """What a call that went out did to the answers owed (#730): ⚠ A FAILED
     ONE TAKES EVERY MESSAGE IT HELD (N = 1: asked about once during an
     outage, whatever came of it); an answer takes the message it answered,
@@ -6427,13 +6431,10 @@ class HubLifecycle:
       self._owed.setdefault(msg_id, 0)
     answered = (decision.respond_to
                 if not decision.scripted and decision.responds else "")
-    person = bool(answered) and self.inbox is not None and any(
-      m.id == answered and m.sender == text_registry.VISITOR
-      for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS))
     for msg_id in shown & self._owed.keys():
       if decision.scripted or msg_id == answered:
         del self._owed[msg_id]
-      elif not person:
+      elif answered not in persons:
         self._owed[msg_id] += 1
         if self._owed[msg_id] >= OWED_SHOWINGS:
           del self._owed[msg_id]
