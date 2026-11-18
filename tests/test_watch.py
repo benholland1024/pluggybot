@@ -408,6 +408,8 @@ def test_historys_run_lines_are_laid_out_by_the_reasons_lengths_alone():
     {"ok": False, "completed": 4, "failedAt": 3, "locals": {"a": 1.5},
      "steps": [read(2, "step", "your step got nowhere " + "u" * 140),
                {"i": 3, "verb": "pull", "line": 5, "ok": False, "reason": "you fell " + "w" * 150}]},
+    {"ok": True, "completed": 3, "locals": {"b": 2.0},
+     "steps": [read(3, "spot", "tag 5 is not seen"), read(5, "measure", "no flat top seen")]},
   ]
   for run in runs:
     told = [s for s in run["steps"] if s.get("reason")]
