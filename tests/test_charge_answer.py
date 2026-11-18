@@ -306,6 +306,36 @@ def test_a_failed_answers_order_waits_for_the_next_run_when_the_hour_cuts_the_ch
   assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
 
 
+def test_a_charge_closed_as_the_failure_is_said_leaves_its_order_to_run_now():
+  """Saying a failed answer may step the world (`_after_decision_routine`
+  grades a job first), and the charge it would go back on may close
+  meanwhile -- its plug out, its pack full: nothing to go back on, and the
+  order runs at once."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  order: list = []
+
+  def explore(**kw):
+    order.append(life.body.on_charger)
+    return "budget"
+    yield
+  life.explore_routine = explore
+  said = life._after_decision_routine
+
+  def said_and_unplugged(decision, act=True):
+    out = yield from said(decision, act=act)
+    if not act:
+      life.body.on_charger = False          # ...the plug out as it was said,
+      life.charging_now = False             # read by the seam's next step
+      life._open_charge_step()
+    return out
+  life._after_decision_routine = said_and_unplugged
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert order == [False] and len(_charges(life)) == 1
+
+
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
   """N = 1 (#730, written first): with the endpoint down, a message is asked
   about once -- the last build retried it, and a retry spent on `busy` lost
@@ -334,10 +364,12 @@ def test_a_call_still_out_holds_the_break_and_loses_no_message():
   life, client = _life_asked(ASKS, answers=[_answer("charge")])
   life.overseer._in_flight = True         # the worker of a call that timed out
   t0 = float(life.data.time)
+  read: list = []
 
   def done():
-    if life.data.time > t0 + 30.0:
-      life.overseer._in_flight = False    # ...done reading
+    if life.data.time > t0 + 30.0 and not read:
+      read.append(True)
+      life.overseer._in_flight = False    # ...done reading, once
   life.body.step_hooks.append(done)
   _say(life)
   _charge(life)
@@ -447,6 +479,19 @@ def test_the_maps_first_row_for_a_message_decides():
   life.overseer.event_map = ev.EventMap([ev.Row(event="message_received", action="idle"),
                                          ASKS])
   _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
+
+
+def test_a_message_the_map_did_not_fire_for_ends_no_charge():
+  """The map fires one row a tick, and where another row wins the tick a
+  message came in, its `message_received` row does not fire -- nothing
+  asked, nothing stamped the unminded clock -- and no charge is broken for
+  it: the map is the whole of when the agent is asked."""
+  first = ev.Row(event="battery_below", value=0.9, action="look")
+  life, client = _life_asked(first, ASKS)
+  _say(life)
+  _charge(life)
+  assert life.queued_row == first, "the battery's row took the tick"
   assert life.charge_cycles == 1 and not client.calls
 
 
