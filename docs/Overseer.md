@@ -2911,18 +2911,84 @@ its whole life. From 2026-10-29 to 11-15, six messages waited 58-93 minutes
 for delivery while their robots were awake and deciding, each delivered
 within a second of the next run's start (reproduced on a local site). Every
 `mode` message now carries `accepts` as the switch leaves it
-(protocol/README.md). ⚠ A charge's hold still keeps a message waiting: a
-`message_received -> ask` row waits behind it, which held one answer 43
-minutes on 10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from
-the decision to the next. Answering while charging (Ben, 2026-11-16) was
-built (the hold ended with the plug in on a person's message) and taken
-out unfinished before the wake of 11-18: six review rounds each found real
-defects in it, the worst a failed call's fallback unplugging a robot at a
-low pack. Its rebuild's brief is #518's issue draft from the loop of 11-17.
-⚠ Only a `message` is somebody speaking: a rating, a reach-in or a
-ticket's line waits in the same queue for code, and fires no
+(protocol/README.md). ⚠ Only a `message` is somebody speaking: a rating, a
+reach-in or a ticket's line waits in the same queue for code, and fires no
 `message_received` (a map's `message_received -> ask` paid a call for
 one).
+
+**A robot answers while it charges** (#730; Ben's calls of 2026-11-16 and
+11-18). A charge's hold kept a message waiting behind it -- 43 minutes on
+10-29, and charges on 11-07 and 11-08 ran 74 and 85 minutes from the
+decision to the next. Now a charge's hold ends, its plug in, for a person's
+message (`charge_routine`, `_spoken_to`), and the loop's next pass asks at
+once (`_break_owed`): ahead of the list, taking a queued `ask` row and
+named as that row's ask would be (the message is in the context either
+way). The hold looks once a second, as the map fires, and ends where all of
+these hold, each read as it looks, never stored:
+- an answer is owed (`_owed`): the map's `message_received` row was an
+  `ask` as the message came, queued or dropped `busy` -- or an ask showed
+  it before the map could fire for it -- and it is a person's, never the
+  other robot's `tell`; the map's FIRST row for a message is still an `ask`,
+  and the message is still in the window the model is shown;
+- a call would go out (`Overseer.can_ask`): never in free mode, while dead,
+  with a call still out (`busy`), cooling off, or with the purse or the
+  hour's calls spent -- but past the idle-run throttle, which the break's
+  own ask passes too (`start(throttle=False)`): a person's message is no
+  idle run, and refused, the robot went back on its charge with an order it
+  dropped a moment later, and was asked anyway. The rule names these gates,
+  and says the message waits until the robot can be asked; a fallback no
+  call made says it was not asked;
+- the charge has held a moment (one that broke before a step "took no
+  time", every turn of a chat).
+
+The break's ask comes before the loop clears the station for the other
+robot (cleared first, a pack that filled meanwhile was unplugged and walked
+off, and the ask said to come with the plug in came without it).
+
+The answer is acted on as given, plugged in, on #654's rules: a `charge`
+goes straight on, what stands still leaves the plug in, what moves takes
+it out first. ⚠ A FALLBACK GOES BACK ON THE CHARGE (Ben's call of 11-18;
+`_order_after_charge_routine`): timed out, offline, garbled, cut off or
+`busy`, the decision is said and remembered then, and its standing order
+or `decision_failed` row runs when the charge ends, at the pack it would
+have run at without the break -- run at once, an `explore` order unplugged
+a robot the break had left at about 15 % -- and is dropped where another
+message's break, the run's hour, a death or a stand-up ends the charge. So
+does any later fallback while the charge is open.
+
+⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`): a break banks nothing (a
+row cut there reads as a failed charge, below 85 %); the `charge` that
+carries it on banks one row from where it began; where nothing does, the
+seam closes it (`_open_charge_step`) -- at a full pack, between asks
+(`_asking`), with its cycle, its row and `task_complete charge`, which a
+map may ask on (a `charge` chosen after that, the plug still in, backs off
+counting nothing: "full already", which a save keeps); with the plug out
+short of full, or the run's end short of it, its row alone, as a charge
+cut short always banks one -- the run's end with a full pack counts it
+there (left to the next run's `charge`, a pack that filled in an ask the
+hour came through was counted only if that run's first act was one), its
+`task_complete charge` read by the next run's first tick: what the map has
+not read yet is kept with the world.
+
+⚠ N = 1: a message is asked about once during an outage -- a CALL that went
+out with it in its context and failed takes it off what is owed, whatever
+the failure (`_asked_about`); an ask that sent nobody its context (`busy`,
+a gate) takes nothing. An answer takes the message it answered and leaves
+the others it was shown owed, the model answering one a turn; one passed
+over `OWED_SHOWINGS` (2) times -- an answer to nobody, or to the other
+robot -- is owed no more, nor one gone from the queue. A message in an ask's context is no news to the map, which seeing it
+a tick later paid for a second ask. ⚠ A BREAK'S ASK RESETS THE CLOCK THAT
+KILLS A MIND NOBODY CONSULTS (`_last_ask_t`), always, and never the silence
+the mind is shown (`lastAskedSAgo`, the rows' stamps): a break may ask long
+after its message's row fired (a gate held it) or with no row behind it (a
+message still owed after an answer to somebody else), and three review
+rounds found a mind asked at a break that could die `unminded` off an
+older stamp; stamped as a row's, a row's ask a second before read as a
+silence of a second. Only a map whose first row for a
+message asks is told an ask's messages are no news: a row of another action
+(a greeting procedure, say) fires as it did, costing no call. History says
+the break, and an answer that did not come, once a charge. The walk to the station, the wait for a
+taken one and the stand-by still hold a message (#730's follow-up).
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,

@@ -10,6 +10,64 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
+
+**What the robots read** moves on purpose: the prompt `b4d1ec1f…` (69,557
+characters, 17 sections, `loop-staging` 97bcfbdc) becomes `6ec0fc48…`
+(70,256, 17 sections). The event map's rule says a person's message
+reaches a robot while it charges where its `message_received` rule asks,
+that it is asked with its plug in unless asking is held off (`busy`,
+`cooloff`, `budget`, `allowance`, `scripted-mode`: then it waits until the
+robot can be asked, or for the charge's end), what a `charge`, a
+stand-still answer and a move then do, and that a failed answer goes on
+charging, its order running once the charge ends unless a new question
+comes first; and its two sentences that said every other `ask` waits
+until the robot is free now say this one does not. The session host's
+hello `a61b6376…` is unmoved. History gains two lines, each said once a
+charge: `charge: at N% a message waits for an answer, and I am asked with
+my plug still in`, and `charge: no answer came (<why>) at N% -- back on my
+charge, and <action> once it ends` (a failed call only).
+
+**The change** (Overseer.md §10, "A robot answers while it charges";
+`HubLifecycle._spoken_to`, `_break`, `_open_charge`, `_ask_takes`,
+`_order_after_charge_routine`). A charge's hold ends, its plug in, for a
+person's message the map's `message_received` ask row fired for, once the
+charge has held a moment and where a call would go out; the loop asks at
+once, past the idle-run throttle, and acts on the answer as given (#654's
+rules). A fallback goes back on the charge, and its order runs when the
+charge ends. The charge stays one: one `charge` row from where it began,
+one cycle and one `task_complete charge`, whether the `charge` answered
+carries it on or the pack fills while the robot stands still or the run
+ends; cut short of full by a move, the run's end or a plug that came out,
+its row alone. A message is asked about once, by the first call that held
+it; one passed over twice (an answer to nobody, or to the other robot) no
+more; and a message in an ask's context fires no `message_received` after
+it (one did, a tick later, and paid for a second ask). ⚠ A
+`message_received` row dropped `busy` (the slot full) as the robot charges
+is still asked by a break: that `busy` counts the slot, never a message
+left unasked.
+
+**What the period is for.**
+- **The acceptance**: a person's message during a charge answered in the
+  minutes its think takes, never a charge's length (43 minutes on 10-29);
+  no robot unplugged below 90 % by a fallback's order after a break (read
+  `CHARGE: no answer came` beside the next `CHARGE: unplugging` and its
+  pack); one `charge` row a charge (the ledger's `charge` rows against the
+  `GO_CHARGE -> CHARGE` lines); no `took no time` line beside a break.
+- **What the minds answer plugged in**: how often a break's answer is
+  `charge`, what else, and how often the answer is a fallback (on 11-18,
+  42 of 313 answers failed).
+- **Its cost**: the calls a break spends (one a person's message, never two
+  in an outage), and the decisions per hour of charging.
+
+⚠ **Not to be pooled with the period before for**: when a visitor's
+message is answered, decisions per hour (a break adds them where a charge
+held them), a charge's `charge` rows (one now covers a charge a message
+broke; a charge cut by a move is one row, `ok: false`), any reading of
+`message_received` asks (a message in an ask's context no longer fires
+one a tick later), and `fallback:idle-run` (a break's ask passes the
+throttle).
+
 ### A reach's plan keeps its arm off the robot's own trunk (#726's option 1, T3, `loop-726`) — opens when this PR is deployed
 
 **What the robots read** is unmoved where it is read every turn: this

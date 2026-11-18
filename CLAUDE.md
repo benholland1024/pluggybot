@@ -1479,8 +1479,11 @@ save a filmstrip PNG named after the script.
     `ask` ROW STAMPS IT AS IT FIRES on the seam (#426: `_events_step`), a
     row dropped `busy` and a mid-errand interrupt included, never again when
     it runs: a restart, a full slot or a charge between the two lost the
-    period (4 of 19 deaths on legs). The queued row is KEPT across a
-    restart. Armed ONLY where there is a map; NOT prevented in code (a map
+    period (4 of 19 deaths on legs) -- but a charge's break's ask resets the
+    death clock alone, never the silence shown (#730). The queued row is
+    KEPT across a restart, and so is what happened that the map has not
+    read yet (#730: a charge's end said at the run's last step reached no
+    map). Armed ONLY where there is a map; NOT prevented in code (a map
     that cannot remove its own `ask` row is a rail).
     ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS ANSWERED FOR ITSELF
     (`HubLifecycle._minded`, #303) — a fallback is the box answering; a
@@ -1921,9 +1924,18 @@ save a filmstrip PNG named after the script.
   (`unplug_routine`: an `explore`, a procedure's first verb not in
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
-  in. ⚠ A VISITOR'S MESSAGE WAITS FOR THE CHARGE'S END
-  (`test_a_persons_message_waits_for_the_charge_to_end`; why: Overseer.md
-  §10). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  in. ⚠ A PERSON'S MESSAGE ENDS A CHARGE'S HOLD, ITS PLUG IN, WHERE THE
+  MAP'S FIRST `message_received` ROW ASKS AND A CALL WOULD GO OUT (#730,
+  Ben's calls of 11-16 and 11-18; `HubLifecycle._spoken_to`,
+  `tests/test_charge_answer.py`; Overseer.md §10): the loop asks at once on
+  those rules; ⚠ A FALLBACK GOES BACK ON THE CHARGE and its order runs when
+  it ends (run at once, an `explore` order unplugged a robot part-charged);
+  ⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`): one row from its start,
+  one cycle and one `task_complete charge`, carried on, filled standing
+  still or full at the run's end; ⚠ N = 1: a failed call takes every
+  message it held, and one passed over twice -- an answer to nobody or to
+  the other robot -- is owed no more (`_asked_about`); ⚠ the break's ask
+  passes the idle-run throttle. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN

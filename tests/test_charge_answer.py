@@ -1,0 +1,1183 @@
+"""A robot answers a visitor while it charges (issue #730; rooftop-media-2026
+#518's sim half, Ben's calls of 2026-11-16 and 11-18).
+
+A charge's hold ends with its plug in where a person's message came that the
+agent's map asks on -- its first `message_received` row an `ask` -- and the
+loop asks at once, plugged in, on #654's rules: a `charge` goes straight on,
+what stands still leaves the plug in, what moves takes it out first. ⚠ A
+FALLBACK PUTS THE ROBOT BACK ON ITS CHARGE (Ben's call of 11-18): its standing
+order, or its `decision_failed` row, runs when the charge ends, at the pack
+it would have run at without the break. ⚠ ONE CYCLE however often it is
+broken: one `charge` row, one `charge_cycles` and one `task_complete charge`,
+whether it is resumed or the pack fills while the robot stands still. ⚠ N =
+1: a message is asked about once during an outage -- by the first call whose
+context held it, whatever came of the call.
+
+Each rule is pinned on the stub (`test_run_end`'s helpers) and was shown
+failing on the tree before (loop-staging e629cddd, where a message waited
+for the charge's end) and, where the last build had the defect, on that
+build's last commit (5c288531): round 6's five each have a test here.
+"""
+import pytest
+
+from pluggybot import lifecycle as lc
+from pluggybot.mind import events as ev
+from pluggybot.mind import overseer as ov
+from pluggybot.mind import text as text_registry
+
+from test_continuation import _history  # noqa: I001 -- tests/ is on sys.path
+from test_overseer import CutResponse, FakeClient, full
+from test_run_end import _minded, _say
+
+#: The agent's map asks it when somebody speaks.
+ASKS = ev.Row(event="message_received", action=ev.ASK)
+
+
+def _answer(action: str = "charge", to: str = "m_1", **kw) -> dict:
+  return full(action=action, respond_to=to, outcome="replied",
+              reply="I am charging, and here to talk.", **kw)
+
+
+def _charges(life) -> list[dict]:
+  return [v for v in life.verdicts if v["task"] == "charge"]
+
+
+def _occurred(life) -> list:
+  """Every `(event, kind)` the loop tells the map of, as it happens."""
+  told: list = []
+  occur = life._occur
+
+  def spy(event, kind=""):
+    told.append((event, kind))
+    occur(event, kind)
+  life._occur = spy
+  return told
+
+
+def _charge(life) -> None:
+  """A decided `charge`, its plug in already (#654): the branch runs the
+  charge, until it ends or a message breaks its hold."""
+  life.body.run(life._after_decision_routine(ov.Decision(action="charge")))
+
+
+def _next_pass(life) -> None:
+  """The loop's next decision pass (`_arbitrate_routine`)."""
+  life.body.run(life._arbitrate_routine())
+
+
+def _unplugs(life) -> list:
+  """Every unplug by hand, with the pack at it, and the plug out after."""
+  out: list = []
+
+  def undock():
+    out.append(round(life.battery.fraction, 3))
+    life.body.on_charger = False
+    return "arrived"
+    yield
+  life.body.undock_routine = undock
+  return out
+
+
+class _Asked(FakeClient):
+  """Answers in order, and keeps the pack's fraction at each ask."""
+
+  def __init__(self, life_box: list, *answers, **kw):
+    super().__init__(*answers, **kw)
+    self.life_box = life_box
+    self.at: list[float] = []
+
+  def create(self, **kwargs):
+    self.at.append(self.life_box[0].battery.fraction)
+    return super().create(**kwargs)
+
+
+def _life_asked(*rows, answers=(), **kw):
+  box: list = []
+  client = _Asked(box, *answers, **kw)
+  life = _minded(*rows, client=client)
+  box.append(life)
+  return life, client
+
+
+# ---- answered plugged in, and one charge -------------------------------------
+
+
+def test_a_message_is_answered_plugged_in_and_the_charge_carries_on_as_one():
+  """#730's first box. The map's `message_received -> ask` waited behind the
+  charge (43 minutes on 10-29); now the hold ends with the plug in, the
+  loop asks, a `charge` goes straight on, and the charge is ONE: its row
+  from where it began (the last build banked the part after the break
+  alone, and the part before it was in no row), one cycle, one
+  `task_complete charge`, one unplug, at full."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge")], delay=0.1)
+  told = _occurred(life)
+  unplugs = _unplugs(life)
+  _say(life)
+  _charge(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "the hold ran on"
+  assert life.charge_cycles == 0 and not _charges(life), "nothing banked at the break"
+  _next_pass(life)                          # ...the pack filling as it thinks
+  assert client.at and client.at[0] < lc.CHARGED, "asked plugged in"
+  assert life.queued_row is None, "the message's own ask row was this ask"
+  assert [r["id"] for r in life.replies] == ["m_1"]
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.002), row["metrics"]
+  assert told.count(("task_complete", "charge")) == 1
+  assert unplugs and min(unplugs) >= lc.CHARGED, unplugs
+  # ...said as a message waiting, never one come in: a message answered
+  # past before the charge breaks it too (#730's eleventh review)
+  assert any("a message waits for an answer" in ln for ln in _history(life))
+
+
+def test_a_stand_still_answer_closes_the_charge_when_the_pack_fills():
+  """Round 6's second: the model answers `idle` plugged in, and the pack
+  filled while it stood: no `task_complete charge`, no `charge_cycles`, no
+  row -- and a map that asks on `task_complete:charge` was never asked (an
+  `unminded` death at 1800 s). The charge left open closes where the pack
+  is full, standing still, with its row, its cycle and its event."""
+  on_full = ev.Row(event="task_complete", kind="charge", action=ev.ASK)
+  life, _ = _life_asked(ASKS, on_full, answers=[_answer("idle")])
+  told = _occurred(life)
+  _say(life)
+  _charge(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "the hold ran on"
+  _next_pass(life)
+  assert life.body.on_charger, "standing still leaves the plug in"
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.battery.fraction >= lc.CHARGED
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+  assert told.count(("task_complete", "charge")) == 1
+  assert life.queued_row == on_full, "the map heard the charge complete"
+
+
+def test_an_answer_that_moves_takes_the_plug_out_first_and_banks_what_it_got():
+  """What moves takes the plug out first (#654), and the charge it cut is
+  banked as a charge cut short always is -- the run's hour, a plug that
+  came out: its row, never a cycle or a `task_complete charge`."""
+  life, _ = _life_asked(ASKS, answers=[_answer("explore")])
+  told = _occurred(life)
+  unplugs = _unplugs(life)
+  order: list = []
+
+  def explore(**kw):
+    order.append(life.body.on_charger)
+    return "budget"
+    yield
+  life.explore_routine = explore
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert order == [False], "explored with its plug in"
+  assert len(unplugs) == 1 and unplugs[0] < lc.CHARGED
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+  assert life.charge_cycles == 0 and ("task_complete", "charge") not in told
+
+
+# ---- a failed call: back on its charge -----------------------------------------
+
+
+@pytest.mark.parametrize("failing", [
+  TimeoutError("nobody answered in time"), ConnectionError("the endpoint is down"),
+  "this is not a decision", CutResponse("")],
+  ids=["timeout", "offline", "garbled", "cutoff"])
+def test_a_failed_call_puts_the_robot_back_on_its_charge(failing):
+  """Round 6's first, the death path: a message ended a charge at 40 %, the
+  call failed, and the fallback ran its order at once -- an `explore`
+  unplugged the robot and walked it off part-charged, where before the
+  break the same fallback ran at a full pack. The robot goes back on its
+  charge, and its `decision_failed` row runs when the charge ends."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, client = _life_asked(ASKS, failed, answers=[failing])
+  unplugs = _unplugs(life)
+  order: list = []
+
+  def explore(**kw):
+    order.append(round(life.battery.fraction, 3))
+    return "budget"
+    yield
+  life.explore_routine = explore
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert client.at and client.at[0] < lc.CHARGED, "the break asked, plugged in"
+  assert life.decisions[-1]["source"].startswith("fallback:"), life.decisions[-1]
+  assert unplugs and min(unplugs) >= lc.CHARGED, f"unplugged below full: {unplugs}"
+  assert order and order[0] >= lc.CHARGED, "its order ran before the charge ended"
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+  assert len(client.calls) == 1, "asked again about the same message"
+
+
+def test_a_later_fallback_while_the_charge_is_open_goes_back_on_it_too():
+  """The model answered the break standing still, its plug in and its
+  charge open; a later ask fails. Its order would unplug the robot the
+  break left part-charged, as round 6's did: it goes back on the charge
+  the break left open, and the order runs when it ends."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  quiet = ev.Row(event="nothing_to_do", action=ev.ASK)
+  life, client = _life_asked(ASKS, failed, quiet,
+                             answers=[_answer("idle"), ConnectionError("down")])
+  unplugs = _unplugs(life)
+  order: list = []
+
+  def explore(**kw):
+    order.append(round(life.battery.fraction, 3))
+    return "budget"
+    yield
+  life.explore_routine = explore
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # answered: stand still, the plug in
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  _next_pass(life)                          # asked again, and the call fails
+  assert len(client.calls) == 2
+  assert unplugs and min(unplugs) >= lc.CHARGED, f"unplugged below full: {unplugs}"
+  assert order and order[0] >= lc.CHARGED
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_a_charge_holds_a_moment_before_a_message_breaks_it():
+  """Round 6's fourth, its cause: carried on with a message come in while
+  it thought, the charge ended before a step, at the instant of the
+  decision, and every turn of a chat read "charge took no time"."""
+  life, _ = _life_asked(ASKS)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()                       # owed before the charge begins
+  t0 = float(life.data.time)
+  _charge(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  assert float(life.data.time) > t0, "broken before it held a moment"
+
+
+def test_a_failed_answers_order_waits_through_the_next_messages_break():
+  """Back on its charge after a failed call, the robot is broken again by
+  the next person's message: the order the failure left must not run then,
+  at the pack the break left (it is the next ask's to supersede), and the
+  charge goes on as one."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, client = _life_asked(ASKS, failed,
+                             answers=[ConnectionError("down"), _answer("charge", to="m_2")])
+  unplugs = _unplugs(life)
+  order: list = []
+
+  def explore(**kw):
+    order.append(round(life.battery.fraction, 3))
+    return "budget"
+    yield
+  life.explore_routine = explore
+  t0 = float(life.data.time)
+
+  def second():
+    if life.data.time > t0 + 40.0 and "m_2" not in {m.id for m in life.inbox.peek()}:
+      if not any(r["id"] == "m_2" for r in life.replies):
+        _say(life, 2)
+  life.body.step_hooks.append(second)
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # m_1's call fails: back on the charge...
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "...broken by m_2"
+  assert not order and not unplugs, "the failed answer's order ran at the next break"
+  _next_pass(life)                          # m_2's call is answered: carried on
+  assert [r["id"] for r in life.replies] == ["m_2"]
+  assert not order and min(unplugs) >= lc.CHARGED
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_a_failed_answers_order_waits_for_the_next_run_when_the_hour_cuts_the_charge():
+  """The run's hour cuts the charge the robot went back on: its plug stays
+  in and what it got is banked (#654), and the order is the next run's
+  mind's to give again -- run past the hour, an `explore` took the plug out
+  for a walk the run had no time for."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  order: list = []
+
+  def explore(**kw):
+    order.append(life.body.on_charger)
+    return "time"
+    yield
+  life.explore_routine = explore
+  _say(life)
+  _charge(life)
+  life.max_sim_time = float(life.data.time) + 20.0
+  _next_pass(life)
+  assert life.body.on_charger and not order
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+
+
+def test_a_charge_closed_as_the_failure_is_said_leaves_its_order_to_run_now():
+  """Saying a failed answer may step the world (`_after_decision_routine`
+  grades a job first), and the charge it would go back on may close
+  meanwhile -- its plug out, its pack full: nothing to go back on, and the
+  order runs at once."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  order: list = []
+
+  def explore(**kw):
+    order.append(life.body.on_charger)
+    return "budget"
+    yield
+  life.explore_routine = explore
+  said = life._after_decision_routine
+
+  def said_and_unplugged(decision, act=True):
+    out = yield from said(decision, act=act)
+    if not act:
+      life.body.on_charger = False          # ...the plug out as it was said,
+      life.charging_now = False             # read by the seam's next step
+      life._open_charge_step()
+    return out
+  life._after_decision_routine = said_and_unplugged
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert order == [False] and len(_charges(life)) == 1
+
+
+def test_a_second_persons_message_is_answered_in_the_charge_too():
+  """#730's first review: two people write as the robot charges, the break
+  shows it both, and it may answer one a turn. Taken off what was owed as
+  soon as a call held it, the second waited out the whole charge; it is
+  owed until an answer answers it, and the charge breaks for it again."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                            _answer("charge", to="m_2")])
+  _say(life, 1)
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)                          # both shown; m_1 answered, and charging on
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "not broken for m_2"
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2"]
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1 and len(client.calls) == 2
+
+
+def test_a_message_a_mind_will_not_answer_breaks_the_charge_no_more_than_twice():
+  """...and one the mind answers nobody at is shown `OWED_SHOWINGS` times
+  at most: each break is a paid call."""
+  life, client = _life_asked(ASKS, answers=[full(action="charge", reason="later")])
+  _say(life)
+  _charge(life)
+  for _ in range(lc.OWED_SHOWINGS + 2):
+    if life.charge_cycles:
+      break
+    _next_pass(life)
+  assert len(client.calls) == lc.OWED_SHOWINGS
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_a_break_never_meets_a_gate_the_throttle_hid():
+  """#730's first review: `can_ask` read the gates in `_refuse`'s order, and
+  the idle-run throttle, read first, hid a cooloff behind it: the hold was
+  broken for a call that could not be made."""
+  life, client = _life_asked(ASKS)
+  life.overseer._idle_run = ov.MAX_IDLE_RUN
+  life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  assert not life.overseer.can_ask()
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
+
+
+def test_a_stand_up_while_a_failed_answer_is_said_runs_nothing_after():
+  """#730's first review: what a failed answer says may step the world, and
+  a stand-up there ends it as it ends any decision's: the robot is up at
+  its start, and neither the charge nor the order is the new moment's."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  ran: list = []
+
+  def explore(**kw):
+    ran.append(True)
+    return "budget"
+    yield
+  life.explore_routine = explore
+  said = life._after_decision_routine
+
+  def said_then_stood_up(decision, act=True):
+    out = yield from said(decision, act=act)
+    if not act:
+      life.dead = {"t": float(life.data.time), "cause": "unpaid", "why": "a test"}
+      life._stand_up("timer", auto=True, was=life.dead)
+      yield from life.body.hold_routine(0.1)
+    return out
+  life._after_decision_routine = said_then_stood_up
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert not ran and life.charge_cycles == 0 and not _charges(life)
+
+
+def test_a_breaks_ask_resets_the_clock_that_kills_and_never_the_silence_shown():
+  """#730's second, third and fifth reviews: a break may ask a message's
+  question long after its row fired, or with no row behind it (a message
+  still owed after an answer to somebody else), and off an older stamp a
+  mind just asked could die `unminded`. Every break's ask resets that clock;
+  the silence the mind is shown (`lastAskedSAgo`) stays the rows' -- a row's
+  ask a second before the break's must not read as a silence of a second."""
+  life, _ = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                       _answer("charge", to="m_2")])
+  _say(life, 1)
+  _say(life, 2)
+  _charge(life)
+  fired = life._asked_t                     # the messages' row stamped it
+  assert fired is not None
+  t1 = float(life.data.time)
+  _next_pass(life)                          # break 1: m_1 answered, m_2 left owed
+  assert life._last_ask_t >= t1 and life._asked_t == fired
+  t2 = float(life.data.time)
+  _next_pass(life)                          # break 2, for m_2: no row of its own
+  assert life._last_ask_t >= t2 > t1 and life._asked_t == fired
+
+
+def test_a_charge_decided_as_the_pack_fills_is_one_charge():
+  """#730's second review: the pack filled while a later ask was out, the
+  seam closed the charge left open (a cycle, `task_complete charge`), and
+  the `charge` answered counted it again. Full, a charge left open closes
+  only between asks."""
+  answers = [_answer("idle"), full(action="charge", reason="go on")]
+  life, client = _life_asked(ASKS, ev.Row(event="nothing_to_do", action=ev.ASK),
+                             answers=answers)
+  told = _occurred(life)
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.battery.energy_wh = life.battery.capacity_wh * (lc.CHARGED - 0.001)
+  slow = client.create
+
+  def filling(**kwargs):                    # the pack fills while it thinks
+    life.battery.energy_wh = life.battery.capacity_wh * (lc.CHARGED + 0.01)
+    return slow(**kwargs)
+  client.create = filling
+  _next_pass(life)
+  assert told.count(("task_complete", "charge")) == 1
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_an_answer_owed_for_a_message_gone_from_the_queue_goes_too():
+  """#730's second review: an answer stays owed until a call takes it, and
+  one for a message the queue threw away was kept for good."""
+  life, _ = _life_asked(ASKS)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert "m_1" in life._owed
+  life.inbox.take("m_1")                    # ...gone, unanswered
+  life._visitor_step()
+  assert not life._owed
+
+
+def test_a_hold_a_gate_keeps_shut_looks_once_a_second():
+  """#730's second review: the hold read the call's gates every quarter
+  second it was shut, on the physics thread; it looks once a second, as
+  the map does."""
+  life, _ = _life_asked(ASKS)
+  looked: list = []
+  life.overseer.can_ask = lambda: looked.append(1) or False
+  _say(life)
+  t0 = float(life.data.time)
+  _charge(life)
+  held_s = float(life.data.time) - t0
+  assert life.charge_cycles == 1
+  assert len(looked) <= held_s / lc.EVENTS_CHECK_S + 2, (len(looked), held_s)
+
+
+def test_a_break_takes_a_queued_ask_under_that_rows_name():
+  """#730's third review: the break's ask takes an `ask` row its map queued
+  (a periodic one, say), and was labelled the message's -- the row's own
+  reason never reached the mind. It is named as that row's ask would be;
+  the message is in its context either way."""
+  every = ev.Row(event="every", action=ev.ASK, value=900.0)
+  life, _ = _life_asked(ASKS, every, answers=[_answer("charge")])
+  life.queued_row = every
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert life._asked_by == {"event": "every", "kind": "", "value": 900.0}
+  assert [r["id"] for r in life.replies] == ["m_1"] and life.queued_row is None
+
+
+def test_a_break_for_a_message_an_ask_showed_stamps_though_another_row_stamped():
+  """#730's fifth review: a message left owed by an ask that answered
+  somebody else is asked again with no row of its own; another ask row
+  that stamped the clock since and was dropped `busy` stood in for it, and
+  a mind asked at the break could die `unminded` off that old stamp."""
+  life, _ = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                       _answer("charge", to="m_2")])
+  _say(life, 1)
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)                          # m_1 answered, m_2 left owed: charging on
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  life._stamp_ask()                         # ...another row stamps, its ask dropped `busy`
+  stamped = life._last_ask_t
+  life.body.run(life.body.hold_routine(30.0))
+  _next_pass(life)                          # the break for m_2
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2"]
+  assert life._last_ask_t > stamped + 20.0, "asked, and the clock left at the old stamp"
+
+
+def test_a_message_shown_before_the_map_saw_it_is_owed_as_the_map_would_owe_it():
+  """#730's third review: a person's message that reached the inbox just
+  before an ask was shown in it, so the map never fired for it and nothing
+  owed it an answer -- answered past, that person waited out the charge."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                            _answer("charge", to="m_2")])
+  _say(life, 1)
+  life._next_events_check = 0.0
+  life._events_step()                       # the map has seen m_1
+  _say(life, 2)                             # ...and not m_2, as the ask is made
+  life.body.run(life._decide_routine())     # m_1 answered, and a charge chosen
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "not broken for m_2"
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2"]
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+@pytest.mark.parametrize("gate", ["busy", "cooloff", "budget", "allowance", "scripted-mode"])
+def test_the_rule_names_every_gate_a_break_waits_behind(gate, tmp_path):
+  """#730's third and fifth reviews: the rule said a person's message is
+  asked about while the robot charges, and a gate shut kept the message
+  waiting: the rule names each gate a break waits behind (`can_ask`'s, and
+  free mode's), in the words a failed decision is named by."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
+  life, _ = _life_asked(ASKS)
+  boss = life.overseer
+  if gate == "busy":
+    boss._in_flight = True
+  elif gate == "cooloff":
+    boss._cooloff_until = boss.clock() + 1e9
+  elif gate == "budget":
+    boss.budget_left = lambda: 0
+  elif gate == "allowance":
+    boss._allowance_ok = lambda: False
+  else:
+    switch = tmp_path / "mode.json"
+    switch.write_text(json.dumps({"mode": "scripted"}))
+    life.mode = ModeSwitch(switch)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert life._owed and not life._spoken_to
+  rule = ov.EVENT_MAP_RULE
+  said = rule[rule.index("A PERSON'S MESSAGE REACHES YOU"):]
+  said = said[:said.index("\n\n")]
+  assert f"`{gate}`" in said and gate in ov.FALLBACK_REASONS
+  # ...and that it waits until the robot can be asked, as `can_ask` is read
+  # once a second (#730's fourth review: "for the charge to end" alone)
+  assert "until you can be asked" in said
+
+
+def test_a_message_rows_other_action_still_fires_for_a_message_an_ask_showed():
+  """#730's fourth review: a message in an ask's context is no news to a map
+  that asks on one (a second paid ask), and marked so whatever the row, a
+  greeting the agent mapped to `message_received` never ran for a message
+  that came a moment before an ask."""
+  greet = ev.Row(event="message_received", action="idle")
+  life, _ = _life_asked(greet, answers=[full(action="idle", reason="hm")], delay=0.02)
+  _say(life)                                # ...queued; the seam has not looked yet
+  life.body.run(life._decide_routine())     # shown it, before the map could fire
+  assert life.queued_row == greet, "the map's own row for a message never fired"
+
+
+def test_an_ask_that_sent_nothing_gives_its_messages_back_to_the_map():
+  """An ask the idle-run throttle refused sent nobody its context: a message
+  that came a moment before it is still the map's news, and its row fires."""
+  life, client = _life_asked(ASKS, answers=[_answer("idle")])
+  life.overseer._idle_run = ov.MAX_IDLE_RUN
+  _say(life)
+  life.body.run(life._decide_routine())     # refused: no call
+  assert not client.calls
+  life.body.run(life.body.hold_routine(2.0))
+  assert life.queued_row == ASKS, "the message was taken for asked"
+
+
+def test_a_true_death_as_the_call_flies_leaves_the_next_robot_owing_nothing():
+  """#730's fourth review: what a call did to the answers owed was counted
+  before the answer was found to be a dead robot's, and the next robot
+  owed the old one's visitor a break."""
+  from pluggybot.economy.ledger import Ledger
+  life = _minded(ASKS, client=FakeClient(_answer("charge", to="m_1"), delay=0.05))
+  life.ledger = Ledger()
+  _say(life, 1)
+  life._next_events_check = 0.0
+  life._events_step()
+  _say(life, 2)                             # shown before the map saw it
+
+  def die():
+    if life.overseer.pending and not life.true_deaths:
+      life._true_death(float(life.data.time))
+  life.body.step_hooks.append(die)
+  life.body.run(life._decide_routine())
+  assert life.true_deaths and not life._owed
+
+
+def test_a_refused_ask_after_a_break_says_it_was_not_asked(tmp_path):
+  """#730's fourth review: a fallback no call made read "no answer came"
+  under the robot's portrait, though nothing was asked -- here free mode,
+  come between the break and its ask (the idle-run throttle, which did it
+  then, a break's ask passes now)."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
+  life, client = _life_asked(ASKS, answers=[_answer("charge")])
+  _say(life)
+  _charge(life)
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "scripted"}))
+  life.mode = ModeSwitch(switch)
+  _next_pass(life)
+  assert not client.calls
+  assert any("CHARGE: not asked (scripted-mode)" in ln for ln in life.log), life.log[-4:]
+  assert not any("no answer came" in ln for ln in life.log)
+
+
+def test_a_charge_closed_full_standing_is_counted_once_whatever_comes_after():
+  """#730's fifth review: the pack filled as the robot stood after a break,
+  the seam closed the charge (its cycle, `task_complete charge`), and a
+  `charge` chosen after it, the plug still in, counted it again."""
+  on_full = ev.Row(event="task_complete", kind="charge", action=ev.ASK)
+  life, _ = _life_asked(ASKS, on_full, answers=[_answer("idle"),
+                                                full(action="charge", reason="top up")])
+  told = _occurred(life)
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.charge_cycles == 1 and life.body.on_charger
+  _next_pass(life)                          # task_complete charge -> ask: `charge`
+  assert life.charge_cycles == 1 and told.count(("task_complete", "charge")) == 1
+  assert len(_charges(life)) == 1 and not life.body.on_charger
+  assert any("full already" in ln for ln in life.log), life.log[-3:]
+
+
+def test_a_charge_closed_full_standing_is_counted_once_across_a_restart():
+  """#730's seventh review: whether such a charge was counted is kept with
+  the world, its plug still in -- forgotten, the next run's `charge` counted
+  it again (a robot alone: a pair's next pass unplugs at full first)."""
+  import json
+  life, _ = _life_asked(ASKS, answers=[_answer("idle")])
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.charge_cycles == 1 and life.body.on_charger
+  state, arrays = life.kept_state()
+  after, _ = _life_asked(ASKS)
+  after.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  told = _occurred(after)
+  _charge(after)
+  assert after.charge_cycles == 0 and ("task_complete", "charge") not in told
+  assert not _charges(after) and not after.body.on_charger
+
+
+def test_answering_the_other_robot_passes_a_persons_message_over():
+  """#730's eleventh review: an answer to somebody else left a person's
+  message owed, and the other robot's `tell` was somebody -- a mind that
+  answered the other robot at every break was asked about a person it never
+  answered at every moment of the charge. Answering the other robot passes
+  a person over as answering nobody does."""
+  answers = [_answer("charge", to=f"t_{n}") for n in (1, 2, 3)]
+  life, client = _life_asked(ASKS, answers=answers)
+  _say(life)
+  for n in (1, 2, 3):
+    life.inbox.offer({"type": "message", "id": f"t_{n}", "from": "Rowan",
+                      "text": "hello"}, sender=text_registry.PEER)
+  _charge(life)
+  for _ in range(lc.OWED_SHOWINGS + 2):
+    if life.charge_cycles:
+      break
+    _next_pass(life)
+  assert len(client.calls) == lc.OWED_SHOWINGS
+  assert [r["id"] for r in life.replies] == ["t_1", "t_2"]
+
+
+def test_an_answer_to_a_person_the_queue_put_out_in_the_think_is_to_a_person():
+  """#730's twelfth review: who an answer went to was read off the queue
+  after the think, and the full queue had put out the message it answered
+  -- read as an answer to nobody, it charged every other person's message a
+  showing. Who was shown is the context's, as the model saw it."""
+  box: list = []
+
+  class Crowd(FakeClient):
+    def create(self, **kwargs):
+      for n in range(31):                   # ...the queue full: m_1 put out
+        box[0].inbox.offer({"type": "message", "id": f"x_{n}", "from": "a visitor",
+                            "text": "hello"})
+      return super().create(**kwargs)
+  life = _minded(ASKS, client=Crowd(_answer("charge", to="m_1")))
+  box.append(life)
+  _say(life)
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)
+  assert "m_1" not in {m.id for m in life.inbox.peek(len(life.inbox))}
+  assert life._owed.get("m_2") == 0, life._owed
+
+
+def test_a_pack_taken_down_with_the_plug_in_is_a_charge_of_its_own():
+  """#730's eleventh review: a charge closed full standing was counted, its
+  plug left in; an admin's `set_battery` took the pack down, and the charge
+  after it -- broken by a message, carried on as the pack filled in the ask
+  -- read as "full already" and was counted nowhere."""
+  life, _ = _life_asked(ASKS, answers=[_answer("idle"), _answer("charge", to="m_2")])
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.charge_cycles == 1 and life.body.on_charger
+  life.battery.energy_wh = life.battery.capacity_wh * 0.3    # the admin's
+  _say(life, 2)
+  _charge(life)
+  assert life._break_owed
+  life.battery.energy_wh = life.battery.capacity_wh * 0.95   # ...filled in the ask
+  _next_pass(life)
+  assert life.charge_cycles == 2 and len(_charges(life)) == 2
+
+
+def test_a_dead_robot_breaks_no_charge_and_is_told_it_is_asked_by_nothing():
+  """#730's fifth review: a robot dead with its plug in holds its charge
+  until it is stood up, and a message ended the hold: History said "I am
+  asked with my plug still in", and nothing asked a dead robot."""
+  life, client = _life_asked(ASKS)
+  life.dead = {"t": 0.0, "cause": "unpaid", "why": "a test"}
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
+  assert not any("a message waits" in ln for ln in life.log)
+
+
+def test_a_break_is_asked_before_the_station_is_cleared():
+  """#730's fifth review: the loop clears the station before it decides
+  (with the other robot about), and a pack that filled between the break
+  and its ask was unplugged and walked off -- the ask that History said
+  came with the plug in came without it."""
+  from test_run_end import _at_the_station, _life
+
+  from pluggybot.lifecycle import board_book
+  from pluggybot.mind.inbox import Inbox
+  menu = ov.Menu.for_world("home_humanoid", board_book("home_humanoid"))
+  client = FakeClient(_answer("charge"))
+  boss = ov.Overseer(menu, origin="unseeded", client=client,
+                     event_map=ev.EventMap([ASKS]))
+  life = _life(peer=True, overseer=boss, inbox=Inbox())
+  other = life.peers[0]                     # ...as the context reads one
+  other.dead, other.doing, other.body.rights_itself = None, "", False
+  life.max_sim_time = 1e9
+  life.body.on_charger = True
+  life.battery.energy_wh = life.battery.capacity_wh * 0.4
+  _at_the_station(life)
+  cleared: list = []
+  leave = life._leave_rack_routine
+
+  def spy():
+    cleared.append(life._break_owed)
+    return (yield from leave())
+  life._leave_rack_routine = spy
+  _say(life)
+  _charge(life)
+  assert life._break_owed
+  day = life.begin((life.body.x, life.body.y, 0.0), max_sim_time=1e9)
+
+  class _Asked(Exception):
+    pass
+
+  def stop():
+    if client.calls:
+      raise _Asked
+  life.at_loop_top.append(stop)
+  with pytest.raises(_Asked):
+    life.body.run(day)
+  assert True not in cleared, "the station cleared with a break's ask owed"
+  assert client.calls
+
+
+def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
+  """N = 1 (#730, written first): with the endpoint down, a message is asked
+  about once -- the last build retried it, and a retry spent on `busy` lost
+  it (round 6's third) -- and a second message is asked once too. The
+  charge runs to full between them and its order runs after."""
+  life, client = _life_asked(ASKS, answers=[ConnectionError("down")])
+  _say(life, 1)
+  _charge(life)
+  _next_pass(life)                        # asked about m_1, failed: back on the charge
+  assert life.charge_cycles == 1 and len(client.calls) == 1
+  life.body.on_charger = True             # ...and a second charge, and a second message
+  life.battery.energy_wh = life.battery.capacity_wh * 0.4
+  _say(life, 2)
+  _charge(life)
+  _next_pass(life)
+  assert len(client.calls) == 2, "one ask a message"
+  assert life.charge_cycles == 2 and len(_charges(life)) == 2
+
+
+def test_a_call_still_out_holds_the_break_and_loses_no_message():
+  """Round 6's third: `busy` is a call that outlived its deadline still
+  being read, and an ask started then makes none -- the last build spent
+  its one retry on it and the message was never asked about again. A hold
+  is not broken while a call is out; once it is done, it is, and the
+  message is answered within the charge."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge")])
+  life.overseer._in_flight = True         # the worker of a call that timed out
+  t0 = float(life.data.time)
+  read: list = []
+
+  def done():
+    if life.data.time > t0 + 30.0 and not read:
+      read.append(True)
+      life.overseer._in_flight = False    # ...done reading, once
+  life.body.step_hooks.append(done)
+  _say(life)
+  _charge(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED, "never broken"
+  assert float(life.data.time) > t0 + 30.0, "broken while the call was still out"
+  _next_pass(life)
+  assert not any(d["source"] == "fallback:busy" for d in life.decisions), life.decisions
+  assert [r["id"] for r in life.replies] == ["m_1"]
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+# ---- History, and asks that cost ----------------------------------------------
+
+
+def test_a_visitor_writing_through_every_think_is_said_once():
+  """Round 6's fourth: a message came during each think, the answer chose
+  `charge`, the resumed charge returned before a step, and History read
+  "charge took no time" beside "stopped at N% for a message" on every turn.
+  The break is said once a charge, and the charge holds a moment before
+  it breaks again."""
+  box: list = []
+
+  class Chatty(FakeClient):
+    def create(self, **kwargs):
+      n = len(self.calls) + 1
+      if n < 4:                             # another person writes while it thinks
+        box[0].inbox.offer({"type": "message", "id": f"m_{n + 1}", "from": "a visitor",
+                            "text": "and now?"})
+      return super().create(**kwargs)
+  answers = [_answer("charge", to=f"m_{k}") for k in range(1, 5)]
+  life = _minded(ASKS, client=Chatty(*answers, delay=0.02))
+  box.append(life)
+  _say(life)
+  _charge(life)
+  for _ in range(4):
+    _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1", "m_2", "m_3", "m_4"]
+  history = _history(life)
+  said = [ln for ln in history if "a message waits" in ln or "for a message" in ln]
+  assert len(said) == 1, said
+  assert not any("took no time" in ln for ln in history), history
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_a_message_the_model_was_shown_asks_no_second_time():
+  """Round 6's fifth, and the tree before's: a message that reached the
+  inbox just before an ask was shown in it, and the map, seeing it a tick
+  later, fired `message_received` and paid for a second ask about a message
+  the model had answered."""
+  life, client = _life_asked(ASKS, answers=[_answer("idle")], delay=0.02)
+  _say(life)                                # ...queued; the seam has not looked yet
+  life.body.run(life._decide_routine())     # shown it; the seam looks as the call flies
+  assert [r["id"] for r in life.replies] == ["m_1"]
+  assert life.queued_row is None, "the map asked about a message the model was shown"
+  _next_pass(life)
+  assert len(client.calls) == 1
+
+
+# ---- who is speaking, and what the map says -----------------------------------
+
+
+@pytest.mark.parametrize("raw,sender", [
+  ({"type": "rating", "seq": 3, "quality": 0.5}, None),
+  ({"type": "set_battery", "frac": 0.5}, None),
+  ({"type": "ticket_reply", "id": "op_1", "ticket": "tk_0001", "text": "seen"}, None),
+  ({"type": "message", "id": "t_1", "from": "Rowan", "text": "the station is yours"}, "peer")],
+  ids=["rating", "reach-in", "ticket-line", "the-other-robots-tell"])
+def test_nobody_speaking_ends_no_charge(raw, sender):
+  """Rounds 3 and 4: a rating, a reach-in and a ticket's line wait in the
+  same queue for code, and the other robot's `tell` comes in it as a
+  message -- none is a person's message, and none ends a charge's hold."""
+  life, client = _life_asked(ASKS)
+  life.inbox.offer(raw, sender=text_registry.PEER if sender else text_registry.VISITOR)
+  _charge(life)
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  assert not client.calls
+
+
+def test_a_map_that_asks_on_no_message_is_never_cut_short_by_one():
+  """Round 3: the map is the whole of when the agent is asked, and a
+  message ended the hold through a periodic ask waiting in the map's
+  slot."""
+  every = ev.Row(event="every", action=ev.ASK, value=900.0)
+  life, client = _life_asked(every)
+  life.queued_row = every
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  assert life.queued_row == every and not client.calls
+
+
+def test_the_maps_first_row_for_a_message_decides():
+  """Round 4: the first row for an event is the one that fires, so
+  `message_received -> idle` ahead of `message_received -> ask` never asks
+  on a message, and no message ends a charge through the second."""
+  life, client = _life_asked(ev.Row(event="message_received", action="idle"), ASKS)
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  assert not client.calls
+  # ...and as the map stands when the hold looks: an ask that fired, its
+  # map edited since to put `idle` first, ends no hold
+  life, client = _life_asked(ASKS)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()                       # the ask fired as the message came
+  life.overseer.event_map = ev.EventMap([ev.Row(event="message_received", action="idle"),
+                                         ASKS])
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls
+
+
+def test_a_message_the_map_did_not_fire_for_ends_no_charge():
+  """The map fires one row a tick, and where another row wins the tick a
+  message came in, its `message_received` row does not fire -- nothing
+  asked, nothing stamped the unminded clock -- and no charge is broken for
+  it: the map is the whole of when the agent is asked."""
+  first = ev.Row(event="battery_below", value=0.9, action="look")
+  life, client = _life_asked(first, ASKS)
+  _say(life)
+  _charge(life)
+  assert life.queued_row == first, "the battery's row took the tick"
+  assert life.charge_cycles == 1 and not client.calls
+
+
+@pytest.mark.parametrize("refusing", ["cooloff", "allowance", "budget", "scripted", "no-client"])
+def test_a_message_no_mind_would_answer_waits_for_the_charge_to_end(refusing, tmp_path):
+  """Rounds 2-3: cooling off, its purse or its hour's calls spent, the
+  switch on `scripted`, no endpoint: nobody would answer, and the hold goes
+  on (the queued ask waits for the charge's end, as before #730)."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
+  life, client = _life_asked(ASKS)
+  if refusing == "cooloff":
+    life.overseer._cooloff_until = life.overseer.clock() + 1e9
+  elif refusing == "allowance":
+    life.overseer._allowance_ok = lambda: False
+  elif refusing == "budget":
+    life.overseer.budget_left = lambda: 0
+  elif refusing == "no-client":
+    life.overseer._client, life.overseer._client_ready = None, True
+  else:
+    switch = tmp_path / "mode.json"
+    switch.write_text(json.dumps({"mode": "scripted"}))
+    life.mode = ModeSwitch(switch)
+  _say(life)
+  _charge(life)
+  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
+  assert life.queued_row == ASKS, "the ask waits for the loop, after the charge"
+  assert not client.calls
+
+
+def test_a_breaks_ask_passes_the_idle_run_throttle():
+  """#730's twelfth review: the throttle (`MAX_IDLE_RUN`) refused a break's
+  ask -- the robot went back on its charge with its order, broke again a
+  moment on, dropped the order and was asked anyway: a fallback row, its
+  lines, and no call saved. A person's message is no idle run, and the
+  break's ask passes the throttle; the next ask of another kind meets it."""
+  life, client = _life_asked(ASKS, answers=[_answer("charge")])
+  life.overseer._idle_run = ov.MAX_IDLE_RUN
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1"] and len(client.calls) == 1
+  assert not any(d["source"].startswith("fallback:") for d in life.decisions)
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+# ---- what a death, a stand-up and the run's end do to it ----------------------
+
+
+def test_a_true_death_resets_what_it_must():
+  """Round 5: the new robot owes the old one's visitors no break, holds no
+  charge the old one left open, and banks none of it."""
+  from pluggybot.economy.ledger import Ledger
+  life, client = _life_asked(ASKS, answers=[_answer("idle")])
+  life.ledger = Ledger()
+  _say(life)
+  _charge(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  life._true_death(float(life.data.time))
+  life.body.run(life.body.hold_routine(400.0))
+  assert not _charges(life) and life.charge_cycles == 0
+  # ...and the new robot, its own list asking on a message, charges as one:
+  # never for the old robot's visitor, never carrying the old charge on
+  life.overseer.event_map = ev.EventMap([ASKS])
+  life.battery.energy_wh = life.battery.capacity_wh * 0.4
+  _charge(life)
+  assert life.charge_cycles == 1 and not client.calls, "broken for the old robot's message"
+  [row] = _charges(life)
+  assert row["metrics"]["seconds"] < 250.0, f"the old robot's charge carried on: {row}"
+
+
+def test_a_stand_up_drops_a_charge_left_open_and_its_ask():
+  """A stand-up puts the body back at its start with a full pack, and a
+  charge it closes banks nothing (#348): the break's ask and the charge it
+  left open go with it -- an ask after it is the loop's, whose fallback runs
+  at once, and the full pack closes no charge."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  ran: list = []
+
+  def explore(**kw):
+    ran.append(life.charge_cycles)
+    return "budget"
+    yield
+  life.explore_routine = explore
+  _say(life)
+  _charge(life)                             # broken, its ask owed
+  life.dead = {"t": float(life.data.time), "cause": "unpaid", "why": "a test"}
+  life._stand_up("timer", auto=True, was=life.dead)
+  life.body.on_charger = False              # ...at its start, the plug nowhere
+  life.body.run(life.body.hold_routine(5.0))
+  assert not _charges(life) and life.charge_cycles == 0
+  _next_pass(life)
+  assert ran == [0], "its order waited on a charge the stand-up ended"
+
+
+def test_the_runs_end_banks_a_charge_left_open_and_leaves_the_plug_in():
+  """A charge the run's hour cuts banks what it got and leaves the plug in
+  (#654); one a message left open -- the robot standing still plugged in
+  as its run ends -- does the same."""
+  life, _ = _life_asked(ASKS, answers=[_answer("idle")])
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert life.body.on_charger and life.battery.fraction < lc.CHARGED
+  summary = life.run(start=(life.body.x, life.body.y, 0.0), max_sim_time=float(life.data.time))
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+  assert summary["charge_cycles"] == 0 and life.body.on_charger
+
+
+def test_a_charge_left_open_full_at_the_runs_end_is_counted_there_once():
+  """#730's ninth review: its pack full as the run ended (an ask out, the
+  seam held it open), a charge left open banked its row alone, and was
+  counted only if the next run's first act was a `charge` -- whose plug
+  still in, it counts nothing more (the fifth review: counted at the run's
+  end, the next run's `charge` counted it again, before the save kept
+  whether it was)."""
+  import json
+  on_full = ev.Row(event="task_complete", kind="charge", action=ev.ASK)
+  life, _ = _life_asked(ASKS, on_full)
+  told = _occurred(life)
+  _say(life)
+  _charge(life)
+  assert life._break_owed                   # ...its ask owed, so the seam held it open
+  life.battery.energy_wh = life.battery.capacity_wh * 0.95
+  summary = life.run(start=(life.body.x, life.body.y, 0.0), max_sim_time=float(life.data.time))
+  assert len(_charges(life)) == 1 and summary["charge_cycles"] == 1
+  assert told.count(("task_complete", "charge")) == 1 and life.body.on_charger
+  state, arrays = life.kept_state()
+  after, _ = _life_asked(ASKS, on_full)
+  after.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  # ...and the map hears it: said at the run's last step, it was read by no
+  # tick, and the next run's `charge`, counting nothing, told nothing (the
+  # tenth review)
+  assert after.queued_row is not None       # ...the message's ask, kept (#426)
+  after.queued_row = None
+  after._next_events_check = 0.0
+  after._events_step()
+  assert after.queued_row == on_full
+  after.queued_row = None
+  _charge(after)
+  assert after.charge_cycles == 0 and not _charges(after)
+
+
+def test_a_consult_is_said_only_where_the_breaks_ask_reaches_a_mind(tmp_path):
+  """#730's ninth review: free mode may come between a break and its ask,
+  which then asks nobody -- 'EVENT asking once' is not said, and the
+  consult stays owed for an answer of the mind's own."""
+  import json
+
+  from pluggybot.mind.mode import ModeSwitch
+  life, client = _life_asked(ASKS)
+  _say(life)
+  _charge(life)
+  assert life._break_owed
+  life._consult = {"event": "unminded", "note": lc.UNMINDED_NOTE}
+  switch = tmp_path / "mode.json"
+  switch.write_text(json.dumps({"mode": "scripted"}))
+  life.mode = ModeSwitch(switch)
+  _next_pass(life)
+  assert not client.calls and life._consult is not None
+  assert not any("asking once" in ln for ln in life.log), life.log[-4:]
+
+
+def test_an_order_dropped_as_the_runs_hour_comes_says_so():
+  """#730's ninth review: a failed answer's order waited on the charge, the
+  charge ended full, and the run's hour came in its undock -- dropped, the
+  order said the charge had ended otherwise."""
+  failed = ev.Row(event="decision_failed", action="explore")
+  life, _ = _life_asked(ASKS, failed, answers=[ConnectionError("down")])
+  ran: list = []
+
+  def explore(**kw):
+    ran.append(True)
+    return "time"
+    yield
+  life.explore_routine = explore
+  undock = life.body.undock_routine
+
+  def undocking():
+    yield from life.body.hold_routine(3.0)    # ...a body's undock steps
+    return (yield from undock())
+  life.body.undock_routine = undocking
+  _say(life)
+  _charge(life)
+  life.battery.energy_wh = life.battery.capacity_wh * lc.CHARGED - 1e-6
+  life.max_sim_time = float(life.data.time) + 2.0
+  _next_pass(life)
+  assert life.charge_cycles == 1 and not ran
+  assert any("dropped -- the run's time is up" in ln for ln in life.log), life.log[-4:]
+
+
+def test_an_answer_past_the_runs_hour_is_still_acted_on():
+  """The hour may come while the break's call flies: the answer is the
+  model's, and is acted on as one given on the hour always was -- its reply
+  sent, and a `charge` banking what it got with the plug left in."""
+  box: list = []
+
+  class Late(FakeClient):
+    def create(self, **kwargs):
+      box[0].max_sim_time = float(box[0].data.time)   # the hour, mid-call
+      return super().create(**kwargs)
+  life = _minded(ASKS, client=Late(_answer("charge"), delay=0.02))
+  box.append(life)
+  _say(life)
+  _charge(life)
+  _next_pass(life)
+  assert [r["id"] for r in life.replies] == ["m_1"]
+  assert life.body.on_charger, "unplugged on the hour"
+  [row] = _charges(life)
+  assert row["metrics"]["startFrac"] == pytest.approx(0.4, abs=0.01)
+  assert life.charge_cycles == 0
+
+
+@pytest.mark.parametrize("seed,pair,sim_s", [(12, False, 900.0), (23, True, 600.0)])
+def test_seeded_days_keep_every_invariant_a_served_day_needs(seed, pair, sim_s):
+  """The coordinator's fuzz (#730): seeded random days on the stub -- people
+  and the other robot writing, ratings and ticket lines, answers of every
+  action and failure kind, slow calls, deaths, stand-ups, the run's hour,
+  one robot or a pair -- every invariant read after every step
+  (`fuzz_charge_answer`). A cheap slice: thousands fly offline as a
+  measurement, and what they find becomes a test above."""
+  from fuzz_charge_answer import fly
+  out = fly(seed, sim_s=sim_s, pair=pair)
+  assert out["simS"] >= sim_s and all(out["breaks"]), out     # ...each robot broken for a message
+

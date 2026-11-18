@@ -210,23 +210,6 @@ def _say(life, n: int = 1) -> None:
                     "text": "are you there?"})
 
 
-def test_a_persons_message_waits_for_the_charge_to_end():
-  """rooftop-media-2026 #518: a robot answering while it charges (Ben's call
-  of 2026-11-16) was built and taken out before the wake, unfinished (six
-  review rounds each found real defects; its rebuild's brief is the issue
-  draft). Until it is rebuilt a charge's hold keeps a message waiting: the
-  map's `message_received -> ask` is queued, and the charge runs to full.
-  The base's behaviour, pinned."""
-  from pluggybot.mind import events as ev
-  life = _minded(ev.Row(event="message_received", action=ev.ASK))
-  _say(life)
-  life.body.run(life.charge_routine())
-  assert life.charge_cycles == 1 and life.battery.fraction >= lc.CHARGED
-  assert life.queued_row == ev.Row(event="message_received", action=ev.ASK), \
-    "the ask waits for the loop, after the charge"
-  assert not any("a message came in" in ln for ln in life.log)
-
-
 def test_a_rating_or_a_reach_in_is_nobody_speaking():
   """#518's fourth review: every inbound kind waits in one queue until code
   drains it between errands, and `message_received` fired for a rating or
