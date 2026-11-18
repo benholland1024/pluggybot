@@ -1472,8 +1472,10 @@ save a filmstrip PNG named after the script.
     row dropped `busy` and a mid-errand interrupt included, never again when
     it runs: a restart, a full slot or a charge between the two lost the
     period (4 of 19 deaths on legs) -- but a charge's break's ask resets the
-    death clock alone, never the silence shown (#730). The queued row is KEPT across a
-    restart. Armed ONLY where there is a map; NOT prevented in code (a map
+    death clock alone, never the silence shown (#730). The queued row is
+    KEPT across a restart, and so is what happened that the map has not
+    read yet (#730: a charge's end said at the run's last step reached no
+    map). Armed ONLY where there is a map; NOT prevented in code (a map
     that cannot remove its own `ask` row is a rail).
     ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS ANSWERED FOR ITSELF
     (`HubLifecycle._minded`, #303) — a fallback is the box answering; a

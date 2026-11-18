@@ -2964,7 +2964,9 @@ counting nothing: "full already", which a save keeps); with the plug out
 short of full, or the run's end short of it, its row alone, as a charge
 cut short always banks one -- the run's end with a full pack counts it
 there (left to the next run's `charge`, a pack that filled in an ask the
-hour came through was counted only if that run's first act was one).
+hour came through was counted only if that run's first act was one), its
+`task_complete charge` read by the next run's first tick: what the map has
+not read yet is kept with the world.
 
 ⚠ N = 1: a message is asked about once during an outage -- a CALL that went
 out with it in its context and failed takes it off what is owed, whatever

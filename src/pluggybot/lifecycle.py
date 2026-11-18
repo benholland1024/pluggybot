@@ -3071,7 +3071,7 @@ class HubLifecycle:
     finally:
       # Cleared before the undock, which is REAL travel and must be counted.
       self.body.docked = False
-    if self._charged_plugged and before["t"] == self.data.time:
+    if self._charged_plugged and not held:
       # ...a charge that closed full with its plug in, standing (#730):
       # counted then, never again for a `charge` that finds it so
       self._say("CHARGE: full already -- backing off", doing=True)
@@ -6821,6 +6821,10 @@ class HubLifecycle:
       "queuedRow": (None if self.queued_row is None else
                     [self.queued_row.event, self.queued_row.action,
                      self.queued_row.value, self.queued_row.kind]),
+      # ...and what happened that the map has not read yet (#730): a
+      # charge's end the run's last step said reached no map, the map read
+      # at the next tick
+      "occurred": [list(e) for e in self._occurred],
       "metabolism": (self.metabolism.kept_state()
                      if self.metabolism is not None else None),
     }
@@ -6897,6 +6901,8 @@ class HubLifecycle:
     if queued and self.event_map is not None:
       row = ev.Row(*queued)
       self.queued_row = row if row in self.event_map.rows else None
+    if self.event_map is not None:
+      self._occurred = [(str(e), str(k)) for e, k in state.get("occurred") or ()]
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
     # ...and the body's fall count as its own restore put it back, read

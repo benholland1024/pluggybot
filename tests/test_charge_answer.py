@@ -1003,7 +1003,8 @@ def test_a_charge_left_open_full_at_the_runs_end_is_counted_there_once():
   end, the next run's `charge` counted it again, before the save kept
   whether it was)."""
   import json
-  life, _ = _life_asked(ASKS)
+  on_full = ev.Row(event="task_complete", kind="charge", action=ev.ASK)
+  life, _ = _life_asked(ASKS, on_full)
   told = _occurred(life)
   _say(life)
   _charge(life)
@@ -1013,8 +1014,17 @@ def test_a_charge_left_open_full_at_the_runs_end_is_counted_there_once():
   assert len(_charges(life)) == 1 and summary["charge_cycles"] == 1
   assert told.count(("task_complete", "charge")) == 1 and life.body.on_charger
   state, arrays = life.kept_state()
-  after, _ = _life_asked(ASKS)
+  after, _ = _life_asked(ASKS, on_full)
   after.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  # ...and the map hears it: said at the run's last step, it was read by no
+  # tick, and the next run's `charge`, counting nothing, told nothing (the
+  # tenth review)
+  assert after.queued_row is not None       # ...the message's ask, kept (#426)
+  after.queued_row = None
+  after._next_events_check = 0.0
+  after._events_step()
+  assert after.queued_row == on_full
+  after.queued_row = None
   _charge(after)
   assert after.charge_cycles == 0 and not _charges(after)
 
