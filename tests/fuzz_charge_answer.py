@@ -14,15 +14,18 @@ after every step (`Watch`):
   3. a plug-in episode banks at most one `charge` row and one cycle, its
      `task_complete charge` once a cycle;
   4. a person's message caused at most one failed call (N = 1), and none
-     is lost: answered, shown in a call, or still waiting;
+     is lost: answered, shown in a call, still waiting, or put out of the
+     full queue and said so (`dropped`, as it always was);
   5. no call is made for a message the model answered, and none for one
      an answer to nobody has met `OWED_SHOWINGS` times.
 
 Not collected (no `test_` prefix): `test_charge_answer.py` flies a cheap
-seeded slice of it, and the loop's runner flies thousands as a
-measurement. The calls are made on the SIM's clock -- an answer drawn as
-the ask is made, ready a drawn think later, a slow one held past its
-deadline until a drawn moment -- so a seed is one day, bit for bit.
+seeded slice of it in the default run. The thousands of seeds #730's PR
+reports were a measurement, flown once by hand, never a test kept out of
+the run (CLAUDE.md, the budget). The calls are made on the SIM's clock --
+an answer drawn as the ask is made, ready a drawn think later, a slow one
+held past its deadline until a drawn moment -- so a seed is one day, bit
+for bit.
 """
 from __future__ import annotations
 
@@ -233,6 +236,7 @@ class Watch:
     self.asked_for: dict[str, int] = {}
     self.nobody_for: dict[str, int] = {}
     self.offered: set[str] = set()
+    self.dropped: set[str] = set()
     self.unplugs: list[tuple] = []
     self._wire()
 
@@ -332,6 +336,13 @@ class Watch:
         self.answered.add(decision.respond_to)
       asked(shown, newly, decision)
     life._asked_about = asked_about
+    evicted = life.inbox.drain_evicted
+
+    def drain_evicted():
+      out = evicted()
+      self.dropped |= {m.id for m in out}
+      return out
+    life.inbox.drain_evicted = drain_evicted
 
   def _close_episode(self) -> None:
     ep, self.episode = self.episode, None
@@ -354,10 +365,12 @@ class Watch:
 
   def finish(self) -> None:
     self._close_episode()
-    queued = {m.id for m in self.life.inbox.peek(len(self.life.inbox))}
+    inbox = self.life.inbox
+    queued = {m.id for m in inbox.peek(len(inbox))}
+    self.dropped |= {m.id for m in inbox._evicted}   # ...put out, not yet said
     for msg_id in self.offered:
-      if msg_id not in self.answered | self.shown | queued:
-        self.fail(f"{msg_id} lost: never answered, shown or waiting")
+      if msg_id not in self.answered | self.shown | queued | self.dropped:
+        self.fail(f"{msg_id} lost: never answered, shown, waiting or dropped")
 
 
 def _robot(seed: int, model, data, handle, name: str, ledger):
@@ -457,4 +470,5 @@ def fly(seed: int, sim_s: float = 900.0, pair: bool = False) -> dict:
           "calls": [len(m.calls_made) for _, m, _ in robots],
           "breaks": [sum(1 for ln in life.log if "a message came in" in ln) for life in lives],
           "episodes": [len(w.episodes) for w in watches],
-          "deaths": [len(life.deaths) for life in lives]}
+          "deaths": [len(life.deaths) for life in lives],
+          "dropped": [len(w.dropped) for w in watches]}

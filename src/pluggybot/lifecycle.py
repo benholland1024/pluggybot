@@ -6788,6 +6788,10 @@ class HubLifecycle:
       # ...and whether it waits on a run not begun yet (#706): a restart
       # drops the errand it waits on, so it never begins
       "gradeWaits": self._grade_waits is not None,
+      # ...and whether a charge that closed full, its plug left in, was
+      # counted (#730's seventh review): forgotten, the next run's `charge`
+      # counted it again
+      "chargedPlugged": self._charged_plugged,
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()
@@ -6880,6 +6884,7 @@ class HubLifecycle:
     self._grade_pending = str(state.get("gradePending") or "")
     self._grade_waits = (NO_RUN_YET if self._grade_pending and state.get("gradeWaits")
                          else None)
+    self._charged_plugged = bool(state.get("chargedPlugged"))
     if state.get("eventClock"):
       self.event_clock.restore_kept(state["eventClock"])
     # ...only a row of the list in force: one it no longer has (left out at

@@ -647,6 +647,26 @@ def test_a_charge_closed_full_standing_is_counted_once_whatever_comes_after():
   assert any("full already" in ln for ln in life.log), life.log[-3:]
 
 
+def test_a_charge_closed_full_standing_is_counted_once_across_a_restart():
+  """#730's seventh review: whether such a charge was counted is kept with
+  the world, its plug still in -- forgotten, the next run's `charge` counted
+  it again (a robot alone: a pair's next pass unplugs at full first)."""
+  import json
+  life, _ = _life_asked(ASKS, answers=[_answer("idle")])
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.body.run(life.body.hold_routine(400.0))
+  assert life.charge_cycles == 1 and life.body.on_charger
+  state, arrays = life.kept_state()
+  after, _ = _life_asked(ASKS)
+  after.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
+  told = _occurred(after)
+  _charge(after)
+  assert after.charge_cycles == 0 and ("task_complete", "charge") not in told
+  assert not _charges(after) and not after.body.on_charger
+
+
 def test_a_dead_robot_breaks_no_charge_and_is_told_it_is_asked_by_nothing():
   """#730's fifth review: a robot dead with its plug in holds its charge
   until it is stood up, and a message ended the hold: History said "I am
