@@ -13,7 +13,8 @@ measured it are the SimNotes section's.
   4. where the grip asked plans only in the trunk, the grip half a turn
      round is planned;
   5. a look at the pre-grasp passes over a posture whose plan from the arm
-     as it is lies in the trunk -- with none clear, today's;
+     as it is lies in the trunk -- the posture it holds judged at the goal
+     alone, its hand at the pre-grasp already -- with none clear, today's;
   6. an arm lies in the trunk past the slack two readings part by; and the
      body's why for the refusal is "own body".
 """
@@ -194,8 +195,9 @@ SQUARE = [(0.0, 0.0, 0.0), (-0.08, 0.0, 0.0), (-0.16, 0.0, 0.0)]
 
 def _looking(monkeypatch, inside, here=SQUARE[0]):
   """A bare reach's left hand at its pre-grasp in posture `here`; every
-  posture reaches, and its plan from the arm as it is lies in the trunk
-  where `inside` says so (`_reached` and `in_trunk` stubbed)."""
+  posture reaches, and its plan from the arm as it is lies in the trunk at
+  the pre-grasp or the goal where `inside` says so -- (posture, "pre" or
+  "goal") -- (`_reached` and `in_trunk` stubbed)."""
   r = _stepped(_standing_reach())
   r.stand = NS(settled=True)
   r._posture_there = lambda dt: True
@@ -207,11 +209,13 @@ def _looking(monkeypatch, inside, here=SQUARE[0]):
   r.hold_posture = hold
   monkeypatch.setattr(rc, "stands", lambda sm, posture, q0: True)
   monkeypatch.setattr(rc, "out_of_reach", lambda *a, **kw: False)
-  marks = {p: np.full(len(hm.ARM), k + 1.0) for k, p in enumerate(SQUARE)}
-  monkeypatch.setattr(rc, "_reached", lambda sm, side, posture, *a, **kw: (marks[tuple(posture)],) * 2)
+  marks = {(p, w): np.full(len(hm.ARM), 10.0 * k + j) for k, p in enumerate(SQUARE)
+           for j, w in enumerate(("pre", "goal"))}
+  monkeypatch.setattr(rc, "_reached", lambda sm, side, posture, *a, **kw: (
+    marks[(tuple(posture), "pre")], marks[(tuple(posture), "goal")]))
   monkeypatch.setattr(rc, "in_trunk", lambda side, *arms: (
-    {"part": "torso", "m": -0.01} if any(tuple(p) in inside and np.array_equal(arms[0], marks[tuple(p)])
-                                          for p in SQUARE) else None), raising=False)
+    {"part": "torso", "m": -0.01} if any(np.array_equal(q, marks[key]) for q in arms for key in inside)
+    else None), raising=False)
   q = r.self_model.solve("left", np.array([0.32, 0.2, 0.9]), None)[0]
   r.q_cmd["left"], r.q_to["left"] = q.copy(), q.copy()
   r.self_model._set_arm("left", q)
@@ -223,19 +227,31 @@ def _looking(monkeypatch, inside, here=SQUARE[0]):
 
 
 def test_a_look_passes_over_a_posture_whose_plan_lies_in_the_trunk(monkeypatch):
-  r = _looking(monkeypatch, inside={SQUARE[0], SQUARE[1]})
+  """The posture it holds, its plan's goal in the trunk, and the next, its
+  pre-grasp there: the one after is taken, its hand waiting."""
+  r = _looking(monkeypatch, inside={(SQUARE[0], "goal"), (SQUARE[1], "pre")})
   r._update(0.01)
   assert r.looking["left"] and r.postures == [SQUARE[2]]
+
+
+def test_a_look_judges_the_posture_it_holds_at_the_goal_alone(monkeypatch):
+  """In the posture it holds the hand is at its pre-grasp already: a plan
+  there whose pre-grasp alone lies in the trunk is no reason to move -- in
+  it goes."""
+  r = _looking(monkeypatch, inside={(SQUARE[0], "pre")})
+  r._update(0.01)
+  assert r.phase["left"] == "approach" and not r.looking["left"] and not r.postures
 
 
 def test_a_look_with_no_posture_clear_of_the_trunk_takes_todays(monkeypatch):
   """...and with none clear, the least bent that reaches, as before -- one
   less bent than the posture it holds is taken; at the one it holds, in it
   goes."""
-  r = _looking(monkeypatch, inside=set(SQUARE), here=SQUARE[1])
+  every = {(p, w) for p in SQUARE for w in ("pre", "goal")}
+  r = _looking(monkeypatch, inside=every, here=SQUARE[1])
   r._update(0.01)
   assert r.looking["left"] and r.postures == [SQUARE[0]]
-  r = _looking(monkeypatch, inside=set(SQUARE))
+  r = _looking(monkeypatch, inside=every)
   r._update(0.01)
   assert r.phase["left"] == "approach" and not r.looking["left"] and not r.postures
 

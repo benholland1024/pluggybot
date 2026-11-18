@@ -1857,9 +1857,12 @@ class Reach:
     the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
     plan bows deeper than it need -- out of its tags' view. ⚠ A POSTURE
     WHOSE PLAN FROM THE ARM AS IT IS PUTS IT IN ITS OWN TRUNK IS PASSED OVER
-    (#726, `in_trunk`) -- never for another seed's arm: the hand goes in from
-    where it is -- and with none that keeps off it, the least bent that
-    reaches is taken all the same."""
+    (#726, `in_trunk`): at the goal it goes in to, and -- another posture --
+    at the pre-grasp its arm holds the hand at while the body takes it; in
+    the one it holds the hand is at its pre-grasp already (judged there too,
+    a look crouched over a plan 0.3 mm into the torso). Never for another
+    seed's arm: the hand goes in from where it is. With none that keeps off
+    it, the least bent that reaches is taken all the same."""
     if self.looks[side] >= LOOKS or self.kept_by[side]:
       return True
     self.looks[side] += 1
@@ -1880,7 +1883,7 @@ class Reach:
         if got is None:
           continue
         first = first or posture
-        if in_trunk(side, *got) is None:
+        if in_trunk(side, *(got[1:] if posture == here else got)) is None:
           chosen = posture
           break
       if chosen is not None:
