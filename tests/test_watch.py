@@ -370,6 +370,56 @@ def test_each_steps_shorter_form_is_its_own():
   assert "x" * 20 + "y" * 10 in line and "z" * 10 + "w" * 10 in line, line
 
 
+def test_each_shorter_form_is_lengthened_where_that_one_moves_nothing_else():
+  """#728's third review: decided for all at once, one reason whose full
+  form would crowd the line kept every other in its shorter form. Each is
+  lengthened in the run's order where that one moves nothing else."""
+  from pluggybot import lifecycle as lc
+  def read(line, verb, reason, brief=None):
+    return {"verb": verb, "line": line, "ok": False, "tested": True, "reason": reason,
+            **({"brief": brief} if brief else {})}
+  run = {"ok": True, "completed": 5, "steps": [
+    read(3, "spot", "tag 5 is not seen, " + "a" * 100, "tag 5 is not seen"),
+    read(5, "measure", "m" * 120),
+    read(7, "spot", "tag 7 is not seen, " + "c" * 150, "tag 7 is not seen")]}
+  [line] = lc.procedure_outcome("p", run)
+  assert line == ("ran the procedure p to its end (5 steps; 3 tests read false -- line 3, spot: "
+                  f"tag 5 is not seen, {'a' * 100}; line 5, measure: {'m' * 120}; line 7, spot: "
+                  "tag 7 is not seen)")
+
+
+def test_historys_run_lines_are_laid_out_by_the_reasons_lengths_alone():
+  """#728's third review: `procedure_outcome` chooses a reason's form by
+  laying the lines out with each reason a mark as long as it, which is
+  right only while the layout reads no reason's text. Crowded runs -- tests
+  that read false and are dropped, a stop condition, the step a run stopped
+  at, a readout split across two lines -- laid out with every reason another
+  text of its length are the same lines, reason for reason."""
+  from pluggybot import lifecycle as lc
+  def read(line, verb, reason, **more):
+    return {"verb": verb, "line": line, "ok": False, "tested": True, "reason": reason, **more}
+  runs = [
+    {"ok": True, "completed": 9, "locals": {f"v{k}": 0.125 * k for k in range(30)},
+     "steps": [read(4, "measure", "no flat top seen " + "r" * 90), read(4, "measure", "a later reason, never said"),
+               read(6, "reach", "your right hand stopped short " + "s" * 100, **{"in": "grip"}),
+               read(8, "spot", "tag 5 is not seen " + "t" * 120),
+               {"i": 7, "verb": "pull", "line": 9, "ok": True, "why": "until",
+                "until": "right.fx read 3.626 (above 3) 0.18 s in"}]},
+    {"ok": False, "completed": 4, "failedAt": 3, "locals": {"a": 1.5},
+     "steps": [read(2, "step", "your step got nowhere " + "u" * 140),
+               {"i": 3, "verb": "pull", "line": 5, "ok": False, "reason": "you fell " + "w" * 150}]},
+  ]
+  for run in runs:
+    told = [s for s in run["steps"] if s.get("reason")]
+    stand_in = {id(s): chr(0x2460 + k) * len(s["reason"]) for k, s in enumerate(told)}
+    marked = {**run, "steps": [{**s, "reason": stand_in[id(s)]} if id(s) in stand_in else s
+                               for s in run["steps"]]}
+    lines = lc.procedure_outcome("p", run)
+    for s in told:
+      lines = [x.replace(s["reason"], stand_in[id(s)]) for x in lines]
+    assert lines == lc.procedure_outcome("p", marked), lines
+
+
 def test_no_reader_of_a_step_is_shown_its_shorter_form():
   """#728's review: the shorter form is History's alone -- the session's
   wire, practice's rows and the report its mind and a person read leave it

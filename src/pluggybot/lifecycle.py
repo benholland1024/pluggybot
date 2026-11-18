@@ -717,11 +717,14 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   ⚠ A REASON WITH A SHORTER FORM (a step's `brief`, the start of its
   `reason`; #728: a `spot` that saw nothing names its picture's sides, its
   `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
-  the lines are the shorter form's, byte for byte, unless the full form's
-  are those same lines with each such reason the longer, inside the room.
-  Said in full beside a long stop or other tests, it crowded their reasons,
-  or its own, out of the line (Observatory.md). ⚠ A step whose reason no
-  longer starts with its `brief` (a fall's, said over the verb's) has none."""
+  each in the order the run made them, the lines in full where they are the
+  lines it had with that one reason the longer, inside the room, else in its
+  shorter form -- so with none in full the lines are c7f78bc9's, byte for
+  byte. Said in full beside a long stop or other tests, it crowded their
+  reasons, or its own, out of the line (Observatory.md). ⚠ A step whose
+  reason no longer starts with its `brief` (a fall's, said over the verb's)
+  has none. ⚠ IT RESTS ON `_outcome` LAYING THE LINES OUT BY THE REASONS'
+  LENGTHS ALONE (a test pins it)."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
   steps = run.get("steps") or []
   short = {i: s["brief"] for i, s in enumerate(steps)
@@ -729,25 +732,26 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
            and (s.get("reason") or "").startswith(s["brief"])}
   if not short:
     return _outcome(name, run)
-  full = {i: steps[i]["reason"] for i in short}
-
-  def mark(i: int, form: dict) -> str:
-    # a run of step i's own mark as long as its reason in `form`: the lines
-    # are laid out by lengths alone, and no other text can match a mark
-    return chr(0xE000 + i) * len(form[i])
+  # ...each such step's own mark, numbered among them (a `spot` a verb call,
+  # under `lang.MAX_STEPS`: inside the private use area, which no other
+  # text holds)
+  marks = {i: chr(0xE000 + k) for k, i in enumerate(short)}
 
   def laid(form: dict) -> list[str]:
-    return _outcome(name, {**run, "steps": [{**s, "reason": mark(i, form)} if i in form else s
-                                            for i, s in enumerate(steps)]})
+    return _outcome(name, {**run, "steps": [{**s, "reason": marks[i] * len(form[i])}
+                                            if i in form else s for i, s in enumerate(steps)]})
 
-  wide = laid(full)
-  narrowed = wide
+  form = dict(short)
+  now = laid(form)
   for i in short:
-    narrowed = [x.replace(mark(i, full), mark(i, short)) for x in narrowed]
-  if narrowed == laid(short) and all(len(x) <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM
-                                     for x in wide):
-    return _outcome(name, run)
-  return _outcome(name, {**run, "steps": [{**s, "reason": short[i]} if i in short else s
+    if not any(marks[i] in x for x in now):
+      continue                      # ...not said either way
+    wider = {**form, i: steps[i]["reason"]}
+    lines = laid(wider)
+    if ([x.replace(marks[i] * len(wider[i]), marks[i] * len(form[i])) for x in lines] == now
+        and all(len(x) <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM for x in lines)):
+      form, now = wider, lines
+  return _outcome(name, {**run, "steps": [{**s, "reason": form[i]} if i in form else s
                                           for i, s in enumerate(steps)]})
 
 
