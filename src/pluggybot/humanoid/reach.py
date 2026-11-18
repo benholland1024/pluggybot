@@ -2175,8 +2175,9 @@ class Reach:
     lies in the trunk, every way ending there. Returns that way, and the
     judge of any other (`_kept_off`'s) -- none where no way keeps clear: then
     another robot's ways are weighed as #678 weighs them. ⚠ NEVER A WAY FROM A HAND
-    AT REST: there the plan's pre-grasp itself can lie in the trunk
-    (SimNotes), and refused, our cube's set-out 7 lost its pass."""
+    AT REST: there the plan's pre-grasp itself could lie in the trunk, and
+    refused, our cube's set-out 7 lost its pass; since #726 a procedure's
+    plan keeps it off (`plan`'s `own`), so it could be judged -- not yet."""
     own = own_model()
     rooms: dict = {}
 
