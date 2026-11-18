@@ -716,46 +716,44 @@ def _arm(side: str, q_arm) -> dict:
   return {f"{side}_{j}": float(v) for j, v in zip(hm.ARM, q_arm)}
 
 
-def solve_seeded(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
-                 ) -> tuple[np.ndarray, float, float]:
-  """`SelfModel.solve` from each of `SEEDS` (and `start`), the best kept:
+def _ranked(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
+            ) -> list[tuple[bool, np.ndarray, float, float]]:
+  """`SelfModel.solve` from `start` and each of `SEEDS`, every one, ranked:
   within tolerance and nearest `start` -- or, with none, nearest the arm
-  hanging -- else the least off. ⚠ NEAREST, NEVER THE FIRST TO REACH: kept
-  in its seeds' order, the hanging arm's own solve took the shoulder thrown
-  back and the arm over the top where five other seeds reached the same
-  point with the arm in front -- and an arm so bent leant the standing
-  policy 4.4 cm forward where the other leant it 0.8 back (#627)."""
+  hanging -- first, then the rest by how far off, ties in their seeds' order;
+  (within tolerance, q, ep, er) each."""
   tries = [seed(side, s) for s in SEEDS]
   if start is not None:
     tries.insert(0, np.asarray(start, dtype=float))
   near = tries[0]
-  best, best_key = None, None
-  for q0 in tries:
+  got = []
+  for k, q0 in enumerate(tries):
     sm.q[sm.arm[side]] = q0
     q, ep, er = sm.solve(side, pos, rot, iters=80)
     ok = ep < REACH_POS_TOL and er < REACH_ROT_TOL
-    key = (not ok, float(np.abs(q - near).max()) if ok else ep + 0.1 * er)
-    if best_key is None or key < best_key:
-      best, best_key = (q, ep, er), key
-  return best
+    got.append(((not ok, float(np.abs(q - near).max()) if ok else ep + 0.1 * er), k, (ok, q, ep, er)))
+  return [g[2] for g in sorted(got, key=lambda g: g[:2])]
+
+
+def solve_seeded(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
+                 ) -> tuple[np.ndarray, float, float]:
+  """`SelfModel.solve` from each of `SEEDS` (and `start`), the best kept:
+  within tolerance and nearest `start` -- or, with none, nearest the arm
+  hanging -- else the least off (`_ranked`'s first). ⚠ NEAREST, NEVER THE
+  FIRST TO REACH: kept in its seeds' order, the hanging arm's own solve took
+  the shoulder thrown back and the arm over the top where five other seeds
+  reached the same point with the arm in front -- and an arm so bent leant
+  the standing policy 4.4 cm forward where the other leant it 0.8 back
+  (#627)."""
+  return _ranked(sm, side, pos, rot, start)[0][1:]
 
 
 def _solutions(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
                ) -> list[np.ndarray]:
   """Every arm `solve_seeded` solves that puts the grip at `pos` (turned to
   `rot`) within the reach's tolerance as `sm` is posed, in the order it
-  ranks them: nearest `start` -- or, with none, the arm hanging -- first,
-  ties in its seeds' order (#726)."""
-  tries = [seed(side, s) for s in SEEDS]
-  if start is not None:
-    tries.insert(0, np.asarray(start, dtype=float))
-  got = []
-  for k, q0 in enumerate(tries):
-    sm.q[sm.arm[side]] = q0
-    q, ep, er = sm.solve(side, pos, rot, iters=80)
-    if ep < REACH_POS_TOL and er < REACH_ROT_TOL:
-      got.append((float(np.abs(q - tries[0]).max()), k, q))
-  return [q for _, _, q in sorted(got, key=lambda g: g[:2])]
+  ranks them: its own pick first (#726)."""
+  return [q for ok, q, _, _ in _ranked(sm, side, pos, rot, start) if ok]
 
 
 def _reaching(sm: SelfModel, side: str, pos, rot, start=None, seeded: bool = True):
@@ -842,6 +840,8 @@ def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
   # this arm hanging
   statue(sm, posture, q0, dict(arms or {}), lean, fast=True)
   solves = _solutions(sm, side, goal.pos, goal.rot, start)
+  # ...the first is `solve_seeded`'s pick, today's plan's own start: planned
+  # on from there it is today's again
   tried = solves[:1]
   for q in solves[1:]:
     if any(float(np.abs(q - t).max()) <= SAME_ARM_RAD for t in tried):
@@ -2177,7 +2177,7 @@ class Reach:
     another robot's ways are weighed as #678 weighs them. ⚠ NEVER A WAY FROM A HAND
     AT REST: there the plan's pre-grasp itself can lie in the trunk
     (SimNotes), and refused, our cube's set-out 7 lost its pass."""
-    own = self._own_model()
+    own = own_model()
     rooms: dict = {}
 
     def rooms_of(w) -> np.ndarray:
@@ -2214,11 +2214,6 @@ class Reach:
     part = UPPER_GEOMS[i % len(UPPER_GEOMS)]
     self.own[side] = {"part": "torso" if part == "torso" else "head", "m": round(float(r[i]), 3)}
     return (None, clear) if refuse else (best_way, None)
-
-  def _own_model(self) -> SelfModel:
-    """`own_model`, the one model of itself every robot judges against its
-    own trunk."""
-    return own_model()
 
   def _picked(self, sm, side: str, q0, q1, out: bool):
     """`_judged`'s way with nobody by, and how far a way dips (`_dips`; None
