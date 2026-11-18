@@ -1883,7 +1883,8 @@ class Reach:
         if got is None:
           continue
         first = first or posture
-        if in_trunk(side, *(got[1:] if posture == here else got)) is None:
+        q_pre, q = got[:2]
+        if (in_trunk(side, q) if posture == here else in_trunk(side, q_pre, q)) is None:
           chosen = posture
           break
       if chosen is not None:

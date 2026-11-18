@@ -409,11 +409,9 @@ save a filmstrip PNG named after the script.
   the grip half a turn round; none, and a procedure's reach moves nothing,
   "own body", the loop's own taking today's; `hand_reaches` answers so, and a
   look at the pre-grasp passes over a posture whose plan from the arm as it is
-  lies in it. Flown over Ben's bar beside e629cddd: 5 of 736 moved, all the
-  cube's, 608 -> 610 passed and 8 -> 6 falls; of the 11-15 wake's 53 runs 4,
-  their torso presses gone and one fall with them; no reach was refused for
-  it. ⚠ MuJoCo 3.10 reads two boxes apart as 0.0 at some poses (`reach.apart`
-  reads them again). ⚠
+  lies in it: unjudged, three of the 11-15 wake's door reaches from the arm
+  hanging pressed the torso at 23-52 N. ⚠ MuJoCo 3.10 reads two boxes apart as
+  0.0 at some poses (`reach.apart` reads them again). ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
