@@ -10,6 +10,62 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A `spot` that saw nothing names its picture's sides (#728, T4, `loop-728`) — opens when this PR is deployed
+
+**What the robots read moves in History alone**: neither the prompt
+(`b4d1ec1f…`, 69,557 characters, 17 sections, on `loop-staging` c7f78bc9
+with this change and without it) nor the session host's hello
+(`a61b6376…`) carries a refusal, and neither moves. A `spot` that saw
+nothing reads false, and its reason reaches the robot in its run's History
+line. It said "tag 55 is not in your colour camera's picture from where you
+stand, or too near or too far to read: it shows nothing higher than 19
+degrees below level", and now goes on (Ben's words, #728's option 1, off
+the constants `spot`'s text reads) ", nor further than 34 degrees to either
+side of where your head faces at that top (more than 50 at its bottom)".
+Where #717 held its bow it says the top and the bow as before ("...19
+degrees below level; your LIDAR reads something 0.12 m in front of your
+head, so you bowed only 14 degrees of the 26 you would have"), never the
+sides as well: beside the bow's clause the reason would be 351-374
+characters, past the 307 less the procedure's name and its line's digits
+that History's run line leaves a false test's first reason (#629), so no
+run that ended would have said it at all, and one it stopped would have
+been cut inside the bow's clause.
+
+**Why** (#728). `spot`'s text gives the whole picture, but its refusal
+named only the top, and the robots took the top for the reason every time.
+On 11-14 Luca, turned 32-36 deg from square to the counter after its door
+procedure, its door's lever 48-52 deg from where its head faced, read
+fourteen refusals in two runs as the top edge's and kept it as a rule (a
+top edge "stance-dependent, not absolute"); on 11-18 Rowan pinned the top
+edge for a tag that could not have left the picture by its top. Those two
+runs' lines say the sides whole.
+
+**Measured** (each run of the 11-14 and 11-15 wakes rebuilt off the sim's
+log, its tests that read false and its failed step, and its History line
+made by `procedure_outcome` on c7f78bc9 with today's words and with these).
+Each refusal fits on its own: at the largest tag (586), the longest name a
+procedure may have and a 4-digit line, the plain refusal (262 characters,
+from 152) and a held bow's (264, as before) are said whole beside a run that
+ended and one they stopped; a test pins both. But History's run line says
+each line's first reason in order while they fit and none after the first
+that does not, so a longer reason crowds the line. Of the runs with a
+refused `spot`, it would have said less than it did in 29 of 52 on 11-15
+(the `spot`'s own reason, nothing of the picture at all, in 20; another
+test's reason in 9) and in 13 of 22 on 11-14 (6 and 7), and the sides in
+23 and 15. They are the runs whose line a long stop already crowds (a fall,
+a budget run out) or with several lines that read false: History already
+said fewer reasons than read false in 34 of the 115 runs with a false test
+on 11-15 and 7 of 53 on 11-14. Stop conditions are said after the tests
+and the logs carry none of them, so one crowded out is not counted.
+
+**What to read**
+- Whether a robot's notes, pins and tickets still blame the picture's top
+  for a tag beside it, and whether a refused `spot` is followed by a turn.
+- Runs whose History line says "N tests read false" with fewer reasons than
+  before, and what the robot does next (a `recall`, a run written again).
+- ⚠ Not to be pooled with the period before for what a robot does after a
+  refused `spot`: its words moved.
+
 ### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
 
 **What the robots read** is unmoved where it is read every turn: this
