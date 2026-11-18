@@ -1478,9 +1478,10 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   for stamp in [i for i, _ in enumerate(src) if src.startswith("_stamp_ask()", i)]:
     assert stamp < src.index("yield from self._decide_routine(", stamp), \
         "the ask stamps the clock before the call, a failure cannot unstamp it"
-  assert src.count("_stamp_ask()") == 2, \
-      "the bootstrap and the consult a heart lost to silence is owed, and " \
-      "nothing else in this branch: a row stamped when it fired"
+  assert src.count("_stamp_ask()") == 3, \
+      "the bootstrap, the consult a heart lost to silence is owed, and a " \
+      "charge's break with no row's stamp waiting for it (#730), and nothing " \
+      "else in this branch: a row stamped when it fired"
   seam = inspect.getsource(HubLifecycle._events_step)
   assert seam.count("_stamp_ask()") == 1
   assert seam.index("_stamp_ask()") < seam.index('note_failure("busy")'), \

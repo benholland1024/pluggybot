@@ -1918,7 +1918,7 @@ save a filmstrip PNG named after the script.
   Ben's calls of 11-16 and 11-18; `HubLifecycle._spoken_to`,
   `tests/test_charge_answer.py`; Overseer.md §10): the loop asks at once on
   those rules; ⚠ A FALLBACK GOES BACK ON THE CHARGE and its order runs when
-  it ends (round 6's death path);
+  it ends (run at once, an `explore` order unplugged a robot part-charged);
   ⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`): one row from its start,
   one cycle and one `task_complete charge`, carried on or filled standing
   still; ⚠ N = 1: a failed call takes every message it held (`_asked_about`). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE

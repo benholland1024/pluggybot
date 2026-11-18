@@ -409,6 +409,78 @@ def test_a_stand_up_while_a_failed_answer_is_said_runs_nothing_after():
   assert not ran and life.charge_cycles == 0 and not _charges(life)
 
 
+def test_a_break_with_no_row_behind_it_stamps_the_unminded_clock():
+  """#730's second review: a message still owed after an answer to somebody
+  else is asked about again with no row fired for it, and an ask the clock
+  never heard of could leave a mind just asked to die `unminded`. A break's
+  ask stands on its row's stamp where one waits for it, and is stamped
+  where none does -- never twice for one ask."""
+  life, _ = _life_asked(ASKS, answers=[_answer("charge", to="m_1"),
+                                       _answer("charge", to="m_2")])
+  _say(life, 1)
+  _say(life, 2)
+  _charge(life)
+  fired = life._asked_t                     # the messages' row stamped it
+  assert fired is not None
+  _next_pass(life)                          # its own stamp: not stamped again
+  assert life._asked_t == fired
+  t = float(life.data.time)
+  _next_pass(life)                          # m_2 again, with no row fired: stamped
+  assert life._asked_t is not None and life._asked_t >= t > fired
+
+
+def test_a_charge_decided_as_the_pack_fills_is_one_charge():
+  """#730's second review: the pack filled while a later ask was out, the
+  seam closed the charge left open (a cycle, `task_complete charge`), and
+  the `charge` answered counted it again. Full, a charge left open closes
+  only between asks."""
+  answers = [_answer("idle"), full(action="charge", reason="go on")]
+  life, client = _life_asked(ASKS, ev.Row(event="nothing_to_do", action=ev.ASK),
+                             answers=answers)
+  told = _occurred(life)
+  _say(life)
+  _charge(life)
+  _next_pass(life)                          # stood still, its plug in
+  life.battery.energy_wh = life.battery.capacity_wh * (lc.CHARGED - 0.001)
+  slow = client.create
+
+  def filling(**kwargs):                    # the pack fills while it thinks
+    life.battery.energy_wh = life.battery.capacity_wh * (lc.CHARGED + 0.01)
+    return slow(**kwargs)
+  client.create = filling
+  _next_pass(life)
+  assert told.count(("task_complete", "charge")) == 1
+  assert life.charge_cycles == 1 and len(_charges(life)) == 1
+
+
+def test_an_answer_owed_for_a_message_gone_from_the_queue_goes_too():
+  """#730's second review: an answer stays owed until a call takes it, and
+  one for a message the queue threw away was kept for good."""
+  life, _ = _life_asked(ASKS)
+  _say(life)
+  life._next_events_check = 0.0
+  life._events_step()
+  assert "m_1" in life._owed
+  life.inbox.take("m_1")                    # ...gone, unanswered
+  life._visitor_step()
+  assert not life._owed
+
+
+def test_a_hold_a_gate_keeps_shut_looks_once_a_second():
+  """#730's second review: the hold read the call's gates every quarter
+  second it was shut, on the physics thread; it looks once a second, as
+  the map does."""
+  life, _ = _life_asked(ASKS)
+  looked: list = []
+  life.overseer.can_ask = lambda: looked.append(1) or False
+  _say(life)
+  t0 = float(life.data.time)
+  _charge(life)
+  held_s = float(life.data.time) - t0
+  assert life.charge_cycles == 1
+  assert len(looked) <= held_s / lc.EVENTS_CHECK_S + 2, (len(looked), held_s)
+
+
 def test_an_outage_asks_once_per_message_and_never_loops_on_the_plug():
   """N = 1 (#730, written first): with the endpoint down, a message is asked
   about once -- the last build retried it, and a retry spent on `busy` lost
