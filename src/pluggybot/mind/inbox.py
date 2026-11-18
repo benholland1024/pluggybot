@@ -389,15 +389,20 @@ class Inbox:
       # nothing is queued, deduped or narrated.
       self.renderer = msg.connected
       return msg
+    # ⚠ AN OPERATOR'S TICKET LINE IS NEVER DROPPED AS A REPLAY (#729): its
+    # desk is its dedupe (a reply by its id, `Desk.taken`; a close and a
+    # delete by what they do), and a copy sent again is the website asking
+    # for an acknowledgement it lost -- dropped here, it was never answered.
+    checked = bool(msg.id) and msg.kind not in TICKET_INBOUND_TYPES
     with self._lock:
-      if msg.id and msg.id in self._seen_set:
+      if checked and msg.id in self._seen_set:
         # A replay. The website resends on its own reconnect (it cannot know
         # whether we got the first copy), so this is expected traffic rather
         # than an attack -- but acting on a message twice is still acting
         # on it twice.
         self.dropped_invalid += 1
         return None
-      if msg.id:
+      if checked:
         if len(self._seen) == self._seen.maxlen:
           self._seen_set.discard(self._seen[0])
         self._seen.append(msg.id)
@@ -600,14 +605,6 @@ class Inbox:
           self.delivered += 1
           return msg
     return None
-
-  def forget(self, message_id: str) -> None:
-    """Take a copy of this id again when it is sent again: a line the
-    physics thread could not apply and said so (#729, an operator's ticket
-    line the desk failed on), which the replay check would otherwise drop
-    unanswered for the rest of the process."""
-    with self._lock:
-      self._seen_set.discard(message_id)
 
   def drain(self, kinds: tuple[str, ...] = INBOUND_TYPES) -> list[VisitorMessage]:
     """Remove and return every queued message of the given kinds.

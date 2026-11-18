@@ -82,6 +82,10 @@ COUNTER = "counter.json"
 
 ROBOT, OPERATOR = TICKET_SENDERS
 STATES = ("open", "closed")
+#: What a close sets on a ticket, put back where its record could not be
+#: written (`Desk.close`).
+_CLOSE_FIELDS = ("state", "closed_by", "closed_text", "closed_cut", "closed_t",
+                 "closed_n")
 
 
 class DeskRefused(ValueError):
@@ -339,10 +343,15 @@ class Desk:
       raise self._refuse(["a reply says something: `text` is empty"])
     if sender not in TICKET_SENDERS:
       raise ValueError(f"a thread line's sender is one of {TICKET_SENDERS}")
+    before = list(ticket.thread)
     ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut,
                               _clean(ref, 64)))
     del ticket.thread[:-MAX_THREAD]
-    self._save(ticket)
+    try:
+      self._save(ticket)
+    except Exception:
+      ticket.thread[:] = before          # never a line the record lacks (#729)
+      raise
     return ticket
 
   def taken(self, ticket_id: str, ref: str) -> Line | None:
@@ -368,14 +377,23 @@ class Desk:
       return None, False
     if not ticket.open:
       return ticket, False
+    before, closes = {f: getattr(ticket, f) for f in _CLOSE_FIELDS}, self.closes
     ticket.state = "closed"
     ticket.closed_by = _clean(by, 40)
     ticket.closed_text, ticket.closed_cut = _cut(text, MAX_LINE)
     ticket.closed_t = round(float(t), 3)
     self.closes += 1
     ticket.closed_n = self.closes
-    self._save_counter()
-    self._save(ticket)
+    try:
+      self._save_counter()
+      self._save(ticket)
+    except Exception:
+      # ⚠ NEVER A CLOSE THE RECORD LACKS (#729): kept in memory alone, the
+      # copy sent again found it closed and was never paid
+      for name, value in before.items():
+        setattr(ticket, name, value)
+      self.closes = closes
+      raise
     return ticket, True
 
   def pay(self, ticket_id: str, points: int, seq: int) -> None:
@@ -387,10 +405,12 @@ class Desk:
     self._save(ticket)
 
   def delete(self, ticket_id: str) -> Ticket | None:
-    """Erase a ticket, open or closed. None for one the desk does not hold."""
-    ticket = self.tickets.pop(str(ticket_id or ""), None)
+    """Erase a ticket, open or closed. None for one the desk does not hold.
+    Off the record first: a delete the store refused leaves it held (#729)."""
+    ticket = self.get(ticket_id)
     if ticket is not None:
       self.store.remove(f"{ticket.id}{SUFFIX}")
+      del self.tickets[ticket.id]
     return ticket
 
   def trim(self) -> None:

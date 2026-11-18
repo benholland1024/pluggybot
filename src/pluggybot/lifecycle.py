@@ -3988,16 +3988,20 @@ class HubLifecycle:
     delete, applied by code like every admin kind. What the robot is shown
     is the thread, on its next turn. At the top of every arbitration pass,
     and in every slice of a pause for every robot on the loop (#729,
-    `_mode_step`; Overseer.md §2g).
+    `_mode_step`; Overseer.md §2g); none once a stop is asked, a line at a
+    time -- what an ending process takes, the site may never hear
+    acknowledged, and the line left goes with the process to be sent again.
 
     ⚠ A LINE NEVER ENDS THE RUN (`_ticket_failed`): raised in a pause, the
     process would die, restart paused, and be sent the line again."""
-    if self.inbox is None:
+    if self.inbox is None or self.stopping:
       return
     for kind, apply in (("ticket_reply", self._ticket_reply),
                         ("ticket_close", self._ticket_close),
                         ("ticket_delete", self._ticket_delete)):
       for msg in self.inbox.drain((kind,)):
+        if self.stopping:
+          return
         said = len(self.ticket_events)
         try:
           apply(msg)
@@ -4008,17 +4012,16 @@ class HubLifecycle:
     """An operator's line the desk failed on (#729): said in the console
     (`_say`'s `detail`, issue #76, and the traceback), never in History.
     ⚠ ANSWERED `refused` (`sender` the operator's) ONLY WHERE NO EVENT HAS
-    ACKNOWLEDGED IT (`said`, the run record's length before it): one that
-    failed after its `replied` went out was taken, and a `refused` after it
-    would contradict it. ⚠ A COPY SENT AGAIN IS TAKEN AGAIN (`Inbox.forget`),
-    or the replay check would drop it unanswered for the rest of the
-    process. ⚠ The report never raises itself."""
+    ACKNOWLEDGED IT (`said`, the run record's length before it): the desk
+    rolls back a write it could not make, so unacknowledged it was not
+    taken, and a copy sent again is taken whole (the inbox never drops a
+    ticket line as a replay); acknowledged, it was. ⚠ The report never
+    raises itself."""
     try:
       if not any(e.get("ref") == msg.id for e in self.ticket_events[said:]):
         self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
                            sender=tickets_desk.OPERATOR,
                            why=f"the desk could not take it ({type(error).__name__})")
-        self.inbox.forget(msg.id)
       self._say(f"TICKET {msg.kind.removeprefix('ticket_')} from "
                 f"{msg.who or 'the operator'} not taken: the desk failed on it",
                 detail=f"{type(error).__name__}: {error}")
@@ -4085,30 +4088,34 @@ class HubLifecycle:
                          verb="ticket_close")
       self._say(f"TICKET close from {who} ignored: no ticket {msg.ticket!r}")
       return
-    if changed:
-      # Measured off the desk AFTER the close was applied (`sample_ticket`),
-      # never off the message: the evaluator's `closed` is the desk's state.
-      verdict = scoring.evaluate(
-        "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
-        table=self.ledger.table if self.ledger is not None else None)
-      entry = self._bank(verdict)
-      if entry is not None:
-        self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      # ...and only then the closed ones trimmed (#594): trimmed first, a
-      # close the desk ranked past its twentieth was measured as no ticket
-      self.tickets.trim()
-      said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
-              f": {ticket.closed_text}" if ticket.closed_text else "")
-      paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
-      self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
-      # The closing words reach History whole, on a reply's terms (#433).
-      self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
-                     room=tickets_desk.MAX_LINE)
-      self._occur("ticket_replied")
-    self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
-                       text=ticket.closed_text, points=ticket.points,
-                       seq=ticket.seq, ref=msg.id, paid=changed,
-                       **({"cut": True} if ticket.closed_cut else {}))
+    try:
+      if changed:
+        # Measured off the desk AFTER the close was applied (`sample_ticket`),
+        # never off the message: the evaluator's `closed` is the desk's state.
+        verdict = scoring.evaluate(
+          "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
+          table=self.ledger.table if self.ledger is not None else None)
+        entry = self._bank(verdict)
+        if entry is not None:
+          self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+        # ...and only then the closed ones trimmed (#594): trimmed first, a
+        # close the desk ranked past its twentieth was measured as no ticket
+        self.tickets.trim()
+        said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
+                f": {ticket.closed_text}" if ticket.closed_text else "")
+        paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
+        self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
+        # The closing words reach History whole, on a reply's terms (#433).
+        self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
+                       room=tickets_desk.MAX_LINE)
+        self._occur("ticket_replied")
+    finally:
+      # ⚠ ACKNOWLEDGED ONCE THE DESK HAS IT, WHATEVER FAILS AFTER (#729): a
+      # `refused` would have it sent again, and the copy finds it closed
+      self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
+                         text=ticket.closed_text, points=ticket.points,
+                         seq=ticket.seq, ref=msg.id, paid=changed,
+                         **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:
     """The operator erased a ticket (issue #284): off the desk, open or
