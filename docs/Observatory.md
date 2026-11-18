@@ -48,8 +48,10 @@ ways out from a hand already out keep clear of the trunk. Of the 11-15
 wake's 53 runs flown at their live draws, the 3 whose ways out from the
 cupboard's lever pressed the torso at 36-56 N moved, none passing or
 falling otherwise: 8 reaches refused, one press left at 9 N by a forearm
-begun on the torso. The pair's recorded day and the counter's attempt are
-the committed fixtures', and the station's checks (39 approaches, 140
+begun on the torso. On `loop-weekend`, the place laid from the pass (never
+offered) is the same 37 of 64 with 3 falls with the rule and without it,
+none of its flights moved. The pair's recorded day and the counter's attempt
+are the committed fixtures', and the station's checks (39 approaches, 140
 seats, 20 lost near) the base's row for row.
 
 **What to read**: reaches that read false with "own body", and what the

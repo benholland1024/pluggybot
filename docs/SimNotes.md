@@ -10651,21 +10651,27 @@ robot's own body. Two readings of one depth may part by 0.1 mm
   separating axes, through), which agrees with MuJoCo to 4e-16 wherever
   MuJoCo reads them apart.
 
-**Measured after** (the same pod beside ac2538e8, batch r5b, `loop-722`
-765e22b2): Ben's bar the base's flight for flight -- 608 of 736 passed with
-5 falls on both trees, none of the 736 moved at all (every end state, its
-qpos, qvel and time, the base's), every job and every slowest pass of the
-tour the same: the bar's 309 ways out from a hand out each keep clear, and
-are today's. Of the wake's 53 runs the 3 whose ways out from the lever
-pressed the torso moved, and none passed or fell otherwise: 8 reaches
-refused "own body" where 7 ways out had pressed it at 36-56 N, the one
-press left t_0415's, a forearm begun on the torso at 5.6 N, at 9 N; no way
-home met the robot's own body in any of them. The pair's recorded day and
-the counter's attempt are the committed fixtures', line for line (their
-charge rows' wall-clock stamps aside), and the station's checks the base's
+**Measured after** (the same pod beside ac2538e8: batch r5b on 765e22b2,
+the rule as first written, and r5e on 193743eb's code, the rule after its
+three reviews): Ben's bar the base's flight for flight on both -- 608 of
+736 passed with 5 falls on all three trees, none of the 736 moved at all
+(every end state, its qpos, qvel and time, the base's), every job and every
+slowest pass of the tour the same: the bar's 309 ways out from a hand out
+each keep clear, and are today's. Of the wake's 53 runs the 3 whose ways
+out from the lever pressed the torso moved, the same flights on both
+commits, and none passed or fell otherwise: 8 reaches refused "own body"
+where 7 ways out had pressed it at 36-56 N, the one press left t_0415's, a
+forearm begun on the torso at 5.6 N, at 9 N; no way home met the robot's own
+body in any of them. The place laid from the pass (R7's procedures, never
+offered) on `loop-weekend` d81c0017 and with the rule merged onto it: 37 of
+64 draws from the tour laid with 3 falls on both, none of the 64 moved, its
+357 ways out from a hand out each 2.9 cm or more off the trunk. The pair's
+recorded day and the counter's attempt are the committed fixtures', line
+for line (their charge rows' wall-clock stamps aside), on ac2538e8, on
+`loop-weekend` and with the rule on each; the station's checks the base's
 row for row: 39 of 39 approaches docked and unplugged, 140 of 140 seats
-plugged in and out, 20 of 20 lost near docked. The judgment takes 10.6
-ms a way at the median and 29 at most, over the 342 recorded.
+plugged in and out, 20 of 20 lost near docked. The judgment takes 10.6 ms
+a way at the median and 29 at most, over the 342 recorded.
 
 **What it does not do.** A way home is judged against nothing of the
 robot's own body, nor a way out from the arm hanging: the cube's ways home
