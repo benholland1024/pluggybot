@@ -22,9 +22,11 @@ stand, or too near or too far to read: it shows nothing higher than 19
 degrees below level". It now goes on, in Ben's words (#728's option 1, off
 the constants `spot`'s text reads), ", nor further than 34 degrees to either
 side of where your head faces at that top (more than 50 at its bottom)" --
-but History says the longer reason only where it moves nothing else in the
-run's lines (`procedure_outcome`: a step's `brief`), and where it would, the
-lines are as they were, byte for byte, the top alone. Where #717 held its
+but History says each such reason in full only where that one moves
+nothing else in the run's lines (`procedure_outcome`: a step's `brief`, the
+start of its reason), and where it would, says the top alone, so a run none
+of whose refusals has room says its lines as they were, byte for byte. A
+fall said over a refused `spot` is said as the fall. Where #717 held its
 bow, the refusal is as it was, the top and the bow ("...19 degrees below
 level; your LIDAR reads something 0.12 m in front of your head, so you bowed
 only 14 degrees of the 26 you would have"), never the sides as well: beside
@@ -60,11 +62,12 @@ longer reason crowded the line. Of the runs with a refused `spot`:
 | ...a reason or a name said before, gone | 28 | 12 |
 | ...of those, the `spot`'s own (nothing of the picture) | 19 | 5 |
 | ...nothing gone, but the readout on a line of its own | 6 | 2 |
-| as built (where they move nothing else): the sides said | 8 | 6 |
+| as built (each where it moves nothing else): the sides said | 8 | 6 |
 | ...anything gone, or a line more | 0 | 0 |
 
-The runs it falls back in are the ones whose line a long stop (a fall, a
-budget run out), several lines that read false or the readout already fill.
+The runs it says the top alone in are the ones whose line a long stop (a
+fall, a budget run out), several lines that read false or the readout
+already fill.
 Let the readout go to a line of its own, never built, the sides would be
 said in 14 and 8, each such run a History line more. Every one of the 211
 runs as logged -- no shorter form, every verb -- makes the same 338 lines
