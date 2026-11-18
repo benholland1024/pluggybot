@@ -665,11 +665,12 @@ acknowledgement out, and a reply sent again to the next one would land
 twice). A line the desk fails on never ends the run: a write the desk
 cannot make leaves it as it was, the line is answered `refused` and its
 error said, and a copy sent again is taken whole; one that failed after
-the desk had it is acknowledged as taken. Every copy of a line is
+the desk had it is acknowledged as taken. Every copy of a line taken is
 answered, the same process's too (the inbox drops no ticket line as a
-replay): a reply sent again is answered `again` and never put on the
-thread twice, since the desk keeps the id each operator line came in
-under (`Desk.taken`, never shown to the robot), and a close `paid: false`.
+replay, only a copy of one still queued): a reply sent again is answered
+`again` and not put on the thread twice while the thread keeps it, since
+the desk keeps the id each operator line came in under (`Desk.taken`,
+never shown to the robot), and a close `paid: false`.
 Everything else sent while paused (a person's message, a rating, a
 reach-in) still waits for the wake.
 
