@@ -10,6 +10,79 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A `spot` that saw nothing names its picture's sides, where History has room (#728, T4, `loop-728`) — opens when this PR is deployed
+
+**What the robots read moves in History alone**: neither the prompt
+(`b4d1ec1f…`, 69,557 characters, 17 sections, on `loop-staging` c7f78bc9
+with this change and without it) nor the session host's hello
+(`a61b6376…`) carries a refusal, and neither moves. A `spot` that saw
+nothing reads false, and its reason reaches the robot in its run's History
+line. It said "tag 55 is not in your colour camera's picture from where you
+stand, or too near or too far to read: it shows nothing higher than 19
+degrees below level". It now goes on, in Ben's words (#728's option 1, off
+the constants `spot`'s text reads), ", nor further than 34 degrees to either
+side of where your head faces at that top (more than 50 at its bottom)" --
+but History says each such reason in full only where that one moves
+nothing else in the run's lines (`procedure_outcome`: a step's `brief`, the
+start of its reason), and where it would, says the top alone, so a run none
+of whose refusals has room says its lines as they were, byte for byte. A
+fall said over a refused `spot` is said as the fall. Where #717 held its
+bow, the refusal is as it was, the top and the bow ("...19 degrees below
+level; your LIDAR reads something 0.12 m in front of your head, so you bowed
+only 14 degrees of the 26 you would have"), never the sides as well: beside
+the bow's clause it would be 351-374 characters, past the about 307 less the
+procedure's name and its line's digits that History's run line leaves a
+false test's reason (#629), and no run that ended would have said it. The
+narration, a `procedure` event's `failedReason` and a practice's report say
+the longer reason whenever the step does.
+
+**Why** (#728). `spot`'s text gives the whole picture, but its refusal
+named only the top, and the robots took the top for the reason every time.
+On 11-14 Luca, turned 32-36 deg from square to the counter after its door
+procedure, its door's lever 48-52 deg from where its head faced, read
+fourteen refusals in two runs as the top edge's and kept it as a rule (a
+top edge "stance-dependent, not absolute"); on 11-18 Rowan pinned the top
+edge for a tag that could not have left the picture by its top. Those two
+runs' History lines say the sides whole.
+
+**Measured** (every run of the 11-14, 11-15 and 11-18 wakes rebuilt off the
+sim's log -- its tests that read false, its failed step, its end -- and its
+locals off its `procedure` event, its History lines made by
+`procedure_outcome`).
+Every refusal fits on its own: at the largest tag (586), the longest name a
+procedure may have and a 4-digit line, the plain refusal (262 characters,
+from 152) and a held bow's (264, as before) are said whole beside a run that
+ended and one they stopped (a test). But History's run line says each
+line's first reason in order while they fit and none after the first that
+does not, and its readout beside the line while it fits, so in full the
+longer reason crowded the line. Of the runs with a refused `spot`:
+
+| | 11-14 (22 runs) | 11-15 (52 runs) | 11-18 (42 runs) |
+|---|---|---|---|
+| Ben's words in full: the sides said | 15 | 23 | 19 |
+| ...a reason or a name said before, gone | 12 | 28 | 6 |
+| ...of those, the `spot`'s own (nothing of the picture) | 5 | 19 | 5 |
+| ...nothing gone, but the readout on a line of its own | 2 | 6 | 9 |
+| as built (each where it moves nothing else): the sides said | 6 | 8 | 9 |
+| ...anything gone, or a line more | 0 | 0 | 0 |
+
+The runs it says the top alone in are the ones whose line a long stop (a
+fall, a budget run out), several lines that read false or the readout
+already fill.
+Let the readout go to a line of its own, never built, the sides would be
+said in 8, 14 and 18, each such run a History line more. Every one of the
+311 runs as logged -- no shorter form, every verb -- makes the same 500
+lines on this tree as on c7f78bc9. 11-18's 6 refusals with a held bow (2
+runs) were said by no History line: their runs' lines were full either way.
+Stop conditions are not in the logs, so the counts carry none.
+
+**What to read**
+- Whether a robot's notes, pins and tickets still blame the picture's top
+  for a tag beside it, and whether a refused `spot` is followed by a turn.
+- How often History says the sides (the narration says them every time).
+- ⚠ Not to be pooled with the period before for what a robot does after a
+  refused `spot`: its words moved.
+
 ### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
 
 **What the robots read** is unmoved where it is read every turn: this

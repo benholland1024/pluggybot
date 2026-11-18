@@ -1761,7 +1761,15 @@ save a filmstrip PNG named after the script.
   false came out "(2 steps)", and the robot built theories on it) and WHAT
   EACH STOP CONDITION READ (`stops_said`, #631: told only `reach.stopped`,
   Luca read a stop 0.18 s into a reach as its hand at a drawer), and its
-  `program` verdict is the run's own end (`ok`), never its count. ⚠ `drive_to(x, y,
+  `program` verdict is the run's own end (`ok`), never its count. ⚠ A
+  REASON WITH A SHORTER FORM (a step's `brief`, the start of its reason: a
+  `spot` that saw nothing names its picture's sides, its `brief` the top
+  alone, #728) IS SAID IN FULL ONLY WHERE THAT ONE MOVES NOTHING ELSE IN THE
+  RUN'S LINES, each in the run's order, else in its shorter form -- none in
+  full, the lines byte for byte as before -- the layout reading lengths
+  alone (a test): in full, the sides crowded History's line in 40 of the 74
+  runs with a refused `spot` on 11-14/15, the `spot`'s own reason gone in 24
+  (Observatory.md). ⚠ `drive_to(x, y,
   patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S` 600, never past the
   run's own budget (`run_verb(until=)`); an argument with a `default` may be
   left out; its text says the walk's keep-off off `WALK_KEEP_M` (the

@@ -615,6 +615,13 @@ def _hand_place(life, args: dict) -> tuple[float, float, float]:
   return axes.from_stance(life, (float(args["x"]), float(args["y"]), float(args["z"])))
 
 
+#: A step's fields no reader of it is shown (#728): its trace is the log's,
+#: and a reason's shorter form (`brief`, the start of its `reason`) History's,
+#: said there only where the reason in full would move anything else
+#: (`lifecycle.procedure_outcome`).
+UNSHOWN = ("trace", "brief")
+
+
 def _spot(life, args: dict) -> Routine:
   """Look for a tag in the head's colour camera, standing still -- as it
   stands, then bowing lower until it is seen (`SPOT_GAZES`), standing up
@@ -643,15 +650,23 @@ def _spot(life, args: dict) -> Routine:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
     forget_readings(life, "spot")
-    # what the bows could not change, the picture's top (#660), and short:
-    # History's line says each false test's reason inside its 400 characters
-    reason = (f"tag {int(tag)} is not in your colour camera's picture from where you "
-              "stand, or too near or too far to read: it shows nothing higher than "
-              f"{SPOT_TOP_DEG:.0f} degrees below level")
+    # what the bows could not change, the picture's top (#660) and its sides
+    # (#728), and short: History's run line drops whole a false test's reason
+    # past what its run leaves, about 307 characters less the procedure's
+    # name and the line's digits (#629; tests/test_watch.py pins the fit)
+    top = (f"tag {int(tag)} is not in your colour camera's picture from where you "
+           "stand, or too near or too far to read: it shows nothing higher than "
+           f"{SPOT_TOP_DEG:.0f} degrees below level")
     if held:
-      # ...and a bow its head's room held (#717): what kept it, and how far
-      reason += "; " + _bow_said(held)
-    return {"ok": False, "tag": int(tag), "reason": reason}
+      # ...and a bow its head's room held (#717): what kept it, and how far --
+      # in place of the sides, which beside it would not fit
+      return {"ok": False, "tag": int(tag), "reason": f"{top}; {_bow_said(held)}"}
+    # ...the top alone (`brief`) where the sides would move anything else
+    # History's line says (`lifecycle.procedure_outcome`)
+    return {"ok": False, "tag": int(tag), "brief": top,
+            "reason": (f"{top}, nor further than {SPOT_SIDE_TOP_DEG:.0f} degrees to either side "
+                       f"of where your head faces at that top (more than "
+                       f"{SPOT_SIDE_BOTTOM_TENS} at its bottom)")}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}
