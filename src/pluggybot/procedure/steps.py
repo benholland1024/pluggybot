@@ -644,9 +644,9 @@ def _spot(life, args: dict) -> Routine:
   if seen is None:
     forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660) and its sides
-    # (#728: named alone, the top was blamed for a tag beside the picture),
-    # and short: History's line says each false test's reason inside its 400
-    # characters, and says none that does not fit
+    # (#728), and short: History's run line drops whole a false test's reason
+    # past what its run leaves, about 307 characters less the procedure's
+    # name and the line's digits (#629; tests/test_watch.py pins the fit)
     reason = (f"tag {int(tag)} is not in your colour camera's picture from where you "
               "stand, or too near or too far to read: it shows nothing higher than "
               f"{SPOT_TOP_DEG:.0f} degrees below level")
