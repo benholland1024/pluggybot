@@ -1050,6 +1050,8 @@ def _felt_routine(life, hand: str, routine: Routine) -> Routine:
 REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "stopped short": "your {hand} hand stopped short on its way: out of reach from "
                               "how you truly stand, or pushing on something",
+             "own body": "every way your {hand} arm takes from where it is to there passes "
+                         "through your own body, so it did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one out of reach with the other hand holding something, whose grip
@@ -1133,7 +1135,9 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    False: "; nor does your {other} hand's",
                    None: "; your {other} hand does not reach there",
                    # ...and one out holding something, which kept the body's posture (#719)
-                   "holds": "; your {other} hand is out holding something"}
+                   "holds": "; your {other} hand is out holding something",
+                   # ...and one whose every way there passes through your own body (#722)
+                   "own": "; your {other} hand's every way there passes through your own body"}
 
 
 def _where(kept: dict) -> str:
@@ -1200,6 +1204,10 @@ def _reach(life, args: dict) -> Routine:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
       hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
       + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
+  if why == "own body" and other is not None and life.body.hand_reaches(other, place, rot,
+                                                                         verb=True):
+    # ...and whether the other hand could (#722): a turn or a step is not all
+    reason += f"; your {other} hand could reach it as asked"
   if why == "out of reach" and turned():
     reason += TURNED_ELSE
   if why == "out of reach" and other is not None and not kept_by:

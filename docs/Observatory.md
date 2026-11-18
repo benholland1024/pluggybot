@@ -10,6 +10,55 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
+
+**What the robots read** is unmoved where it is read every turn: this
+change moves neither the prompt nor the session host's hello -- on
+`loop-weekend` d81c0017, #723's period below, the prompt is `b4d1ec1f…`
+(69,557 characters, 17 sections) with it and without it (on `loop-staging`
+ac2538e8 alone, `75ec76e3…`), and the hello `a61b6376…`. One new reason a
+`reach` reads false: a reach begun with the hand already out whose
+every way there would pass through the robot's own torso or head moves
+nothing and says "every way your left arm takes from where it is to there
+passes through your own body, so it did not move" -- and "; your right hand
+could reach it as asked" where the other hand's plan reaches. Before, it went straight
+there and pressed the torso; where that tipped the robot past #708's line
+it read "your left hand stopped short on its way: out of reach from how you
+truly stand, or pushing on something; as it stopped, its grip was ... cm
+from where you asked". And a reach kept off another robot (#678) whose other
+hand's every way there would pass through its own body ends "; your right
+hand's every way there passes through your own body" (before, "; nor does
+your right hand's").
+
+**The change** (`Reach._own_kept`, `reach.own_rooms`, `apart`; `Reach.own`;
+`Body.hand_why` "own body"; `steps.REACH_WHY`; SimNotes, "A way out from a
+hand already out"). A way out from a hand already out is sampled on the
+robot's model of itself against the torso, the head and the LIDAR, its end
+included: today's way where no part of the arm goes through them (a pair
+of parts begun in each other, that pair no deeper), else the side way or the
+way drawn in that keeps so and dips no deeper ahead, else a procedure's
+reach is refused; the loop's own (a
+charge's) takes the way that comes least near, as no wait frees it. A way
+from the arm hanging, and a way home, are judged as before.
+
+**Measured** (one Vast pod, an EPYC 7742, beside ac2538e8; SimNotes has
+the count before it): Ben's bar the base's flight for flight, 608 of 736
+passed with 5 falls on both trees and none of the 736 moved at all; its 309
+ways out from a hand already out keep clear of the trunk. Of the 11-15
+wake's 53 runs flown at their live draws, the 3 whose ways out from the
+cupboard's lever pressed the torso at 36-56 N moved, none passing or
+falling otherwise: 8 reaches refused, one press left at 9 N by a forearm
+begun on the torso. On `loop-weekend`, the place laid from the pass (never
+offered) is the same 37 of 64 with 3 falls with the rule and without it,
+none of its flights moved. The pair's recorded day and the counter's attempt
+are the committed fixtures', and the station's checks (39 approaches, 140
+seats, 20 lost near) the base's row for row.
+
+**What to read**: reaches that read false with "own body", and what the
+robot does next (a `withdraw` first, a `step` back, a turn given); a reach
+from the hand out at a lever close to the chest; whether a reach at the
+cupboard's lever still reads "stopped short" with the hand out.
+
 ### The table's served words say which left, and where an offer sets its pieces out (#723's option A, R6, `loop-723`) — opens when this PR is deployed
 
 **What the robots read moves** (`prompt_sha` `b4d1ec1f…`, 69,557
