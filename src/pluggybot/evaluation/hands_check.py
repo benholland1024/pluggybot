@@ -45,10 +45,7 @@ from pluggybot.procedure import steps as st
 #: stopped on the counter's edge sent lids to the next tilt, which let them
 #: fall or never opened them); never after a reach refused with nothing
 #: moved (so turned after three refusals, a grip found a plan whose lift let
-#: the lid fall); at 10 deg its pads met the rising lid at 62. ⚠ The read
-#: moves the flight by itself: a resting hand's place is read off every
-#: joint afresh (`Reach.grip_now`; SimNotes, "The door's reach the stop
-#: sends back").
+#: the lid fall); at 10 deg its pads met the rising lid at 62.
 LID = '''def open_lid():
   budget(steps=40, seconds=66)
   spot(53)
