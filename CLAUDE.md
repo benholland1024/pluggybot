@@ -1931,8 +1931,11 @@ save a filmstrip PNG named after the script.
   those rules; ⚠ A FALLBACK GOES BACK ON THE CHARGE and its order runs when
   it ends (run at once, an `explore` order unplugged a robot part-charged);
   ⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`): one row from its start,
-  one cycle and one `task_complete charge`, carried on or filled standing
-  still; ⚠ N = 1: a failed call takes every message it held (`_asked_about`). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  one cycle and one `task_complete charge`, carried on, filled standing
+  still or full at the run's end; ⚠ N = 1: a failed call takes every
+  message it held, and one passed over twice -- an answer to nobody or to
+  the other robot -- is owed no more (`_asked_about`); ⚠ the break's ask
+  passes the idle-run throttle. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
