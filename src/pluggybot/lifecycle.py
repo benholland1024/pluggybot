@@ -23,7 +23,6 @@ import dataclasses
 import json
 import math
 import os
-import re
 import time
 import uuid
 from pathlib import Path
@@ -715,26 +714,41 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   THE RUN is named, never quoted: the exception is the log's (issue #76),
   and that path keeps no count to give.
 
-  ⚠ A REASON WITH A SHORTER FORM (a step's `brief`; #728: a `spot` that saw
-  nothing names its picture's sides, its `brief` the top alone) IS SAID IN
-  FULL ONLY WHERE THAT MOVES NOTHING ELSE: the lines are the shorter form's,
-  byte for byte, unless the full form's are those same lines with each such
-  reason the longer, inside the room. Said in full beside a long stop or
-  other tests, it crowded their reasons, or its own, out of the line
-  (Observatory.md)."""
+  ⚠ A REASON WITH A SHORTER FORM (a step's `brief`, the start of its
+  `reason`; #728: a `spot` that saw nothing names its picture's sides, its
+  `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
+  the lines are the shorter form's, byte for byte, unless the full form's
+  are those same lines with each such reason the longer, inside the room.
+  Said in full beside a long stop or other tests, it crowded their reasons,
+  or its own, out of the line (Observatory.md). ⚠ A step whose reason no
+  longer starts with its `brief` (a fall's, said over the verb's) has none."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
   steps = run.get("steps") or []
-  briefs = {s["brief"]: s["reason"] for s in steps if s.get("brief") and s.get("reason")}
-  if not briefs:
+  short = {i: s["brief"] for i, s in enumerate(steps)
+           if s.get("brief") and (s.get("reason") or "") != s["brief"]
+           and (s.get("reason") or "").startswith(s["brief"])}
+  if not short:
     return _outcome(name, run)
-  short = _outcome(name, {**run, "steps": [{**s, "reason": s["brief"]} if s.get("brief") else s
-                                             for s in steps]})
-  full = _outcome(name, run)
-  longer = re.compile("|".join(map(re.escape, sorted(briefs, key=len, reverse=True))))
-  if (full == [longer.sub(lambda m: briefs[m.group(0)], x) for x in short]
-      and all(len(x) <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM for x in full)):
-    return full
-  return short
+  full = {i: steps[i]["reason"] for i in short}
+
+  def mark(i: int, form: dict) -> str:
+    # a run of step i's own mark as long as its reason in `form`: the lines
+    # are laid out by lengths alone, and no other text can match a mark
+    return chr(0xE000 + i) * len(form[i])
+
+  def laid(form: dict) -> list[str]:
+    return _outcome(name, {**run, "steps": [{**s, "reason": mark(i, form)} if i in form else s
+                                            for i, s in enumerate(steps)]})
+
+  wide = laid(full)
+  narrowed = wide
+  for i in short:
+    narrowed = [x.replace(mark(i, full), mark(i, short)) for x in narrowed]
+  if narrowed == laid(short) and all(len(x) <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM
+                                     for x in wide):
+    return _outcome(name, run)
+  return _outcome(name, {**run, "steps": [{**s, "reason": short[i]} if i in short else s
+                                          for i, s in enumerate(steps)]})
 
 
 def _outcome(name: str, run: dict) -> list[str]:

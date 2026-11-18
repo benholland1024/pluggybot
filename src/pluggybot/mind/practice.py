@@ -29,8 +29,8 @@ import time
 from pluggybot.humanoid.mission import CARRY_LIFT_M, CARRY_LIFT_N
 from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.procedure import lang
-from pluggybot.procedure.steps import (HELD_SAID, Refused, WorldFacts, describe_vocabulary,
-                                       language, signature)
+from pluggybot.procedure.steps import (HELD_SAID, UNSHOWN, Refused, WorldFacts,
+                                       describe_vocabulary, language, signature)
 
 #: The tokens an answer may take, its reasoning first: at 64,000, 37 of
 #: #493's 537 answers ran out still thinking, and answered ones went to
@@ -677,8 +677,8 @@ def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool)
               "FAILED, read by its `if`, and the procedure went on" if step.get("tested")
               else "FAILED")
       said = {k: v for k, v in step.items()
-              if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt", "tested",
-                           "in", "entry", "fell", "brief")}
+              if k not in ("i", "verb", "line", "ok", "reason", "felt", "tested", "in",
+                           "entry", "fell", *UNSHOWN)}
       lines.append(f"  line {step.get('line', '?')} {step.get('verb')}{_in(step)}: {word}"
                    + (f" -- {step['reason']}" if step.get("reason") else "")
                    + (f" {json.dumps(said, default=str)}" if said else ""))

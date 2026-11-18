@@ -615,6 +615,13 @@ def _hand_place(life, args: dict) -> tuple[float, float, float]:
   return axes.from_stance(life, (float(args["x"]), float(args["y"]), float(args["z"])))
 
 
+#: A step's fields no reader of it is shown (#728): its trace is the log's,
+#: and a reason's shorter form (`brief`, the start of its `reason`) History's,
+#: said there only where the reason in full would move anything else
+#: (`lifecycle.procedure_outcome`).
+UNSHOWN = ("trace", "brief")
+
+
 def _spot(life, args: dict) -> Routine:
   """Look for a tag in the head's colour camera, standing still -- as it
   stands, then bowing lower until it is seen (`SPOT_GAZES`), standing up

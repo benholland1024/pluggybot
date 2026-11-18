@@ -293,9 +293,10 @@ def _crowded(case: str) -> tuple[str, dict]:
 def test_a_spot_whose_sides_would_crowd_its_runs_line_says_what_it_said_before(case):
   """#728: said in full, the sides crowded History's run line -- the
   `spot`'s own reason, another test's, a stop condition's reading, the
-  readout off the line -- in 42 of the 74 runs with a refused `spot` of the
-  11-14 and 11-15 wakes. Where they would move anything, the line is
-  c7f78bc9's byte for byte: the top alone."""
+  readout off the line: of the 74 runs with a refused `spot` of the 11-14
+  and 11-15 wakes, a reason or a name was gone in 40 (the `spot`'s own in
+  24), and the readout off the line in 8 more. Where they would move
+  anything, the line is c7f78bc9's byte for byte: the top alone."""
   from pluggybot import lifecycle as lc
   name, run = _crowded(case)
   spot = next(s for s in run["steps"] if s["verb"] == "spot")
@@ -324,9 +325,59 @@ def test_a_reason_whose_full_form_runs_past_historys_room_says_its_shorter_one()
   """#728: a full form that moves nothing else but would run the line past
   History's room, which would cut it, is said in its shorter form."""
   from pluggybot import lifecycle as lc
-  step = {"i": 4, "verb": "pull", "line": 9, "ok": False, "reason": "x " * 190, "brief": "short"}
+  step = {"i": 4, "verb": "pull", "line": 9, "ok": False, "reason": "short" + " x" * 190,
+          "brief": "short"}
   run = {"ok": False, "completed": 5, "failedAt": 4, "steps": [step]}
   assert lc.procedure_outcome("p", run) == lc.procedure_outcome("p", _today(run))
+
+
+def test_a_fall_said_over_a_refused_spot_is_said_as_the_fall():
+  """#728's review: a verb its body fell in says so over its own words
+  (`steps.run_verb`), and the `spot` refusal's shorter form rode along with
+  the fall: where the shorter form was chosen, History said the tag was out
+  of the picture where the robot fell. A shorter form counts only where it
+  is the start of the step's reason."""
+  from pluggybot import lifecycle as lc
+  spot = {**_refused(tested=False), "fell": True, "reason": st.FELL}
+  run = {"ok": False, "completed": 5, "failedAt": spot["i"],
+         "steps": [{"verb": "measure", "line": 4, "ok": False, "tested": True,
+                    "reason": "m" * 150}, spot]}
+  [line] = lc.procedure_outcome("p", run)
+  assert f"it stopped at line 9, spot: {st.FELL} (" in line and "m" * 150 in line, line
+  assert "colour camera" not in line
+
+
+def test_each_steps_shorter_form_is_its_own():
+  """#728's review: the shorter forms are swapped step by step, never as
+  text -- two steps sharing a shorter form with different reasons, and a
+  reason holding another's shorter form, are each said in full where there
+  is room."""
+  from pluggybot import lifecycle as lc
+  def read(line, reason, brief=None):
+    return {"verb": "spot", "line": line, "ok": False, "tested": True, "reason": reason,
+            **({"brief": brief} if brief else {})}
+  run = {"ok": True, "completed": 5, "steps": [read(3, "tag 1 is not seen; held"),
+                                               read(5, "tag 1 is not seen, a", "tag 1 is not seen"),
+                                               read(7, "tag 1 is not seen, b", "tag 1 is not seen")]}
+  [line] = lc.procedure_outcome("p", run)
+  assert line == ("ran the procedure p to its end (5 steps; 3 tests read false -- line 3, spot: "
+                  "tag 1 is not seen; held; line 5, spot: tag 1 is not seen, a; line 7, spot: "
+                  "tag 1 is not seen, b)")
+
+
+def test_no_reader_of_a_step_is_shown_its_shorter_form():
+  """#728's review: the shorter form is History's alone -- the session's
+  wire, practice's rows and the report its mind and a person read leave it
+  out, as they leave a trace."""
+  from pluggybot.evaluation import practice as ep
+  from pluggybot.mind import practice as mpr
+  from pluggybot.session import wire
+  ran = {"program": "a", "total": 1, "ok": True, "completed": 1, "seconds": 1.0,
+         "steps": [_refused(line=2)]}
+  for shown in (wire.public_run(ran)["steps"][0], ep._trimmed(ran)["steps"][0]):
+    assert "brief" not in shown and shown["reason"] == ran["steps"][0]["reason"]
+  told = mpr.run_report(1, ran, {"ok": False, "reason": "no"}, 1.0, False)
+  assert ran["steps"][0]["reason"] in told and '"brief"' not in told, told
 
 
 @pytest.mark.parametrize("name, run, said", [
