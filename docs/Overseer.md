@@ -2932,7 +2932,14 @@ where all of these hold, each read when the hold looks, never stored:
   still out (`busy`), cooling off, or its purse or hour spent -- but through
   the idle-run throttle, which refuses one ask and opens again;
 - the charge has held a moment: carried on with a message come in while it
-  thought, a charge that broke before a step "took no time", every turn.
+  thought, a charge that broke before a step "took no time", every turn. It
+  looks once a second, as the map fires (read every quarter second, a gate
+  kept shut was read 700 times a charge on the physics thread).
+
+A break's ask is stamped on the unminded clock only where no row's stamp
+waits for it (`_stamp_unspent`): its message's row stamped it as it fired,
+and a message still owed after an answer to somebody else is asked again
+with no row fired -- unstamped, a mind just asked could die `unminded`.
 
 The answer is acted on as given, plugged in, on #654's rules: a `charge`
 goes straight on, what stands still leaves the plug in, what moves takes
@@ -2947,7 +2954,9 @@ had left at about 15 %. ⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`):
 a break banks nothing (a row cut there reads as a failed charge, below 85
 %); the `charge` that carries it on banks one row from where it began, and
 one where nothing does closes it on the seam (`_open_charge_step`) -- full,
-with its cycle and `task_complete charge` (round 6: a robot that answered
+between asks (`_asking`: closed while one was out, a `charge` answered on a
+full pack counted it again), with its cycle and `task_complete charge`
+(round 6: a robot that answered
 `idle` filled its pack with none of the three, and a map asking on
 `task_complete:charge` was never asked); its plug out short, or the run
 ending, its row alone, as a charge cut short always banks one. ⚠ N = 1: a
@@ -2957,7 +2966,8 @@ failure (`_asked_about`); an ask that sent nobody its context (`busy`, a
 gate) takes nothing. An answer takes the message it answered and leaves the
 others it was shown owed, the model answering one a turn (a second person
 waited out the charge in #730's first review), unless it answered nobody,
-which a message may meet `OWED_SHOWINGS` (2) times. And a message in an
+which a message may meet `OWED_SHOWINGS` (2) times; one gone from the queue
+is owed no more. And a message in an
 ask's context is no news to the map (round 6: one seen a tick after the
 context was built paid for a second ask about a message the model had
 answered). History says the break, and an answer that did not come, once a
