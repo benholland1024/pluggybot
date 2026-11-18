@@ -45,9 +45,10 @@ top edge "stance-dependent, not absolute"); on 11-18 Rowan pinned the top
 edge for a tag that could not have left the picture by its top. Those two
 runs' History lines say the sides whole.
 
-**Measured** (every run of the 11-14 and 11-15 wakes rebuilt off the sim's
-log -- its tests that read false, its failed step, its end -- and its locals
-off its `procedure` event, its History lines made by `procedure_outcome`).
+**Measured** (every run of the 11-14, 11-15 and 11-18 wakes rebuilt off the
+sim's log -- its tests that read false, its failed step, its end -- and its
+locals off its `procedure` event, its History lines made by
+`procedure_outcome`).
 Every refusal fits on its own: at the largest tag (586), the longest name a
 procedure may have and a 4-digit line, the plain refusal (262 characters,
 from 152) and a held bow's (264, as before) are said whole beside a run that
@@ -56,23 +57,24 @@ line's first reason in order while they fit and none after the first that
 does not, and its readout beside the line while it fits, so in full the
 longer reason crowded the line. Of the runs with a refused `spot`:
 
-| | 11-15 (52 runs) | 11-14 (22 runs) |
-|---|---|---|
-| Ben's words in full: the sides said | 23 | 15 |
-| ...a reason or a name said before, gone | 28 | 12 |
-| ...of those, the `spot`'s own (nothing of the picture) | 19 | 5 |
-| ...nothing gone, but the readout on a line of its own | 6 | 2 |
-| as built (each where it moves nothing else): the sides said | 8 | 6 |
-| ...anything gone, or a line more | 0 | 0 |
+| | 11-14 (22 runs) | 11-15 (52 runs) | 11-18 (42 runs) |
+|---|---|---|---|
+| Ben's words in full: the sides said | 15 | 23 | 19 |
+| ...a reason or a name said before, gone | 12 | 28 | 6 |
+| ...of those, the `spot`'s own (nothing of the picture) | 5 | 19 | 5 |
+| ...nothing gone, but the readout on a line of its own | 2 | 6 | 9 |
+| as built (each where it moves nothing else): the sides said | 6 | 8 | 9 |
+| ...anything gone, or a line more | 0 | 0 | 0 |
 
 The runs it says the top alone in are the ones whose line a long stop (a
 fall, a budget run out), several lines that read false or the readout
 already fill.
 Let the readout go to a line of its own, never built, the sides would be
-said in 14 and 8, each such run a History line more. Every one of the 211
-runs as logged -- no shorter form, every verb -- makes the same 338 lines
-on this tree as on c7f78bc9. Stop conditions are not in the logs, so the
-counts carry none.
+said in 8, 14 and 18, each such run a History line more. Every one of the
+311 runs as logged -- no shorter form, every verb -- makes the same 500
+lines on this tree as on c7f78bc9. 11-18's 6 refusals with a held bow (2
+runs) were said by no History line: their runs' lines were full either way.
+Stop conditions are not in the logs, so the counts carry none.
 
 **What to read**
 - Whether a robot's notes, pins and tickets still blame the picture's top
