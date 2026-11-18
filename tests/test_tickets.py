@@ -130,6 +130,47 @@ def test_a_replayed_close_answers_the_record_and_changes_nothing(tmp_path):
   assert desk.Desk(tmp_path).get(t.id).points == 25
 
 
+def test_a_write_the_store_refuses_leaves_the_desk_as_it_was(tmp_path, monkeypatch):
+  """#729's review: a desk that changed in memory and failed to write it
+  answered a copy sent again from memory -- a reply `again` that no restart
+  kept, a close found closed and never paid. Every operator verb leaves
+  the desk as it was when its record cannot be written."""
+  d = desk.Desk(tmp_path)
+  d.open("bug", "one", "first", t=1.0)
+
+  def full(*args, **kw):
+    raise OSError(28, "No space left on device")
+
+  monkeypatch.setattr(d.store, "write", full)
+  with pytest.raises(OSError):
+    d.open("idea", "two", "second", t=1.5)
+  assert d.open_ids() == ("tk_0001",) and d.seq == 2, \
+    "the robot's own verb too, and its id spent: ids never repeat"
+  with pytest.raises(OSError):
+    d.reply("tk_0001", "which board?", 2.0, sender=desk.OPERATOR, who="ben", ref="tr_1")
+  assert d.get("tk_0001").thread == [] and not d.taken("tk_0001", "tr_1")
+  with pytest.raises(OSError):
+    d.close("tk_0001", by="ben", text="done", t=3.0)
+  assert d.get("tk_0001").open and d.closes == 0 and d.get("tk_0001").closed_by == ""
+  monkeypatch.setattr(d.store, "remove", full)
+  with pytest.raises(OSError):
+    d.delete("tk_0001")
+  assert d.get("tk_0001") is not None
+  monkeypatch.undo()
+  assert d.close("tk_0001", by="ben", text="done", t=4.0)[1], "and it closes once it can"
+  monkeypatch.setattr(d.store, "write", full)
+  with pytest.raises(OSError):
+    d.pay("tk_0001", 25, 7)
+  assert (d.get("tk_0001").points, d.get("tk_0001").seq) == (None, None)
+  monkeypatch.undo()
+  for i in range(desk.MAX_CLOSED):                  # one more closed than kept
+    d.close(d.open("idea", f"t{i}", "more", t=5.0 + i).id, by="ben", text="", t=6.0 + i)
+  monkeypatch.setattr(d.store, "remove", full)
+  with pytest.raises(OSError):
+    d.trim()
+  assert d.get("tk_0001") is not None, "the oldest close, still on the record, still held"
+
+
 def test_the_context_shows_open_threads_and_what_came_of_closed_ones(tmp_path):
   d = desk.Desk(tmp_path)
   a = d.open("bug", "a", "report a", t=1.0)
@@ -800,3 +841,535 @@ def test_the_stream_opens_with_the_open_tickets_where_there_is_a_desk(tmp_path):
   assert [(m["type"], m["robot"], [t["id"] for t in m["tickets"]]) for m in with_desk] == [
     ("tickets", "pluggybot", ["tk_0001"])]
   assert FrameBuilder(model, data).tickets_messages(2.0) == []
+
+
+# ---- the operator's lines while the world is paused (issue #729) ---------------
+
+
+def _pause(life, tmp_path, monkeypatch):
+  """`life`'s world paused by the operator's switch, its slices cut to a
+  few milliseconds (the served world's are a quarter second); returns the
+  switch's file."""
+  from pluggybot import lifecycle
+  from pluggybot.mind.mode import ModeSwitch
+  monkeypatch.setattr(lifecycle, "PAUSE_SLICE_S", 0.005)
+  path = tmp_path / "mode.json"
+  path.write_text(json.dumps({"mode": "paused"}))
+  life.mode = ModeSwitch(path)
+  return path
+
+
+def _while_paused(life, path, offer, landed, end=None, within_s=3.0):
+  """Hold `life`'s world paused: `offer()` at the pause's first beat -- the
+  site sending while the world sleeps -- then, beat by beat, `landed()`
+  until it reads something, returned as it read BEFORE the world woke; or
+  None, the pause ended after `within_s` with nothing landed. `end` ends
+  the pause: by default the switch flipped back."""
+  got = {"beats": 0, "landed": None}
+  wake = end or (lambda: path.write_text(json.dumps({"mode": "llm"})))
+
+  def beat(held_s: float) -> None:
+    got["beats"] += 1
+    if got["beats"] == 1:
+      offer()
+      return
+    seen = landed()
+    if seen or held_s >= within_s:
+      got["landed"] = seen or None
+      wake()
+
+  life.pause_hooks.append(beat)
+  try:
+    life._mode_step()
+  finally:
+    life.pause_hooks.remove(beat)
+  return got["landed"]
+
+
+def _close(ref="tc_1", ticket="tk_0001", text="fixed the standoff") -> dict:
+  return {"type": "ticket_close", "id": ref, "from": "ben", "ticket": ticket,
+          "text": text}
+
+
+def _acks(sent, ref) -> list[dict]:
+  return [m for m in sent if m.get("type") == "ticket" and m.get("ref") == ref]
+
+
+def test_a_close_sent_while_the_world_is_paused_lands_before_it_wakes(tmp_path, monkeypatch):
+  """⚠ #729: on 2026-11-13 an operator replied to and closed five tickets
+  while the world was paused, and none reached the robots. The desk took an
+  operator's line at the top of an arbitration pass and a paused world runs
+  none, so the lines waited in the inbox -- in memory -- until a restart
+  during the pause lost them, the site's deliveries spent. Now a close sent
+  while paused is applied in the pause: the desk's file closed, the close
+  paid on the ledger's file, History told, and the `ticket` event the site
+  settles its row by sent, all before the world wakes. Shown to fail on
+  c7f78bc9, where it waited for the first pass after the wake."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(path=tmp_path / "ledger.json"),
+               thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)                     # what `serve.py` hands the publisher
+  path = _pause(life, tmp_path, monkeypatch)
+  try:
+    def landed():
+      acks = _acks(sent, "tc_1")
+      return acks and {
+        "acks": acks,
+        "file": json.loads((tmp_path / "tickets" / "tk_0001.ticket.json").read_text()),
+        "balance": Ledger(path=tmp_path / "ledger.json").balance(),
+        "history": life.thoughts.read("History.md")}
+
+    seen = _while_paused(life, path, lambda: life.inbox.offer(_close()), landed)
+    assert seen is not None, "the close waited for the wake"
+    assert [(m["outcome"], m["paid"], m["points"]) for m in seen["acks"]] == [
+      ("closed", True, 25)]
+    assert (seen["file"]["state"], seen["file"]["closedBy"],
+            seen["file"]["points"]) == ("closed", "ben", 25)
+    assert seen["balance"] == 25, "the ledger's file pays it as it lands"
+    assert ("ben closed my ticket tk_0001: fixed the standoff -- +25 points"
+            in seen["history"])
+    assert life.status.startswith("RESUMED"), "and the world woke as ever"
+  finally:
+    life.body.close()
+
+
+def test_the_acknowledgement_goes_up_the_socket_before_the_wake(tmp_path, monkeypatch):
+  """...and it reaches the SITE, not only the desk. A paused world steps no
+  physics, so no frame is built and the publisher's step hook never runs:
+  the `ticket` event the site settles its row by leaves on the sender's
+  own thread or not at all. A fake site sends a close down the ingest
+  socket while the world sleeps, and reads the acknowledgement off it
+  before the world wakes. Shown to fail on c7f78bc9."""
+  import mujoco
+  from test_telemetry import MINI_XML
+  from test_webserver import Sink
+
+  from pluggybot.telemetry.publisher import WsPublisher
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  path = _pause(life, tmp_path, monkeypatch)
+  site = Sink()
+  model = mujoco.MjModel.from_xml_string(MINI_XML)
+  pub = WsPublisher(model, mujoco.MjData(model), site.endpoint, hz=20.0)
+  pub.on_inbound.append(life.inbox.offer)        # as `serve.py` wires the two
+  life.on_event.append(pub.message)
+  try:
+    assert site.wait_live(), "the publisher never connected"
+    heard = _while_paused(life, path, lambda: site.send(_close()),
+                          lambda: _acks([m for s in site.sessions for m in s], "tc_1"))
+    assert heard, "the site heard nothing before the wake"
+    assert [(m["outcome"], m["paid"]) for m in heard] == [("closed", True)]
+    assert pub.frames_sent == 0, "and no frame carried it"
+  finally:
+    pub.close()
+    site.stop()
+    life.body.close()
+
+
+def test_a_paused_pair_lands_each_robots_lines_on_its_own_desk(tmp_path, monkeypatch):
+  """⚠ A pair's one switch is the first robot's, and its hook holds the one
+  loop both robots live in, so the second robot's arbitration never runs
+  while paused either. Rowan's lines -- its own inbox, addressed `r2_` --
+  land in the same pause, on Rowan's desk and Rowan's account, and Luca's
+  on Luca's. Shown to fail on c7f78bc9."""
+  from test_two_minds import stub_pair
+  inboxes = (Inbox(), Inbox())
+  first, second = stub_pair(root=tmp_path, ledger_state=tmp_path / "ledger.json",
+                            inboxes=inboxes)
+  sent: list = []
+  for life in (first, second):
+    life.on_event.append(sent.append)
+    life.tickets.open("bug", f"{life.robot_name}'s lamp", "the hall is dark", t=1.0)
+  path = _pause(first, tmp_path, monkeypatch)
+
+  def offer():
+    inboxes[0].offer({"type": "ticket_reply", "id": "tr_a", "from": "ben",
+                      "ticket": "tk_0001", "text": "which hall?"})
+    inboxes[1].offer(_close("tc_b", text="lit it"))
+
+  def landed():
+    by_ref = {m.get("ref"): m for m in sent if m.get("type") == "ticket"}
+    return {"tr_a", "tc_b"} <= set(by_ref) and by_ref
+
+  try:
+    seen = _while_paused(first, path, offer, landed)
+    assert seen, "a line of the pair waited for the wake"
+    assert (seen["tr_a"]["robot"], seen["tr_a"]["outcome"]) == ("pluggybot", "replied")
+    assert (seen["tc_b"]["robot"], seen["tc_b"]["outcome"], seen["tc_b"]["paid"]) == (
+      "r2_pluggybot", "closed", True)
+    luca, rowan = first.tickets.get("tk_0001"), second.tickets.get("tk_0001")
+    assert luca.open and luca.thread[-1].text == "which hall?" and not rowan.open
+    assert (first.ledger.balance(), second.ledger.balance()) == (0, 25), \
+      "each robot's own account"
+    assert "ben closed my ticket tk_0001" in second.thoughts.read("History.md")
+    assert "ben replied on my ticket tk_0001" in first.thoughts.read("History.md")
+    assert "closed my ticket" not in first.thoughts.read("History.md")
+  finally:
+    first.body.close()
+
+
+def test_a_close_landed_while_paused_is_paid_once_across_a_restart_still_paused(
+    tmp_path, monkeypatch):
+  """A stop asked while paused ends the pause and the process (#594: a
+  deploy's SIGTERM), and the next process starts paused; the site then
+  sends whatever it holds unacknowledged -- here the close whose
+  acknowledgement went with the first process. The desk and the ledger are
+  on the volume, so the replay is answered `paid: false` with the same
+  figure: one close, one payment, one ledger row, one History line. Shown
+  to fail on c7f78bc9, where neither process took it while paused."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+
+  def process():
+    life = _life(inbox=Inbox(), ledger=Ledger(path=tmp_path / "ledger.json"),
+                 thoughts=ThoughtFiles.open(tmp_path))
+    return life, _events(life), _pause(life, tmp_path, monkeypatch)
+
+  first, sent, path = process()
+  try:
+    def stop():
+      first.stopping = "SIGTERM"                # `Keeper.request_stop`'s flag
+    assert _while_paused(first, path, lambda: first.inbox.offer(_close()),
+                         lambda: _acks(sent, "tc_1"), end=stop), \
+      "the close waited for a wake that never came"
+    assert first.status == "STOPPING while paused: SIGTERM"
+  finally:
+    first.body.close()
+  second, sent, path = process()                 # ...the acknowledgement lost
+  try:
+    seen = _while_paused(second, path, lambda: second.inbox.offer(_close()),
+                         lambda: _acks(sent, "tc_1"))
+    assert [(m["outcome"], m["paid"], m["points"]) for m in seen or ()] == [
+      ("closed", False, 25)], "the replay is answered, and pays nothing"
+    ledger = Ledger(path=tmp_path / "ledger.json")
+    assert ledger.balance() == 25
+    assert [e["task"] for e in ledger.entries()] == ["ticket"]
+    kept = desk.Desk(tmp_path / "tickets")
+    assert kept.closes == 1 and kept.get("tk_0001").closed_n == 1
+    assert second.thoughts.read("History.md").count("ben closed my ticket tk_0001") == 1
+  finally:
+    second.body.close()
+
+
+def test_a_reply_sent_again_to_the_next_process_is_answered_and_never_put_twice(tmp_path):
+  """A reply taken whose acknowledgement went with its process is sent
+  again to the next one (and the site sends what a robot is owed again at
+  every snapshot, #729's other half): the desk keeps the id each operator
+  line came in under, so the copy is answered `again` and the thread and
+  History keep the line once. The id never reaches what the robot is
+  shown. Shown to fail on c7f78bc9, where the line landed twice."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  line = {"type": "ticket_reply", "id": "tr_1", "from": "ben", "ticket": "tk_0001",
+          "text": "which board?"}
+  first = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  try:
+    first.inbox.offer(line)
+    first._visitor_step()
+  finally:
+    first.body.close()
+  second = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(second)
+  try:
+    second.inbox.offer(line)
+    second._visitor_step()
+    assert [(m["outcome"], m.get("again"), m["text"]) for m in _acks(sent, "tr_1")] == [
+      ("replied", True, "which board?")]
+    assert [x.text for x in second.tickets.get("tk_0001").thread] == ["which board?"]
+    assert second.thoughts.read("History.md").count("ben replied on my ticket tk_0001") == 1
+    assert desk.Desk(tmp_path / "tickets").get("tk_0001").thread[0].ref == "tr_1"
+    assert "tr_1" not in json.dumps(second.tickets.as_context())
+  finally:
+    second.body.close()
+
+
+def test_a_close_is_acknowledged_once_the_desk_has_it_and_never_before(tmp_path, monkeypatch):
+  """#729's review, both sides of the desk's write. A close whose record
+  the store refused is `refused`, the desk as it was, and the same line
+  sent again in the same process (the inbox never drops a ticket line as a
+  replay) lands and pays. One that failed after the desk had it -- History
+  full -- is acknowledged `closed` and paid, never `refused` as well."""
+  d = desk.Desk(tmp_path / "tickets")
+  d.open("bug", "one", "first", t=1.0)
+  d.open("idea", "two", "second", t=2.0)
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  real = life.tickets.store.write
+  state = {"full": True}
+
+  def write(key, text):
+    if state["full"] and key.startswith("tk_0001"):
+      raise OSError(28, "No space left on device")
+    return real(key, text)
+
+  monkeypatch.setattr(life.tickets.store, "write", write)
+  try:
+    life.inbox.offer(_close("tc_1"))
+    life._visitor_step()
+    assert [m["outcome"] for m in _acks(sent, "tc_1")] == ["refused"]
+    assert life.tickets.get("tk_0001").open and ledger.balance() == 0
+    state["full"] = False
+    life.inbox.offer(_close("tc_1"))                     # the site, asking again
+    life._visitor_step()
+    assert [(m["outcome"], m.get("paid")) for m in _acks(sent, "tc_1")] == [
+      ("refused", None), ("closed", True)]
+    assert ledger.balance() == 25
+
+    def history_full(*args, **kw):
+      raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(life, "_remember", history_full)
+    life.inbox.offer(_close("tc_2", ticket="tk_0002"))
+    life._visitor_step()
+    assert [(m["outcome"], m["paid"]) for m in _acks(sent, "tc_2")] == [("closed", True)]
+    assert ledger.balance() == 50 and not life.tickets.get("tk_0002").open
+    #  ...and the console says it was taken, never "not taken" (#729's sixth review)
+    assert life.status == "TICKET close from ben taken, but what follows it failed"
+  finally:
+    life.body.close()
+
+
+def test_a_line_sent_again_to_the_same_process_is_answered(tmp_path):
+  """A reconnect drains what the publisher had queued, so an acknowledgement
+  can be lost with the process still running, and the site sends the line
+  again on the next connect. Dropped as a replay, it was never answered and
+  the site's row stayed owed: the desk is a ticket line's dedupe, so the
+  copy is answered -- a reply `again`, a close `paid: false`."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  reply = {"type": "ticket_reply", "id": "tr_1", "from": "ben", "ticket": "tk_0001",
+           "text": "which board?"}
+  try:
+    for line in (reply, _close("tc_1")):
+      life.inbox.offer(line)
+      life._visitor_step()
+      life.inbox.offer(line)
+      life._visitor_step()
+    assert [(m["outcome"], m.get("again"), m.get("paid")) for m in _acks(sent, "tr_1")] == [
+      ("replied", None, None), ("replied", True, None)]
+    assert [(m["outcome"], m.get("paid")) for m in _acks(sent, "tc_1")] == [
+      ("closed", True), ("closed", False)]
+    assert [x.text for x in life.tickets.get("tk_0001").thread] == ["which board?"]
+  finally:
+    life.body.close()
+
+
+def test_a_reply_sent_again_after_the_thread_let_it_go_is_still_answered(tmp_path):
+  """#729's fifth review: the robot's own lines push an operator's out of
+  the thread's newest eight, so the desk keeps the ids it took apart from
+  the thread (`Ticket.refs`): a copy sent after that is still answered
+  `again`, never put on the thread a second time."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  line = {"type": "ticket_reply", "id": "tr_1", "from": "ben", "ticket": "tk_0001",
+          "text": "which board?"}
+  try:
+    life.inbox.offer(line)
+    life._visitor_step()
+    for i in range(desk.MAX_THREAD):
+      life.tickets.reply("tk_0001", f"more on it, {i}", 2.0 + i, sender=desk.ROBOT)
+    assert "which board?" not in [x.text for x in life.tickets.get("tk_0001").thread]
+    life.inbox.offer(line)
+    life._visitor_step()
+    assert [(m["outcome"], m.get("again")) for m in _acks(sent, "tr_1")] == [
+      ("replied", None), ("replied", True)]
+    assert "which board?" not in [x.text for x in life.tickets.get("tk_0001").thread]
+    assert desk.Desk(tmp_path / "tickets").taken("tk_0001", "tr_1"), "kept on the record"
+  finally:
+    life.body.close()
+
+
+def test_a_stop_raised_while_a_line_is_taken_is_never_called_a_desk_failure(tmp_path):
+  """#729's fifth review: the guard that keeps a line from ending the run
+  must not swallow a stop (`MissionAborted`), which every routine lets
+  through (`run_errand`'s rule)."""
+  from pluggybot.tick import MissionAborted
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+
+  def stop(t, line):
+    raise MissionAborted("stopping: SIGTERM")
+
+  life.say_hooks.append(stop)
+  try:
+    life.inbox.offer(_close("tc_1"))
+    with pytest.raises(MissionAborted):
+      life._visitor_step()
+    assert not [m for m in sent if m.get("outcome") == "refused"]
+  finally:
+    life.body.close()
+
+
+def test_a_close_whose_pay_the_desk_could_not_record_says_what_the_ledger_paid(tmp_path, monkeypatch):
+  """#729's fifth review: where the ledger paid and the desk's record of
+  it failed, the acknowledgement says what the ledger paid, never null."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+
+  def full(*args, **kw):
+    raise OSError(28, "No space left on device")
+
+  monkeypatch.setattr(life.tickets, "pay", full)
+  try:
+    life.inbox.offer(_close("tc_1"))
+    life._visitor_step()
+    assert [(m["outcome"], m["paid"], m["points"]) for m in _acks(sent, "tc_1")] == [
+      ("closed", True, 25)]
+    assert ledger.balance() == 25
+  finally:
+    life.body.close()
+
+
+def test_a_copy_of_a_ticket_line_still_queued_takes_no_second_place():
+  """...but a copy of one still waiting in the queue is dropped: its answer
+  is coming, and awake a line waits minutes for a pass while every connect
+  sends it again -- kept, the copies filled the queue and evicted people's
+  messages (#729's third review)."""
+  inbox = Inbox()
+  line = {"type": "ticket_close", "id": "tc_1", "from": "ben", "ticket": "tk_0001"}
+  assert inbox.offer(line) is not None
+  assert inbox.offer(line) is None and len(inbox) == 1
+  inbox.drain(("ticket_close",))
+  assert inbox.offer(line) is not None, "taken already, the copy is answered"
+
+
+def test_no_line_is_taken_awake_once_a_stop_is_asked(tmp_path, monkeypatch):
+  """...as in a pause, and a line at a time (a deploy's signal lands between
+  any two): what an ending process takes, the site may never hear
+  acknowledged, and the line left goes with it to be sent again."""
+  d = desk.Desk(tmp_path / "tickets")
+  d.open("bug", "left over", "from yesterday", t=1.0)
+  d.open("idea", "two", "second", t=2.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  real = life._ticket_close
+  try:
+    life.stopping = "SIGTERM"
+    life.inbox.offer(_close("tc_1"))
+    life._visitor_step()
+    assert len(life.inbox) == 1 and not _acks(sent, "tc_1")
+    assert life.tickets.get("tk_0001").open
+    life.stopping = ""
+
+    def close_then_stop(msg):
+      real(msg)
+      life.stopping = "SIGTERM"
+
+    monkeypatch.setattr(life, "_ticket_close", close_then_stop)
+    life.inbox.offer(_close("tc_2", ticket="tk_0002"))
+    life._visitor_step()                       # tc_1, still queued, then tc_2
+    assert [m["outcome"] for m in _acks(sent, "tc_1")] == ["closed"]
+    assert not _acks(sent, "tc_2") and life.tickets.get("tk_0002").open, \
+      "the line after the stop was taken"
+  finally:
+    life.body.close()
+
+
+def test_a_line_sent_as_the_world_stops_is_left_for_the_next_process(tmp_path, monkeypatch):
+  """...but none once a stop is asked: what the ending process took, the
+  site might never hear acknowledged, and a reply sent again to the next
+  process would land twice. Left queued, it goes with the process and is
+  sent again whole."""
+  desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
+  life = _life(inbox=Inbox(), ledger=Ledger(), thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  path = _pause(life, tmp_path, monkeypatch)
+
+  def offer_and_stop():
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
+                      "ticket": "tk_0001", "text": "which board?"})
+    life.stopping = "SIGTERM"
+
+  try:
+    _while_paused(life, path, offer_and_stop, lambda: False)
+    assert life.status == "STOPPING while paused: SIGTERM"
+    assert len(life.inbox) == 1 and not _acks(sent, "tr_1")
+    assert life.tickets.get("tk_0001").thread == []
+  finally:
+    life.body.close()
+
+
+def test_a_line_the_desk_cannot_take_is_answered_in_words_and_never_raises(
+    tmp_path, monkeypatch):
+  """A paused world that raised on an operator's line would die, restart
+  still paused, and be sent the same line at the next connect: #729's
+  worst case. So every line is answered in words: one naming a ticket the
+  desk does not hold, or a closed one, `unknown` with why (which settles
+  the site's row); one the desk failed on, `refused` with why (which does
+  not: the site may send it again), said in the narration with the error
+  in its detail -- and the lines after it still land, the world still
+  wakes, and an awake pass is held to the same rule. Shown to fail on
+  c7f78bc9."""
+  d = desk.Desk(tmp_path / "tickets")
+  d.open("bug", "one", "first", t=1.0)
+  d.open("idea", "two", "second", t=2.0)
+  d.close("tk_0002", by="ben", text="done", t=3.0)
+  d.open("question", "three", "third", t=4.0)
+  ledger = Ledger()
+  life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
+  sent = _events(life)
+  path = _pause(life, tmp_path, monkeypatch)
+  real = life.tickets.reply
+
+  def reply(ticket_id, *args, **kw):
+    if kw.get("sender") == desk.OPERATOR and ticket_id == "tk_0001":
+      raise OSError(28, "No space left on device")
+    return real(ticket_id, *args, **kw)
+
+  monkeypatch.setattr(life.tickets, "reply", reply)
+  lines = ({"type": "ticket_reply", "id": "tr_9", "from": "ben",
+            "ticket": "tk_0099", "text": "hello?"},
+           {"type": "ticket_reply", "id": "tr_2", "from": "ben",
+            "ticket": "tk_0002", "text": "and one more thing"},
+           {"type": "ticket_reply", "id": "tr_1", "from": "ben",
+            "ticket": "tk_0001", "text": "which board?"},
+           _close("tc_1"))
+
+  def by_ref():
+    return {m.get("ref"): m for m in sent if m.get("type") == "ticket"}
+
+  try:
+    seen = _while_paused(life, path, lambda: [life.inbox.offer(m) for m in lines],
+                         lambda: len(by_ref()) == len(lines) and by_ref())
+    assert seen, "a line waited for the wake, or the pause raised"
+    assert (seen["tr_9"]["outcome"], seen["tr_9"]["why"]) == (
+      "unknown", "no ticket 'tk_0099' on the desk")
+    assert (seen["tr_2"]["outcome"], seen["tr_2"]["why"]) == (
+      "unknown", "ticket tk_0002 is closed; open a new one")
+    failed = seen["tr_1"]
+    assert (failed["outcome"], failed["verb"], failed["id"], failed["sender"]) == (
+      "refused", "ticket_reply", "tk_0001", "operator"), "never the robot's own refusal"
+    assert "could not" in failed["why"] and "OSError" in failed["why"]
+    assert any("OSError" in line and "No space left" in line for line in life.log), \
+      "the error's class and message reach the console"
+    assert (seen["tc_1"]["outcome"], seen["tc_1"]["paid"]) == ("closed", True), \
+      "the line after the one that failed still landed"
+    assert life.status.startswith("RESUMED")
+    # ...and awake, at the top of an arbitration pass, by the same rule
+    life.inbox.offer(dict(lines[2], id="tr_1b"))
+    life._visitor_step()
+    assert by_ref()["tr_1b"]["outcome"] == "refused"
+    # ...a refused line sent again is taken again, never dropped as a
+    # replay: here answered as the desk now stands, tk_0001 closed
+    monkeypatch.setattr(life.tickets, "reply", real)
+    life.inbox.offer(lines[2])
+    life._visitor_step()
+    assert [m["outcome"] for m in sent if m.get("ref") == "tr_1"] == ["refused", "unknown"]
+
+    # ...and one that failed after its acknowledgement went out was taken,
+    # and is not refused as well
+    def history_full(*args, **kw):
+      raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(life, "_remember", history_full)
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_3", "from": "ben",
+                      "ticket": "tk_0003", "text": "noted"})
+    life._visitor_step()
+    assert [m["outcome"] for m in sent if m.get("ref") == "tr_3"] == ["replied"]
+    assert life.tickets.get("tk_0003").thread[-1].text == "noted"
+  finally:
+    life.body.close()

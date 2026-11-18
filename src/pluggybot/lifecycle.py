@@ -24,6 +24,7 @@ import json
 import math
 import os
 import time
+import traceback
 import uuid
 from pathlib import Path
 from typing import Callable, Literal
@@ -3362,15 +3363,9 @@ class HubLifecycle:
     # `dropped` visitor reply for a message nobody sent).
     for msg in self.inbox.drain(("image",)):
       self.eye.offer(msg, t=float(self.data.time))
-    # The operator's side of a ticket (issue #284): a reply, a close, a
-    # delete -- applied here by code, like every admin kind. What the
-    # robot is shown is the thread, on its next turn.
-    for msg in self.inbox.drain(("ticket_reply",)):
-      self._ticket_reply(msg)
-    for msg in self.inbox.drain(("ticket_close",)):
-      self._ticket_close(msg)
-    for msg in self.inbox.drain(("ticket_delete",)):
-      self._ticket_delete(msg)
+    # The operator's side of a ticket (issue #284), applied by code like
+    # every admin kind -- and in a pause too (#729, `_mode_step`).
+    self._ticket_lines_step()
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -4033,6 +4028,58 @@ class HubLifecycle:
                        f"{text_registry.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                        f"{line.text}")
 
+  def _ticket_lines_step(self) -> None:
+    """The operator's side of a ticket (issue #284): a reply, a close, a
+    delete, applied by code like every admin kind. What the robot is shown
+    is the thread, on its next turn. At the top of every arbitration pass,
+    and in every slice of a pause for every robot on the loop (#729,
+    `_mode_step`; Overseer.md §2g); none once a stop is asked, checked
+    before each line -- what an ending process takes, the site may never
+    hear acknowledged, and a line it leaves, queued or drained, goes with
+    the process to be sent again.
+
+    ⚠ A LINE NEVER ENDS THE RUN (`_ticket_failed`): raised in a pause, the
+    process would die, restart paused, and be sent the line again."""
+    if self.inbox is None or self.stopping:
+      return
+    for kind, apply in (("ticket_reply", self._ticket_reply),
+                        ("ticket_close", self._ticket_close),
+                        ("ticket_delete", self._ticket_delete)):
+      for msg in self.inbox.drain((kind,)):
+        if self.stopping:
+          return
+        said = len(self.ticket_events)
+        try:
+          apply(msg)
+        except MissionAborted:
+          raise                                   # a stop, never the desk's
+        except Exception as e:                    # noqa: BLE001 -- see docstring
+          self._ticket_failed(msg, e, said)
+
+  def _ticket_failed(self, msg, error: Exception, said: int) -> None:
+    """An operator's line the desk failed on (#729): said in the console
+    (`_say`'s `detail`, issue #76, and the traceback), never in History.
+    ⚠ ANSWERED `refused` (`sender` the operator's) ONLY WHERE NO EVENT HAS
+    ACKNOWLEDGED IT (`said`, the run record's length before it): the desk
+    rolls back a write it could not make, so unacknowledged it was not
+    taken, and a copy sent again is taken whole (the inbox never drops a
+    ticket line as a replay); acknowledged, it was. ⚠ The report never
+    raises itself."""
+    try:
+      taken = any(e.get("ref") == msg.id for e in self.ticket_events[said:])
+      if not taken:
+        self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
+                           sender=tickets_desk.OPERATOR,
+                           why=f"the desk could not take it ({type(error).__name__})")
+      self._say(f"TICKET {msg.kind.removeprefix('ticket_')} from "
+                f"{msg.who or 'the operator'} "
+                + ("taken, but what follows it failed" if taken
+                   else "not taken: the desk failed on it"),
+                detail=f"{type(error).__name__}: {error}")
+      traceback.print_exc()
+    except Exception:                             # noqa: BLE001 -- see docstring
+      pass
+
   def _ticket_reply(self, msg) -> None:
     """An operator's line on one of the robot's tickets (issue #284): onto
     the thread, into History (the system quoting the sender, as a visitor's
@@ -4041,9 +4088,21 @@ class HubLifecycle:
     hold, or one already closed, is answered `unknown` -- the fate that
     stops a website re-sending it."""
     who = msg.who or "the operator"
+    if self.tickets.taken(msg.ticket, msg.id):
+      # ⚠ TAKEN ALREADY (#729): sent again, its acknowledgement lost --
+      # answered again, `again`, and never put on the thread twice; as it
+      # was taken while the thread keeps it, else as it came
+      was = self.tickets.line(msg.ticket, msg.id)
+      self._ticket_event("replied", self.tickets.get(msg.ticket),
+                         sender=tickets_desk.OPERATOR,
+                         **{"from": was.who if was else who},
+                         text=was.text if was else msg.text, ref=msg.id,
+                         again=True, **({"cut": True} if was and was.cut else {}))
+      return
     try:
       ticket = self.tickets.reply(msg.ticket, msg.text, float(self.data.time),
-                                  sender=tickets_desk.OPERATOR, who=who)
+                                  sender=tickets_desk.OPERATOR, who=who,
+                                  ref=msg.id)
     except DeskRefused as e:
       self._ticket_event("unknown", id=msg.ticket, ref=msg.id, why=str(e),
                          verb="ticket_reply")
@@ -4082,30 +4141,38 @@ class HubLifecycle:
                          verb="ticket_close")
       self._say(f"TICKET close from {who} ignored: no ticket {msg.ticket!r}")
       return
-    if changed:
-      # Measured off the desk AFTER the close was applied (`sample_ticket`),
-      # never off the message: the evaluator's `closed` is the desk's state.
-      verdict = scoring.evaluate(
-        "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
-        table=self.ledger.table if self.ledger is not None else None)
-      entry = self._bank(verdict)
-      if entry is not None:
-        self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      # ...and only then the closed ones trimmed (#594): trimmed first, a
-      # close the desk ranked past its twentieth was measured as no ticket
-      self.tickets.trim()
-      said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
-              f": {ticket.closed_text}" if ticket.closed_text else "")
-      paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
-      self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
-      # The closing words reach History whole, on a reply's terms (#433).
-      self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
-                     room=tickets_desk.MAX_LINE)
-      self._occur("ticket_replied")
-    self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
-                       text=ticket.closed_text, points=ticket.points,
-                       seq=ticket.seq, ref=msg.id, paid=changed,
-                       **({"cut": True} if ticket.closed_cut else {}))
+    entry = None
+    try:
+      if changed:
+        # Measured off the desk AFTER the close was applied (`sample_ticket`),
+        # never off the message: the evaluator's `closed` is the desk's state.
+        verdict = scoring.evaluate(
+          "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
+          table=self.ledger.table if self.ledger is not None else None)
+        entry = self._bank(verdict)
+        if entry is not None:
+          self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+        # ...and only then the closed ones trimmed (#594): trimmed first, a
+        # close the desk ranked past its twentieth was measured as no ticket
+        self.tickets.trim()
+        said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
+                f": {ticket.closed_text}" if ticket.closed_text else "")
+        paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
+        self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
+        # The closing words reach History whole, on a reply's terms (#433).
+        self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
+                       room=tickets_desk.MAX_LINE)
+        self._occur("ticket_replied")
+    finally:
+      # ⚠ ACKNOWLEDGED ONCE THE DESK HAS IT, WHATEVER FAILS AFTER (#729): a
+      # `refused` would have it sent again, and the copy finds it closed;
+      # what the ledger paid said where the desk's record of it failed
+      recorded = entry if ticket.points is None and entry is not None else {
+        "points": ticket.points, "seq": ticket.seq}
+      self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
+                         text=ticket.closed_text, points=recorded["points"],
+                         seq=recorded["seq"], ref=msg.id, paid=changed,
+                         **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:
     """The operator erased a ticket (issue #284): off the desk, open or
@@ -5881,6 +5948,11 @@ class HubLifecycle:
     (the file's `at`, `ModeSwitch.at`), where that is longer than this
     process has held it. A process started into a pause counted from its own
     start, and on 11-01 a wake said 117 s.
+
+    ⚠ AN OPERATOR'S TICKET LINES ARE TAKEN IN THE PAUSE (#729), each
+    robot's on its own desk and account (`_ticket_lines_step`), their
+    `ticket` events leaving with no frame; everything else waits for the
+    wake (Overseer.md §2g).
     """
     if self.mode is None:
       return
@@ -5895,6 +5967,10 @@ class HubLifecycle:
       life._say("PAUSED by the operator -- physics stopped, stream alive")
       life._remember("paused by the operator")
     while self.mode.poll(force=True) == "paused" and not self.stopping:
+      # ...never once a stop is asked (the test above): what an ending
+      # process takes, the site may never hear acknowledged
+      for life in told:
+        life._ticket_lines_step()
       time.sleep(PAUSE_SLICE_S)
       for hook in list(self.pause_hooks):
         hook(time.monotonic() - wall0)

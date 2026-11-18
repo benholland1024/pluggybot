@@ -651,6 +651,34 @@ command shown to the model:
 | `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the closing words whole and the points; `ticket_replied` |
 | `ticket_delete` | the ticket is erased, open or closed; nothing is paid | a History line saying it was removed (the record is append-only: the robot did file it) |
 
+**They land whenever they are sent, the world paused or not** (#729).
+They are taken at the top of every arbitration pass and, while the world
+is paused, in every slice of the pause, each robot's on its own desk
+(`_ticket_lines_step`, `_mode_step`); the `ticket` event that acknowledges
+one leaves on the publisher's own thread, with no frame. Taken at a pass
+alone, a line sent while paused waited in the inbox, in memory: on
+2026-11-13 an operator answered five tickets during a pause, a restart
+during it lost all ten lines once the site's three deliveries were spent,
+the site listed the tickets closed, and both desks stayed full, refusing
+the robots 33 new tickets in four days. None is taken once a stop is
+asked, awake or paused (the ending process might not get its
+acknowledgement out, and a reply sent again to the next one would land
+twice). A line the desk fails on never ends the run: a write the desk
+cannot make leaves it as it was, the line is answered `refused` and its
+error said, and a copy sent again is taken whole; one that failed after
+the desk had it is acknowledged as taken. Every copy of a line taken is
+answered, the same process's too (the inbox drops no ticket line as a
+replay, only a copy of one still queued): a reply sent again is answered
+`again` and not put on the thread twice, since the desk keeps the ids of
+the operator's lines it took (`Ticket.refs`, the newest 32, apart from the
+thread its own lines push them out of; `Desk.taken`; never shown to the
+robot), and a close `paid: false`. ⚠ What fails after
+the desk took a line (the ledger's pay, History) is said in the console
+and not repaired: the line was taken and acknowledged, and a copy sent
+again is answered as one taken.
+Everything else sent while paused (a person's message, a rating, a
+reach-in) still waits for the wake.
+
 **A ticket's text is 500 characters in either direction, and a cut is
 said out loud** (`MAX_TICKET_CHARS`; the length follow-up). The first
 build gave a thread line a MESSAGE's cap, 280, on the reasoning that a

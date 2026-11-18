@@ -574,7 +574,8 @@ ENCOUNTER_PHASES = ("met", "parted", "touched", "separated")
 #:   `replied`  a line on its thread -- `from` names who and `sender` is
 #:              `robot` (the robot's `ticket_reply`) or `operator` (an
 #:              admin's `ticket_reply`, `ref` echoing that message's id so
-#:              the website settles the row it is holding);
+#:              the website settles the row it is holding; `again: true`
+#:              where the desk had taken that message already, #729);
 #: `opened` and a robot's `replied` carry `cut: true` where the text
 #: arrived longer than `MAX_TICKET_CHARS` and the rest was not kept: a
 #: reader is entitled to know it is not reading all of it, and so is the
@@ -583,7 +584,10 @@ ENCOUNTER_PHASES = ("met", "parted", "touched", "separated")
 #:              `points` (what the reward table paid -- once; a replayed
 #:              close re-emits the same figure and pays nothing), `ref`;
 #:   `deleted`  the operator erased it: `ref`;
-#:   `refused`  the desk would not take the robot's open or reply (`why`);
+#:   `refused`  the desk would not take the robot's open or reply (`why`),
+#:              or failed on an operator's line (#729: `sender: operator`,
+#:              `verb`, `ref`), which is NO acknowledgement -- a website
+#:              sends that line again;
 #:   `unknown`  an operator's reply, close or delete named a ticket this
 #:              desk does not hold (`ref`) -- the acknowledgement that stops
 #:              a website re-sending it.

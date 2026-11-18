@@ -71,6 +71,9 @@ MAX_LINE = registry.BY_NAME["operator"].cap
 #: is the record and four is what the robot needs in front of it.
 MAX_THREAD = 8
 THREAD_SHOWN = 4
+#: The operator's line ids a ticket keeps as taken (`Ticket.refs`): many
+#: more than a website holds owed at once.
+MAX_REFS = 32
 #: Closed tickets kept in the record (the newest), and how many the
 #: context shows with their closing message -- what came of asking is
 #: the one thing that teaches what is worth asking.
@@ -82,6 +85,10 @@ COUNTER = "counter.json"
 
 ROBOT, OPERATOR = TICKET_SENDERS
 STATES = ("open", "closed")
+#: What a close sets on a ticket, put back where its record could not be
+#: written (`Desk.close`).
+_CLOSE_FIELDS = ("state", "closed_by", "closed_text", "closed_cut", "closed_t",
+                 "closed_n")
 
 
 class DeskRefused(ValueError):
@@ -132,11 +139,19 @@ class Line:
   #: shown wherever the line is, so whoever reads it knows they are not
   #: reading all of it.
   cut: bool = False
+  #: An operator's line: the id of the inbound message it was taken from
+  #: (#729), so a copy sent again after its acknowledgement was lost is
+  #: answered and never put on the thread twice (`Desk.taken`). On the
+  #: record and the wire's snapshot, never in what the robot is shown.
+  ref: str = ""
 
   def as_dict(self) -> dict:
     return {"sender": self.sender, "from": self.who, "text": self.text,
             "t": round(float(self.t), 3),
             **({"cut": True} if self.cut else {})}
+
+  def as_record(self) -> dict:
+    return {**self.as_dict(), **({"ref": self.ref} if self.ref else {})}
 
 
 @dataclass
@@ -164,6 +179,10 @@ class Ticket:
   seq: int | None = None
   #: Did the REPORT arrive longer than `MAX_TEXT`? `Line.cut`'s terms.
   cut: bool = False
+  #: The ids of the operator's lines the desk took for it, newest last, at
+  #: most `MAX_REFS` (#729): what `Desk.taken` answers by after the line
+  #: itself has left the thread (the robot's own lines push it out).
+  refs: list[str] = field(default_factory=list)
 
   @property
   def open(self) -> bool:
@@ -172,17 +191,18 @@ class Ticket:
   def as_record(self) -> dict:
     return {"id": self.id, "kind": self.kind, "title": self.title,
             "text": self.text, "t": round(float(self.t), 3), "state": self.state,
-            "thread": [line.as_dict() for line in self.thread],
+            "thread": [line.as_record() for line in self.thread],
             "closedBy": self.closed_by, "closedText": self.closed_text,
             "closedCut": self.closed_cut,
             "closedT": self.closed_t, "closedN": self.closed_n,
-            "points": self.points, "seq": self.seq, "cut": self.cut}
+            "points": self.points, "seq": self.seq, "cut": self.cut,
+            **({"refs": list(self.refs)} if self.refs else {})}
 
   @classmethod
   def from_record(cls, rec: dict) -> "Ticket":
     thread = [Line(str(x.get("sender", OPERATOR)), str(x.get("from", "")),
                    str(x.get("text", "")), float(x.get("t", 0.0)),
-                   bool(x.get("cut")))
+                   bool(x.get("cut")), str(x.get("ref", "")))
               for x in rec.get("thread", ()) if isinstance(x, dict)]
     return cls(id=str(rec["id"]), kind=str(rec.get("kind", "")),
                title=str(rec.get("title", "")), text=str(rec.get("text", "")),
@@ -194,7 +214,8 @@ class Ticket:
                closed_t=rec.get("closedT"),
                closed_n=(None if rec.get("closedN") is None else int(rec["closedN"])),
                points=rec.get("points"), seq=rec.get("seq"),
-               cut=bool(rec.get("cut")))
+               cut=bool(rec.get("cut")),
+               refs=[str(r) for r in rec.get("refs", ()) if r][-MAX_REFS:])
 
   def as_dict(self) -> dict:
     """The wire's shape: the record, whole (the `tickets` message)."""
@@ -311,15 +332,20 @@ class Desk:
                     title=title or text[:MAX_TITLE], text=text, t=float(t),
                     cut=cut)
     self.tickets[ticket.id] = ticket
-    self._save_counter()
-    self._save(ticket)
+    try:
+      self._save_counter()
+      self._save(ticket)
+    except Exception:
+      del self.tickets[ticket.id]        # never a ticket the record lacks;
+      raise                              # its id stays spent (ids never repeat)
     return ticket
 
   def reply(self, ticket_id: str, text: str, t: float,
-            sender: str = ROBOT, who: str = "") -> Ticket:
+            sender: str = ROBOT, who: str = "", ref: str = "") -> Ticket:
     """A line on an OPEN ticket's thread, from the robot or the operator
-    (`sender` is stated by the caller, never read off the wire). The
-    thread keeps its newest `MAX_THREAD` lines."""
+    (`sender` is stated by the caller, never read off the wire; `ref` the
+    inbound message an operator's came in, `Line.ref`). The thread keeps
+    its newest `MAX_THREAD` lines."""
     ticket = self.get(ticket_id)
     text, cut = _cut(text, MAX_LINE)
     if ticket is None:
@@ -330,10 +356,33 @@ class Desk:
       raise self._refuse(["a reply says something: `text` is empty"])
     if sender not in TICKET_SENDERS:
       raise ValueError(f"a thread line's sender is one of {TICKET_SENDERS}")
-    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut))
+    before, refs = list(ticket.thread), list(ticket.refs)
+    ref = _clean(ref, 64)
+    ticket.thread.append(Line(sender, _clean(who, 40), text, float(t), cut, ref))
     del ticket.thread[:-MAX_THREAD]
-    self._save(ticket)
+    if ref:
+      ticket.refs = (ticket.refs + [ref])[-MAX_REFS:]
+    try:
+      self._save(ticket)
+    except Exception:
+      ticket.thread[:], ticket.refs = before, refs   # never a line the record lacks
+      raise
     return ticket
+
+  def taken(self, ticket_id: str, ref: str) -> bool:
+    """Did the desk take the operator's line `ref` for this ticket, open or
+    closed (#729)? Off `Ticket.refs`, so a line the thread has since let go
+    of is still known: a copy sent again is answered, never put twice."""
+    ticket = self.get(ticket_id)
+    return ticket is not None and bool(ref) and ref in ticket.refs
+
+  def line(self, ticket_id: str, ref: str) -> Line | None:
+    """The operator's line `ref` on the ticket's thread, while it keeps it."""
+    ticket = self.get(ticket_id)
+    if ticket is None or not ref:
+      return None
+    return next((line for line in ticket.thread
+                 if line.sender == OPERATOR and line.ref == ref), None)
 
   # ---- the operator's two -------------------------------------------------------------
 
@@ -348,14 +397,23 @@ class Desk:
       return None, False
     if not ticket.open:
       return ticket, False
+    before, closes = {f: getattr(ticket, f) for f in _CLOSE_FIELDS}, self.closes
     ticket.state = "closed"
     ticket.closed_by = _clean(by, 40)
     ticket.closed_text, ticket.closed_cut = _cut(text, MAX_LINE)
     ticket.closed_t = round(float(t), 3)
     self.closes += 1
     ticket.closed_n = self.closes
-    self._save_counter()
-    self._save(ticket)
+    try:
+      self._save_counter()
+      self._save(ticket)
+    except Exception:
+      # ⚠ NEVER A CLOSE THE RECORD LACKS (#729): kept in memory alone, the
+      # copy sent again found it closed and was never paid
+      for name, value in before.items():
+        setattr(ticket, name, value)
+      self.closes = closes
+      raise
     return ticket, True
 
   def pay(self, ticket_id: str, points: int, seq: int) -> None:
@@ -363,22 +421,29 @@ class Desk:
     ticket = self.get(ticket_id)
     if ticket is None:
       return
+    before = ticket.points, ticket.seq
     ticket.points, ticket.seq = int(points), int(seq)
-    self._save(ticket)
+    try:
+      self._save(ticket)
+    except Exception:
+      ticket.points, ticket.seq = before      # never a pay the record lacks (#729)
+      raise
 
   def delete(self, ticket_id: str) -> Ticket | None:
-    """Erase a ticket, open or closed. None for one the desk does not hold."""
-    ticket = self.tickets.pop(str(ticket_id or ""), None)
+    """Erase a ticket, open or closed. None for one the desk does not hold.
+    Off the record first: a delete the store refused leaves it held (#729)."""
+    ticket = self.get(ticket_id)
     if ticket is not None:
       self.store.remove(f"{ticket.id}{SUFFIX}")
+      del self.tickets[ticket.id]
     return ticket
 
   def trim(self) -> None:
     """Keep the newest `MAX_CLOSED` closed tickets. Run once a close is
     paid (`HubLifecycle._ticket_close`): the pay is measured off the desk."""
     for old in self.closed_tickets()[MAX_CLOSED:]:
+      self.store.remove(f"{old.id}{SUFFIX}")     # off the record first (#729)
       self.tickets.pop(old.id, None)
-      self.store.remove(f"{old.id}{SUFFIX}")
 
   def _refuse(self, reasons: list[str]) -> DeskRefused:
     # The newest few, for `stats()`: the record of a refusal is the
