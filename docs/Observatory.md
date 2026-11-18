@@ -10,6 +10,59 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A reach's plan keeps its arm off the robot's own trunk (#726's option 1, T3, `loop-726`) — opens when this PR is deployed
+
+**What the robots read** is unmoved where it is read every turn: this
+change moves neither the prompt (`b4d1ec1f…`, 69,557 characters, 17
+sections, on `loop-staging` e629cddd with it and without it) nor the
+session host's hello (`a61b6376…`). No sentence is new or changed. What
+moves is when #722's words are said: a `reach` whose every plan would put
+the arm in the robot's own torso or head -- at the goal, or at the point
+short of it the hand comes in from, in every posture it may take and with
+the grip half a turn round -- moves nothing and reads false with #722's
+"every way your left arm takes from where it is to there passes through
+your own body, so it did not move" (and "; your right hand could reach it as
+asked" where the other hand's plan keeps clear). Before, a plan into the
+trunk was taken: three of the 11-15 wake's door reaches from the arm hanging
+pressed the torso at 23-52 N on e629cddd. And where a reach's words say
+what the other hand could do, or that turned another way it can, they now
+say it only of a plan that keeps clear of the trunk (before, Luca's
+`door_run31` was told its right hand "could reach it as asked" of a plan
+3.5 cm into the torso).
+
+**The change** (`reach.plan`'s `own`, `_reached`'s `clear`, `_solutions`,
+`in_trunk`; `Reach._planned`, `reach`, `plans`, `clear_way`, `_look`;
+SimNotes, "A reach's plan kept off the robot's own trunk"). A reach's plan
+in each posture is today's where its arm at the pre-grasp and at the goal
+keeps off the trunk on the robot's model of itself (#722's `own_rooms`),
+else the goal's other solves in turn, else the next posture's -- a plan at
+full stretch before one in the trunk with room to spare -- else the grip
+half a turn round; with none, a procedure's reach is refused and the
+loop's own (a charge's) takes today's plan. A look at the pre-grasp passes
+over a posture whose plan from the arm as it is lies in the trunk (the
+posture it holds judged at the goal alone, its hand at the pre-grasp
+already). Where today's plan keeps clear, nothing changes.
+
+**Measured** (one Vast pod, a Xeon Gold 6140, beside e629cddd; SimNotes has
+the count before it): Ben's bar met, 610 of 736 passed with 6 falls where
+the base passed 608 with 8; the 5 of 736 that moved are the cube's at
+set-outs 2, 7, 46, 91 and 112, whose plans or looks lay in the head (two
+falls gone, two passes gained), the tour untouched. Of the 11-15 wake's 53
+runs, the 4 whose reaches were planned into the torso moved: one more door
+opened, one fall gone, the torso presses (23-52 N) gone, and no reach
+refused. The station's checks plug in as the base does (5 of 140 seats by
+another way, each at its first push), the counter's recorded attempt and the
+pair's recorded day are the base's, and of T1's 193 flights of the 11-18
+wake's tries 10 moved, the same 34 passing, with two more falls, both #693's
+way home over the cupboard's lever in a step's hand-over, as the base falls
+at two other keys.
+
+**What to read**: reaches that read false with "own body" from the arm
+hanging, and what the robot does next; a reach planned in another posture
+or with the other grip where it used to press its own body (the cube's deep
+bows, a lever close to the chest); falls in a reach's way out; a reach's
+plan's time on the physics thread (a refused reach plans every posture).
+
 ### An operator's ticket line lands while the world is paused (#729, T2, `loop-729`) — opens when this PR is deployed
 
 **What the robots read** is unmoved in its words: the prompt is
