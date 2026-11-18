@@ -4273,8 +4273,8 @@ class Overseer:
     (the model sent `state`), False for one resolved at once (`busy`, a
     gate) -- and the answer is polled for with `pending`. ⚠ `throttle`
     False passes the idle-run throttle: a charge's break asks for a person's
-    message, never for an idle run (#730: refused, it went back on its
-    charge with an order it dropped a moment later, and asked anyway)."""
+    message, never for an idle run (#730), and refused it would be asked
+    again a moment on, its fallback's order dropped."""
     with self._lock:
       self._asked_for = self._starts_over
       self._pending_state = dict(state)
@@ -4338,10 +4338,10 @@ class Overseer:
   def can_ask(self) -> bool:
     """Would a decision started now go to the model, as far as this side can
     tell (#730: a charge's hold is broken for a message only then)? Never
-    with a call still out (`busy`) nor behind a gate that stays shut -- but
-    past the idle-run throttle, which the break's own ask passes too
-    (`start`'s `throttle`; read past, found first, it hid a cooloff behind
-    it). An endpoint that fails is found only by asking."""
+    with a call still out (`busy`) nor behind a gate that stays shut; past
+    the idle-run throttle, which a break's ask passes (`start`'s
+    `throttle`), and every gate behind it read. An endpoint that fails is
+    found only by asking."""
     with self._lock:                        # as `start` reads them
       return not self._in_flight and not self._refusal(throttle=False)
 

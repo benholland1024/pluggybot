@@ -6394,17 +6394,16 @@ class HubLifecycle:
       self._after_decision_routine(decision))
 
   def _ask_takes(self, state: dict) -> tuple[set, set, set, set]:
-    """The messages an ask's context holds -- no news to the map now (#730):
-    seeing one a tick after the context was built, it paid for a second ask
-    about a message the model had been shown -- those the map had not seen
-    yet, which an ask that sends nobody its context gives back
-    (`_ask_routine`), and of them a person's: owed as the map's row would
-    have made them, or one shown before the map could fire for it and
-    answered past waited out the charge (`_asked_about`). All this only
-    where the map's first row for a message asks: a row of another action
-    is no second paid ask, and marked seen it never ran. And the people's
-    among them, as the context shows them: read after the think, the queue
-    may have put out the one the model answered."""
+    """The messages an ask's context holds, which are no news to the map
+    now (#730: a message the model was shown fires no second paid ask a
+    tick later); those the map had not seen yet, which an ask that sends
+    nobody its context gives back (`_ask_routine`); of them a person's,
+    owed as the map's row would have made them (`_asked_about`); and the
+    people among all it holds, read off the window the context was built
+    from (after the think, the queue may have put out the one answered).
+    All but the last only where the map's first row for a message asks: a
+    row of another action is no second paid ask, and marked seen it never
+    ran."""
     shown = {m.get("id", "") for m in state.get("visitorMessages", ())} - {""}
     if self.inbox is None:
       return shown, set(), set(), set()
