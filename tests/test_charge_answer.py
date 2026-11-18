@@ -512,9 +512,14 @@ def test_a_true_death_resets_what_it_must():
   life._true_death(float(life.data.time))
   life.body.run(life.body.hold_routine(400.0))
   assert not _charges(life) and life.charge_cycles == 0
+  # ...and the new robot, its own list asking on a message, charges as one:
+  # never for the old robot's visitor, never carrying the old charge on
+  life.overseer.event_map = ev.EventMap([ASKS])
   life.battery.energy_wh = life.battery.capacity_wh * 0.4
   _charge(life)
   assert life.charge_cycles == 1 and not client.calls, "broken for the old robot's message"
+  [row] = _charges(life)
+  assert row["metrics"]["seconds"] < 250.0, f"the old robot's charge carried on: {row}"
 
 
 def test_a_stand_up_drops_a_charge_left_open_and_its_ask():

@@ -6344,6 +6344,11 @@ class HubLifecycle:
     that did not come, and its message keeps its ask (`_ask_gives_back`)."""
     yield from self._after_decision_routine(decision, act=False)
     before = self._open_charge
+    if before is None or not self.body.charging():
+      # ...closed as it was said (its plug out, its pack full): nothing to
+      # go back on, and the order runs now
+      yield from self._until_stood_up_routine(self._act_routine(decision))
+      return
     why = decision.source.partition(":")[2]
     frac = f"{self.battery.fraction:.0%}"
     self._say(f"CHARGE: no answer came ({why}) -- back on my charge at {frac}, and "
