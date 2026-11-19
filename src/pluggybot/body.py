@@ -70,6 +70,10 @@ SAME_SEAT_M = 0.05
 #: hands hanging, twice its 0.27 m half-width (`HumanoidMission`'s sizes).
 #: Another robot whose middle stands nearer a station's seat than this,
 #: where it says it is or where this robot's sensors place it, is on it.
+#: MEASURED from the lobby station's standoff: a body on the seat's line hid
+#: both tags to 0.2 m across it, one at 0.3 m, neither from 0.4 m; Rowan
+#: plugged in said it stood 0.11-0.27 m off the seat. A robot 1.2-1.5 m off
+#: is no robot on it, and a station empty but for one is a robot lost.
 SEAT_HELD_M = 0.54
 
 

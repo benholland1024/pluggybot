@@ -10,6 +10,69 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A station the other robot is plugged into is taken, never a robot lost (#731, U1, `loop-731`) — opens when this PR is deployed
+
+**What the robots read.** The prompt (`6ec0fc48…`) and the session host's
+hello (`a61b6376…`) are unmoved. History and the other robot's `doing` move
+only where #731 is. BEFORE, a robot whose charge went to a station the
+other robot was plugged into, its belief 0.6-0.8 m off, read the station
+free, walked in, saw no station behind the other's body, and wrote
+`I did not find my charging station where I believed it was, so I may not
+be where I thought, and I am looking round for it`, then `I looked for my
+charging station for 446 s and did not see it` and `charge: did not charge
+-- no charge contact (station not seen)` -- five times on 11-18. AFTER, it
+waits (or, with `station: "free"`, goes on), saying `WAIT: Rowan is plugged
+in at the charging station -- waiting up to 1386 s at (19.7, -4.3)`, which
+is also what the other robot is shown as its `doing`; where the wait was
+reached before (the plugged-in robot placed on the station's way in), the
+clause was `Rowan is standing at rest right in front of the charging
+station`, or `... 0.47 m from the charging station` with an ask to make way
+every 30 s, which a robot plugged in refused each time (`MAKE WAY: Rowan
+asked me off its way, and I cannot: I am plugged in at my charging
+station`): a plugged-in robot is never asked now. History's line for a wait
+is unchanged (`Rowan was at the charging station I needed; I waited for it
+(up to 1386 s)`), and a wait its bound ends writes `charge: did not charge
+-- never reached the charging station -- Rowan was plugged in at it; I
+waited 1386 s for it to leave, 3x how long one charge usually takes` (161
+characters; the clause was `Rowan was standing at rest right in front of
+it`). A station out of sight with the other robot by its seat, not plugged
+in, is waited for under the words a wait always had, and searched for
+afterwards as before. The site counts a failed approach off `GO_CHARGE: `
+lines (`chargeOutcome`): the waits are `WAIT:` lines, and a charge a wait's
+bound ends is one failed approach, as it was.
+
+**The change** (SimNotes, "A station the other robot is plugged into";
+`KeepClear.said`, `plugged`; `Body.plugged_seat`, `plugged_on`,
+`peer_by_seat`; `HubLifecycle._bay_holder`, `go_charge_routine`). Each
+robot's report of itself to the other (`keep_clear`) says where it is and
+the seat of the station its plug is in, by its own port's word. A seat the
+other says it is plugged in at is held, wherever this robot's belief places
+that robot's body; and a station not in sight from its standoff, with the
+other within a body's width of its seat where it says it stands or where
+this robot sees it (`SEAT_HELD_M`, 0.54 m), is taken, not lost: the charge
+waits as #346's wait does, or with `free` goes on to another station, and
+searches once nobody is by it, or once the wait's bound is spent with nobody
+plugged in there. A robot alone takes no new branch: the station's checks
+(the approaches, the seats, lost near) fly bit for bit as before. The pair's
+recorded day keeps its trajectories bit for bit; its narration moves, and it
+is recorded again (the site's vendored copy one day behind until it is
+vendored again).
+
+**What the period is for.**
+- **The acceptance** (#731's third box): on a live wake, no charge fails
+  `station not seen` while the other robot is plugged in at that station --
+  read each `charge: did not charge -- no charge contact (station not
+  seen)` and each `lost` drift row against the other robot's plug (its
+  `CHARGE` stretches): none at a station it is plugged into.
+- **What waiting costs now**: how often a charge waits for a robot plugged
+  in (`WAIT: ... is plugged in at`), how long, how often the wait's bound
+  (1,386 s, 3x a charge's occupancy measured on the quadrupeds) ends it while
+  the humanoids' charges run to 107 minutes (11-18), what the robot decides
+  after one, and how often a mind passes a taken station with `free`.
+- **A robot really lost still searched**: `lost` rows with nobody by the
+  seat, as before; and every `WAIT:` that followed a station out of sight
+  ended in a plug-in or a search.
+
 ### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `b4d1ec1f…` (69,557

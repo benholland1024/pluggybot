@@ -362,3 +362,19 @@ def test_a_charge_a_persons_message_broke_still_holds_its_station():
   sx, sy, _ = luca.body.charge_standoff()
   held = luca._bay_holder(sx, sy, luca.body.charge_seat())
   assert held is not None and held[3] == "plugged", held
+
+
+@pytest.mark.parametrize("seed", [37, 5])
+def test_seeded_days_of_the_pair_keep_every_invariant_at_the_stations(seed):
+  """The station's fuzz (#731, `fuzz_station_taken`): seeded random days of
+  the stub pair at the world's three stations -- charges waiting or passing
+  with `free`, plugged in a while at rest on the seat, on a seat with the
+  plug out or near one, beliefs off and put right by a search, a fall
+  plugged in, stand-ups by or onto a seat, restarts mid-trip and mid-wait --
+  every invariant read at every step. A cheap slice, 0.6 s: on the tree
+  before, seed 37 tried a dock where the other said it was plugged in at
+  21 s and seed 5 a lost search at 42 s; hundreds of seeds flew offline as a
+  measurement, never a test kept out of the run."""
+  from fuzz_station_taken import fly
+  out = fly(seed, sim_s=600.0)
+  assert out["simS"] >= 600.0 and out["trips"] >= 2, out

@@ -18,8 +18,9 @@ loop, with the invariants a served day needs read at every step (`Watch`):
   4. never a robot that really lost its station left unsearched: a trip
      whose last dock saw no station while nothing truly stood by its seat
      (no body within `SEAT_HELD_M`, nobody plugged in) and that gave up at
-     that station searched in it -- unless a restart closed it or the run's
-     hour ended it;
+     that station searched in it -- unless a restart closed it, the run's
+     hour ended it, or the other robot is plugged in there as it gives up
+     (a search then is the third's: the station is taken, whoever is lost);
   5. a `free` charge passes a taken station `MAX_STATION_SWITCHES` times
      at most;
   6. the loop never goes round at one sim instant (`ZERO_TIME_ROUNDS`).
@@ -98,6 +99,21 @@ class FuzzBody(StubBody):
     self.rng, self.watch = rng, watch
     self.err = _Error()
     self.world: list[FuzzBody] = []
+    self.still_since = 0.0
+
+  @property
+  def resting(self) -> bool:
+    """Resting standing once it has moved nothing for `REST_S` (8.6 s), as
+    the humanoid does plugged in: placed by its body, then (#455)."""
+    return float(self.data.time) - self.still_since >= 8.6
+
+  @resting.setter
+  def resting(self, value) -> None:
+    pass
+
+  def go_to_routine(self, x, y, timeout=90.0, stop=None):
+    self.still_since = float(self.data.time)
+    return (yield from super().go_to_routine(x, y, timeout, stop))
 
   def truth(self):
     return self.err.back(self.x, self.y)
@@ -133,6 +149,8 @@ class FuzzBody(StubBody):
     if any(b.on_charger and math.dist(b.charge_seat(), seat) < 0.05
            for b in self.world if b is not self):
       return "plug not in its cup"
+    self.x, self.y = self.err.fwd(*seat)        # ...its body on the seat
+    self.still_since = float(self.data.time)
     self.on_charger = True
     return "docked"
 
@@ -146,7 +164,8 @@ class FuzzBody(StubBody):
       yield from self._wait(1.0)
     if self._hidden(self.charge_seat()):
       return False
-    self.err = _Error()                         # ...the belief put right
+    self.x, self.y = self.truth()               # ...the belief put right
+    self.err = _Error()
     return True
 
 
@@ -181,7 +200,9 @@ class Watch:
       self.counts["charged"] += 1
     lost = trip["lostAt"]
     if (lost is not None and not ok and not trip["searched"] and how == "returned"
-        and not life._hour_up and math.dist(life.body.charge_seat(), lost) < 0.05):
+        and not life._hour_up and math.dist(life.body.charge_seat(), lost) < 0.05
+        and not any(b.on_charger and math.dist(b.charge_seat(), lost) < 0.05
+                    for b in self._others(life.body))):
       self.fail(life, f"really lost and never searched: {life.charge_failure}")
     switched = sum(1 for ln in life.log[trip.get("logAt", 0):]
                    if "on to the nearest free charging station" in ln)

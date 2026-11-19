@@ -5575,7 +5575,8 @@ the world's. A lost robot fixes off WHICHEVER station it sees, its pair
 saying which, and charges there; the loop walks to that station's standoff
 after (`test_a_search_that_found_another_station_walks_to_that_one`). The
 choice rides a restart. A station takes one robot, and the #346 wait is
-per station.
+per station; one the other robot says it is plugged into is taken, never a
+robot lost ("A station the other robot is plugged into", #731).
 
 **The reserve's worst place** is now the middle of the park's west
 sidewalk, where every way round the fenced park is long: 47.3 m on the
@@ -10941,6 +10942,85 @@ every flight, none is a procedure's read, and #721's option 2 left them as
 they are; and a watch's picture taken between two of the arm's ticks is
 placed through the model as whatever posed it last, which may be a felt
 sample rather than the arm's loop.
+
+## A station the other robot is plugged into (issue #731)
+
+From 14:52 to 16:39 UTC on 11-18 Rowan was plugged in at the research center
+lobby's station. Luca, its belief 0.57-0.81 m and 12-15 deg off (#681's
+drift), charged there five times; each walked in, its dock saw no station,
+it searched as a robot lost (422-468 s) and failed `no charge contact
+(station not seen)`: 78 minutes, 29 % down to 7 %. T1 flew both causes as
+static probes (the loop of 11-18): Rowan's body on the seat hid tags 64 and
+65 from every view Luca had (its navigation camera read them from 8 of 9 of
+those views with Rowan walked off), and the taken test (`_bay_holder`)
+placed a plugged-in Rowan -- resting, so placed by its body as Luca's own
+sensors would (#455) -- through Luca's wrong belief, 0.6-0.8 m off the seat,
+and read the station free from 3 of 5 poses. A robot at rest, or one the
+asker's LIDAR sees (#675), is placed where the ASKER's sensors put it, which
+is right for a robot in the way of a walk and wrong for one plugged in at a
+commissioned station.
+
+**Two rules** (Ben's options 1 with 2). Each robot's report of itself to the
+other (`HubLifecycle.keep_clear`, a network fact as its reported pose is)
+says where it is (`KeepClear.said`) and the seat of the station its plug is
+in, by its own port's word (`plugged`, `Body.plugged_seat`: the port's
+catch, never the lifecycle's `docked`). A seat the other says it is plugged
+in at is held -- `_bay_holder`'s "plugged", wherever the asker's belief
+places that robot's body (`Body.plugged_on`) -- so the charge waits, as
+#346's wait does, said `WAIT: Rowan is plugged in at the charging station`,
+or with `free` goes on to the nearest station nobody holds; and a plugged-in
+robot is never asked off its way (the pair's fixture day had Rowan ask a
+plugged-in Pluggy to make way every 30 s of its wait, refused each time). And
+a station not in sight from its standoff, with the other robot within a
+body's width of its seat (`SEAT_HELD_M`, 0.54 m) where it says it stands or
+where this robot sees it (`Body.peer_by_seat`), is taken, not lost: waited
+for, or passed with `free`, and the search waits until nobody is by it --
+or until the wait's bound is spent with nobody plugged in there, when the
+station is searched for after all (the robot by the seat may be where a lost
+belief put it, and a robot lost and never searched dies flat). A wait the
+bound ends with the other still plugged in ends the charge, never searched:
+no loop within one decision, and the mind decides again.
+
+**A body's width, measured** (`ring731.py`, the pair in the house, Rowan
+stood round the lobby's seat, the dock's colour imager and the search's
+navigation camera decoding from the true standoff and two of #731's lost
+poses): on the seat's line a body hid both tags from the standoff to 0.2 m
+across it, one of them at 0.3 m, neither from 0.4 m; from the lost poses
+the same, the navigation camera alone reading there. So 0.54 m takes in
+every body that hides a tag with 0.2 m over for where it is placed: Rowan
+plugged in said it stood 0.11-0.27 m off the seat, and through Luca's live
+belief its body lay 0.6-0.83 m off it, past the width -- the report is what
+reads it on the seat, the plug what holds it. A robot standing 1.2-1.5 m
+off the seat is outside it, and a station empty but for one is a robot
+lost, searched as before.
+
+**Measured.** The rules pinned on two stub lifecycles wired as the pair's
+bodies are (`tests/test_station_taken.py`: #731's five lost poses with the
+live beliefs; 20 of its 23 fail on the tree before, its three guards --
+a robot really lost still searches -- pass on both). A seeded fuzz of the
+stub pair (`tests/fuzz_station_taken.py`: charges waiting or passing with
+`free`, plugged in a drawn while at rest on the seat, on a seat with the plug
+out or near one, beliefs off and put right by a search, a fall plugged in,
+stand-ups by or onto a seat, restarts mid-trip and mid-wait, the run's
+hour) reads six invariants at every step; the tree before breaks one in 55
+of 100 seeds (48 a dock tried, 7 a lost search, at a station the other
+says it is plugged in at). The station's checks on one pod (an EPYC 7532,
+osmesa) fly bit for bit on both trees: the approaches 36 of 36, the seats
+140 of 140, lost near 20 of 20, every row identical -- a robot alone takes
+no new branch. The pair's recorded day keeps its trajectories bit for bit:
+2,160 of its 11,664 lines move, each in its narration alone (the wait's
+words, the refused asks gone).
+
+**What is true now** (`KeepClear.said`, `plugged`; `Body.plugged_seat`,
+`plugged_on`, `peer_by_seat`, `SEAT_HELD_M`; `HubLifecycle._bay_holder`'s
+`unseen`, `go_charge_routine`): a charge never walks in on, nor searches
+behind, a robot that says it is plugged in at its station; a station out of
+sight with the other robot by its seat is waited for, or passed with
+`free`, then searched once nobody is by it or its wait's bound is spent
+with nobody plugged in there; and a station truly empty out of sight is a
+robot lost, searched at once, as before. ⚠ The report is the other robot's
+own word, read as its reported pose is: a robot whose port says nothing
+holds nothing by this rule.
 
 ## Debugging workflow that worked
 
