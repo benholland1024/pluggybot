@@ -322,9 +322,10 @@ LIFT_M, LIFTS = 0.05, 1
 #: press down at the hand's reach. After a pull toward the body none of the
 #: arm is ahead of the front, its way home is judged straight, and the open
 #: jaws swung forward and down through the knob or the lever just pulled: the
-#: root went 0.11-0.29 m back under the standing policy and the robot over
-#: backward, 12 of the 11-18 wake's 171 flights, each reading 15-35 N m held
-#: 0.4-1 s first. ⚠ HELD, NEVER AT ONCE: the door reference's ways home drag
+#: root went 0.15-0.26 m back under the standing policy and the robot over
+#: backward, 12 of the 11-18 wake's 171 flights on 0fb85dc2; in the 10 this
+#: takes, the reading held past the line 1.0-1.7 s before the fall (17-34 N m
+#: held 0.2 s). ⚠ HELD, NEVER AT ONCE: the door reference's ways home drag
 #: a jaw over the door's top at 65-200 N for under 0.2 s, and held 0.05 s
 #: about 40 of the bar's ways home stopped; held 0.2 s, one that touches
 #: nothing read 9 at most. ⚠ A GRIPPER DRIVEN INTO ITS OWN TORSO ON ITS LINE
@@ -2439,7 +2440,9 @@ class Reach:
   def _held_home(self, side: str) -> None:
     """A way home held (`_homed`, `_shoved`): eased where its drivers read
     it, pressing on nothing, then raised `LIFT_M` and sent home again `LIFTS`
-    times a way home, else left there ("held")."""
+    times a way home, else left there ("held"). Its count begun again: a
+    raise's line never reads it, and the next way home has its whole hold."""
+    self._shove[side] = 0.0
     q = self._ease(side)
     if self.lifted[side] >= LIFTS or len(self.keep_out):
       self._stand_at_ease()

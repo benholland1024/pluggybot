@@ -779,16 +779,21 @@ def test_a_second_retreat_partway_home_leaves_the_way_be():
 
 def _stepped(r):
   """A bare reach whose loop (`Reach._update`) runs: its senses, its trim and
-  its drivers stubbed out -- the force its arms read the test's, nothing
-  pushing (read off the stubs' zero torques, a hanging arm's own weight read
-  as a hand pressing down: #693's live family's rule holds a way home on it)."""
+  its drivers stubbed out, the drivers reading what holding each arm still
+  takes as it is posed -- nothing pushing on a hand (read as zero torques, a
+  hanging arm's own weight read as a hand pressing down, and #693's live
+  family's rule held a way home on it)."""
   from types import SimpleNamespace
   n = len(hm.JOINT_NAMES)
   r.tau, r.qd, r.friction = np.zeros(n), np.zeros(n), {}
   r.force = {s: np.zeros(3) for s in hm.SIDES}
-  r.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
-  r._pose = lambda arms=None: None
-  r._feel = lambda: None
+
+  def drivers(arms=None):
+    # ...each arm's drivers reading what holding it still takes, as its model
+    # is posed: its own force path (`_feel`) reads no push on either hand
+    for s in hm.SIDES:
+      r.tau[r.self_model.arm[s]] = r.self_model.gravity(s)
+  r._pose = drivers
   r._trim = lambda dt: None
   r.arms = {s: SimpleNamespace(command=lambda *a: None) for s in hm.SIDES}
   return r
@@ -1639,9 +1644,9 @@ def test_a_way_home_whose_reading_tips_the_body_away_from_the_hand_is_held_where
   T1's, flown on 0fb85dc2: 12 fell in a step's hand-over): after a pull
   toward the body no part of the arm is ahead of the front, its way home is
   judged straight, and the open jaws swung forward and down through the knob
-  or lever just pulled and onto the counter's top, the root went 0.15-0.29 m
-  back and the robot over backward -- 0.5-1.6 s after the arm's own reading
-  had tipped the body away from its hand past 20 N m. On its way to its rest
+  or lever just pulled and onto the counter's top, the root went 0.15-0.26 m
+  back and the robot over backward -- in 10, 1.0-1.7 s after the arm's own
+  reading had held past 15 N m away from its hand. On its way to its rest
   -- in joint space, or its rest commanded and not yet read there -- an arm
   whose reading tips the body away from its hand past `HOME_TIP_NM`, for
   `HOME_TIP_S` running, is held where its drivers read it, as a way home
@@ -1710,6 +1715,34 @@ def test_a_way_home_reading_under_the_line_or_toward_the_body_walks_on(monkeypat
     r.feel(0.5 * line * AWAY)
     r._update(0.01)
     assert r.phase["left"] == "home"
+
+
+def test_a_way_home_sent_again_after_a_shove_has_its_whole_hold(monkeypatch):
+  """Review 1: held for its reading, raised and sent home again, the next way
+  home has `HOME_TIP_S` of its own before a reading past the line holds it --
+  the raise's line never reads the count, and left as it was the first tick
+  past the line held the second way home (a drag over a door's top for under
+  0.2 s, which must pass)."""
+  from pluggybot.humanoid import reach as rc
+  r, _ = _walking_home()
+  # ...its raise followed (the test's senses put the grip where they did)
+  monkeypatch.setattr(r, "_raise_short", lambda side: False)
+  for _ in range(round(rc.HOME_TIP_S / 0.01)):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1, "the premise: raised"
+  r.feel(np.zeros(3))
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase["left"] != "retreat":
+      break
+  assert r.phase["left"] == "home", "not sent home again"
+  r.q_cmd["left"] = r.rest["left"] + max(1.0, 3.5 * rc.HOME_TIP_S * rc.JOINT_RATE)
+  r.q_to["left"], r.homes["left"] = r.rest["left"].copy(), []
+  for k in range(round(rc.HOME_TIP_S / 0.01) - 1):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
 
 
 def test_an_arm_its_drivers_read_home_is_home_whatever_it_reads(monkeypatch):
