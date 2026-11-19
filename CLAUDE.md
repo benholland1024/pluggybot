@@ -2074,10 +2074,10 @@ save a filmstrip PNG named after the script.
   `tests/test_deploy.py` blocks the omitted packages and flies the robot; a
   new runtime dependency goes in the requirements too, and a training stack
   never does (#375). This repo owns the IMAGE; the website repo owns the
-  DEPLOYMENT (`rooftop-robotics/compose.yaml`). ⚠ `rooftop-media-2026` in a
-  citation is that repo, and so is the dev box's checkout,
-  `~/rooftop-media-2026`; GitHub knows it as `rooftop-robotics`
-  (rooftop-robotics #524). `/var/lib/pluggybot` must be
+  DEPLOYMENT (`rooftop-robotics/compose.yaml`; its checkout on the dev box
+  is `~/rooftop-robotics`). ⚠ `rooftop-media-2026` in a citation is that
+  repo, which GitHub knows as `rooftop-robotics` (rooftop-robotics #524).
+  `/var/lib/pluggybot` must be
   a volume.
 - **The served process watches its own memory and says why it ended** (issue
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
