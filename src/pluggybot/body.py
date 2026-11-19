@@ -113,9 +113,9 @@ class KeepClear(NamedTuple):
   up, so it is neither waited for nor asked. And whether, standing or
   walking, it is where the asker's LIDAR SAW it (#675): at its body, never
   where it says it is. And what it SAYS of itself (#731): where it is, its
-  reported pose, whatever (x, y) places it (None where it says nothing: a
-  dead one), and the seat of the station whose catch holds its plug, by its
-  own port's word (`Body.plugged_seat`), or None."""
+  reported pose, whatever (x, y) places it (None where it says nothing: one
+  on the floor or dead), and the seat of the station whose catch holds its
+  plug, by its own port's word (`Body.plugged_seat`), or None."""
   x: float
   y: float
   down: bool = False

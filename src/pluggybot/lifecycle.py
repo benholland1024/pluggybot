@@ -1662,12 +1662,13 @@ class HubLifecycle:
     way is asked to make way (`make_way`) -- and whether it is dead.
 
     ⚠ AND WHAT IT SAYS OF ITSELF, wherever it is placed (#731): where it is,
-    its reported pose -- nothing, dead -- and the seat of the station its
-    plug is in, by its own port's word (`Body.plugged_seat`): what the other
-    robot's charge reads a station held by (`_bay_holder`)."""
+    its reported pose -- nothing on the floor or dead, which cannot report
+    itself (above: its reckoning runs on through a fall) -- and the seat of
+    the station its plug is in, by its own port's word (`Body.plugged_seat`):
+    what the other robot's charge reads a station held by (`_bay_holder`)."""
     down, dead = self.down(), self.dead is not None
     resting = bool(self.body.resting)
-    says = {"said": None if dead else tuple(self.body.pose_xy()),
+    says = {"said": None if down or dead else tuple(self.body.pose_xy()),
             "plugged": self.body.plugged_seat()}
     if not (down or dead or resting or self.body.posture != "standing"
             or self.body.making_way is not None):
