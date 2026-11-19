@@ -1064,9 +1064,8 @@ save a filmstrip PNG named after the script.
   21) and ⚠ tries the cup's pick again where its descent is held back on
   the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
   over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
-  (round 5; 14 beside round 6's lever, taken back out), held out 15, the
-  carry walker 0 (each miss, and the reference before read beside it:
-  SimNotes).
+  (round 5), held out 15, the carry walker 0 (each miss, and round 4's
+  reference read beside it: SimNotes).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
