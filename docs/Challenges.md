@@ -515,11 +515,8 @@ eased before it is let go), 15 of 32 (held out, 11 of 32); a fourth (round
 again where its descent is held back on the lid), 16 of 32 (held out,
 19 of 32); a fifth (round 5: the plate brought back in two moves, the last
 to no nearer the body's middle than 0.25 m), 15 of 32 (held out, 15 of 32;
-SimNotes has round 4's reference read beside it). Round 6's fork gripped
-3 cm along its handle toward its head laid more of the bar's draws than
-round 5's reference read beside it on its own pod and pool, and fewer held
-out, and was taken back out: the reference is round 5's (SimNotes has the
-reading).
+SimNotes has round 4's reference read beside it). Round 6's lever was read
+and taken back out: the reference is round 5's (SimNotes, round 6).
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 
