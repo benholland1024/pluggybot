@@ -31,22 +31,21 @@ It writes two texts:
   entry is written for the robots from them.
 - **Never names the robots, an issue number, a PR or a file of ours** in
   the entry.
-- Never edits the main checkouts (`~/pluggybot`, `~/rooftop-media-2026`):
+- Never edits the main checkouts (`~/pluggybot`, `~/rooftop-robotics`):
   Ben runs tests and missions there. Work in a worktree
   (`~/pluggybot-worktrees/release-<date>`), created with `git -C`, one at a
-  time. The site's checkout kept its folder name when the repo was renamed
-  `rooftop-robotics` (rooftop-robotics #524), so the commands below use both
-  names: `<checkout>` is the folder (`~/pluggybot`, `~/rooftop-media-2026`)
-  for git, and `<repo>` is the repo (`pluggybot`, `rooftop-robotics`) for
-  `gh api`. ⚠ Never the old name in `gh api`: GitHub redirects a read, but
-  a `PATCH` or a `POST` sent to it may not arrive.
+  time. Below, `<checkout>` is a main checkout (`~/pluggybot`,
+  `~/rooftop-robotics`) for git, and `<repo>` is a repo (`pluggybot`,
+  `rooftop-robotics`) for `gh api`. ⚠ Never the site's old name,
+  `rooftop-media-2026`, in `gh api` (rooftop-robotics #524): GitHub
+  redirects a read, but a `PATCH` or a `POST` sent to it may not arrive.
 
 ## 1. Is there anything to release?
 
 ```sh
-git -C ~/pluggybot fetch -q origin && git -C ~/rooftop-media-2026 fetch -q origin
+git -C ~/pluggybot fetch -q origin && git -C ~/rooftop-robotics fetch -q origin
 git -C ~/pluggybot rev-list --count origin/main..origin/staging
-git -C ~/rooftop-media-2026 rev-list --count origin/main..origin/staging
+git -C ~/rooftop-robotics rev-list --count origin/main..origin/staging
 ```
 
 Both 0: nothing to release; say so and stop. Either repo may be 0 alone: then
