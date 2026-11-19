@@ -347,17 +347,6 @@ PASS_CUP_AT = (0.066, 0.209)
 #: (SimNotes, "The place laid from the pass"); each half asks a posture that
 #: reaches both its ends standing.
 PASS_FORK_MID = 0.33
-#: How far along its handle toward its head the fork is gripped, m from its
-#: tag (the handle's middle), along its axis as the tag's edge reads it:
-#: gripped at the tag, its head's tip lay 0.13 m from the grip and the
-#: hand-over slid it 1-2 cm further out, past the self-filter's 0.12 m
-#: (`mission.HELD_DROP_M`), and the robot's own sensors walled it in
-#: (SimNotes, "The place laid from the pass").
-PASS_FORK_HEAD = 0.03
-#: Where the fork's hand is put down behind the card's tag, m, for a fork
-#: gripped at its tag: gripped `PASS_FORK_HEAD` toward its head, the hand
-#: goes that much further and the fork rests where it did.
-PASS_FORK_AT = 0.18
 #: Where the plate's pull-back off the pass ends, m ahead: from 0.50 m (the
 #: pass's face 0.39 ahead) to here by `move_hand` (nearer the pass the
 #: hand-over struck it; by `pull` that far it bowed and fell).
@@ -491,9 +480,9 @@ PASS_FORK = '''def lay_fork():
     py = read("spot.y")
   c = cos(a)
   e = sin(a)
-  reach("left", px + %(fork_head)g * c, py + %(fork_head)g * e, gz + 0.06, 0.5 * c, 0.5 * e, -0.866, e, -c, 0)
+  reach("left", px, py, gz + 0.06, 0.5 * c, 0.5 * e, -0.866, e, -c, 0)
   if spot(92):
-    go("left", read("spot.x") + %(fork_head)g * c, read("spot.y") + %(fork_head)g * e, gz + 0.06, 20, 0)
+    go("left", read("spot.x"), read("spot.y"), gz + 0.06, 20, 0)
   pull("left", 0, 0, -1, 12, read("left.z") - gz, give=0)
   if not close_hand("left", 25):
     open_hand("left")
@@ -505,7 +494,7 @@ PASS_FORK = '''def lay_fork():
   to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - %(fork_put)g, read("spot.y") + 0.146, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.146, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   open_hand("left")
   wait(0.4)
@@ -532,7 +521,6 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
            "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
-           "fork_head": PASS_FORK_HEAD, "fork_put": round(PASS_FORK_AT - PASS_FORK_HEAD, 4),
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
            "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
