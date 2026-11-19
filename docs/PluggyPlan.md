@@ -19,7 +19,7 @@ through five processes (reuse what it has, try and react, follow
 instructions, copy, and imagine first). It chooses among them, and that
 choice is measured (#487, #465). The wheeled rover that came before was
 deleted in #376; the tag `rover-final` is the last commit that runs it. The
-website side (`rooftop-media-2026`, "PluggyWorld") streams that world live
+website side (`rooftop-robotics`, "PluggyWorld") streams that world live
 and lets a visitor talk to the robot.
 
 ## What this project is for
@@ -211,4 +211,4 @@ and `protocol/parts.json` is the site's parts page.
 - `Observatory.md` — the deployed world's periods: what was running when.
 - `Testing.md` — pinning a rule without paying for a mission.
 - `Webserver.md` and `protocol/README.md` — the stream, and its versioning.
-- `rooftop-media-2026/docs/pluggyworld.md` — the website's design doc.
+- `rooftop-robotics/docs/pluggyworld.md` — the website's design doc.

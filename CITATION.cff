@@ -6,7 +6,7 @@ authors:
   - family-names: Holland
     given-names: Ben
 repository-code: "https://github.com/benholland1024/pluggybot"
-url: "https://rooftop-media.org/experiments/pluggyworld"
+url: "https://rooftop-robotics.org/experiments/pluggyworld"
 license: Apache-2.0
 abstract: >-
   PluggyBot is the simulation behind PluggyWorld. Two humanoid robots live

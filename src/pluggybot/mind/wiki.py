@@ -71,7 +71,7 @@ SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
 SEARCH_URL = "https://en.wikipedia.org/w/rest.php/v1/search/page?q={q}&limit=3"
 #: Wikimedia's API policy asks for a descriptive User-Agent with a contact;
 #: a generic one is throttled or refused.
-USER_AGENT = "PluggyBot/1.0 (https://rooftop-media.org/pluggyworld) python-urllib"
+USER_AGENT = "PluggyBot/1.0 (https://rooftop-robotics.org/experiments/pluggyworld) python-urllib"
 #: Wall seconds one request may take. Inside the decision's own deadline
 #: (`overseer.CALL_TIMEOUT_S`, 300), because the read runs on the decision's
 #: worker thread after the answer parsed: a slow Wikipedia costs the robot

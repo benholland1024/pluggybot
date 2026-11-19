@@ -2,7 +2,7 @@
 """Read the six qualities off the deployed world (issue #155, the sixth
 #265; Evaluation.md §3, "The six qualities").
 
-    scripts/qualities.py --observe [--site https://rooftop-media.org] [--days 7]
+    scripts/qualities.py --observe [--site https://rooftop-robotics.org] [--days 7]
     scripts/qualities.py ... --json
 
 `--observe` reads the ONE route the deployed world is read through
@@ -154,7 +154,7 @@ def main(argv=None) -> int:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--observe", action="store_true", help="read the deployed world")
-  ap.add_argument("--site", default="https://rooftop-media.org")
+  ap.add_argument("--site", default="https://rooftop-robotics.org")
   ap.add_argument("--days", type=int, default=7)
   ap.add_argument("--json", action="store_true", help="print the readings as JSON")
   args = ap.parse_args(argv)
