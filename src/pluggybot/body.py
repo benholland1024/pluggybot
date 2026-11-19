@@ -113,8 +113,9 @@ def plugged_among(bodies, x: float, y: float) -> str | None:
 def nearest_by_seat(bodies, x: float, y: float, width: float) -> float | None:
   """How far off the seat (x, y) the nearest of `bodies` is, where it says
   it is or where it is placed, within `width` (`Body.peer_by_seat`), or
-  None."""
-  near = [d for b in bodies
+  None. One that says its plug is in a station is at that one's seat: by
+  its own port's word (`plugged_among`), never by where it says it stands."""
+  near = [d for b in bodies if b.plugged is None
           for d in (math.hypot(b.x - x, b.y - y),
                     math.inf if b.said is None else math.dist(b.said, (x, y)))
           if d < width]

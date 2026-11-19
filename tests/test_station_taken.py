@@ -296,6 +296,102 @@ def test_a_robot_on_the_floor_says_nothing_of_where_it_is():
   assert luca.body.peer_by_seat(*SEATS[LOBBY]) == pytest.approx(0.0)
 
 
+def test_a_plug_in_waited_for_leaves_the_while_by_the_seat_for_its_unplug():
+  """Rowan plugs in as Luca's dock looks, and Luca waits for its plug; Rowan
+  unplugs and stands on the seat a moment, turning away (an unplug takes 26
+  s), and Luca's next dock is out of sight again: still a station taken --
+  the while a robot by the seat holds it is its own, never spent by the plug
+  -- and Luca plugs in once Rowan goes (the first shape searched there)."""
+  luca, rowan = _pair(rowan_at=None)
+  _live(luca, rowan, 1)
+  rowan.body.x, rowan.body.y = 30.0, 0.0                # ...not by the seat yet
+  rowan.body.body_xy = None
+  dock = luca.body.dock_routine
+  marks = {}
+
+  def docking(*a, **kw):
+    if not marks:                                       # its first look: Rowan plugs in
+      marks["plugged"] = float(luca.data.time)
+      rowan.body.x, rowan.body.y = 20.702, -5.574
+      rowan.body.body_xy = ROWAN_BODY
+      rowan.body.on_charger = True
+    return (yield from dock(*a, **kw))
+  luca.body.dock_routine = docking
+
+  def hook():
+    t = float(luca.data.time)
+    if "plugged" in marks and rowan.body.on_charger and t >= marks["plugged"] + 200.0:
+      rowan.body.on_charger = False                      # unplugged, still on the seat
+      marks["unplugged"] = t
+    if "unplugged" in marks and rowan.body.body_xy is not None and t >= marks["unplugged"] + 30.0:
+      rowan.body.x, rowan.body.y = rowan.home_pose[0], rowan.home_pose[1]
+      rowan.body.body_xy = None
+  luca.body.step_hooks.append(hook)
+  assert luca.body.run(luca.go_charge_routine()) is True, luca.log[-4:]
+  assert luca.body.lost_at == [], "searched behind Rowan's unplug"
+  assert _said(luca, "WAIT: Rowan is plugged in at the charging station")
+  assert _said(luca, "by the charging station, which I do not see")
+
+
+def test_a_robot_by_the_seat_that_plugs_in_is_waited_for_as_one_plugged_in():
+  """...and one by the seat that plugs in as Luca waits on it a while is a
+  robot plugged in: said so, and waited for as long as a charge, never the
+  while's 120 s it was first said."""
+  luca, rowan = _pair(rowan_at=None)
+  _live(luca, rowan, 1)
+  t0 = float(luca.data.time)
+
+  def hook():
+    if float(luca.data.time) >= t0 + 30.0 and not rowan.body.on_charger:
+      rowan.body.on_charger = True
+  luca.body.step_hooks.append(hook)
+  assert luca.body.run(luca.go_charge_routine()) is False
+  bound, _ = luca.wait_bound("charge", 0.0, 0.0)
+  assert float(luca.data.time) - t0 >= bound, "the while's 120 s ended a wait for a plug"
+  assert _said(luca, "WAIT: Rowan is plugged in at the charging station -- waiting up to 1386 s")
+  assert luca.body.lost_at == [] and "Rowan was plugged in at it" in luca.charge_failure
+
+
+def test_no_lost_search_behind_a_plug_in_made_as_the_robot_looked_round():
+  """Walks that never got there are a robot lost too (#572) -- but never
+  searched for behind a robot that plugged in there as this one looked
+  round after its second walk: the charge ends, naming it, and the mind
+  decides again."""
+  luca, rowan = _pair(rowan_at=None)
+  rowan.body.x, rowan.body.y = 30.0, 0.0
+  rowan.body.body_xy = None
+  rounds = []
+
+  def far(x, y, timeout=90.0, stop=None):
+    luca.body.last_drive = {"why": "no_route", "goal": (float(x), float(y)),
+                            "seconds": 1.0, "shortM": 6.0}
+    return False
+    yield
+
+  def looks():
+    rounds.append(1)
+    if len(rounds) == 2:                                # ...plugged in as it looked again
+      rowan.body.x, rowan.body.y = ROWAN_BODY
+      rowan.body.body_xy = ROWAN_BODY
+      rowan.body.on_charger = True
+    return
+    yield
+  luca.body.go_to_routine, luca.body.look_around_routine = far, looks
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert luca.body.lost_at == [], "a lost search behind a robot plugged in"
+  assert "Rowan was plugged in at it" in luca.charge_failure, luca.charge_failure
+
+
+def test_a_robot_plugged_in_elsewhere_is_never_by_this_seat():
+  """Where a robot plugged in at the mall says it stands is nothing to the
+  lobby's seat: its plug puts it at the mall, whatever its belief."""
+  luca, rowan = _pair(rowan_at="station_mall")
+  rowan.body.x, rowan.body.y = SEATS[LOBBY][0] + 0.2, SEATS[LOBBY][1]   # its belief, lost
+  rowan.body.body_xy = (SEATS["station_mall"][0], SEATS["station_mall"][1])
+  assert luca.body.peer_by_seat(*SEATS[LOBBY]) is None
+  assert luca.body.plugged_on(*SEATS["station_mall"]) == rowan.root
+
+
 # ---- the guards: a robot really lost still searches --------------------------
 
 
@@ -330,8 +426,9 @@ def test_a_station_out_of_sight_is_held_by_the_other_by_its_seat_a_while_at_most
   assert luca.body.run(luca.go_charge_routine()) is False
   assert lc.UNSEEN_WAIT_S <= float(luca.data.time) - t0 < lc.UNSEEN_WAIT_S + 5.0
   assert luca.body.lost_at == ["station"], luca.log[-4:]
-  assert _said(luca, "WAIT: Rowan is standing at rest by the charging station -- waiting up to "
-               f"{lc.UNSEEN_WAIT_S:.0f} s"), luca.log
+  assert _said(luca, "WAIT: Rowan is standing at rest by the charging station, which I do not "
+               f"see -- waiting up to {lc.UNSEEN_WAIT_S:.0f} s"), luca.log
+  assert _said(luca, "WAIT: Rowan still stood by the charging station after 12"), luca.log
   assert luca.charge_failure == f"no charge contact ({NOT_SEEN})", luca.charge_failure
 
 

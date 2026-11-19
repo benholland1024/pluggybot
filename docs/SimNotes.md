@@ -10975,20 +10975,25 @@ dead robot's plug holds the station too: its one plug is in that port until
 the robot is stood up, and unsaid, a dead body plugged in hid the tags as a
 live one did. And a station not in sight from its standoff, with the other
 robot within a body's width of its seat (`SEAT_HELD_M`, 0.54 m) where it
-says it stands or where this robot sees it (`Body.peer_by_seat`), is taken,
-not lost -- "by" it, said `Rowan is standing by the charging station`,
-judged after the way in and the seat as they always were, so one at rest on
-the way in is still asked off (#455) -- waited for, or passed with `free`,
-for `UNSEEN_WAIT_S` (120 s) at most from when the dock found it so: one on
-the seat with its plug out is plugging in or leaving (the dock from the
-standoff takes 27.0 s, 40.6 s at most of 36; the unplug 25.9 s, 27.7 at
-most), and one only its own word puts there may be wrong. Then it is
-searched for, once a charge; found, the station is in sight and nobody's
-word holds it so. A station never in sight that the way in or the seat
-holds to the wait's bound, nobody plugged in, is searched for after all (a
-robot lost and never searched dies flat). A wait the bound ends with the
-other still plugged in ends the charge, never searched: no loop within one
-decision, and the mind decides again.
+says it stands or where this robot sees it (`Body.peer_by_seat`; never one
+whose plug is in a station, which is at that seat), is taken, not lost: the
+way in and the seat are read first as they always were, so one at rest on
+the way in is still asked off (#455), and a robot by the seat is waited for
+on its own (`_out_of_sight_routine`), out of its way, said `WAIT: Rowan is
+standing by the charging station, which I do not see -- waiting up to 120 s`,
+or passed with `free` -- for `UNSEEN_WAIT_S` (120 s) a station a charge at
+most: one on the seat with its plug out is plugging in or leaving (the dock
+from the standoff takes 27.0 s, 40.6 s at most of 36; the unplug 25.9 s,
+27.7 at most), and one only its own word puts there may be wrong. Gone, the
+dock goes again; plugged in, #346's wait takes over, said so; still there,
+`WAIT: Rowan still stood by the charging station after 120 s -- I look for
+it myself`, and the station is searched for, once a charge. No search
+begins behind a robot that says it is plugged in there, after a dock or
+after walks that never got there. A station never in sight that the way in
+or the seat holds to the wait's bound, nobody plugged in, is searched for
+after all (a robot lost and never searched dies flat). A wait the bound
+ends with the other still plugged in ends the charge, never searched: no
+loop within one decision, and the mind decides again.
 
 **A body's width, measured** (`ring731.py`, the pair in the house, Rowan
 stood round the lobby's seat, the dock's colour imager and the search's
@@ -11005,7 +11010,7 @@ lost, searched as before.
 
 **Measured.** The rules pinned on two stub lifecycles wired as the pair's
 bodies are (`tests/test_station_taken.py`: #731's five lost poses with the
-live beliefs; 24 of its 28 fail on the tree before, its three guards --
+live beliefs; 28 of its 32 fail on the tree before, its three guards --
 a robot really lost still searches -- pass on both, and so does a found
 search's walk in). A seeded fuzz of the
 stub pair (`tests/fuzz_station_taken.py`: charges waiting or passing with
