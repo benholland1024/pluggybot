@@ -1924,6 +1924,16 @@ class HumanoidBody(Body):
     its plug (`activity.station`) -- the BMS reads the current."""
     return self.mission.plugged_in()
 
+  def plugged_seat(self):
+    """The seat of the station whose port catch holds its plug
+    (`HumanoidMission.plugged_at`), off that station's commissioned frame
+    as `charge_seat` puts it, or None."""
+    from pluggybot.activity import station as st
+    name = self.mission.plugged_at()
+    if name is None or name not in self.mission.stations:
+      return None
+    return self.mission.stations[name][0].to_world(st.SEAT_X, st.SEAT_Y)
+
   def anchor_at_dock(self) -> None:
     """The station fixes its belief as it charges (#476), off the look it
     plugged in by (`_fix_at`): a look in the frame the fix left is no look."""
@@ -1970,6 +1980,12 @@ class HumanoidBody(Body):
 
   def peer_on_the_goal(self, x, y):
     return self.mission.peer_on_the_goal(x, y)
+
+  def plugged_on(self, x, y):
+    return self.mission.plugged_on(x, y)
+
+  def peer_by_seat(self, x, y):
+    return self.mission.peer_by_seat(x, y)
 
   def watch_for_peers(self, points):
     return self.mission.watch_for_peers(points)

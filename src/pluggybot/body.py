@@ -63,6 +63,14 @@ TOPPLE_HOLD_S = 2.0
 #: the robot stood: the loop then searches (`lost_routine`), and the
 #: charge's failure, History and a stranded death quote it.
 NOT_SEEN = "station not seen"
+#: Two seats this near, m, are one station's (`Body.plugged_on`, #731):
+#: every robot puts a seat off the same commissioned station.
+SAME_SEAT_M = 0.05
+#: ⚠ A BODY'S WIDTH, m (#731, `Body.peer_by_seat`): the humanoid's with its
+#: hands hanging, twice its 0.27 m half-width (`HumanoidMission`'s sizes).
+#: Another robot whose middle stands nearer a station's seat than this,
+#: where it says it is or where this robot's sensors place it, is on it.
+SEAT_HELD_M = 0.54
 
 
 @dataclass(frozen=True)
@@ -100,7 +108,10 @@ class KeepClear(NamedTuple):
   is DEAD (issue #455): it lies where it died until the world stands it
   up, so it is neither waited for nor asked. And whether, standing or
   walking, it is where the asker's LIDAR SAW it (#675): at its body, never
-  where it says it is."""
+  where it says it is. And what it SAYS of itself (#731): where it is, its
+  reported pose, whatever (x, y) places it (None where it says nothing: a
+  dead one), and the seat of the station whose catch holds its plug, by its
+  own port's word (`Body.plugged_seat`), or None."""
   x: float
   y: float
   down: bool = False
@@ -108,6 +119,8 @@ class KeepClear(NamedTuple):
   resting: bool = False
   dead: bool = False
   seen: bool = False
+  said: tuple | None = None
+  plugged: tuple | None = None
 
 
 class Body(abc.ABC):
@@ -380,6 +393,13 @@ class Body(abc.ABC):
   def charging(self) -> bool:
     """Its pack takes the charger's current: the ELECTRICAL criterion."""
 
+  @abc.abstractmethod
+  def plugged_seat(self) -> tuple[float, float] | None:
+    """The seat of the station whose catch holds its plug, (x, y): that
+    station as it was commissioned, which every robot knows -- or None, its
+    plug in none. Its own port's word (#731), what another robot is told
+    (`KeepClear.plugged`), never the lifecycle's `docked`."""
+
   #: Held on the charger: nothing it does while set is counted as travel.
   docked: bool
 
@@ -504,6 +524,20 @@ class Body(abc.ABC):
   def peer_on_the_goal(self, x: float, y: float) -> float | None:
     """How far off the nearest robot standing ON this goal is -- near
     enough that arrival there is impossible -- or None (issue #313)."""
+
+  @abc.abstractmethod
+  def plugged_on(self, x: float, y: float) -> str | None:
+    """The root of another robot that SAYS it is plugged in at the station
+    whose seat is (x, y) (`KeepClear.plugged`, #731), wherever this robot's
+    belief places its body -- or None."""
+
+  @abc.abstractmethod
+  def peer_by_seat(self, x: float, y: float) -> float | None:
+    """How far off the seat (x, y) of a station the nearest other robot
+    stands where its own report (`KeepClear.said`) or this robot's own
+    sensors (a `KeepClear`'s x, y: #455, #675) put it within a body's
+    width of that seat -- or None (#731): a station not in sight from its
+    standoff with one there is taken, never a robot lost."""
 
   @abc.abstractmethod
   def watch_for_peers(self, points) -> float | None:
@@ -933,6 +967,7 @@ class StubBody(Body):
   stuck_after_s = 2.0
   held_pitch = 0.0
   head_camera = None
+  SEAT_HELD_M = SEAT_HELD_M
 
   @staticmethod
   def world():
@@ -1186,6 +1221,10 @@ class StubBody(Body):
   def charging(self) -> bool:
     return self.on_charger
 
+  def plugged_seat(self):
+    """Its rack's seat while a test has it on the charger."""
+    return self.charge_seat() if self.on_charger else None
+
   def anchor_at_dock(self) -> None:
     pass
 
@@ -1239,6 +1278,23 @@ class StubBody(Body):
   def peer_on_the_goal(self, x, y):
     near = min((math.dist(p, (x, y)) for p in self.peers_on), default=math.inf)
     return near if near <= 0.45 else None
+
+  def _bodies(self) -> list[KeepClear]:
+    return [KeepClear(*where()) for where in self.others]
+
+  def plugged_on(self, x, y):
+    """Off what the other robots say (`others`), as a body's own is."""
+    return next((b.root for b in self._bodies() if b.plugged is not None
+                 and math.dist(b.plugged, (x, y)) < SAME_SEAT_M), None)
+
+  def peer_by_seat(self, x, y):
+    """Off where the other robots are placed and say they are (`others`),
+    within the humanoid's body's width (`SEAT_HELD_M`)."""
+    near = [d for b in self._bodies()
+            for d in (math.dist((b.x, b.y), (x, y)),
+                      math.inf if b.said is None else math.dist(b.said, (x, y)))
+            if d < self.SEAT_HELD_M]
+    return min(near) if near else None
 
   def watch_for_peers(self, points):
     return None

@@ -30,7 +30,7 @@ from scipy import ndimage
 from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
-from pluggybot.body import KeepClear
+from pluggybot.body import SAME_SEAT_M, SEAT_HELD_M, KeepClear
 from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
@@ -351,6 +351,9 @@ class Navigator:
   INFLATION_CELLS = 7
   OTHER_ROBOT_CELLS = OTHER_ROBOT_CELLS
   DOWN_ROBOT_CELLS = DOWN_ROBOT_CELLS
+  #: A body's width (`body.SEAT_HELD_M`): another robot nearer a station's
+  #: seat stands on it (`peer_by_seat`, #731).
+  SEAT_HELD_M = SEAT_HELD_M
   PEER_STOP_AHEAD_M = PEER_STOP_AHEAD_M
   PEER_STOP_HALF_M = PEER_STOP_HALF_M
   PEER_CLEARANCE_M = PEER_CLEARANCE_M
@@ -1446,6 +1449,28 @@ class Navigator:
     """
     return min((d for d in (on_the_goal(self, b, wx, wy) for b in self._bodies())
                 if d is not None), default=None)
+
+  def plugged_on(self, wx: float, wy: float) -> str | None:
+    """`Body.plugged_on`: the root of another robot that says it is plugged
+    in at the station whose seat is (wx, wy) -- its own port's word, carried
+    as its reported pose is (`KeepClear.plugged`, #731) -- or None. Never
+    where this robot's belief places its body: through Luca's belief 0.6-0.8
+    m and 12-15 deg off, Rowan plugged in at the lobby's station lay 0.6 m
+    off its seat, and the station read free (SimNotes, "A station the other
+    robot is plugged into")."""
+    return next((b.root for b in self._bodies() if b.plugged is not None
+                 and math.dist(b.plugged, (wx, wy)) < SAME_SEAT_M), None)
+
+  def peer_by_seat(self, wx: float, wy: float) -> float | None:
+    """`Body.peer_by_seat`: how far off the seat (wx, wy) the nearest other
+    robot is where it says it is (`KeepClear.said`) or where this robot's
+    own sensors place it (its x, y: its body seen, #675, or lying still,
+    #455), within `SEAT_HELD_M` -- or None."""
+    near = [d for b in self._bodies()
+            for d in (math.hypot(b.x - wx, b.y - wy),
+                      math.inf if b.said is None else math.hypot(b.said[0] - wx, b.said[1] - wy))
+            if d < self.SEAT_HELD_M]
+    return min(near) if near else None
 
   def robot_at(self, ahead: float, left: float) -> bool:
     """Is the point `ahead` m ahead of this body's centre and `left` m to
