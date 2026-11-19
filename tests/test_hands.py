@@ -487,6 +487,7 @@ def _bare_reach():
   r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
+  r._shove = {s: 0.0 for s in hm.SIDES}
   r.slack = {s: True for s in hm.SIDES}
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
@@ -778,12 +779,16 @@ def test_a_second_retreat_partway_home_leaves_the_way_be():
 
 def _stepped(r):
   """A bare reach whose loop (`Reach._update`) runs: its senses, its trim and
-  its drivers stubbed out."""
+  its drivers stubbed out -- the force its arms read the test's, nothing
+  pushing (read off the stubs' zero torques, a hanging arm's own weight read
+  as a hand pressing down: #693's live family's rule holds a way home on it)."""
   from types import SimpleNamespace
   n = len(hm.JOINT_NAMES)
   r.tau, r.qd, r.friction = np.zeros(n), np.zeros(n), {}
   r.force = {s: np.zeros(3) for s in hm.SIDES}
+  r.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
   r._pose = lambda arms=None: None
+  r._feel = lambda: None
   r._trim = lambda dt: None
   r.arms = {s: SimpleNamespace(command=lambda *a: None) for s in hm.SIDES}
   return r
@@ -1604,6 +1609,159 @@ def test_a_transient_past_the_line_while_the_body_takes_its_posture_walks_on():
     r.feel(past)
     r._update(0.01)
   assert r.phase["left"] == "blocked"
+
+
+def _walking_home(phase="home"):
+  """`_walking_out`'s left arm on its way HOME instead, in joint space, its
+  command ahead of where its drivers read it, the hand out to the robot's
+  left front by its senses (0.4, 0.3, 0.9) -- or its rest commanded and not
+  yet read there (`phase` "rest", `homing`)."""
+  r, rc = _walking_out(phase)
+  r.q_to["left"] = r.rest["left"].copy()
+  # ...its command far enough off its rest that no hold a test waits on
+  # (`HOME_TIP_S`, three times over) walks it home
+  r.q_cmd["left"] = r.rest["left"] + max(1.0, 3.5 * rc.HOME_TIP_S * rc.JOINT_RATE)
+  r.homing["left"] = phase in ("home", "rest")
+  if phase == "rest":
+    r.q_cmd["left"] = r.rest["left"].copy()
+  return r, rc
+
+
+#: A push away from the body at the hand (0.4, 0.3, 0.9) -- level, from the
+#: stance's middle out through it -- and a press straight down there.
+AWAY, DOWN = np.array([0.8, 0.6, 0.0]), np.array([0.0, 0.0, -1.0])
+
+
+@pytest.mark.parametrize("phase", ["home", "rest"])
+def test_a_way_home_whose_reading_tips_the_body_away_from_the_hand_is_held_where_its_arm_is(
+    phase, monkeypatch):
+  """#693's live family (the 11-18 wake's 171 flights at their live draws,
+  T1's, flown on 0fb85dc2: 12 fell in a step's hand-over): after a pull
+  toward the body no part of the arm is ahead of the front, its way home is
+  judged straight, and the open jaws swung forward and down through the knob
+  or lever just pulled and onto the counter's top, the root went 0.15-0.29 m
+  back and the robot over backward -- 0.5-1.6 s after the arm's own reading
+  had tipped the body away from its hand past 20 N m. On its way to its rest
+  -- in joint space, or its rest commanded and not yet read there -- an arm
+  whose reading tips the body away from its hand past `HOME_TIP_NM`, for
+  `HOME_TIP_S` running, is held where its drivers read it, as a way home
+  held at its rest is (`HELD_S`): pressing on nothing, then raised and sent
+  home again, its lifts spent left there."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(phase=phase)
+  read = r.sensed[r.self_model.arm["left"]].copy()
+  past = 1.05 * rc.HOME_TIP_NM / 0.9 * AWAY       # past the line at the hand's height, 0.9 m
+  ticks = round(rc.HOME_TIP_S / 0.01)
+  assert ticks >= 3, "a hold longer than a transient's two ticks (#708)"
+  for k in range(ticks - 1):
+    r.feel(past)
+    r._update(0.01)
+    assert not r.held("left"), k
+  r.feel(past)
+  r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and r.home_over("left")
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read), \
+    "still pressed on toward its rest"
+  left = [q for s, q, k in r.sent if s == "left"]
+  assert np.allclose(left[-1], read), "commanded on past where its drivers read it"
+  for _ in range(20):
+    r.feel(past)
+    r._update(0.01)
+  assert r.held("left") and np.allclose(r.q_cmd["left"], read), "it moved on its own"
+
+
+def test_a_way_home_pressing_down_at_the_hands_reach_is_held_too(monkeypatch):
+  """...a press down at the hand's reach tips the body away from it as a
+  push does: the drawer's jaw on the knob just pulled read 35-80 N down and
+  5-26 N away."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home()
+  reach_m = 0.5                                     # the hand's level distance, (0.4, 0.3)
+  for _ in range(round(rc.HOME_TIP_S / 0.01)):
+    r.feel(1.05 * rc.HOME_TIP_NM / reach_m * DOWN)
+    r._update(0.01)
+  assert r.held("left")
+
+
+def test_a_way_home_reading_under_the_line_or_toward_the_body_walks_on(monkeypatch):
+  """Under the line, or tipping the body TOWARD the hand however hard -- a
+  gripper driven into its own torso on its line out reads a pull toward the
+  body, 100-260 N in the drawer's flights, and a press up -- an arm walks
+  on home; and a transient past the line shorter than `HOME_TIP_S` is no
+  shove (#708's gate), its count begun again once it falls back under."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  line = rc.HOME_TIP_NM / 0.9
+  for push in (0.95 * line * AWAY, -10.0 * line * AWAY, 10.0 * line * -DOWN,
+               3.0 * line * AWAY + 3.0 * line * 0.9 / 0.5 * 1.01 * -DOWN):
+    r, _ = _walking_home()
+    ahead = r.q_cmd["left"].copy()
+    r.feel(push)
+    for _ in range(3 * round(rc.HOME_TIP_S / 0.01)):
+      r._update(0.01)
+    assert r.phase["left"] == "home" and np.abs(r.q_cmd["left"] - ahead).max() > 0.0, push
+  r, _ = _walking_home()
+  for _ in range(3):
+    for _ in range(round(rc.HOME_TIP_S / 0.01) - 1):
+      r.feel(1.05 * line * AWAY)
+      r._update(0.01)
+    r.feel(0.5 * line * AWAY)
+    r._update(0.01)
+    assert r.phase["left"] == "home"
+
+
+@pytest.mark.parametrize("phase", ["move", "joints", "carry_way", "rest", "held", "carried"])
+def test_only_a_way_to_the_rest_is_held_for_tipping_the_body_away(phase, monkeypatch):
+  """The rule is a way home's to its REST alone: a way out is #708's (a tip
+  toward the hand), an arm walked joint by joint is the motor level's, a
+  carry's way to its carry pose (#682) ends at its pose as before, and an
+  arm at rest, held or carried has no way home under way."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(phase="home" if phase == "carry_way" else phase)
+  if phase == "carry_way":
+    r.carry_q["left"] = r.rest["left"] + 0.4
+    r.q_to["left"] = r.carry_q["left"].copy()
+  r.homing["left"] = phase == "carry_way"
+  if phase == "held":
+    r.q_to["left"] = r.q_cmd["left"].copy()       # held where its drivers read it (`_ease`)
+  q0 = r.q_cmd["left"].copy()
+  for _ in range(3 * round(rc.HOME_TIP_S / 0.01)):
+    r.feel(3.0 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  if phase == "held":
+    assert np.allclose(r.q_cmd["left"], q0)
+  else:
+    assert not r.held("left"), r.phase["left"]
+
+
+def test_a_way_home_held_for_tipping_the_body_away_is_raised_and_sent_home_again(monkeypatch):
+  """...as a way home held at its rest is (`_homed`): raised `LIFT_M`
+  straight up from where its drivers put it and sent home again from there,
+  judged afresh, `LIFTS` times a way home; with another robot by, left held
+  at once (#678)."""
+  from pluggybot.humanoid import reach as rc
+  r, _ = _walking_home()
+  read = r.sensed[r.self_model.arm["left"]].copy()
+  for _ in range(round(rc.HOME_TIP_S / 0.01)):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  assert np.allclose(r.q_cmd["left"], read), "its command still pressed toward the rest"
+  sm = r._planner_model()
+  r._pose_planner(sm, None)
+  sm._set_arm("left", read)
+  at, _ = sm.grip_pose("left")
+  assert np.allclose(r.cmd["left"].pos, at) and np.allclose(r.goal["left"].pos, at + [0, 0, rc.LIFT_M])
+  # ...and with another robot by: left held where it is, never raised
+  r, _ = _walking_home()
+  r.keep_out = [(0.1, -0.61)]
+  for _ in range(round(rc.HOME_TIP_S / 0.01)):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.held("left") and r.lifted["left"] == 0
 
 
 @pytest.mark.parametrize("phase", ["joints", "home", "rest"])
