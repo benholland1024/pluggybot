@@ -1712,6 +1712,26 @@ def test_a_way_home_reading_under_the_line_or_toward_the_body_walks_on(monkeypat
     assert r.phase["left"] == "home"
 
 
+def test_an_arm_its_drivers_read_home_is_home_whatever_it_reads(monkeypatch):
+  """...an arm its drivers read home -- every joint within `HOME_RAD` of its
+  rest -- is home, its way over (`_homed`): never held there for what it
+  reads, so an arm hanging at its rest is never taken for an arm out
+  (`AT_EASE`, `NOT_OUT`: a robot with one held rests for no aside)."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(phase="rest")
+  # ...past the line all but its last tick, its drivers not yet reading it home
+  for _ in range(round(rc.HOME_TIP_S / 0.01) - 1):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.phase["left"] == "rest" and r.homing["left"], "the premise: on its way, not held"
+  # ...and read home at the tick the hold would come
+  r.sensed[r.self_model.arm["left"]] = r.rest["left"] + 0.5 * rc.HOME_RAD
+  r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+  r._update(0.01)
+  assert r.phase["left"] == "rest" and not r.homing["left"] and r.home("left")
+
+
 @pytest.mark.parametrize("phase", ["move", "joints", "carry_way", "rest", "held", "carried"])
 def test_only_a_way_to_the_rest_is_held_for_tipping_the_body_away(phase, monkeypatch):
   """The rule is a way home's to its REST alone: a way out is #708's (a tip

@@ -2425,11 +2425,13 @@ class Reach:
 
   def _shoved(self, side: str, dt: float) -> bool:
     """Whether an arm on its way to its rest -- in joint space, or its rest
-    commanded and not yet read home (`homing`) -- reads a tip of the body
-    away from its hand past `HOME_TIP_NM` for `HOME_TIP_S` running (minus
-    `_tipping`, off the force its arm reads it push with); `dt` its tick."""
+    commanded and not yet read home (`homing`, `home`) -- reads a tip of the
+    body away from its hand past `HOME_TIP_NM` for `HOME_TIP_S` running
+    (minus `_tipping`, off the force its arm reads it push with); `dt` its
+    tick."""
     homing = self.carry_q[side] is None and (
-      self.phase[side] == "home" or (self.phase[side] == "rest" and self.homing[side]))
+      self.phase[side] == "home"
+      or (self.phase[side] == "rest" and self.homing[side] and not self.home(side)))
     over = homing and -self._tipping(side) > HOME_TIP_NM
     self._shove[side] = self._shove[side] + dt if over else 0.0
     return self._shove[side] >= HOME_TIP_S - 1e-9
