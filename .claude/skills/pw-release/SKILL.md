@@ -36,7 +36,10 @@ It writes two texts:
   (`~/pluggybot-worktrees/release-<date>`), created with `git -C`, one at a
   time. The site's checkout kept its folder name when the repo was renamed
   `rooftop-robotics` (rooftop-robotics #524), so the commands below use both
-  names: the folder's for git, the repo's for `gh api`.
+  names: `<checkout>` is the folder (`~/pluggybot`, `~/rooftop-media-2026`)
+  for git, and `<repo>` is the repo (`pluggybot`, `rooftop-robotics`) for
+  `gh api`. ⚠ Never the old name in `gh api`: GitHub redirects a read, but
+  a `PATCH` or a `POST` sent to it may not arrive.
 
 ## 1. Is there anything to release?
 
@@ -59,8 +62,8 @@ For each repo, every PR merged into staging since `main`, and any commit
 that came without one:
 
 ```sh
-git -C <repo> log --merges --first-parent origin/main..origin/staging --format='%h %s'
-git -C <repo> log --no-merges --first-parent origin/main..origin/staging --format='%h %s'
+git -C <checkout> log --merges --first-parent origin/main..origin/staging --format='%h %s'
+git -C <checkout> log --no-merges --first-parent origin/main..origin/staging --format='%h %s'
 gh api repos/benholland1024/<repo>/pulls/<N> --jq '.title, .body'
 ```
 
