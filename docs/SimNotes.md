@@ -7892,7 +7892,9 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), seven times, and has not met it. What developing it took, each
+below), seven times, and has not met it (the reference as it stands, round
+5's, read 14 of 32 beside round 6's lever, on its tree and pod). What
+developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X and 7742,
 Xeon Gold 6138, osmesa, each draw its own noise; rows in
 `~/pluggybot-training/loop-1113/l4-shelf/`, round 3's in
@@ -8070,7 +8072,10 @@ Xeon Gold 6138, osmesa, each draw its own noise; rows in
   changed: its volume is Ben's call 5 on #682): the plate lost 0 of 32, the
   fork 0 of 32 (its own base 6). The walk to the place's standoff is no
   longer insisted on (`if not drive_to(...)`): stopped 0.1-0.4 m short, it
-  goes on to the card's own steps.
+  goes on to the card's own steps. Round 6 (below) measured the fork's
+  walls on its leg flown alone from the tour (9 of 64) and none in 64 whole
+  places, and at 0.20 m the carried fork struck the pass in 23 legs of 34
+  where 13.
 - **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
   over the tour, a fall failing the try, on walk2 and on the carry walker,
   one pod, then 32 held-out draws each, sealed by the frozen commit), and
@@ -8363,48 +8368,37 @@ Xeon Gold 6138, osmesa, each draw its own noise; rows in
     it would serve every leg that reaches from its stance.
 - **Round 6** (the loop of 11-18/19; `~/pluggybot-training/loop-1118/t6-pass6/`,
   one pod, an AMD EPYC 7742, osmesa, each draw its own noise; against round
-  5's tree it carried #713's tail, #721-#723, #726 and #728-#730). The
-  reference still grips the fork at its tag; read on this tree and pod it
-  laid 14 of the bar's 32 and 21 of a033fc7's held-out 32 (above). Each
-  lever was sized on the fork's leg flown alone from the tour, on 64 dev
-  draws (3400-3463), beside it on the same draws:
-  - **On the legs the carried fork's head lay past the self-filter.**
-    Gripped at its tag, the handle's middle, the head's tip was 0.132 m from
-    the grip at the shut (a median, read off the truth), past `HELD_DROP_M`'s
-    0.12 m, and the walk's hand-over slid the fork a further 0.8 cm out in
-    the jaws (up to 2): the robot's own sensors walled it in (9 of 64 legs),
-    and the head reached the pass's face, 0.37 m ahead -- the carried fork
-    struck the counter in 23 legs as the walk turned away, and slipped round
-    the jaws' line at the hand-over in 11. Gripped 3 cm along its handle
-    toward its head (put down 3 cm further ahead), the tip was 0.104 m from
-    the grip at the shut and 0.115 after the slide (up to 0.128): 57 legs
-    laid where 33 (27 that the reference did not lay, 3 the other way), none
-    walled, 11 struck, no fall. No other variant laid as many, and these
-    fell once or twice: 2 cm along (49), 2 cm and 0.5 cm lower (50), 40 N
-    (41, no slip but 33 struck), 2 or 3 cm along at 40 N (50, 52).
-  - **In whole places it gained less, and lost held out** (a033fc7, above:
-    20 of 32 where 14, 19 held out where 21; over the 64, 39 places where
-    35, 13 that the reference did not lay and 9 the other way). In those 64
-    places no fork's walk was walled in at either grip, where the legs from
-    the tour lost 9 forks to walls: in a place the fork is the third trip,
-    over a map the cup's and the plate's trips laid round the pass (round
-    3's 64 places were walled in 3 times). Gripped 3 cm along, the fork
-    never struck the pass (the reference 14 places) and slipped at the
-    hand-over in 6 (19), but it rode tilted 10-23 deg in the jaws to the
-    table and came down when it was let go there in 9 places (3): 5 of the
-    9 places the reference laid and it did not. As drawn, the pads meet the
-    handle's sides 1-3 cm past the grip toward its head, so a grip 3 cm
-    along pinches the fork 3-5 cm from its middle of mass (1.3 cm from the
-    tag): the likeliest reason it rode tilted, not flown apart. Eased to 5
-    N before its let-go, as the plate is, its legs laid 55 where 57.
-  - **The self-filter at 0.20 m, measured** (NOT changed: Ben's call 5): on
-    the first 34 draws the legs laid 23 where 18 and were walled in once
-    (6), but the carried fork struck the pass in 23 (13).
-  - **Named for the next round:** a fork lever sized in whole places, or on
-    the fork's leg flown after the cup's and the plate's trips, never on the
-    leg from the tour alone; a grip that keeps the head off the pass without
-    pinching the fork off its middle of mass, or a put-down that lays a
-    tilted fork flat before it is let go.
+  5's tree it carried #713's tail, #721-#723, #726 and #728-#730): the fork
+  gripped 3 cm along its handle toward its head, measured and taken back
+  out; the reference still grips it at its tag.
+  - **On the fork's leg flown alone from the tour** (64 dev draws,
+    3400-3463, beside the reference on the same draws): gripped at its tag,
+    the head's tip was 0.132 m from the grip at the shut (a median, read off
+    the truth), past `HELD_DROP_M`'s 0.12 m, and the hand-over slid the fork
+    a further 0.8 cm out in the jaws (up to 2); the robot's own sensors
+    walled it in (9 legs), and the head reached the pass's face, 0.37 m
+    ahead of the fork's stance -- it struck the counter in 23 legs as the
+    walk turned away. Gripped 3 cm along and put down 3 cm further ahead,
+    its tip was 0.104 m from the grip (up to 0.128 after the slide): 57
+    legs laid where 33 (27 the reference did not lay, 3 the other way),
+    none walled, 11 struck, no fall. Each other variant laid fewer: 2 cm
+    along 49, 2 cm and 0.5 cm lower 50, 40 N 41, 2 or 3 cm along at 40 N 50
+    and 52 (each of these fell once or twice), 0.5 cm lower alone 23 of its
+    first 34 (the reference 18), 3 cm along eased to 5 N before its let-go
+    55.
+  - **In whole places** (a033fc7's reading, above) it laid 39 of 64 where
+    the reference laid 35 (13 against 9) -- more of the bar's draws, fewer
+    held out. No fork was walled in there at either grip: the fork is a
+    place's third trip, over a map the cup's and the plate's trips laid
+    round the pass. Gripped 3 cm along it never struck the pass (the
+    reference in 14 places) and slipped at the hand-over in 6 (19), but it
+    rode tilted in the jaws to the table (10-33 deg) and came down when it
+    was let go there, in 9 places (3). As drawn, the pads meet the handle's
+    sides 1-3 cm past the grip toward its head, so the grip pinches the fork
+    3-5 cm toward the head from its middle of mass (itself 1.3 cm from the
+    tag toward the head): the likeliest reason it rode tilted, not flown
+    apart. So a fork lever is sized in whole places, or on the fork's leg
+    flown after the other two trips, never on the leg from the tour alone.
 
 ## The arms keep off the other robot (issue #678)
 
