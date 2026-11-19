@@ -5,7 +5,7 @@ A CLIENT, not a server: the sim connects OUTBOUND to a configured endpoint
 frames the v0 recorder writes -- the recorder and the publisher share one
 FrameBuilder, so a live viewer and a replayed recording see identical
 data. The sim owns no public surface; if nobody is listening, it simply
-keeps living (design doc: rooftop-media-2026/docs/pluggyworld.md).
+keeps living (design doc: rooftop-robotics/docs/pluggyworld.md).
 
 The physics step NEVER blocks on the network. The step hook builds a dict
 and put_nowait()s it on a bounded queue; a sender thread owns the socket,

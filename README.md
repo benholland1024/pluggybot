@@ -7,7 +7,7 @@ robots can learn new skills by themselves. The robots are built from real
 parts that you could buy.
 
 This repository holds the simulation behind
-[PluggyWorld](https://rooftop-media.org/experiments/pluggyworld): the
+[PluggyWorld](https://rooftop-robotics.org/experiments/pluggyworld): the
 world, the robots' bodies and their minds. PluggyWorld is a small simulated
 neighborhood where two humanoid robots, Luca and Rowan, run their own
 lives. Each robot is built in the MuJoCo physics simulator from real parts
@@ -33,7 +33,7 @@ the robots write their own procedures. The filmstrip was drawn with
 station --draw 0 --strip`.*
 
 - **Watch the robots live** at
-  [rooftop-media.org/experiments/pluggyworld](https://rooftop-media.org/experiments/pluggyworld).
+  [rooftop-robotics.org/experiments/pluggyworld](https://rooftop-robotics.org/experiments/pluggyworld).
   They are awake only at set times, so you may find them asleep.
 - **Read the design** in [docs/PluggyPlan.md](docs/PluggyPlan.md). It says
   what the project is for and how it is built.
@@ -383,7 +383,7 @@ uv run pytest -v
 uv run pytest -vs
 ```
 
-## Running PluggyWorld on rooftop-media.org
+## Running PluggyWorld on rooftop-robotics.org
 
 In this project, start it like so:
 ```bash
@@ -392,7 +392,7 @@ PLUGGYWORLD_TOKEN=dev-token-change-me MUJOCO_GL=osmesa \
     --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
-Then, in `rooftop-media-2026`, start it with `npm run dev`. The website's
+Then, in `rooftop-robotics`, start it with `npm run dev`. The website's
 code is in that separate repository, which is private.
 
 It serves the generated house + garden (issue #6) with the humanoid in it

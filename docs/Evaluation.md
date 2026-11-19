@@ -522,7 +522,7 @@ environment). With no arm named, `--overseer` (or `$PLUGGY_OVERSEER`) asks
 for a mind, and a mind is `autonomous` on its defaults — A0, origin `none` —
 which the header then names. **The deployed world is
 `autonomous`, both robots, at origin `unseeded`** (issue #206, Ben,
-2026-09-14; `rooftop-media-2026/compose.yaml`).
+2026-09-14; `rooftop-robotics/compose.yaml`).
 
 **Why `autonomous`.** Everything the mission is about runs with a mind
 only — the event map, procedures (#166), standing orders — and the
@@ -2451,7 +2451,7 @@ this repo's image never sees it.
 
 ```
 curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
-  'https://rooftop-media.org/api/pluggyworld/observe?kind=thought&days=7' \
+  'https://rooftop-robotics.org/api/pluggyworld/observe?kind=thought&days=7' \
   | jq '{commit, live, thoughts, written: [.events[] | "\(.simTime)s \(.subject): \(.detail)"]}'
 ```
 

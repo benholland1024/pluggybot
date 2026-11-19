@@ -1,12 +1,12 @@
 ---
 name: pw-release
-description: Prepare a PluggyWorld release. Gathers everything on staging since the last release in pluggybot and rooftop-media-2026, drafts the release notes for people and the changelog entry the robots read (src/pluggybot/mind/changelog.md, under its rules), commits the entry to staging, opens both repos' staging-to-main "Release" PRs (the site's first), and stops for Ben's review. Never merges or deploys. Use when Ben asks to release, cut a release, prepare the release PRs, or write the changelog entry.
+description: Prepare a PluggyWorld release. Gathers everything on staging since the last release in pluggybot and rooftop-robotics (the site), drafts the release notes for people and the changelog entry the robots read (src/pluggybot/mind/changelog.md, under its rules), commits the entry to staging, opens both repos' staging-to-main "Release" PRs (the site's first), and stops for Ben's review. Never merges or deploys. Use when Ben asks to release, cut a release, prepare the release PRs, or write the changelog entry.
 ---
 
 # /pw-release: the release PRs and the robots' changelog entry
 
 A release is two PRs, `staging` into `main`, both titled **Release**, the
-site's first (rooftop-media-2026), then the sim's (pluggybot). A push to
+site's first (rooftop-robotics), then the sim's (pluggybot). A push to
 `main` IS the deploy in both repos (GitHub Actions on the box), so merging is
 Ben's and only Ben's. This skill does everything up to that and stops.
 
@@ -34,7 +34,9 @@ It writes two texts:
 - Never edits the main checkouts (`~/pluggybot`, `~/rooftop-media-2026`):
   Ben runs tests and missions there. Work in a worktree
   (`~/pluggybot-worktrees/release-<date>`), created with `git -C`, one at a
-  time.
+  time. The site's checkout kept its folder name when the repo was renamed
+  `rooftop-robotics` (rooftop-robotics #524), so the commands below use both
+  names: the folder's for git, the repo's for `gh api`.
 
 ## 1. Is there anything to release?
 
@@ -164,7 +166,7 @@ base=staging ...`) and tell Ben it merges before the release PR.
 ## 6. Open the PRs, the site's first
 
 ```sh
-gh api repos/benholland1024/rooftop-media-2026/pulls -f title=Release -f head=staging -f base=main -F body=@site-notes.md
+gh api repos/benholland1024/rooftop-robotics/pulls -f title=Release -f head=staging -f base=main -F body=@site-notes.md
 gh api repos/benholland1024/pluggybot/pulls -f title=Release -f head=staging -f base=main -F body=@sim-notes.md
 ```
 

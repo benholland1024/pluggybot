@@ -1,10 +1,10 @@
 # The PluggyWorld wire protocol — canonical fixtures
 
 This directory is the data contract between pluggybot (the producer) and
-the `rooftop-media-2026` website (the consumer). The website repo vendors
+the `rooftop-robotics` website (the consumer). The website repo vendors
 copies of these files into its test fixtures and never imports pluggybot
 code; both repos' tests run against the same recorded artifacts. Design
-doc: `rooftop-media-2026/docs/pluggyworld.md`, § "The scene protocol" and
+doc: `rooftop-robotics/docs/pluggyworld.md`, § "The scene protocol" and
 § "Repo topology"; the website-side spec lives with its protocol issue.
 
 **Versioning.** Every artifact carries `protocolVersion`
