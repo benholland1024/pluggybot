@@ -389,3 +389,76 @@ def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
   assert [m[0] for m in back] == ["go", "go"], f"the fork is brought back by {back}"
   first, last = (float(m[1][1]) for m in back)
   assert first == solutions.PASS_FORK_MID and first - last >= 0.1, (first, last)
+
+
+def _worked(text: str, env: dict) -> float:
+  """An argument's text worked out as the language would: numbers, the
+  names in `env`, `read("x")` as env["x"], and + - * /."""
+  import operator
+  ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+         ast.Div: operator.truediv}
+
+  def value(n):
+    if isinstance(n, ast.Constant):
+      return float(n.value)
+    if isinstance(n, ast.Name):
+      return float(env[n.id])
+    if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "read":
+      return float(env[n.args[0].value])
+    if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
+      return -value(n.operand)
+    if isinstance(n, ast.BinOp) and type(n.op) in ops:
+      return ops[type(n.op)](value(n.left), value(n.right))
+    raise AssertionError(f"the fork's run works out {ast.unparse(n)}, which this pin does not follow")
+  return value(ast.parse(text, mode="eval").body)
+
+
+def test_the_pass_fork_is_gripped_toward_its_head_inside_the_self_filter():
+  """#682's stage C, round 6: the fork gripped at its tag, the handle's
+  middle, had its head's tip 0.13 m from the grip, and the walk's hand-over
+  slid it 1-2 cm further out in the jaws -- past the self-filter's
+  `HELD_DROP_M` (0.12 m), so the robot's own LIDAR and depth camera saw the
+  carried fork's head and walled it in ("no route", 4.4-4.8 m short; R7's
+  legs: 10 of 64). Gripped `PASS_FORK_HEAD` along the handle toward its head
+  and put down that much further ahead, the fork lies inside the filter with
+  a centimetre to spare and rests where it did (SimNotes, "The place laid
+  from the pass"). Off the reference's own source: the pick's hover and its
+  correction are moved along the fork's axis as the tag's edge reads it
+  (never across it), the fork as drawn lies within the filter of the grip as
+  planned less a centimetre, and the put-down is moved by the same length."""
+  import math
+  from pluggybot.activity import dishware as dw
+  from pluggybot.challenge import solutions
+  from pluggybot.humanoid import mission
+  source = solutions.PROCEDURES["set_table_pass"][2]
+  moves = _hand_moves(source, "left")
+  pick = _index(moves, lambda m: m[0] == "reach", "reach for the fork's hover")
+  fix = _index(moves, lambda m: m[0] == "go", "the fork's hover read again", start=pick + 1)
+  shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the fork", start=fix + 1)
+  put = _index(moves, lambda m: m[0] == "reach", "reach for the fork's put-down", start=shut + 1)
+  g = solutions.PASS_FORK_HEAD
+  for c, e in ((1.0, 0.0), (0.0, 1.0), (0.8, 0.6), (0.96, -0.28)):
+    env = {"px": 0.0, "py": 0.0, "c": c, "e": e, "spot.x": 0.0, "spot.y": 0.0, "gz": 0.0}
+    for i in (pick, fix):
+      x, y = (_worked(a, env) for a in moves[i][1][1:3])
+      assert math.isclose(x, g * c, abs_tol=1e-12) and math.isclose(y, g * e, abs_tol=1e-12), (
+        f"{moves[i][0]} aims ({x}, {y}) off the fork's tag for its axis ({c}, {e})")
+  env = {"spot.x": 0.0, "spot.y": 0.0, "tz": 0.0}
+  assert math.isclose(_worked(moves[put][1][1], env), g - solutions.PASS_FORK_AT, abs_tol=1e-12), (
+    "the fork's put-down is not moved by the length its grip was")
+  # the grip as planned, in the fork's own frame (x along it toward its head,
+  # from the handle's middle on the surface): over the tag by the run's own
+  # height, the tag on the handle's top
+  tree = ast.parse(source)
+  over = next(n.value for n in ast.walk(tree) if isinstance(n, ast.Assign)
+              and getattr(n.targets[0], "id", "") == "gz")
+  top = 2 * dw.HANDLE[2] + dw.FILM / 2
+  grip = (g, 0.0, top + _worked(ast.unparse(over), {"spot.z": 0.0}))
+  corners = [(x, y, z) for x in (-dw.HANDLE[0], dw.HANDLE[0]) for y in (-dw.HANDLE[1], dw.HANDLE[1])
+             for z in (0.0, 2 * dw.HANDLE[2])]
+  corners += [(x, y, z) for x in (dw.HANDLE[0], dw.HANDLE[0] + 2 * dw.HEAD[0])
+              for y in (-dw.HEAD[1], dw.HEAD[1]) for z in (0.0, 2 * dw.HEAD[2])]
+  far = max(math.dist(grip, p) for p in corners)
+  assert far <= mission.HELD_DROP_M - 0.01, (
+    f"the fork reaches {far:.3f} m from its grip as planned: past the self-filter's "
+    f"{mission.HELD_DROP_M} m less a centimetre")
