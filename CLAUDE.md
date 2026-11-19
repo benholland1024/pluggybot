@@ -2366,8 +2366,9 @@ save a filmstrip PNG named after the script.
   one on the seat) --
   unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
   `station: "free"` goes on to the nearest station nobody holds,
-  `MAX_STATION_SWITCHES`; waiting is the default, and an event-map row's or
-  a standing order's charge waits). ⚠
+  `MAX_STATION_SWITCHES`, never back to one it passed (#731), each
+  station's wait bounded from its own first; waiting is the default, and an
+  event-map row's or a standing order's charge waits). ⚠
   THE PAIR COLLIDES (Ben, 2026-10-14, #455; `humanoid.world.PAIR_BITS`):
   each robot meets every solid geom of the other and none of its own, and
   AVOIDANCE keeps them apart -- before, they passed through each other, and

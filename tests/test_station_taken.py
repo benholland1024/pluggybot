@@ -339,6 +339,51 @@ def test_a_plug_in_waited_for_leaves_the_while_by_the_seat_for_its_unplug():
   assert _said(luca, "by the charging station, which I do not see")
 
 
+def test_a_while_by_the_seat_is_120_s_a_station_its_walks_included_each_wait_counted():
+  """Rowan by the seat goes after 100 s and is back by it as Luca walks in
+  again, every walk 30 s long: the while it holds the station is 120 s a
+  station a charge in all, the walks out of its way counted in it (the
+  first shape began a second wait with 20 s left and walked 30), each wait
+  is one of `bay_waits`, and History says the wait once."""
+  luca, rowan = _pair(rowan_at=None)
+  _live(luca, rowan, 1)
+  luca.body.lost = True                               # ...and Luca's dock sees nothing
+  walk = luca.body.go_to_routine
+
+  def slow(x, y, timeout=90.0, stop=None):
+    yield from luca.body._wait(min(30.0, timeout))
+    return (yield from walk(x, y, timeout, stop))
+  luca.body.go_to_routine = slow
+  t0 = float(luca.data.time)
+  steps = {"away": False}
+
+  def hook():
+    t = float(luca.data.time)
+    if not steps["away"] and t >= t0 + 100.0:
+      steps["away"] = True
+      rowan.body.x, rowan.body.y = 30.0, 0.0           # gone...
+    elif steps["away"] and t >= t0 + 101.0 and rowan.body.x > 25.0:
+      rowan.body.x, rowan.body.y = 20.702, -5.574      # ...and back by the seat
+  luca.body.step_hooks.append(hook)
+  held = []
+  oos = luca._out_of_sight_routine
+
+  def timed(*a, **kw):
+    t = float(luca.data.time)
+    out = yield from oos(*a, **kw)
+    held.append(float(luca.data.time) - t)
+    return out
+  luca._out_of_sight_routine = timed
+  waits0 = luca.bay_waits
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert len(held) == 2 and sum(held) <= lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6, held
+  assert luca.bay_waits - waits0 == 2
+  said = [ln for ln in luca.thoughts.read("History.md").splitlines()
+          if "which I did not see; I waited" in ln]
+  assert len(said) == 1, said
+  assert luca.body.lost_at == ["station"]
+
+
 def test_a_robot_by_the_seat_that_plugs_in_is_waited_for_as_one_plugged_in():
   """...and one by the seat that plugs in as Luca waits on it a while is a
   robot plugged in: said so, and waited for as long as a charge, never the

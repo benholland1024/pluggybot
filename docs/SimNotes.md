@@ -10980,18 +10980,21 @@ whose plug is in a station, which is at that seat), is taken, not lost: the
 way in and the seat are read first as they always were, so one at rest on
 the way in is still asked off (#455), and a robot by the seat is waited for
 on its own (`_out_of_sight_routine`), out of its way, said `WAIT: Rowan is
-standing by the charging station, which I do not see -- waiting up to 120 s`,
-or passed with `free` -- for `UNSEEN_WAIT_S` (120 s) a station a charge at
-most: one on the seat with its plug out is plugging in or leaving (the dock
+standing by the charging station, which I do not see -- waiting up to 120 s`
+and remembered once a station a charge, or passed with `free` -- for
+`UNSEEN_WAIT_S` (120 s) a station a charge at most, its walks out of the
+way counted in it: one on the seat with its plug out is plugging in or leaving (the dock
 from the standoff takes 27.0 s, 40.6 s at most of 36; the unplug 25.9 s,
 27.7 at most), and one only its own word puts there may be wrong. Gone, the
 dock goes again; plugged in, #346's wait takes over, said so; still there,
 `WAIT: Rowan still stood by the charging station after 120 s -- I look for
 it myself`, and the station is searched for, once a charge. No search
 begins behind a robot that says it is plugged in there, after a dock or
-after walks that never got there. A station never in sight that the way in
-or the seat holds to the wait's bound, nobody plugged in, is searched for
-after all (a robot lost and never searched dies flat). A wait the bound
+after walks that never got there. Each station's wait counts its bound from
+the first time that station was found taken, and a `free` charge never goes
+back to a station it passed. A station never in sight that the way in or the
+seat holds to the wait's bound, nobody plugged in, is searched for after all
+(a robot lost and never searched dies flat). A wait the bound
 ends with the other still plugged in ends the charge, never searched: no
 loop within one decision, and the mind decides again.
 
@@ -11022,7 +11025,12 @@ of 100 seeds (50 a dock tried, 5 a lost search, at a station the other says
 it is plugged in at). Its seed 73 is why the hold by the seat is a window:
 Luca, its belief 0.58 m off, saw no station; Rowan, lost itself, said it
 stood 0.5 m from the seat as it searched 1.3 m off; Luca waited, Rowan found
-the station and plugged in first, and Luca's wait ran its 23 minutes. The station's checks on one pod (an EPYC 7532,
+the station and plugged in first, and Luca's wait ran its 23 minutes. With
+walks that take their time, its invariants on each wait's bookkeeping (a
+bound from the first wait at that station; a while by the seat 120 s a
+station, its walks included; each wait counted and remembered once; never
+back to a station passed) broke on the branch's own d2d3eced, which review
+found them in. The station's checks on one pod (an EPYC 7532,
 osmesa) fly bit for bit on both trees: the approaches 36 of 36, the seats
 140 of 140, lost near 20 of 20, every row identical -- a robot alone takes
 no new branch. The pair's recorded day keeps its trajectories bit for bit:

@@ -10,7 +10,9 @@ mid-wait too) and, on some days, the run's hour (#654) -- on one physics
 loop, with the invariants a served day needs read at every step (`Watch`):
 
   1. no charge waits past its bound: no wait holds on past the bound
-     (`wait_bound`) from the first time its trip found the station taken;
+     (`wait_bound`) from the first time its trip found the station taken --
+     but for the walk out of the holder's way it begins with (#346's own,
+     `CLEAR_DRIVE_S` at most, before it first reads its bound);
   2. never a dock tried at a station another robot says it is plugged in at
      (its own word, `on_charger`) -- so never two plugged into one;
   3. never a lost search begun at a station another robot says it is
@@ -22,8 +24,19 @@ loop, with the invariants a served day needs read at every step (`Watch`):
      hour ended it, or the other robot is plugged in there as it gives up
      (a search then is the third's: the station is taken, whoever is lost);
   5. a `free` charge passes a taken station `MAX_STATION_SWITCHES` times
-     at most;
-  6. the loop never goes round at one sim instant (`ZERO_TIME_ROUNDS`).
+     at most, and never goes back to a station it passed;
+  6. the loop never goes round at one sim instant (`ZERO_TIME_ROUNDS`);
+  7. each wait's bound counts from the first wait at THAT station in its
+     trip: a wait never gives up on its bound sooner;
+  8. a robot by the seat of a station out of sight holds it `UNSEEN_WAIT_S`
+     a station a trip at most, the walk to the waiting spot included;
+  9. each wait by such a seat is counted (`bay_waits`), and remembered once
+     a station a trip.
+
+Walks take time here (`WALK_MS`), within their timeouts, so a wait's walk
+counts. Invariants 7-9 and the switch back were review findings on the
+branch's own commit d2d3eced (#731's round 4), and this fuzz breaks them
+there.
 
 Not collected (no `test_` prefix): `test_station_taken.py` flies a cheap
 seeded slice of it in the default run; the seeds the branch reports were a
@@ -55,6 +68,8 @@ SEATS = {"station": (3.575, -1.53), "station_facility": (20.575, -5.53),
 HIDES_M, SEES_M = 0.35, 0.45
 #: The loop's own calls at one sim instant before it is called a spin.
 ZERO_TIME_ROUNDS = 2000
+#: How fast a fuzz body walks, m/s: a walk takes its distance's time.
+WALK_MS = 0.5
 #: What "nothing truly by the seat" is read against (`body.SEAT_HELD_M`;
 #: the same width where a tree before #731 has none, to fly the fuzz there).
 SEAT_HELD_M = getattr(body_mod, "SEAT_HELD_M", 0.54)
@@ -112,8 +127,19 @@ class FuzzBody(StubBody):
     pass
 
   def go_to_routine(self, x, y, timeout=90.0, stop=None):
+    """At `WALK_MS`, within `timeout`: short of it, its record says so."""
+    d = math.dist((self.x, self.y), (x, y))
+    t = min(d / WALK_MS, timeout)
+    for _ in range(max(1, round(t / self._model.opt.timestep))):
+      self.still_since = float(self.data.time)
+      yield self.STILL
     self.still_since = float(self.data.time)
-    return (yield from super().go_to_routine(x, y, timeout, stop))
+    self.went.append((float(x), float(y)))
+    f = 1.0 if d <= 1e-9 else min(1.0, t * WALK_MS / d)
+    self.x, self.y = self.x + (x - self.x) * f, self.y + (y - self.y) * f
+    self.last_drive = {"why": "" if f >= 1.0 else "timeout", "goal": (float(x), float(y)),
+                       "seconds": t, "shortM": d * (1.0 - f)}
+    return f >= 1.0
 
   def truth(self):
     return self.err.back(self.x, self.y)
@@ -177,7 +203,7 @@ class Watch:
     self.trips: dict = {}                       # root -> the trip under way
     self.counts = {"trips": 0, "waits": 0, "searches": 0, "notSeen": 0, "hidden": 0,
                    "lost": 0, "switches": 0, "charged": 0, "restarts": 0,
-                   "restartsMidWait": 0, "falls": 0, "standUps": 0, "hours": 0}
+                   "restartsMidWait": 0, "falls": 0, "standUps": 0, "hours": 0, "bySeat": 0}
     self.waiting: dict = {}                     # root -> inside a bay wait now
     self._instant, self._rounds = None, 0
 
@@ -190,7 +216,58 @@ class Watch:
 
   def begin(self, life) -> None:
     self.counts["trips"] += 1
-    self.trips[life.root] = {"lostAt": None, "searched": False, "logAt": len(life.log)}
+    self.trips[life.root] = {"lostAt": None, "searched": False, "logAt": len(life.log),
+                             "firstWait": {}, "byAt": {}, "bySaid": {}, "seats": []}
+
+  def step(self) -> None:
+    """Each trip's station as it goes: a switch never back to one passed."""
+    for life in self.lives:
+      trip = self.trips.get(life.root)
+      if trip is None:
+        continue
+      seat = tuple(life.body.charge_seat())
+      if not trip["seats"] or math.dist(seat, trip["seats"][-1]) >= 0.05:
+        if any(math.dist(seat, s_) < 0.05 for s_ in trip["seats"]):
+          self.fail(life, f"a free switch back to a station passed: {trip['seats']} -> {seat}")
+        trip["seats"].append(seat)
+
+  def key(self, life, seat):
+    trip = self.trips.get(life.root)
+    return None if trip is None else tuple(round(v, 1) for v in seat)
+
+  def bay_wait(self, life, seat, t_in: float, gave_up: bool) -> None:
+    """7: a wait gives up on its bound only once the bound has passed since
+    the first wait at this station in its trip."""
+    trip, k = self.trips.get(life.root), self.key(life, seat)
+    if trip is None or k is None:
+      return
+    first = trip["firstWait"].setdefault(k, t_in)
+    bound, _ = life.wait_bound("charge", 0.0, 0.0)
+    if gave_up and (life.last_bay_wait or {}).get("why") == "bound" and \
+        float(life.data.time) - first < bound - 1e-6:
+      self.fail(life, f"a wait gave up {float(life.data.time) - first:.0f} s after its first "
+                      f"at this station, before its {bound:.0f} s bound")
+
+  def by_seat(self, life, seat, held_s: float, counted: int) -> None:
+    """8 and 9: a while by the seat, a station a trip; each counted."""
+    trip, k = self.trips.get(life.root), self.key(life, seat)
+    if trip is None or k is None:
+      return
+    self.counts["bySeat"] += 1
+    trip["byAt"][k] = trip["byAt"].get(k, 0.0) + held_s
+    if trip["byAt"][k] > lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6:
+      self.fail(life, f"held by the seat {trip['byAt'][k]:.1f} s at one station")
+    if counted != 1:
+      self.fail(life, f"a wait by the seat counted {counted} times")
+
+  def said_by(self, life, line: str) -> None:
+    trip = self.trips.get(life.root)
+    if trip is None or "which I did not see; I waited" not in line:
+      return
+    k = self.key(life, life.body.charge_seat())
+    trip["bySaid"][k] = trip["bySaid"].get(k, 0) + 1
+    if trip["bySaid"][k] > 1:
+      self.fail(life, "a wait by the seat remembered twice at one station")
 
   def end(self, life, ok: bool, how: str) -> None:
     trip = self.trips.pop(life.root, None)
@@ -240,7 +317,7 @@ class Watch:
     self.counts["waits"] += 1
     bound, _ = life.wait_bound("charge", 0.0, 0.0)
     t = float(life.data.time)
-    if t > max(t_in, since + bound) + lc.BAY_POLL_S + 1e-6:
+    if t > max(t_in + lc.CLEAR_DRIVE_S, since + bound) + lc.BAY_POLL_S + 1e-6:
       self.fail(life, f"waited until {t - since:.0f} s past the bound's {bound:.0f} s")
 
   def spin(self, life) -> None:
@@ -293,7 +370,24 @@ def _wrap(life, watch) -> None:
     finally:
       watch.waiting[life.root] = False
     watch.wait(life, since, t_in)
+    if seat is not None:
+      watch.bay_wait(life, seat, t_in, not out)
     return out
+
+  oos = getattr(life, "_out_of_sight_routine", None)
+  if oos is not None:
+    def watched_oos(sx, sy, seat, *a, **kw):
+      t0, n0 = float(life.data.time), life.bay_waits
+      out = yield from oos(sx, sy, seat, *a, **kw)
+      watch.by_seat(life, seat, float(life.data.time) - t0, life.bay_waits - n0)
+      return out
+    life._out_of_sight_routine = watched_oos
+  remember = life._remember
+
+  def watched_remember(line, *a, **kw):
+    watch.said_by(life, line)
+    return remember(line, *a, **kw)
+  life._remember = watched_remember
 
   def watched_holder(*a, **kw):
     watch.spin(life)
@@ -393,6 +487,8 @@ def fly(seed: int, sim_s: float = 7200.0) -> dict:
     life.body.world = [o.body for o in lives]
     life.body.watch = watch
     _wrap(life, watch)
+  lives[0].body.step_hooks.append(watch.step)
+  for life in lives:
     life.body.x, life.body.y = life.home_pose[0], life.home_pose[1]
   tick.run_many([(life.body.stepper, _day(life, rng, watch, sim_s))
                  for life, rng in zip(lives, rngs)])
