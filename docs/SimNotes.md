@@ -10942,6 +10942,93 @@ they are; and a watch's picture taken between two of the arm's ticks is
 placed through the model as whatever posed it last, which may be a felt
 sample rather than the arm's loop.
 
+## A way home that shoves the body back (issue #693's live family, the step's hand-over)
+
+On 11-18 two of the test wake's three fall events were Luca's, each in a
+`step(-0.4)` right after it had pulled the cupboard's lever toward its body,
+opened its hand and waited a second (`door_final41`, `door_final45`).
+Neither fell again at its live draw, but its family did: the robots' own
+procedures at their live draws (the loop of 11-18, T1;
+`~/pluggybot-training/loop-1118/t1-live/`), 171 flights, 10 falling inside
+the step's hand-over on its tree and 12 on `loop-staging` 0fb85dc2 (#726 in
+it) -- `drawer_omega20` 7 of 44, `door_final45` 4 of 65, `chest_final11` 1
+of 38, `door_final46` (the same door without the step back) 0 of 24 -- the
+run ended in the `step`, the legs still the standing policy's, the arm on
+its way home (the loop of 11-19, U2; `~/pluggybot-training/loop-1119/u2-693c/`,
+`c/classify.py`).
+
+**Why.** A walk's hand-over takes an arm home by the withdraw's own way --
+its gripper opened (`HumanoidMission.let_go_routine`), the hand back 8 cm
+along its fingers (`Reach.retreat`), then home in joint space (`_go_home`,
+`way_home`), over by its drivers (above, "A way home something holds") --
+so a `withdraw` in the step's place falls the same way at the same instants
+(the drawer's 24 keys with one before the step: 5 fell "on the way home"),
+and so does the loop's charge walk after a job that left the hand at the
+knob. After a pull toward the body none of the arm is ahead of the front,
+so its way home is judged straight, unchecked: such an arm "worked over
+nothing there" (above, "The way home"). But what it pulled came with it. In
+the drawer the line out drove the gripper into the robot's own torso
+(133-188 N), and the straight way home then swung the open jaws forward and
+down -- the shoulder bringing the upper arm forward as the elbow opens --
+through the knob just pulled and onto the counter's top and the drawer's
+front, up to 720 N; at the door, over the lever's tip and arm at 20-100 N
+for a second or more. The prop and the counter pushed the hand back, the
+root went 0.11-0.29 m back while the standing policy held the legs, and the
+robot went over backward 1-2 s after the touch.
+
+**What the arm reads.** #708's reading turned round: minus
+`Reach._tipping`, its push away from the body at the hand's height plus its
+press down at the hand's reach, off the arm's own force reading and its
+sensed grip. Recorded on every way home of the base's flights (`pod/tiprec.py`,
+reading only; the 171 the base's to the step with it), before 11 of the 12
+hand-over falls the way home held 15-35 N m for 0.4-1 s, from 1.0-1.7 s
+before the fall, the trunk within a degree of upright; the line out into the
+torso reads the other way, -100 to -260 N m (the torso's push is a pull
+toward the body). Over the bar's 736 flights on the base (1,234 ways home),
+the door reference's ways home drag a jaw over the door's top or panel at
+65-200 N, past 20 N m but for under 0.2 s: held 0.05 s, 40 of them would
+stop at 20 N m and 49 at 15 (#708's door history: "never on a push or a
+press"); held 0.2 s at 15 N m, 6, each pressing on the world at 140-500 N,
+and a way home that touches nothing reads 9.8 N m at most (read off the
+recorder's samples every 0.05 s, so near, not exact).
+
+**What is true now** (`Reach._shoved`, `_held_home`, `HOME_TIP_NM`,
+`HOME_TIP_S`; `tests/test_hands.py`): an arm on its way to its rest -- in
+joint space, or its rest commanded and not yet read there -- whose own
+reading tips the body away from its hand past `HOME_TIP_NM` (15 N m) for
+`HOME_TIP_S` (0.2 s) running is held where its drivers read it, as a way
+home held at its rest is: pressing on nothing, raised `LIFT_M` and sent home
+again once a way home (never with another robot by), then left where it is
+held. A withdraw ends there, "held"; a walk's hand-over goes with it held,
+its report saying so (`armHeld`); the next withdraw or walk sends it home
+again, judged afresh from where it is held. Never a way out (#708's, a tip
+toward the hand), a carry's way to its pose (#682), nor the line out along
+the fingers. No word moved: "something holds it" says it.
+
+**Flown** (one Vast pod, an AMD EPYC 7B13, Python 3.12.3, osmesa, beside
+0fb85dc2; the dev box replays its flights):
+- The 171: hand-over falls 12 -> 2 (the two below), falls 17 -> 7, passes
+  61 -> 66 -- four drawers and a door that fell now pass -- and no new fall,
+  read first on the rule held 0.05 s at 20 N m (whose bar stopped about 40
+  ways home), the same on every flight read again at 15 N m held 0.2 s.
+- The drawer's 24 keys with a `withdraw` before the step: 5 fell in the
+  withdraw on the base, none on the rule, three withdraws reading "held".
+- The loop's charge after a job that left the hand at the knob (the drawer's
+  24 keys without the step, and the door's 24 at its live draw): on the base
+  4 of 24 drawers fell in the charge walk's hand-over, got up and charged;
+  on the rule none fell, and every charge plugged in.
+- The pair's recorded day: the committed fixture's, line for line but its
+  charge rows' wall-clock stamps, on both trees.
+- BAR
+
+**What it does not take.** `door_final45`'s C_k27 fell sideways, its way
+home reading 10-14 N m away from the hand (a 30 N push across the line out
+to the hand, and up); `chest_final11`'s A_k23, its grip missed, in #693b's
+raise, which the rule does not watch; and the line out into the torso
+(133-188 N in 9 of the drawer's 44 flights), a press of the robot on itself
+that pushes nothing over but is no way to treat a gripper: a line out judged
+against the trunk, as #722 judges a way out, is not built.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
