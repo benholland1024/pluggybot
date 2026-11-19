@@ -404,7 +404,8 @@ WAIT_OCCUPANCIES = 3.0
 #: station of three.
 MAX_STATION_SWITCHES = 2
 #: ⚠ A STATION OUT OF SIGHT WITH ANOTHER ROBOT BY ITS SEAT IS HELD THIS LONG
-#: AT MOST, s (#731, `_bay_holder`'s "by"), from when the dock found it so:
+#: AT MOST, s, a station a charge (#731, `_out_of_sight_routine`): never a
+#: charge's bound, which a robot plugged in is waited for:
 #: one there with its plug out is plugging in (then it says so, and is waited
 #: for as long as a charge) or leaving -- MEASURED from the standoff, the dock
 #: 27.0 s (median), 40.6 s at most of 36, and the unplug 25.9 s, 27.7 at most
@@ -1670,8 +1671,8 @@ class HubLifecycle:
     way is asked to make way (`make_way`) -- and whether it is dead.
 
     ⚠ AND WHAT IT SAYS OF ITSELF, wherever it is placed (#731): where it is,
-    its reported pose -- nothing on the floor or dead, which cannot report
-    itself (above: its reckoning runs on through a fall) -- and the seat of
+    its reported pose -- nothing but standing, never fallen, getting up or
+    dead (above: its reckoning runs on through a fall) -- and the seat of
     the station its plug is in, by its own port's word (`Body.plugged_seat`):
     what the other robot's charge reads a station held by (`_bay_holder`).
     The plug's word stands dead too: the station's one plug is in its port
@@ -1679,7 +1680,8 @@ class HubLifecycle:
     a dead body plugged in hid the tags as a live one did."""
     down, dead = self.down(), self.dead is not None
     resting = bool(self.body.resting)
-    says = {"said": None if down or dead else tuple(self.body.pose_xy()),
+    says = {"said": (None if down or dead or self.body.posture != "standing"
+                     else tuple(self.body.pose_xy())),
             "plugged": self.body.plugged_seat()}
     if not (down or dead or resting or self.body.posture != "standing"
             or self.body.making_way is not None):
@@ -2944,7 +2946,7 @@ class HubLifecycle:
       # holds, never this one, `MAX_STATION_SWITCHES` a charge
       nonlocal switched, sx, sy, hd, seat
       here = seat
-      if not (self.peers and free and switched < MAX_STATION_SWITCHES and self.body.choose_station(
+      if not (free and switched < MAX_STATION_SWITCHES and self.body.choose_station(
           free=lambda standoff, at: (math.dist(at, here) >= SAME_SEAT_M
                                      and self._bay_free(standoff, at)))):
         return False
@@ -2963,7 +2965,7 @@ class HubLifecycle:
       # SimNotes, "A station the other robot is plugged into"): waited for, or
       # passed with `free`, above
       nonlocal arrived
-      if not self.peers or self._bay_holder(sx, sy, seat) is None:
+      if self._bay_holder(sx, sy, seat) is None:
         return False
       if not _among(seat, unseen):
         unseen.append(seat)
@@ -2978,7 +2980,7 @@ class HubLifecycle:
       nonlocal arrived
       key = next((k for k in by_waited if math.dist(k, seat) < SAME_SEAT_M), tuple(seat))
       left = UNSEEN_WAIT_S - by_waited.get(key, 0.0)
-      near = self.body.peer_by_seat(*seat) if self.peers and left > 0.0 else None
+      near = self.body.peer_by_seat(*seat) if left > 0.0 else None
       if near is None:
         return False
       named = self._nearest_peer(*seat, near)
@@ -2993,7 +2995,7 @@ class HubLifecycle:
       # ...lost, once a charge (#476) -- ⚠ never behind a robot that says it
       # is plugged in there (#731)
       nonlocal searched, sx, sy, hd, seat
-      if self.peers and self.body.plugged_on(*seat) is not None:
+      if self.body.plugged_on(*seat) is not None:
         return False
       searched = True
       found = yield from self._search_routine()
@@ -3001,6 +3003,17 @@ class HubLifecycle:
         sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
         seat = self.body.charge_seat()
       return found
+
+    def out_of_sight():
+      # ...no station in sight: taken, or a robot lost, searched once a
+      # charge (#476, #731). True where the loop goes round again
+      if taken_not_lost() or (yield from by_the_seat()):
+        return True
+      if searched:
+        return False
+      if (yield from search()):
+        return True
+      return taken_not_lost() or (yield from by_the_seat())   # ...as it searched
 
     def dock_again() -> bool:
       # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
@@ -3053,14 +3066,9 @@ class HubLifecycle:
         # until it died flat. Put right, it walks back by the loop -- the
         # station looked at again, for the other may have plugged in
         # meanwhile (#455) -- and near enough the station decides, as below.
-        if tried == NOT_SEEN and not self.body.charging():
-          if taken_not_lost() or (yield from by_the_seat()):
-            continue
-          if not searched:
-            if (yield from search()):
-              continue
-            if taken_not_lost() or (yield from by_the_seat()):   # ...while it searched
-              continue
+        if (tried == NOT_SEEN and not self.body.charging()
+            and (yield from out_of_sight())):
+          continue
         if dock_again():
           continue
         break
@@ -3079,13 +3087,8 @@ class HubLifecycle:
         # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
         # right, the walk goes again, and else its retries as before -- but
         # never with another robot plugged in there or by its seat (#731)
-        if taken_not_lost() or (yield from by_the_seat()):
+        if (yield from out_of_sight()):
           continue
-        if not searched:
-          if (yield from search()):
-            continue
-          if taken_not_lost() or (yield from by_the_seat()):
-            continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()

@@ -281,18 +281,24 @@ def _walks_off(luca, rowan, t: float) -> None:
     luca.body.sightings.pop(rowan.root, None)
 
 
-def test_a_robot_on_the_floor_says_nothing_of_where_it_is():
+@pytest.mark.parametrize("how", ["down", "getting up"])
+def test_a_robot_on_the_floor_says_nothing_of_where_it_is(how):
   """A robot down cannot report itself (`keep_clear`, #365: its reckoning
-  runs on through a fall, measured 2.2 m off its body in 10 s), so where it
-  SAYS it is holds no seat: knocked over 1.5 m off the lobby's seat, its
-  belief still on it, its body is what is read -- and up again, its word."""
+  runs on through a fall, measured 2.2 m off its body in 10 s), nor while
+  its get-up has its legs, tilted or not, so where it SAYS it is holds no
+  seat: knocked over 1.5 m off the lobby's seat, its belief still on it, its
+  body is what is read -- and standing again, its word."""
   luca, rowan = _pair(rowan_at=None)
   rowan.body.x, rowan.body.y = SEATS[LOBBY]                    # what it believes
   rowan.body.body_xy = (SEATS[LOBBY][0] + 1.5, SEATS[LOBBY][1])  # where it lies
-  rowan.body.attitude = (math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0)
-  assert rowan.down()
+  if how == "down":
+    rowan.body.attitude = (math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0)
+    assert rowan.down()
+  else:
+    rowan.body.posture = "getting_up"                          # ...kneeling, under 60 deg
+    assert not rowan.down()
   assert luca.body.peer_by_seat(*SEATS[LOBBY]) is None
-  rowan.body.attitude = (1.0, 0.0, 0.0, 0.0)
+  rowan.body.attitude, rowan.body.posture = (1.0, 0.0, 0.0, 0.0), "standing"
   assert luca.body.peer_by_seat(*SEATS[LOBBY]) == pytest.approx(0.0)
 
 

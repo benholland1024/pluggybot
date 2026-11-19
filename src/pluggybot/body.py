@@ -1299,7 +1299,10 @@ class StubBody(Body):
     return self.sight
 
   def peer_on_the_goal(self, x, y):
-    near = min((math.dist(p, (x, y)) for p in self.peers_on), default=math.inf)
+    """Off where a test put other robots (`peers_on`) and where the others
+    are placed (`others`, as the pair wires them), 0.45 m round each."""
+    near = min((math.dist(p, (x, y)) for p in
+                (*self.peers_on, *((b.x, b.y) for b in self._bodies()))), default=math.inf)
     return near if near <= 0.45 else None
 
   def _bodies(self) -> list[KeepClear]:
