@@ -192,7 +192,7 @@ def test_a_station_the_other_says_it_is_plugged_into_is_held_wherever_the_belief
   seat = luca.body.charge_seat()
   assert luca.body.peer_on_the_goal(*seat) is None, "the premise: placed off the seat"
   held = luca._bay_holder(sx, sy, seat)
-  assert held is not None and held[3] == "dock", held
+  assert held is not None and held[3] == "plugged", held
   assert not luca._bay_free((sx, sy), seat)
   assert luca.peer_at(*held[:2])[0] == "Rowan", "the holder is named"
   # ...and the plug, never the placement: unplugged, the same body is not on
@@ -221,8 +221,9 @@ def test_lucas_charge_to_the_station_rowan_is_plugged_into_waits_and_is_never_lo
   _leaves_at(luca, rowan, t0 + 300.0)
   assert luca.body.run(luca.go_charge_routine()) is True, luca.log[-3:]
   assert luca.body.lost_at == [], "searched as a robot lost"
-  assert _said(luca, "WAIT: Rowan"), luca.log
+  assert _said(luca, "WAIT: Rowan is plugged in at the charging station"), luca.log
   assert all(t >= t0 + 300.0 for t, _ in luca.body.docks), luca.body.docks
+  assert rowan.body.way_asked == [] and luca.body.asked_off == [], "a plugged-in robot asked off"
   assert luca.body.on_charger and not rowan.body.on_charger
 
 
@@ -328,7 +329,8 @@ def test_the_bound_and_the_runs_hour_still_end_a_wait_for_a_plugged_in_robot():
   bound, _ = luca.wait_bound("charge", 0.0, 0.0)
   assert float(luca.data.time) - t0 == pytest.approx(bound, abs=2.0)
   assert luca.body.lost_at == [] and luca.body.docks == []
-  assert "Rowan was" in luca.charge_failure and "3x how long one charge" in luca.charge_failure
+  assert ("Rowan was plugged in at it" in luca.charge_failure
+          and "3x how long one charge" in luca.charge_failure), luca.charge_failure
   # ...and the hour
   luca, rowan = _pair()
   _live(luca, rowan, 0)
@@ -359,4 +361,4 @@ def test_a_charge_a_persons_message_broke_still_holds_its_station():
   luca.body.choose_station()
   sx, sy, _ = luca.body.charge_standoff()
   held = luca._bay_holder(sx, sy, luca.body.charge_seat())
-  assert held is not None and held[3] == "dock", held
+  assert held is not None and held[3] == "plugged", held

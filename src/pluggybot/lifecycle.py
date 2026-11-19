@@ -2397,7 +2397,8 @@ class HubLifecycle:
     points with one on it (`Body.peer_on_the_goal`) -- the standoff (sx,
     sy), and for a charge, every `LANE_STEP_M` of the way in to `seat`,
     the dock's (#455). `where` is "standoff", "lane" or "dock", the last
-    for one on the seat, charging or not. None where nobody holds it.
+    for one on the seat, charging or not -- or "plugged", for one that says
+    it is plugged in there (below). None where nobody holds it.
 
     ⚠ ONE THAT SAYS IT IS PLUGGED IN AT THIS STATION HOLDS ITS SEAT, WHEREVER
     THIS ROBOT'S BELIEF PLACES ITS BODY (#731; `Body.plugged_on`, its own
@@ -2411,7 +2412,7 @@ class HubLifecycle:
     plugged into")."""
     if seat is not None:
       if self.body.plugged_on(*seat) is not None:
-        return seat[0], seat[1], 0.0, "dock"
+        return seat[0], seat[1], 0.0, "plugged"
       near = self.body.peer_by_seat(*seat) if unseen else None
       if near is not None:
         return seat[0], seat[1], near, "dock"
@@ -2506,7 +2507,7 @@ class HubLifecycle:
         ended = "hour"
       if ended:
         break
-      if now >= next_ask and held[3] != "dock":
+      if now >= next_ask and held[3] not in ("dock", "plugged"):
         if self.body.ask_off(held[0], held[1], asked, beyond):
           next_ask = now + OTHER_WAIT_S
         else:
@@ -7906,8 +7907,10 @@ def _among(seat, seats) -> bool:
 
 def holder(peers, who: str, where: str, near: float, what: str, verb: str = "is") -> str:
   """A robot holding the station another waits for, as one clause (issues
-  #346, #455): on its standoff, on its way in, or on the seat right in
-  front of it (`HubLifecycle._bay_holder`)."""
+  #346, #455): on its standoff, on its way in, on the seat right in front of
+  it, or plugged in there by its own word (#731; `HubLifecycle._bay_holder`)."""
+  if where == "plugged":
+    return f"{who} {verb} plugged in at {what}"
   how = posture(peers, who)
   if where == "standoff":
     return f"{who} {verb} {how} {near:.2f} m from {what}"

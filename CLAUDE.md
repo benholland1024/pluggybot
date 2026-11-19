@@ -2358,8 +2358,12 @@ save a filmstrip PNG named after the script.
   geometry must not settle it -- a charge goes to the station its body
   chose (`Body.choose_station`, below) and WAITS while the other is on
   that station's WAY IN or its SEAT, not only its standoff (the lifecycle's
-  #346 wait, `Body.charge_seat`, `LANE_STEP_M`), and asks one resting on the
-  way off it (`Body.ask_off`; afresh after a no, never one on the seat) --
+  #346 wait, `Body.charge_seat`, `LANE_STEP_M`), ⚠ or SAYS IT IS PLUGGED IN
+  THERE, by its own port's word, wherever this robot's belief places its
+  body (#731; `Body.plugged_on`, `KeepClear.plugged`: through Luca's belief
+  0.6-0.8 m off, Rowan's body lay 0.6 m off the seat, read free), and asks
+  one resting on the way off it (`Body.ask_off`; afresh after a no, never
+  one on the seat) --
   unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
   `station: "free"` goes on to the nearest station nobody holds,
   `MAX_STATION_SWITCHES`; waiting is the default, and an event-map row's or
@@ -2694,7 +2698,13 @@ save a filmstrip PNG named after the script.
   onto a copy within 20 s. The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
-  ONCE a charge. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
+  ONCE a charge -- ⚠ NEVER WITH ANOTHER ROBOT PLUGGED IN THERE OR BY ITS
+  SEAT, where it says it stands or this robot sees it within a body's width
+  (`SEAT_HELD_M`, 0.54 m; `Body.peer_by_seat`, #731; SimNotes, "A station
+  the other robot is plugged into"): its body hid the tags, and Luca
+  searched 422-468 s five times behind Rowan's. TAKEN: waited for, or passed
+  with `free`, and searched once nobody is by it, or once the wait's bound
+  is spent with nobody plugged in there. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
   (60 s) RUNNING IS SAID, ONCE, AND SO IS ITS END (#697;
   `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`; the
   Observatory period): a run is every scan refused (`scan_match.REFUSED`:
