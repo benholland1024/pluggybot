@@ -615,6 +615,13 @@ def _hand_place(life, args: dict) -> tuple[float, float, float]:
   return axes.from_stance(life, (float(args["x"]), float(args["y"]), float(args["z"])))
 
 
+#: A step's fields no reader of it is shown (#728): its trace is the log's,
+#: and a reason's shorter form (`brief`, the start of its `reason`) History's,
+#: said there only where the reason in full would move anything else
+#: (`lifecycle.procedure_outcome`).
+UNSHOWN = ("trace", "brief")
+
+
 def _spot(life, args: dict) -> Routine:
   """Look for a tag in the head's colour camera, standing still -- as it
   stands, then bowing lower until it is seen (`SPOT_GAZES`), standing up
@@ -643,15 +650,23 @@ def _spot(life, args: dict) -> Routine:
     yield from life.body.gaze_routine(0.0)
   if seen is None:
     forget_readings(life, "spot")
-    # what the bows could not change, the picture's top (#660), and short:
-    # History's line says each false test's reason inside its 400 characters
-    reason = (f"tag {int(tag)} is not in your colour camera's picture from where you "
-              "stand, or too near or too far to read: it shows nothing higher than "
-              f"{SPOT_TOP_DEG:.0f} degrees below level")
+    # what the bows could not change, the picture's top (#660) and its sides
+    # (#728), and short: History's run line drops whole a false test's reason
+    # past what its run leaves, about 307 characters less the procedure's
+    # name and the line's digits (#629; tests/test_watch.py pins the fit)
+    top = (f"tag {int(tag)} is not in your colour camera's picture from where you "
+           "stand, or too near or too far to read: it shows nothing higher than "
+           f"{SPOT_TOP_DEG:.0f} degrees below level")
     if held:
-      # ...and a bow its head's room held (#717): what kept it, and how far
-      reason += "; " + _bow_said(held)
-    return {"ok": False, "tag": int(tag), "reason": reason}
+      # ...and a bow its head's room held (#717): what kept it, and how far --
+      # in place of the sides, which beside it would not fit
+      return {"ok": False, "tag": int(tag), "reason": f"{top}; {_bow_said(held)}"}
+    # ...the top alone (`brief`) where the sides would move anything else
+    # History's line says (`lifecycle.procedure_outcome`)
+    return {"ok": False, "tag": int(tag), "brief": top,
+            "reason": (f"{top}, nor further than {SPOT_SIDE_TOP_DEG:.0f} degrees to either side "
+                       f"of where your head faces at that top (more than "
+                       f"{SPOT_SIDE_BOTTOM_TENS} at its bottom)")}
   (x, y, z), (nx, ny, nz), (ex, ey, ez) = seen
   _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "ex": ex, "ey": ey, "ez": ez, "range": float(got["range"])}
@@ -905,7 +920,7 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
   from pluggybot.procedure import axes
   name, side, number = guard
   sensor = axes.SENSORS[name]
-  reading = sensor.live or sensor.read
+  reading = sensor.read
   # physics steps a reading, rounded UP: never oftener than its part reads
   step = float(life.model.opt.timestep)
   every = max(1, math.ceil(sensor.every_s / step - 1e-6))
@@ -1050,6 +1065,8 @@ def _felt_routine(life, hand: str, routine: Routine) -> Routine:
 REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "stopped short": "your {hand} hand stopped short on its way: out of reach from "
                               "how you truly stand, or pushing on something",
+             "own body": "every way your {hand} arm takes from where it is to there passes "
+                         "through your own body, so it did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one out of reach with the other hand holding something, whose grip
@@ -1133,7 +1150,9 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    False: "; nor does your {other} hand's",
                    None: "; your {other} hand does not reach there",
                    # ...and one out holding something, which kept the body's posture (#719)
-                   "holds": "; your {other} hand is out holding something"}
+                   "holds": "; your {other} hand is out holding something",
+                   # ...and one whose every way there passes through your own body (#722)
+                   "own": "; your {other} hand's every way there passes through your own body"}
 
 
 def _where(kept: dict) -> str:
@@ -1200,6 +1219,10 @@ def _reach(life, args: dict) -> Routine:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
       hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
       + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
+  if why == "own body" and other is not None and life.body.hand_reaches(other, place, rot,
+                                                                         verb=True):
+    # ...and whether the other hand could (#722): a turn or a step is not all
+    reason += f"; your {other} hand could reach it as asked"
   if why == "out of reach" and turned():
     reason += TURNED_ELSE
   if why == "out of reach" and other is not None and not kept_by:

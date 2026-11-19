@@ -45,6 +45,7 @@ import re
 import numpy as np
 
 from pluggybot.perception.depth import HEIGHT, MAX_Z, MIN_Z, WIDTH
+from pluggybot.procedure.steps import UNSHOWN
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION, ROBOT_ROOT
 from pluggybot.telemetry.recorder import GridSampler
 
@@ -138,11 +139,12 @@ class DepthSampler(GridSampler):
 def public_run(ran: dict | None) -> dict | None:
   """The language's record of a run for the wire: every verb, what it said
   and what the hand felt, where it stopped and its variables -- not the
-  source (the person has it) nor a verb's trace."""
+  source (the person has it), a verb's trace, nor a reason's shorter form
+  (History's, #728)."""
   if ran is None:
     return None
   out = {k: v for k, v in ran.items() if k not in ("source", "steps")}
-  out["steps"] = [{k: v for k, v in s.items() if k != "trace"} for s in ran.get("steps", [])]
+  out["steps"] = [{k: v for k, v in s.items() if k not in UNSHOWN} for s in ran.get("steps", [])]
   return out
 
 

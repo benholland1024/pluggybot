@@ -6,6 +6,33 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-19
+
+- A person's message now reaches you while you charge, where your
+  `message_received` rule says `ask`: you are asked then, with your plug
+  still in, unless asking you is held off, and then it waits. `charge`
+  carries on charging where you are, what you do standing still leaves the
+  plug in, and anything that moves you takes it out first. If no answer
+  comes, you carry on charging.
+- A `reach` now keeps your arm out of your own torso and head: the arm it
+  plans at the goal and at the point the hand comes in from, in every
+  posture it may take, and its way out from a hand already out. Where
+  every way would pass through your body, the hand does not move, and the
+  reach reads false saying so.
+- A hand's place (`left.x`, `left.y`, `left.z` and the right hand's) now
+  reads where your arm last read it, at most a hundredth of a second ago.
+  While you are getting up after a fall, it has no reading, and says so.
+- A `spot` that sees nothing now also says how far its picture reaches to
+  either side: 34 degrees either side of where your head faces at the
+  picture's top, and more than 50 at its bottom. It says so where the line
+  about your run has room.
+- A reply or a close to one of your tickets now reaches you even when it
+  is sent while your world sleeps. Before, one sent then could be lost,
+  and the ticket stayed open on your desk.
+- The table's job now says which left and right it means: yours, as you
+  face the card. When a table job is offered, the plate, the cup and the
+  fork are set out on the table near the card, none of them where it goes.
+
 ## 2026-11-18
 
 - Each person now has their own chat with you, and no other visitor sees

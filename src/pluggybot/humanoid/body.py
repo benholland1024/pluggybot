@@ -851,11 +851,14 @@ class HumanoidBody(Body):
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
-      kept = self.reach.kept[side]
+      kept, own = self.reach.kept[side], self.reach.own[side]
       if (follows and self.reach.kept_by[side] is None
           and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb)):
         return True
-      kept = self.reach.kept[side] or kept
+      kept, own = self.reach.kept[side] or kept, self.reach.own[side] or own
+      if own is not None and kept is None:
+        # every way out passes through its own trunk (#722)
+        self._why[side] = "own body"
       if kept is not None:
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
@@ -1017,7 +1020,9 @@ class HumanoidBody(Body):
 
   def hand_sensed(self, side):
     got = self.reach.sensed_grip.get(side)
-    p = self.to_world(self.reach.grip_now(side)[0] if got is None else got)
+    if got is None or self.mission.legs == "getup":
+      return None
+    p = self.to_world(got)
     return float(p[0]), float(p[1]), float(p[2])
 
   def _watched(self) -> np.ndarray:
@@ -1571,6 +1576,10 @@ class HumanoidBody(Body):
 
   def detect_tags(self) -> dict:
     return self._detector().detect(self._d)
+
+  def build_cameras(self) -> None:
+    self._detector()
+    self.mission._place_detector()
 
   def spot(self, tag: int, at_height: float | None = None) -> dict | None:
     """One tag's centre in the believed world frame off one decode of its

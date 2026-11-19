@@ -781,6 +781,46 @@ def test_a_condition_on_the_hands_place_that_never_comes_moves_the_flight_not_at
   assert np.array_equal(outs[0], outs[1])
 
 
+def test_a_procedures_read_of_its_hands_place_moves_the_flight_not_at_all():
+  """#721: a procedure's `read` of a hand's place is the place as its arm's
+  own loop last read it (`Body.hand_sensed`), as a stop condition reads it.
+  Read afresh, each read drew on the drivers' noise and posed the model of
+  itself again, and a reach flown with a read nobody acted on ended up to
+  8.3e-4 rad apart from the same reach with none. Read so, a flight with a
+  read at rest and every sense of the hand read after a reach is the flight
+  with none, bit for bit: every qpos and the time it ends."""
+  source = 'def a():\n    wait(0.02)\n{}    reach("right", 0.30, -0.25, 1.00)\n{}    wait(0.1)\n'
+  every = " + ".join(f'read("right.{k}")' for k in ("x", "y", "z", "fx", "fy", "fz", "held", "gap"))
+  outs = []
+  for before, after in (("", ""), ('    z = read("right.z")\n', f"    s = {every}\n")):
+    ran, body, _ = _flown(source.format(before, after))
+    assert ran["ok"], ran
+    outs.append((body.data.qpos.copy(), float(body.data.time)))
+  (qpos, t), (read_qpos, read_t) = outs
+  assert read_t == t and np.array_equal(read_qpos, qpos)
+
+
+def test_a_hands_place_read_where_its_arm_is_not_reading_has_none_and_draws_nothing():
+  """#721: where its arm's loop is not reading the joints -- a body's first
+  instant, before its first physics step, and while a get-up has the legs
+  -- a hand's place has no reading, and says why (`axes.NoReading`), never
+  one read afresh: that read draws on the drivers' noise, so the flight
+  goes on otherwise. Between the two it reads the place."""
+  from pluggybot.evaluation.practice import ProcedureLife
+  body = _floor_body()
+  life = ProcedureLife(body)
+  drawn = body.stand.joints.kept_state()
+  with pytest.raises(axes.NoReading, match="right.z has no reading: your right arm has not"):
+    axes.SENSORS["right.z"].read(life)
+  assert body.stand.joints.kept_state() == drawn
+  body.run(body.hold_routine(0.02))
+  assert 0.4 < axes.SENSORS["right.z"].read(life) < 1.2
+  body.mission.legs, drawn = "getup", body.stand.joints.kept_state()
+  with pytest.raises(axes.NoReading, match="right.z has no reading: you are getting up"):
+    axes.SENSORS["right.z"].read(life)
+  assert body.stand.joints.kept_state() == drawn
+
+
 def test_a_stop_waits_out_a_get_up_and_stops_the_move_after_it():
   """Waiting out a get-up, the reach a fall let go of still says its hand
   moves: stopped then, it used up a condition the stand-up's fresh reach

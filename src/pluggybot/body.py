@@ -426,6 +426,13 @@ class Body(abc.ABC):
     """One tag decode from its working camera: `{id: {t, yaw, center}}`."""
 
   @abc.abstractmethod
+  def build_cameras(self) -> None:
+    """Build now the cameras it decodes tags through, which are otherwise
+    built at their first look: a served process asks at boot, so that
+    their renderer's memory comes inside the memory alarm's warm-up
+    (#713; docs/Webserver.md, "Two samples")."""
+
+  @abc.abstractmethod
   def spot(self, tag: int, at_height: float | None = None) -> dict | None:
     """One tag's centre in the believed world frame off one decode, or None
     where it does not decode from here (issue #264)."""
@@ -598,12 +605,13 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def hand_reaches(self, side: str, pos, rot=None, verb: bool = False) -> bool:
-    """Whether `reach_routine` would plan a hand's grip to `pos` (the
-    believed world frame) at the turn `rot`, or any -- asked of its model of
-    itself, nothing moved: what a reach out of reach says of the other hand
-    (#493). `verb`: as a procedure's reach would plan it now, from the
-    posture the body is in alone where the other hand is out holding
-    something (#719); else from any posture."""
+    """Whether a procedure's `reach_routine` would plan a hand's grip to
+    `pos` (the believed world frame) at the turn `rot`, or any -- its arm
+    kept off its own trunk (#726), where the loop's own reach would take a
+    plan in it that has no other -- asked of its model of itself, nothing
+    moved: what a reach out of reach says of the other hand (#493). `verb`:
+    from the posture the body is in alone where the other hand is out
+    holding something (#719); else from any posture."""
 
   @abc.abstractmethod
   def step_routine(self, ahead: float, left: float = 0.0, turn: float = 0.0,
@@ -656,14 +664,17 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def hand_at(self, side: str) -> tuple[float, float, float]:
     """Where a hand's grip is, m, in the believed world frame: its arm's
-    encoders and its IMU through its model of itself (#493)."""
+    encoders and its IMU through its model of itself (#493), read afresh --
+    each call draws on their noise, so what a procedure reads is
+    `hand_sensed` (#721)."""
 
   @abc.abstractmethod
-  def hand_sensed(self, side: str) -> tuple[float, float, float]:
+  def hand_sensed(self, side: str) -> tuple[float, float, float] | None:
     """`hand_at` as the hand's control loop last read it, at its last
-    command (#554): what a move's stop condition reads, at the encoders'
-    own rate, drawing nothing more on their noise -- read afresh between
-    commands, a condition that never came true changed the flight."""
+    command: what a procedure's `read` and a move's stop condition read, at
+    the encoders' own rate, drawing nothing more on their noise (#554,
+    #721). None before that loop's first reading, and while a get-up has the
+    legs (the loop reads nothing then)."""
 
   @abc.abstractmethod
   def hand_watched(self, side: str) -> tuple[float, float, float]:
@@ -707,7 +718,9 @@ class Body(abc.ABC):
     (it stopped on its way: pushing on something, or out of reach as the
     body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
-    `hand_kept`), "fell", "out of time" -- or "" where it held (#493)."""
+    `hand_kept`), "own body" (#722: every way out would pass through its
+    own trunk, so nothing moved), "fell", "out of time" -- or "" where it
+    held (#493)."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -718,7 +731,8 @@ class Body(abc.ABC):
     way out), `back` (a reach whose way home from there would meet it), and
     for a reach `other` (whether the other hand's way there keeps off it;
     None where that hand does not reach; "holds" where it is out holding
-    something and kept the body's posture, #719) -- else None."""
+    something and kept the body's posture, #719; "own" where its every way
+    there passes through the robot's own trunk, #722) -- else None."""
 
   @abc.abstractmethod
   def posture_kept_by(self, side: str) -> str | None:
@@ -1206,6 +1220,9 @@ class StubBody(Body):
 
   def detect_tags(self) -> dict:
     return {}
+
+  def build_cameras(self) -> None:
+    pass
 
   def spot(self, tag, at_height=None):
     return None

@@ -10,6 +10,417 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
+
+**What the robots read** moves on purpose: the prompt `b4d1ec1f…` (69,557
+characters, 17 sections, `loop-staging` 97bcfbdc) becomes `6ec0fc48…`
+(70,256, 17 sections). The event map's rule says a person's message
+reaches a robot while it charges where its `message_received` rule asks,
+that it is asked with its plug in unless asking is held off (`busy`,
+`cooloff`, `budget`, `allowance`, `scripted-mode`: then it waits until the
+robot can be asked, or for the charge's end), what a `charge`, a
+stand-still answer and a move then do, and that a failed answer goes on
+charging, its order running once the charge ends unless a new question
+comes first; and its two sentences that said every other `ask` waits
+until the robot is free now say this one does not. The session host's
+hello `a61b6376…` is unmoved. History gains two lines, each said once a
+charge: `charge: at N% a message waits for an answer, and I am asked with
+my plug still in`, and `charge: no answer came (<why>) at N% -- back on my
+charge, and <action> once it ends` (a failed call only).
+
+**The change** (Overseer.md §10, "A robot answers while it charges";
+`HubLifecycle._spoken_to`, `_break`, `_open_charge`, `_ask_takes`,
+`_order_after_charge_routine`). A charge's hold ends, its plug in, for a
+person's message the map's `message_received` ask row fired for, once the
+charge has held a moment and where a call would go out; the loop asks at
+once, past the idle-run throttle, and acts on the answer as given (#654's
+rules). A fallback goes back on the charge, and its order runs when the
+charge ends. The charge stays one: one `charge` row from where it began,
+one cycle and one `task_complete charge`, whether the `charge` answered
+carries it on or the pack fills while the robot stands still or the run
+ends; cut short of full by a move, the run's end or a plug that came out,
+its row alone. A message is asked about once, by the first call that held
+it; one passed over twice (an answer to nobody, or to the other robot) no
+more; and a message in an ask's context fires no `message_received` after
+it (one did, a tick later, and paid for a second ask). ⚠ A
+`message_received` row dropped `busy` (the slot full) as the robot charges
+is still asked by a break: that `busy` counts the slot, never a message
+left unasked.
+
+**What the period is for.**
+- **The acceptance**: a person's message during a charge answered in the
+  minutes its think takes, never a charge's length (43 minutes on 10-29);
+  no robot unplugged below 90 % by a fallback's order after a break (read
+  `CHARGE: no answer came` beside the next `CHARGE: unplugging` and its
+  pack); one `charge` row a charge (the ledger's `charge` rows against the
+  `GO_CHARGE -> CHARGE` lines); no `took no time` line beside a break.
+- **What the minds answer plugged in**: how often a break's answer is
+  `charge`, what else, and how often the answer is a fallback (on 11-18,
+  42 of 313 answers failed).
+- **Its cost**: the calls a break spends (one a person's message, never two
+  in an outage), and the decisions per hour of charging.
+
+⚠ **Not to be pooled with the period before for**: when a visitor's
+message is answered, decisions per hour (a break adds them where a charge
+held them), a charge's `charge` rows (one now covers a charge a message
+broke; a charge cut by a move is one row, `ok: false`), any reading of
+`message_received` asks (a message in an ask's context no longer fires
+one a tick later), and `fallback:idle-run` (a break's ask passes the
+throttle).
+
+### A reach's plan keeps its arm off the robot's own trunk (#726's option 1, T3, `loop-726`) — opens when this PR is deployed
+
+**What the robots read** is unmoved where it is read every turn: this
+change moves neither the prompt (`b4d1ec1f…`, 69,557 characters, 17
+sections, on `loop-staging` e629cddd with it and without it) nor the
+session host's hello (`a61b6376…`). No sentence is new or changed. What
+moves is when #722's words are said: a `reach` whose every plan would put
+the arm in the robot's own torso or head -- at the goal, or at the point
+short of it the hand comes in from, in every posture it may take and with
+the grip half a turn round -- moves nothing and reads false with #722's
+"every way your left arm takes from where it is to there passes through
+your own body, so it did not move" (and "; your right hand could reach it as
+asked" where the other hand's plan keeps clear). Before, a plan into the
+trunk was taken: three of the 11-15 wake's door reaches from the arm hanging
+pressed the torso at 23-52 N on e629cddd. And where a reach's words say
+what the other hand could do, or that turned another way it can, they now
+say it only of a plan that keeps clear of the trunk (before, Luca's
+`door_run31` was told its right hand "could reach it as asked" of a plan
+3.5 cm into the torso).
+
+**The change** (`reach.plan`'s `own`, `_reached`'s `clear`, `_solutions`,
+`in_trunk`; `Reach._planned`, `reach`, `plans`, `clear_way`, `_look`;
+SimNotes, "A reach's plan kept off the robot's own trunk"). A reach's plan
+in each posture is today's where its arm at the pre-grasp and at the goal
+keeps off the trunk on the robot's model of itself (#722's `own_rooms`),
+else the goal's other solves in turn, else the next posture's -- a plan at
+full stretch before one in the trunk with room to spare -- else the grip
+half a turn round; with none, a procedure's reach is refused and the
+loop's own (a charge's) takes today's plan. A look at the pre-grasp passes
+over a posture whose plan from the arm as it is lies in the trunk (the
+posture it holds judged at the goal alone, its hand at the pre-grasp
+already). Where today's plan keeps clear, nothing changes.
+
+**Measured** (one Vast pod, a Xeon Gold 6140, beside e629cddd; SimNotes has
+the count before it): Ben's bar met, 610 of 736 passed with 6 falls where
+the base passed 608 with 8; the 5 of 736 that moved are the cube's at
+set-outs 2, 7, 46, 91 and 112, whose plans or looks lay in the head (two
+falls gone, two passes gained), the tour untouched. Of the 11-15 wake's 53
+runs, the 4 whose reaches were planned into the torso moved: one more door
+opened, one fall gone, the torso presses (23-52 N) gone, and no reach
+refused. The station's checks plug in as the base does (5 of 140 seats by
+another way, each at its first push), the counter's recorded attempt and the
+pair's recorded day are the base's, and of T1's 193 flights of the 11-18
+wake's tries 10 moved, the same 34 passing, with two more falls, both #693's
+way home over the cupboard's lever in a step's hand-over, as the base falls
+at two other keys.
+
+**What to read**: reaches that read false with "own body" from the arm
+hanging, and what the robot does next; a reach planned in another posture
+or with the other grip where it used to press its own body (the cube's deep
+bows, a lever close to the chest); falls in a reach's way out; a reach's
+plan's time on the physics thread (a refused reach plans every posture).
+
+### An operator's ticket line lands while the world is paused (#729, T2, `loop-729`) — opens when this PR is deployed
+
+**What the robots read** is unmoved in its words: the prompt is
+`b4d1ec1f…` (69,557 characters, 17 sections) and the session host's hello
+`a61b6376…`, with the change and without it (`loop-staging` c7f78bc9). What
+moves is WHEN an operator's reply, close or delete reaches a robot: sent
+while the world is paused, it lands in the pause (its History line, its
+thread, a close's 25 points), where before it waited for the wake and a
+restart during the pause lost it; the `ticket_replied` it fires for a map
+fires after the wake, unless the process restarts in between (it is held
+in memory, never saved). A robot whose desk an operator clears while it
+sleeps wakes with slots free.
+
+**The change** (`HubLifecycle._ticket_lines_step`, `_ticket_failed`;
+`_mode_step`; Overseer.md §2g). The three ticket kinds are taken at the
+top of every arbitration pass, as before, and in every slice of a pause,
+each robot's on its own desk, none once a stop is asked; the `ticket`
+event acknowledging one leaves while paused. A line the desk fails on is
+`refused`, `sender: "operator"` (its error's class on the wire, its
+message in the console), the desk as it was, and never ends the run;
+before, an exception there ended it. Every copy of a line is answered,
+the same process's too: a reply sent again is `replied` with `again:
+true` and put on the thread once (the desk keeps each operator line's
+`ref`), where before a copy sent to the next process landed twice and one
+sent to the same process was dropped unanswered.
+
+**Measured**: nothing flown (no physics moves); pinned on the stub and over
+a real socket (`tests/test_tickets.py`). On the wake of 11-13, the case it
+answers: ten lines sent at 15:22-15:23 UTC during a pause were never
+acknowledged, the release at 18:00 restarted the sim, the site's third
+delivery came at 18:01:01, and the release of 11-14 at 08:44 lost them;
+re-sent by hand on 11-18, they were acknowledged on their first delivery.
+
+**What to read**: `ticket` events with `t` frozen at a pause's instant and
+their `ref`s settled on the site before the wake; a `refused` with
+`sender: "operator"` (none expected) and a `replied` with `again` (rare);
+whether the robots, woken with a reply or a close in History from the
+pause, act on it as they did on one sent awake.
+
+### A `spot` that saw nothing names its picture's sides, where History has room (#728, T4, `loop-728`) — opens when this PR is deployed
+
+**What the robots read moves in History alone**: neither the prompt
+(`b4d1ec1f…`, 69,557 characters, 17 sections, on `loop-staging` c7f78bc9
+with this change and without it) nor the session host's hello
+(`a61b6376…`) carries a refusal, and neither moves. A `spot` that saw
+nothing reads false, and its reason reaches the robot in its run's History
+line. It said "tag 55 is not in your colour camera's picture from where you
+stand, or too near or too far to read: it shows nothing higher than 19
+degrees below level". It now goes on, in Ben's words (#728's option 1, off
+the constants `spot`'s text reads), ", nor further than 34 degrees to either
+side of where your head faces at that top (more than 50 at its bottom)" --
+but History says each such reason in full only where that one moves
+nothing else in the run's lines (`procedure_outcome`: a step's `brief`, the
+start of its reason), and where it would, says the top alone, so a run none
+of whose refusals has room says its lines as they were, byte for byte. A
+fall said over a refused `spot` is said as the fall. Where #717 held its
+bow, the refusal is as it was, the top and the bow ("...19 degrees below
+level; your LIDAR reads something 0.12 m in front of your head, so you bowed
+only 14 degrees of the 26 you would have"), never the sides as well: beside
+the bow's clause it would be 351-374 characters, past the about 307 less the
+procedure's name and its line's digits that History's run line leaves a
+false test's reason (#629), and no run that ended would have said it. The
+narration, a `procedure` event's `failedReason` and a practice's report say
+the longer reason whenever the step does.
+
+**Why** (#728). `spot`'s text gives the whole picture, but its refusal
+named only the top, and the robots took the top for the reason every time.
+On 11-14 Luca, turned 32-36 deg from square to the counter after its door
+procedure, its door's lever 48-52 deg from where its head faced, read
+fourteen refusals in two runs as the top edge's and kept it as a rule (a
+top edge "stance-dependent, not absolute"); on 11-18 Rowan pinned the top
+edge for a tag that could not have left the picture by its top. Those two
+runs' History lines say the sides whole.
+
+**Measured** (every run of the 11-14, 11-15 and 11-18 wakes rebuilt off the
+sim's log -- its tests that read false, its failed step, its end -- and its
+locals off its `procedure` event, its History lines made by
+`procedure_outcome`).
+Every refusal fits on its own: at the largest tag (586), the longest name a
+procedure may have and a 4-digit line, the plain refusal (262 characters,
+from 152) and a held bow's (264, as before) are said whole beside a run that
+ended and one they stopped (a test). But History's run line says each
+line's first reason in order while they fit and none after the first that
+does not, and its readout beside the line while it fits, so in full the
+longer reason crowded the line. Of the runs with a refused `spot`:
+
+| | 11-14 (22 runs) | 11-15 (52 runs) | 11-18 (42 runs) |
+|---|---|---|---|
+| Ben's words in full: the sides said | 15 | 23 | 19 |
+| ...a reason or a name said before, gone | 12 | 28 | 6 |
+| ...of those, the `spot`'s own (nothing of the picture) | 5 | 19 | 5 |
+| ...nothing gone, but the readout on a line of its own | 2 | 6 | 9 |
+| as built (each where it moves nothing else): the sides said | 6 | 8 | 9 |
+| ...anything gone, or a line more | 0 | 0 | 0 |
+
+The runs it says the top alone in are the ones whose line a long stop (a
+fall, a budget run out), several lines that read false or the readout
+already fill.
+Let the readout go to a line of its own, never built, the sides would be
+said in 8, 14 and 18, each such run a History line more. Every one of the
+311 runs as logged -- no shorter form, every verb -- makes the same 500
+lines on this tree as on c7f78bc9. 11-18's 6 refusals with a held bow (2
+runs) were said by no History line: their runs' lines were full either way.
+Stop conditions are not in the logs, so the counts carry none.
+
+**What to read**
+- Whether a robot's notes, pins and tickets still blame the picture's top
+  for a tag beside it, and whether a refused `spot` is followed by a turn.
+- How often History says the sides (the narration says them every time).
+- ⚠ Not to be pooled with the period before for what a robot does after a
+  refused `spot`: its words moved.
+
+### A way out from a hand already out keeps off the robot's own trunk (#722, R5, `loop-722`) — opens when this PR is deployed
+
+**What the robots read** is unmoved where it is read every turn: this
+change moves neither the prompt nor the session host's hello -- on
+`loop-weekend` d81c0017, #723's period below, the prompt is `b4d1ec1f…`
+(69,557 characters, 17 sections) with it and without it (on `loop-staging`
+ac2538e8 alone, `75ec76e3…`), and the hello `a61b6376…`. One new reason a
+`reach` reads false: a reach begun with the hand already out whose
+every way there would pass through the robot's own torso or head moves
+nothing and says "every way your left arm takes from where it is to there
+passes through your own body, so it did not move" -- and "; your right hand
+could reach it as asked" where the other hand's plan reaches. Before, it went straight
+there and pressed the torso; where that tipped the robot past #708's line
+it read "your left hand stopped short on its way: out of reach from how you
+truly stand, or pushing on something; as it stopped, its grip was ... cm
+from where you asked". And a reach kept off another robot (#678) whose other
+hand's every way there would pass through its own body ends "; your right
+hand's every way there passes through your own body" (before, "; nor does
+your right hand's").
+
+**The change** (`Reach._own_kept`, `reach.own_rooms`, `apart`; `Reach.own`;
+`Body.hand_why` "own body"; `steps.REACH_WHY`; SimNotes, "A way out from a
+hand already out"). A way out from a hand already out is sampled on the
+robot's model of itself against the torso, the head and the LIDAR, its end
+included: today's way where no part of the arm goes through them (a pair
+of parts begun in each other, that pair no deeper), else the side way or the
+way drawn in that keeps so and dips no deeper ahead, else a procedure's
+reach is refused; the loop's own (a
+charge's) takes the way that comes least near, as no wait frees it. A way
+from the arm hanging, and a way home, are judged as before.
+
+**Measured** (one Vast pod, an EPYC 7742, beside ac2538e8; SimNotes has
+the count before it): Ben's bar the base's flight for flight, 608 of 736
+passed with 5 falls on both trees and none of the 736 moved at all; its 309
+ways out from a hand already out keep clear of the trunk. Of the 11-15
+wake's 53 runs flown at their live draws, the 3 whose ways out from the
+cupboard's lever pressed the torso at 36-56 N moved, none passing or
+falling otherwise: 8 reaches refused, one press left at 9 N by a forearm
+begun on the torso. On `loop-weekend`, the place laid from the pass (never
+offered) is the same 37 of 64 with 3 falls with the rule and without it,
+none of its flights moved. The pair's recorded day and the counter's attempt
+are the committed fixtures', and the station's checks (39 approaches, 140
+seats, 20 lost near) the base's row for row.
+
+**What to read**: reaches that read false with "own body", and what the
+robot does next (a `withdraw` first, a `step` back, a turn given); a reach
+from the hand out at a lever close to the chest; whether a reach at the
+cupboard's lever still reads "stopped short" with the hand out.
+
+### The table's served words say which left, and where an offer sets its pieces out (#723's option A, R6, `loop-723`) — opens when this PR is deployed
+
+**What the robots read moves** (`prompt_sha` `b4d1ec1f…`, 69,557
+characters, 17 sections, from `75ec76e3…`'s 69,505 at `loop-staging`
+ac2538e8, the table's row alone; R1's periods below are already on that
+tree; the session host's hello unmoved, sha1 `a61b6376…`; no geometry,
+no wire field and no `dataHashes` moved, since neither `challenges.json`
+nor `places.json` is hashed, and no committed recording carries a job):
+- The `set_table` row in the prompt's reward table, "...the fork 19 cm out
+  and 16 cm to the line's left, along it within 15 degrees, its head toward
+  the card; the cup 7 cm out and 24 cm to the line's right. Each must...",
+  reads "...the fork 19 cm out and 16 cm to the line's left (your left as
+  you face the card), along the line within 15 degrees, its head toward the
+  card; the cup 7 cm out and 24 cm to the line's right (your right). Each
+  must...". "Along it" became "along the line" because after the brackets
+  "it" could be read as the card. The `set_table_pass` row, which no mind
+  is shown, says the same.
+- The place's directions (`dining_table_0`), shown with every table offer
+  and every held table job, gain one sentence after "...carrying tag 93 on
+  its face.": "When a job here is offered, the plate, the cup and the fork
+  are set out on the table near the card, none of them where it goes." The
+  last clause belongs to the set-out, so a robot that has laid a piece and
+  reads its held job's directions again is not told that piece is
+  misplaced.
+- The offer's sentence, shown with every table offer and held table job
+  (and on the site's job list), "...the fork 19 cm out, 16 cm left, along
+  the line, head to the card; the cup 7 cm out, 24 cm right. ... The plate,
+  the fork and the cup were set out at t=..., when this job was offered.",
+  reads "...the fork 19 cm out, 16 cm to your left, along the line, head to
+  the card; the cup 7 cm out, 24 cm to your right. ... The pieces were set
+  out at t=..., when this job was offered." At 14 minutes and a six-digit
+  `t` it is 486 of `MAX_DESCRIPTION`'s 500 characters, where it was 491.
+  The pass's sentence, offered by no world, keeps its bare "left" and
+  "right": the same words would take it to 511.
+
+**Why** (#723, from P10's reading of the 11-12, 11-14 and 11-15 wakes).
+The practice's job text for the table says which left the fork's is and
+that the pieces wait near the card, and the served words said neither; they
+now say both, and the cup's side, and that none is where it goes. The line
+runs from the card toward the robot, so "the
+line's left", read as the line's own way, is the robot's right; the
+grader's left is the diner's, which is the robot's as it faces the card.
+On 11-15 Luca wrote "'the line's left' can be read two ways and I'm not
+sure which one the grader means" (t_0414) and spent a 178 s recall on it.
+Told only that the pieces "were set out", Luca read a set-out's plate and
+fork as the place half laid (t_0414) and found too late that all three
+needed moving (t_0405), and Rowan wrote a search for them at the pass as
+well as the table (11-14, t_0271). These cost answers in 4 of the 18 live
+table tries. They are not why the tries ran out: no robot ever had a laying
+procedure accepted, and 61 % of the held time went to writing answers.
+
+**What the period is for.**
+- **Which side a robot lays the fork and the cup on**, and whether its
+  thoughts still ask which left the grader means.
+- **Where a robot looks for the pieces**: on the table near the card, never
+  the pass, and whether it still reads a set-out as the place half laid.
+- ⚠ **A job standing at the deploy keeps the words it was offered with**,
+  its sentence and its directions (both are written into it as it is made):
+  read from the first table offer after the deploy. At a deploy that
+  starts the world over, such an offer keeps its old date too: #659's
+  re-dating knows a kind's words only as its template now writes them.
+- ⚠ **Not to be pooled with the period before for what a robot does at the
+  table**: the job's words moved.
+
+### The cameras' renderer built at boot, and the memory alarm at two samples (#713's tail, R3, `loop-713b`) — opens when this PR is deployed
+
+**Nothing the robots read or do moved.** A served process builds each
+robot's two tag cameras, and so their one renderer, as its run begins
+(`Body.build_cameras`, inside `serve.py`'s `try` around the run, so a
+renderer that cannot be built is a crash on the wire as it was at a first
+look), where each was built at its first look. Flown under osmesa with
+the cameras built as each robot is: every camera's picture the same bit
+for bit (the served pair at three placings, every order of the four, every
+decode the same); the pair's committed recording line for line the same
+(11,664 lines, its two `earned` rows' wall-clock `at` aside), and
+`determinism_spike.py --pair` the same day row for row (525 state samples,
+119 looks, 4,964 scans; a fall, a flat death and a stand-up), and with
+`--resume-at` a day saved and carried on in a new process the same as
+straight through (215 state samples, every look and scan).
+`prompt_sha` `75ec76e3…` (69,505 characters, 17 sections, as merged after
+#518's private chat; `a38f86a9…` on this branch's own base) and the
+session host's hello (sha1 `a61b6376…`) are unmoved; no geometry and no wire field
+moved, so no fixture was flown again.
+
+**What moved is the served process's memory, and its alarm.** The
+renderer's 257 MiB (measured under osmesa on the served pair) comes in a
+process's first minute, with its world, where it came at the first
+camera's first look; a camera's first look after it costs 22 MiB at most.
+The alarm judges two samples over 50 MiB a minute again
+(`vitals.RUNAWAY_MINUTES`; Webserver.md, "Two samples"), not three: a
+runaway is reported a minute sooner, at 115 MiB a minute about 230 MiB in
+where it was 345, and one from boot six minutes in at the earliest.
+
+**What the period is for.** A process's first `vitals: rss` lines carry
+the renderer, about 250 MiB more in its first minute than in #713's
+period; no step over about 30 MiB at a robot's first look after it; and no
+`RUNAWAY` at a boot, a wake or a first walk. One there would be a fault of
+this change: read the `vitals: rss` lines before it.
+
+### A procedure's read of a hand's place moves nothing (#721, R4, `loop-721`) — opens when this PR is deployed
+
+Merged on Ben's call alone: on its standard draws Ben's bar was missed, by
+the held-out lid (below).
+
+**What the robots read does not move** (`prompt_sha` `b4d1ec1f…`, 69,557
+characters, 17 sections, and the session host's hello, sha1 `a61b6376…`,
+on `loop-staging` 67717b2b with it and without it; on ac2538e8, where it
+was measured, the prompt was `75ec76e3…`): no text the robots read says
+when a reading is taken.
+
+**The change** (`axes._hand_sensed`, `Body.hand_sensed`; SimNotes, "A
+procedure's read of a hand's place"). A procedure's `read("left.x")` (y, z,
+the right hand's) is the place as the arm's loop read it at its last
+command, at most 0.01 s old, where it read every joint afresh: each read
+drew on the drivers' noise and posed the model of itself again, so a read
+nobody acted on moved the rest of the flight. What a robot reads is the
+same kind of reading, a tick older at most; what changes is that its
+flight no longer moves when its procedure reads a hand's place. Before the
+arm's first reading (a body's first instant) and during a get-up a hand's
+place has no reading and says why ("you are getting up, and your arm reads
+where its hand is again once you stand"): a run begun while a get-up has
+the legs stops at its first read of a hand's place, where it read a
+tumbling body afresh.
+
+**Measured** (one Vast pod, a Xeon E5-2698 v4, beside ac2538e8; SimNotes
+has the rest): the hands checks at 0-127 and the tour, 600 of 736 flights
+moved (every one that reads a hand's place; the drawer's 128 bit for bit),
+608 passed with 5 falls on both trees, 13 flips each way -- and Ben's bar
+missed, by the held-out lid (88 -> 85 of 96; the cube 64 -> 70). On a
+second draw of every flight's noise the flips run 26 against 15, 39 against
+28 over both (a sign test's p 0.22), and today's tree against its own
+second draw moves its held-out lid 88 -> 86 and its held-out cube 64 -> 71:
+within what a re-roll does by itself. The pair's recorded day is unmoved.
+The fix's own pin stands apart: a read moves nothing, bit for bit.
+
+**What to read**: nothing new should show. The hand jobs' passes and
+falls, and the robots' procedures that read a hand's place (a lift's
+height, a move back from where the hand is), should read as before.
+
 ### Each person's chat with a robot is their own, and the robots are told so (rooftop-media-2026 #518, R1, `loop-chat2`) — opens when this PR is deployed
 
 Ben's call of 2026-11-17: a chat is like texting one robot, never a public

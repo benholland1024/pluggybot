@@ -2665,7 +2665,8 @@ never runs at all.
 `points_below` while you are out on a job does not wait for you to finish \
 -- it interrupts you at the next safe moment, because those are the two \
 things that get WORSE while you carry on and that carrying on makes worse. \
-Everything else waits until you are done.
+Everything else waits until you are done -- but for a person's message \
+while you charge, below.
 
 When one interrupts you, what happens is what that rule says. If it names an \
 action, you stop, and that action is what you do next. If it says `ask`, you \
@@ -2673,6 +2674,16 @@ are asked once -- carry on, or stop and go -- and if nobody can be reached in \
 time you stop and go, because a robot that keeps working because nobody \
 answered is how a low pack becomes a flat one. Stopping is never free: \
 whatever you had done is scored as it stands.
+
+⚠ A PERSON'S MESSAGE REACHES YOU WHILE YOU CHARGE, where your \
+`message_received` rule says `ask`: you are asked then, with your plug \
+still in -- unless asking you is held off (`busy`, `cooloff`, `budget`, \
+`allowance` or `scripted-mode`, above), and then it waits until you can be \
+asked, or for the charge to end. `charge` \
+carries on charging where you are, what you do standing still leaves the \
+plug in, and anything that moves you takes it out first. If no answer \
+comes, you carry on charging, and what you have set for a failed decision \
+happens once the charge ends, unless a new question comes first.
 
 ⚠ A RULE CAN FAIL, AND NOTHING WILL STOP IT. There is no check on the list \
 you write; the actions are simply attempted, and an action that cannot \
@@ -2698,8 +2709,9 @@ you cannot solve anything new that way.
 ⚠ AND A RULE SET AT EXACTLY THAT LIMIT WILL NOT SAVE YOU. A rule that says \
 `ask` counts as asking you the moment it fires, even in the middle of \
 something else -- though the question itself waits until you are free, \
-unless it is one of the two that interrupt you, and never reaches you at all \
-if something the map fired earlier has not run yet. But your list is looked \
+unless it is one of those above that do not wait, and never reaches you at \
+all if something the map fired earlier has not run yet -- but for the \
+person's message above. But your list is looked \
 at once a second, so "ask me every 1800 seconds" fires up to a second after \
 the limit, and late is dead. Leave yourself room.
 
@@ -4256,8 +4268,13 @@ class Overseer:
       return ""
     return row.action
 
-  def start(self, state: dict) -> None:
-    """Dispatch a decision. Returns immediately; poll `pending`."""
+  def start(self, state: dict, throttle: bool = True) -> bool:
+    """Dispatch a decision. Returns immediately -- whether a call went out
+    (the model sent `state`), False for one resolved at once (`busy`, a
+    gate) -- and the answer is polled for with `pending`. ⚠ `throttle`
+    False passes the idle-run throttle: a charge's break asks for a person's
+    message, never for an idle run (#730), and refused it would be asked
+    again a moment on, its fallback's order dropped."""
     with self._lock:
       self._asked_for = self._starts_over
       self._pending_state = dict(state)
@@ -4269,26 +4286,24 @@ class Overseer:
         # the caller gets an answer immediately instead of waiting out another
         # deadline for a call that was never dispatched.
         self._slot = {"decision": self.fallback(state, "busy")}
-        return
+        return False
       self._slot = {}
-      why = self._refuse(state)
+      why = self._refuse(state, throttle)
       if why:
         # Nothing to dispatch: budget spent, cooling off, no client, or too
         # many idle turns in a row. Resolve now so the caller never waits for
         # a call that was never going to happen.
         self._slot = {"decision": self.fallback(state, why)}
-        return
+        return False
       self._calls.append(self.clock())
       self._in_flight = True
       threading.Thread(target=self._call, args=(dict(state),),
                        daemon=True).start()
+      return True
 
-  def _refuse(self, state: dict) -> str:
-    if self.budget_left() <= 0:
-      return "budget"
-    if not self._allowance_ok():
-      return "allowance"
-    if self._idle_run >= MAX_IDLE_RUN:
+  def _refuse(self, state: dict, throttle: bool = True) -> str:
+    why = self._refusal(throttle)
+    if why == "idle-run":
       # ⚠ A THROTTLE, NOT A LOCK (issue #115). Firing RESETS the streak, so
       # this costs one call in every `MAX_IDLE_RUN + 1` and then asks again.
       #
@@ -4303,12 +4318,32 @@ class Overseer:
       # fallbacks, arrived at from the other side: there, fallbacks fed the
       # streak; here, nothing could drain it.
       self._idle_run = 0
+    return why
+
+  def _refusal(self, throttle: bool = True) -> str:
+    """Why a call started now would not be made, or "": `_refuse`'s gates,
+    read and never moved -- the idle-run throttle's only where `throttle`."""
+    if self.budget_left() <= 0:
+      return "budget"
+    if not self._allowance_ok():
+      return "allowance"
+    if throttle and self._idle_run >= MAX_IDLE_RUN:
       return "idle-run"
     if self.clock() < self._cooloff_until:
       return "cooloff"
     if self.client is None:
       return "no-client"
     return ""
+
+  def can_ask(self) -> bool:
+    """Would a decision started now go to the model, as far as this side can
+    tell (#730: a charge's hold is broken for a message only then)? Never
+    with a call still out (`busy`) nor behind a gate that stays shut; past
+    the idle-run throttle, which a break's ask passes (`start`'s
+    `throttle`), and every gate behind it read. An endpoint that fails is
+    found only by asking."""
+    with self._lock:                        # as `start` reads them
+      return not self._in_flight and not self._refusal(throttle=False)
 
   @property
   def pending(self) -> bool:

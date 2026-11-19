@@ -40,7 +40,7 @@ from pluggybot.evaluation import attempts as at
 from pluggybot.evaluation import counter as ct
 from pluggybot.procedure import lang
 from pluggybot.procedure.library import MAX_PROCEDURES
-from pluggybot.procedure.steps import WorldFacts
+from pluggybot.procedure.steps import UNSHOWN, WorldFacts
 from pluggybot.perception.tags import CHEST_TAG_IDS, DOOR_TAG_IDS
 
 #: Attempts a chest, the most: stage 1's curve, S@1 to S@5.
@@ -395,8 +395,9 @@ def flown(results, n: int, early_stop: bool, write=lambda rows: None) -> dict | 
 
 
 def _trimmed(ran: dict | None) -> dict | None:
-  """A run's record for the row: every step but its trace."""
+  """A run's record for the row: every step but what no reader is shown
+  (`steps.UNSHOWN`: its trace, and a reason's shorter form)."""
   if ran is None:
     return None
-  return {**ran, "steps": [{k: v for k, v in s.items() if k != "trace"}
+  return {**ran, "steps": [{k: v for k, v in s.items() if k not in UNSHOWN}
                            for s in ran.get("steps", [])]}

@@ -352,8 +352,8 @@ save a filmstrip PNG named after the script.
   a jaw back over the door's top pressing down on it, and stopped there --
   on the whole reading at 20-40 N, or on its pull alone at 30 N -- the door
   fell more or passed fewer. ⚠ It reads a push on the robot's own body as
-  the world's (a way out from a hand already out, judged against nothing,
-  drove a gripper into the torso: 46-61 N; SimNotes). ⚠ OUR DOOR'S AND LID'S
+  the world's (a gripper driven into the torso stopped there at 46-61 N;
+  SimNotes). ⚠ OUR DOOR'S AND LID'S
   REFERENCES, A REACH FAILED (THE LID'S: STOPPED SHORT, ITS HAND OUT), TRY
   THE GRIP TURNED TOWARD THE MIDDLE BEFORE THEY TILT (`hands_check.DOOR`,
   `LID`; SimNotes, "The door's reach the stop sends back"): tilted at once,
@@ -390,7 +390,29 @@ save a filmstrip PNG named after the script.
   driven into its top. ⚠ No force guard on
   it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
+  home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
+  TRUNK (#722; `Reach._own_kept`, `reach.own_rooms`, `OWN_CLEAR_M`;
+  SimNotes, "A way out from a hand already out"): sampled on its model of
+  itself, the upper arm, forearm and gripper against the torso, the head and
+  the LIDAR, its end included -- straight where it never goes through them,
+  or, a pair of parts begun in each other, that pair no deeper; else the
+  side way or the way drawn in that keeps so and dips no deeper ahead; else
+  a procedure's reach moves nothing, "own body", and the loop's own (a
+  charge's: no wait frees it) takes the way that comes least near
+  (`Reach.reach(verb=)`): straight, the wake's door runs drove the gripper
+  into the torso at 36-165 N. ⚠ NEVER FROM A HAND AT REST -- ⚠ BUT THE PLAN
+  KEEPS THE ARM OFF THE TRUNK AT ITS PRE-GRASP AND ITS GOAL (#726; `plan`'s
+  `own`, `_reached`'s `clear`, `reach.in_trunk`; SimNotes, "A reach's plan
+  kept off the robot's own trunk"): today's where both keep clear, else the
+  goal's other solves in turn as `solve_seeded` ranks them, else the next
+  posture's (a plan at full stretch before one in the trunk with slack), else
+  the grip half a turn round; none, and a procedure's reach moves nothing,
+  "own body", the loop's own taking today's; `hand_reaches` answers so, and a
+  look at the pre-grasp passes over a posture whose plan from the arm as it is
+  lies in it: unjudged, three of the 11-15 wake's door reaches from the arm
+  hanging pressed the torso at 23-52 N. ⚠ MuJoCo 3.10 reads two boxes apart as
+  0.0 at some poses (`reach.apart` reads them again). ⚠
+  JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
   straight, unchecked -- has the stand once it is home (asked as it set
@@ -982,8 +1004,14 @@ save a filmstrip PNG named after the script.
   set-outs 0-31 (the bar 24), one pod, the procedure the served lay is. ⚠ ITS LEFT GRIP CARRIES
   ONLY TAKEN HALF A TURN ROUND (#560 (c2)): the reference asks it the other
   way round, tilted 60 deg; each reach is aimed at its grip (#627), a carry
-  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ SERVED, ITS
-  DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
+  by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ ITS ROWS AND
+  ITS OFFER SAY EACH SIDE AS THE ROBOT'S OWN AS IT FACES THE CARD -- the
+  grader's left is the diner's -- AND THE PLACE'S DIRECTIONS THAT AN OFFER
+  SETS THE PIECES OUT ON THE TABLE NEAR THE CARD, NONE WHERE IT GOES (#723;
+  two tests read the side off `table.place_frame` and the set-out off
+  `table.measure`): the directions ride every kind's offer there, so a kind
+  a world offers that sets them out elsewhere, the pass's, moves those
+  words. ⚠ SERVED, ITS DISHWARE IS PUT AWAY BETWEEN JOBS (`restaurant.attach`, `dishware.park`/
   `place`): a metre under the floor, contacts off -- ⚠ the BODY's
   broadphase masks with its geoms' (switched alone, the pieces fell 4 m in a
   second) -- weight held (`gravcomp`), in `cull.PARKED_GROUP` -- ⚠ EVERY
@@ -1028,13 +1056,16 @@ save a filmstrip PNG named after the script.
   flights a walker; at the middle none of 64), ⚠ brought down to it by
   `move_hand` (by `pull` it drifted onto the lid's rim), ⚠ takes the plate
   from 0.50 m and brings it back by `move_hand`, never `pull` (that far, a
-  pull bowed over the counter and fell), ⚠ eases it before its let-go (let
-  go tilted, it dropped), ⚠ brings the fork back in two pulls (one of 0.24
-  m or more bowed 31 deg, stood up out of it and fell, 6 of 21) and ⚠ tries
-  the cup's pick again where its descent is held back on the lid (every
-  such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32 over the tour,
-  a fall failing the try) IS NOT MET: 16 of 32 on walk2 (round 4), held
-  out 19, the carry walker 0 (each miss: SimNotes).
+  pull bowed over the counter and fell), ⚠ in two moves, the last to no
+  nearer the body's middle than 0.25 m (in one, a grip near the middle took
+  the waist turned 30-60 deg and fell, 3 of 64 legs), ⚠ eases it before its
+  let-go (let go tilted, it dropped), ⚠ brings the fork back in two pulls
+  (one of 0.24 m or more bowed 31 deg, stood up out of it and fell, 6 of
+  21) and ⚠ tries the cup's pick again where its descent is held back on
+  the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
+  over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
+  (round 5), held out 15, the carry walker 0 (each miss, and round 4's
+  reference read beside it: SimNotes).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1306,8 +1337,10 @@ save a filmstrip PNG named after the script.
   pull's first commands read 13-16 N in free air) -- and no oftener
   than its part reads it (`Sensor.every_s`, rounded UP to physics steps; a
   verb's report has none and is refused; a hand's place as its loop last
-  read it, `Body.hand_sensed`, so a condition never met moves the flight not
-  at all), the first reading past stopping the hand where it is
+  read it, `Body.hand_sensed`, as a procedure's `read` reads it too (#721:
+  read afresh, a read nobody acted on moved the flight; none before the
+  loop's first reading nor during a get-up), so a condition never met moves
+  the flight not at all), the first reading past stopping the hand where it is
   (`Body.stop_hand`, `Reach.halt`: a carry or a pull where the hand IS, a
   reach where its arm is commanded -- ⚠ and its body where it had got to:
   held at its joints alone, the hand rode its plan's crouch and the next
@@ -1446,8 +1479,11 @@ save a filmstrip PNG named after the script.
     `ask` ROW STAMPS IT AS IT FIRES on the seam (#426: `_events_step`), a
     row dropped `busy` and a mid-errand interrupt included, never again when
     it runs: a restart, a full slot or a charge between the two lost the
-    period (4 of 19 deaths on legs). The queued row is KEPT across a
-    restart. Armed ONLY where there is a map; NOT prevented in code (a map
+    period (4 of 19 deaths on legs) -- but a charge's break's ask resets the
+    death clock alone, never the silence shown (#730). The queued row is
+    KEPT across a restart, and so is what happened that the map has not
+    read yet (#730: a charge's end said at the run's last step reached no
+    map). Armed ONLY where there is a map; NOT prevented in code (a map
     that cannot remove its own `ask` row is a rail).
     ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS ANSWERED FOR ITSELF
     (`HubLifecycle._minded`, #303) — a fallback is the box answering; a
@@ -1624,7 +1660,16 @@ save a filmstrip PNG named after the script.
   with no title (`remember(room=)`, #433), and a line History's cap does cut
   says so inside the cap (`thoughts._line`). The desk is the LIFECYCLE's
   and survives a true death. Three admin inbound kinds (`ticket_reply` /
-  `ticket_close` / `ticket_delete`); a close PAYS the `ticket` row ONCE through
+  `ticket_close` / `ticket_delete`), ⚠ TAKEN IN A PAUSE TOO, every robot's
+  on its own desk, none once a stop is asked (#729; `_ticket_lines_step` in
+  `_mode_step`'s slice): taken at a pass alone, ten lines sent while paused
+  were lost to a restart; ⚠ one the desk fails on is `refused`, said, the
+  desk as it was (a write it cannot make rolls back), and never ends the
+  run; ⚠ EVERY COPY OF A LINE TAKEN IS ANSWERED, the same process's too
+  (the inbox drops no ticket line as a replay, only a copy still queued): a
+  reply sent again `again`, not put twice (`Desk.taken`, off the ids the
+  desk keeps apart from the thread, `Ticket.refs`); ⚠ a stop
+  (`MissionAborted`) is never caught as a desk failure. A close PAYS the `ticket` row ONCE through
   `scoring.evaluate` + `_bank` (a replayed close answers `paid: false`; ⚠ NOT
   the visitor tier's `settle`: a true death restarts the ledger's `seq`). ⚠
   CLOSES ARE ORDERED BY THE DESK'S OWN COUNT (one from before the count by
@@ -1736,7 +1781,15 @@ save a filmstrip PNG named after the script.
   false came out "(2 steps)", and the robot built theories on it) and WHAT
   EACH STOP CONDITION READ (`stops_said`, #631: told only `reach.stopped`,
   Luca read a stop 0.18 s into a reach as its hand at a drawer), and its
-  `program` verdict is the run's own end (`ok`), never its count. ⚠ `drive_to(x, y,
+  `program` verdict is the run's own end (`ok`), never its count. ⚠ A
+  REASON WITH A SHORTER FORM (a step's `brief`, the start of its reason: a
+  `spot` that saw nothing names its picture's sides, its `brief` the top
+  alone, #728) IS SAID IN FULL ONLY WHERE THAT ONE MOVES NOTHING ELSE IN THE
+  RUN'S LINES, each in the run's order, else in its shorter form -- none in
+  full, the lines byte for byte as before -- the layout reading lengths
+  alone (a test): in full, the sides crowded History's line in 40 of the 74
+  runs with a refused `spot` on 11-14/15, the `spot`'s own reason gone in 24
+  (Observatory.md). ⚠ `drive_to(x, y,
   patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S` 600, never past the
   run's own budget (`run_verb(until=)`); an argument with a `default` may be
   left out; its text says the walk's keep-off off `WALK_KEEP_M` (the
@@ -1871,9 +1924,18 @@ save a filmstrip PNG named after the script.
   (`unplug_routine`: an `explore`, a procedure's first verb not in
   `steps.STILL_VERBS`) and at a full pack (`CHARGED`, `_clear_rack_routine`:
   nothing else ends a hold of the station), and what stands still leaves it
-  in. ⚠ A VISITOR'S MESSAGE WAITS FOR THE CHARGE'S END
-  (`test_a_persons_message_waits_for_the_charge_to_end`; why: Overseer.md
-  §10). ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
+  in. ⚠ A PERSON'S MESSAGE ENDS A CHARGE'S HOLD, ITS PLUG IN, WHERE THE
+  MAP'S FIRST `message_received` ROW ASKS AND A CALL WOULD GO OUT (#730,
+  Ben's calls of 11-16 and 11-18; `HubLifecycle._spoken_to`,
+  `tests/test_charge_answer.py`; Overseer.md §10): the loop asks at once on
+  those rules; ⚠ A FALLBACK GOES BACK ON THE CHARGE and its order runs when
+  it ends (run at once, an `explore` order unplugged a robot part-charged);
+  ⚠ ONE CHARGE HOWEVER OFTEN BROKEN (`_open_charge`): one row from its start,
+  one cycle and one `task_complete charge`, carried on, filled standing
+  still or full at the run's end; ⚠ N = 1: a failed call takes every
+  message it held, and one passed over twice -- an answer to nobody or to
+  the other robot -- is owed no more (`_asked_about`); ⚠ the break's ask
+  passes the idle-run throttle. ⚠ "AT THE STATION" IS READ OFF THE PLUG, NEVER `state` ALONE
   (`_clear_rack_routine`, the linger log, `Encounters`, a `tell`'s claim);
   ⚠ AND A CATCH'S WELD ANCHOR IS KEPT (`Station.restore_kept`: compiled it
   is 1 m off, and a restart read the plug at 3,100 N and threw it). ⚠ ANOTHER BODY IN
@@ -2017,10 +2079,11 @@ save a filmstrip PNG named after the script.
 - **The served process watches its own memory and says why it ended** (issue
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
   `vitals: rss` line every wall minute; at a RUNAWAY (`RUNAWAY_MB_PER_MIN` 50
-  for THREE samples, after a warm-up of five that NO PAUSED SAMPLE counts:
-  the cameras' one renderer, 285 MiB at the first camera's first use, is a
-  step, and two again is Ben's call, #713) every thread's
-  stack, then the largest
+  for TWO samples, after a warm-up of five that NO PAUSED SAMPLE counts; ⚠
+  a served process builds its cameras' one renderer AT BOOT,
+  `Body.build_cameras`, 257 MiB inside the warm-up: built at a first look
+  it was a step, and two built a minute apart read as a runaway, #713)
+  every thread's stack, then the largest
   allocations `TRACE_S` later; every end Python sees prints `vitals: exiting
   -- <why>`, so a process with no such line was killed. `RunawayRule` is pure
   and pinned with made-up series (`tests/test_vitals.py`). ⚠ `tracemalloc`
@@ -2433,7 +2496,9 @@ save a filmstrip PNG named after the script.
   MuJoCo 3.10's close sends its deletes to whatever context is current, and
   under osmesa another renderer's next picture came out wrong in 626,450 of
   921,600 pixels. ⚠ Its key carries the process: a forked child builds its
-  own.
+  own. ⚠ A served process builds the cameras at boot (`Body.build_cameras`):
+  a renderer built at a first look is a step the memory alarm can read as a
+  runaway (the vitals bullet).
 - **A composed errand is a PROGRAM over the step vocabulary** (issue #58;
   `procedure/steps.py`): DATA — a name, a sim-time budget, `roles: {role:
   [steps]}` — over the verbs, each an existing routine; one verdict per step

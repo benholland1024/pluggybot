@@ -466,10 +466,15 @@ its own:
 
 The offer says where by the area's terms (#419): the mall's address and the
 restaurant's directions, naming the table, the card's tag (93) and the
-pieces' (90-92), and that the card faces south -- never a position. Its
-sentence states this check's criteria and when the place was set out
-(#659), within a description's 500 characters (`tasks.MAX_DESCRIPTION`);
-its row's detail carries all of them.
+pieces' (90-92), that the card faces south, and that an offer there sets
+the pieces out on the table near the card, none where it goes -- never a
+position. Its sentence states this check's criteria and when the place was
+set out (#659), within a description's 500 characters
+(`tasks.MAX_DESCRIPTION`); its row's detail carries all of them. Each says
+a piece's side as the robot's own as it faces the card ("16 cm to your
+left"; the row's "16 cm to the line's left (your left as you face the
+card)"), which is the diner's, the grader's (#723; why: its period in
+Observatory.md).
 
 **Its hand-written solution** (`challenge/solutions.py`, `TABLE`): the walk
 to the place, then this check's procedure from its one stance, its first
@@ -508,7 +513,11 @@ right, the plate taken from further off, brought back by a position move and
 eased before it is let go), 15 of 32 (held out, 11 of 32); a fourth (round
 4: the fork brought back off the pass in two pulls, the cup's pick tried
 again where its descent is held back on the lid), 16 of 32 (held out,
-19 of 32).
+19 of 32); a fifth (round 5: the plate brought back in two moves, the last
+to no nearer the body's middle than 0.25 m), 15 of 32 (held out, 15 of 32;
+SimNotes has round 4's reference read beside it). Round 6's lever was read
+and taken back out: the reference is round 5's (SimNotes, "The place laid
+from the pass", round 6).
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

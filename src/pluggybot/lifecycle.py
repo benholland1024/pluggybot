@@ -24,6 +24,7 @@ import json
 import math
 import os
 import time
+import traceback
 import uuid
 from pathlib import Path
 from typing import Callable, Literal
@@ -486,6 +487,12 @@ VISITORS_SHOWN = 5
 #: ...of these inbound kinds alone: a person's message or the other robot's
 #: `tell`, never what code drains (a rating, a reach-in, a ticket's line).
 SHOWN_KINDS = ("message",)
+#: How many answers that answered no person a person's message may be shown
+#: in before a charge's hold no longer ends for it (#730, `_asked_about`): an
+#: answer to another person leaves it owed, and a mind that passes it over --
+#: answering nobody, or the other robot -- is asked about it no more than
+#: this, each break a paid call.
+OWED_SHOWINGS = 2
 
 
 def _conversation(msg) -> dict:
@@ -712,7 +719,52 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   B, 2026-09-24), a model read "(4/4 steps)" as "all four steps landed",
   said `done`, and the grade found two blocks of three. ⚠ A FAULT INSIDE
   THE RUN is named, never quoted: the exception is the log's (issue #76),
-  and that path keeps no count to give."""
+  and that path keeps no count to give.
+
+  ⚠ A REASON WITH A SHORTER FORM (a step's `brief`, the start of its
+  `reason`; #728: a `spot` that saw nothing names its picture's sides, its
+  `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
+  each in the order the run made them, the lines in full where they are the
+  lines it had with that one reason the longer, inside the room, else in its
+  shorter form -- so with every one in its shorter form the lines are the
+  ones a run with no shorter forms makes, byte for byte. Said in full beside
+  a long stop or other tests, it crowded their reasons, or its own, out of
+  the line (Observatory.md). ⚠ A step whose reason no longer starts with its
+  `brief` (a fall's, said over the verb's) has none. ⚠ IT RESTS ON
+  `_outcome` LAYING THE LINES OUT BY THE REASONS' LENGTHS ALONE (a test pins
+  it)."""
+  from pluggybot.mind.thoughts import MAX_LINE_CHARS
+  steps = run.get("steps") or []
+  short = {i: s["brief"] for i, s in enumerate(steps)
+           if s.get("brief") and (s.get("reason") or "") != s["brief"]
+           and (s.get("reason") or "").startswith(s["brief"])}
+  if not short:
+    return _outcome(name, run)
+  # ...each such step's own mark, numbered among them (a `spot` a verb call,
+  # under `lang.MAX_STEPS`: inside the private use area, which no other
+  # text holds)
+  marks = {i: chr(0xE000 + k) for k, i in enumerate(short)}
+
+  def laid(form: dict) -> list[str]:
+    return _outcome(name, {**run, "steps": [{**s, "reason": marks[i] * len(form[i])}
+                                            if i in form else s for i, s in enumerate(steps)]})
+
+  form = dict(short)
+  now = laid(form)
+  for i in short:
+    if not any(marks[i] in x for x in now):
+      continue                      # ...not said either way
+    wider = {**form, i: steps[i]["reason"]}
+    lines = laid(wider)
+    if ([x.replace(marks[i] * len(wider[i]), marks[i] * len(form[i])) for x in lines] == now
+        and all(len(x) <= MAX_LINE_CHARS - HISTORY_STAMP_ROOM for x in lines)):
+      form, now = wider, lines
+  return _outcome(name, {**run, "steps": [{**s, "reason": form[i]} if i in form else s
+                                          for i, s in enumerate(steps)]})
+
+
+def _outcome(name: str, run: dict) -> list[str]:
+  """`procedure_outcome`'s lines, each step's reason as it stands."""
   from pluggybot.mind.thoughts import MAX_LINE_CHARS
   # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
   # room is less than the cap -- measured on the second review: a 397-char
@@ -1159,8 +1211,29 @@ class HubLifecycle:
     self._decided_at: tuple[float, str] | None = None
     self._stood_still = False
     #: Visitor message ids the map has already been told about, so
-    #: `message_received` is an arrival rather than a level.
+    #: `message_received` is an arrival rather than a level -- and those a
+    #: call took in its context, which are no news (#730, `_ask_takes`).
     self._seen_visitors: set[str] = set()
+    # ---- answering while it charges (#730; Overseer.md §10) ----
+    #: THE ANSWER OWED: a person's messages the map's `message_received`
+    #: ask row fired for, each with how many answers it was shown that
+    #: answered nobody -- read by a charge's hold (`_spoken_to`), which ends
+    #: for one, its plug in, and kept until a call answers it, fails with it
+    #: shown, or answers nobody `OWED_SHOWINGS` times (`_asked_about`). Not
+    #: kept across a restart, as the inbox is not.
+    self._owed: dict[str, int] = {}
+    #: ...the charge such a break left OPEN, as its `before` (one cycle
+    #: however often broken: the charge that takes it up carries it on, and
+    #: `_open_charge_step` closes it where nothing does) -- and whether the
+    #: break's ask is still to be answered (`_arbitrate_routine` asks it).
+    self._open_charge: dict | None = None
+    self._break_owed = False
+    #: ...whether an ask is being made, from its start to its action (a
+    #: charge left open closes on a full pack only between them,
+    #: `_open_charge_step`) -- and whether one closed so, its plug still in
+    #: (a `charge` then counts it again no more, `charge_routine`)
+    self._asking = False
+    self._charged_plugged = False
     # ---- the mid-errand interrupt (issue #116) ----
     #: A hazard row that fired WHILE an errand was running, waiting to be
     #: resolved at the errand's next safe point. ⚠ THE SEAM ONLY SETS THIS.
@@ -1378,6 +1451,10 @@ class HubLifecycle:
                                 else 0.0))
     self._death_step()
     self._restart_step()
+    self._open_charge_step()
+    if self._charged_plugged and (not self.charging_now
+                                  or self.battery.fraction < CHARGED):
+      self._charged_plugged = False         # ...a pack taken down is a charge of its own
 
   def _near_field_step(self) -> None:
     """One depth frame, at the sensor's rate, to its two consumers.
@@ -1907,6 +1984,11 @@ class HubLifecycle:
         self._fail_held(task, "the robot that took it ran out of lives")
     self._grade_pending = ""
     self._grade_waits = None
+    # ...and owes no visitor the old robot was asked for, nor carries on a
+    # charge it left open: banked after this, its row would be the next
+    # robot's (#730)
+    self._owed.clear()
+    self._open_charge, self._break_owed = None, False
     archived = self.ledger.archive(start=self.start_points)
     self._forget_world()
     if self.thoughts is not None:
@@ -2936,14 +3018,20 @@ class HubLifecycle:
   def charge_routine(self) -> Routine:
     """Stay plugged in until full, then unplug -- or until the run's end
     (`_hour_up`, #654), its plug left in and what it got banked: the next
-    run's mind decides whether to go on."""
-    t0 = self.data.time
+    run's mind decides whether to go on -- or until a person's message the
+    agent's map asks on (`_spoken_to`, #730), its plug in and the charge
+    left open for the loop's ask (`_break`)."""
     # What the evaluator measures this cycle against (issue #14). Read BEFORE
     # the charge, because "charged" is a gain in a real quantity -- a cycle
     # plugged in conducting nothing has an end fraction and no energy behind
-    # it.
-    before = {"t": t0, "frac": self.battery.fraction,
-              "wh": self.battery.energy_wh}
+    # it. ...or what a charge a message left open was (#730): this one
+    # carries it on, ONE charge however often broken, banked once from its
+    # start -- banked from the break, the part before it was in no row.
+    before = self._open_charge or {"t": float(self.data.time),
+                                   "frac": self.battery.fraction,
+                                   "wh": self.battery.energy_wh}
+    self._open_charge = None
+    t0 = before["t"]
     # ⚠ CHARGING IS NOT TRAVEL: held on the charger for the whole cycle,
     # nothing the body does is counted (`Body.docked`; the rover's held
     # press once gained 828 mm of imaginary progress), and a contact that
@@ -2953,6 +3041,11 @@ class HubLifecycle:
     # verified that -- the robot's pose is known by construction, and a
     # shift's accumulated drift dies here instead of compounding.
     self.body.anchor_at_dock()
+    # ...⚠ AND A BREAK ONLY ONCE IT HAS HELD A MOMENT (#730): carried on with
+    # a message come in meanwhile, it returned before a step, and History
+    # read "charge took no time" on every turn of a chat
+    held = False
+    look = 0.0           # ...and looks once a second, as the map does
     try:
       timeout = self.charge_timeout
       while (self.battery.fraction < CHARGED
@@ -2963,7 +3056,13 @@ class HubLifecycle:
           if self.data.time > t0:
             self._bank(scoring.score_charge(self, before))
           return
+        if held and self.data.time >= look:
+          look = float(self.data.time) + EVENTS_CHECK_S
+          if self._spoken_to:
+            self._break(before)
+            return
         yield from self.body.dock_hold_routine(0.25)
+        held = True
         if not self.charging_now:
           # contact dropped: plug in again once, then give up on this attempt
           yield from self.body.redock_routine()
@@ -2974,19 +3073,111 @@ class HubLifecycle:
     finally:
       # Cleared before the undock, which is REAL travel and must be counted.
       self.body.docked = False
-    self.charge_cycles += 1
-    self._occur("task_complete", "charge")
-    self._say(f"CHARGE complete ({self.battery.fraction:.0%}) -- backing off",
-              doing="CHARGE complete -- backing off")
-    # ...⚠ AND NO ROW FOR ONE THAT HELD NO MOMENT (#654, above too): plugged in
-    # already and full, 0 Wh in 0 s reads as a charge that failed
-    if self.data.time > t0:
-      self._bank(scoring.score_charge(self, before))
+    if self._charged_plugged and not held:
+      # ...a charge that closed full with its plug in, standing (#730):
+      # counted then, never again for a `charge` that finds it so
+      self._say("CHARGE: full already -- backing off", doing=True)
+    else:
+      self._charge_complete(before, " -- backing off")
+    self._charged_plugged = False
     yield from self.body.undock_routine()
     if self.body.charging():
       # ...said as the run's own unplug says it: unsaid, a charge's end that
       # left the plug in read as one that took it out (#703)
       self._say(UNPLUG_FAILED, doing=True)
+
+  # ---- answering while it charges (#730; Overseer.md §10) ------------------
+
+  @property
+  def _spoken_to(self) -> bool:
+    """Has a person spoken whom the agent's map asks it about, and would the
+    mind be asked? A charge's hold ends on it with its plug in (Ben,
+    2026-11-16: a robot may answer while it charges). COMPUTED WHEN READ:
+    an answer owed (`_owed`) whose message is still in the window the model
+    is shown; the map's FIRST row for a message an `ask` (the first row is
+    the one that fires, and the map may have been edited since it fired);
+    and a call that would go out -- ⚠ never in free mode, with a
+    call still out or behind a gate that stays shut (`Overseer.can_ask`):
+    a break that can ask nobody would be one a step, its message never
+    asked."""
+    if not self._owed or self.inbox is None or self.overseer is None:
+      return False
+    if self.dead is not None:
+      return False                          # ...nobody is asked while dead
+    if not self._asks_on_messages:
+      return False
+    if self.mode is not None and not self.mode.thinking:
+      return False
+    if not any(m.id in self._owed
+               for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)):
+      return False
+    return self.overseer.can_ask()
+
+  @property
+  def _asks_on_messages(self) -> bool:
+    """Is the map's FIRST row for a message an `ask` (#730)? The row that
+    fires is the first one for its event (an `idle` ahead of an `ask` never
+    asks), read as the map stands now."""
+    first = self.event_map.first("message_received") if self.event_map is not None else None
+    return first is not None and first.action == ev.ASK
+
+  def _break(self, before: dict) -> None:
+    """A charge's hold ended for a person's message (#730): its plug in, the
+    charge left open and nothing banked (a row cut here reads as a charge
+    that failed, `CHARGE_OK_FRAC`), and the loop's next pass asks
+    (`_arbitrate_routine`). Said in History once a charge (`before`'s own
+    record): said at each break, a chat filled it."""
+    self._open_charge = before
+    self._break_owed = True
+    frac = f"{self.battery.fraction:.0%}"
+    self._say(f"CHARGE: at {frac} a message waits for an answer -- I am asked "
+              "with my plug in",
+              doing="CHARGE: a message waits for an answer -- I am asked with my plug in")
+    said = before.setdefault("said", set())
+    if "break" not in said:
+      said.add("break")
+      self._remember(f"charge: at {frac} a message waits for an answer, and I "
+                     "am asked with my plug still in")
+
+  def _open_charge_step(self) -> None:
+    """A charge a message left open closes on the seam where nothing carries
+    it on (#730): its plug out, or its pack full -- full, never while an ask
+    is out or owed, whose `charge` carries it on as one (closed there too, a
+    `charge` decided at full counted the charge twice)."""
+    if self._open_charge is None:
+      return
+    if not self.charging_now or (self.battery.fraction >= CHARGED and not self._break_owed
+                                 and not self._asking):
+      self._close_open_charge()
+
+  def _charge_complete(self, before: dict, said: str = "") -> None:
+    """A charge's end, full or timed out: its cycle, `task_complete charge`,
+    its line and its row -- ⚠ NONE FOR ONE THAT HELD NO MOMENT (#654):
+    plugged in already and full, 0 Wh in 0 s reads as a charge that failed."""
+    self.charge_cycles += 1
+    self._occur("task_complete", "charge")
+    self._say(f"CHARGE complete ({self.battery.fraction:.0%}){said}",
+              doing=f"CHARGE complete{said}")
+    if self.data.time > before["t"]:
+      self._bank(scoring.score_charge(self, before))
+
+  def _close_open_charge(self) -> None:
+    """Close a charge a message left open (#730): full, as a charge's end
+    closes one -- its cycle, `task_complete charge` and its row (without
+    them, a pack filled standing still after a break left a map that asks on
+    `task_complete:charge` unasked), its plug still in or not kept
+    (`_charged_plugged`, which a save keeps: a `charge` that finds it so
+    counts nothing more); short of full (the plug out for what moves, the
+    run's end), its row alone, as a charge cut short always banks one (the
+    hour, a plug that came out)."""
+    before, self._open_charge = self._open_charge, None
+    if before is None:
+      return
+    if self.battery.fraction >= CHARGED:
+      self._charge_complete(before)
+      self._charged_plugged = self.charging_now
+    elif self.data.time > before["t"]:
+      self._bank(scoring.score_charge(self, before))
 
   def unplug_routine(self, why: str = "what I chose next is not here") -> Routine:
     """The plug out by hand before the body goes anywhere (#654): a run's end
@@ -3002,6 +3193,8 @@ class HubLifecycle:
     yield from self.body.undock_routine()
     if self.body.charging():
       self._say(UNPLUG_FAILED, doing=True)
+    else:
+      self._close_open_charge()             # ...a charge a message left open (#730)
 
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))
@@ -3300,6 +3493,12 @@ class HubLifecycle:
     # evicted and answered in the same step.
     for msg in self.inbox.drain_evicted():
       self._drop_visitor(msg)
+    if self._owed:
+      # ...and an answer owed for a message that left the queue is owed no
+      # more (#730): kept, the robot's own copy of the queue grew for good
+      queued = {m.id for m in self.inbox.peek(len(self.inbox))}
+      for msg_id in [i for i in self._owed if i not in queued]:
+        del self._owed[msg_id]
     for msg in self.inbox.drain(("reset_robot",)):
       self._reset_robot(msg)
     # The operator reaching into world state directly (issue #119). Handled
@@ -3317,15 +3516,9 @@ class HubLifecycle:
     # `dropped` visitor reply for a message nobody sent).
     for msg in self.inbox.drain(("image",)):
       self.eye.offer(msg, t=float(self.data.time))
-    # The operator's side of a ticket (issue #284): a reply, a close, a
-    # delete -- applied here by code, like every admin kind. What the
-    # robot is shown is the thread, on its next turn.
-    for msg in self.inbox.drain(("ticket_reply",)):
-      self._ticket_reply(msg)
-    for msg in self.inbox.drain(("ticket_close",)):
-      self._ticket_close(msg)
-    for msg in self.inbox.drain(("ticket_delete",)):
-      self._ticket_delete(msg)
+    # The operator's side of a ticket (issue #284), applied by code like
+    # every admin kind -- and in a pause too (#729, `_mode_step`).
+    self._ticket_lines_step()
     for msg in self.inbox.drain(("rating",)):
       if self.ledger is None:
         continue
@@ -3465,6 +3658,9 @@ class HubLifecycle:
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.body.docked = False
+    # ...and a charge a message left open goes, as one it closes banks
+    # nothing (#348), and the break's ask with it (#730)
+    self._open_charge, self._break_owed = None, False
     # ...and never onto another robot (issue #387; `up_pose`). An admin's
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
@@ -3988,6 +4184,58 @@ class HubLifecycle:
                        f"{text_registry.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                        f"{line.text}")
 
+  def _ticket_lines_step(self) -> None:
+    """The operator's side of a ticket (issue #284): a reply, a close, a
+    delete, applied by code like every admin kind. What the robot is shown
+    is the thread, on its next turn. At the top of every arbitration pass,
+    and in every slice of a pause for every robot on the loop (#729,
+    `_mode_step`; Overseer.md §2g); none once a stop is asked, checked
+    before each line -- what an ending process takes, the site may never
+    hear acknowledged, and a line it leaves, queued or drained, goes with
+    the process to be sent again.
+
+    ⚠ A LINE NEVER ENDS THE RUN (`_ticket_failed`): raised in a pause, the
+    process would die, restart paused, and be sent the line again."""
+    if self.inbox is None or self.stopping:
+      return
+    for kind, apply in (("ticket_reply", self._ticket_reply),
+                        ("ticket_close", self._ticket_close),
+                        ("ticket_delete", self._ticket_delete)):
+      for msg in self.inbox.drain((kind,)):
+        if self.stopping:
+          return
+        said = len(self.ticket_events)
+        try:
+          apply(msg)
+        except MissionAborted:
+          raise                                   # a stop, never the desk's
+        except Exception as e:                    # noqa: BLE001 -- see docstring
+          self._ticket_failed(msg, e, said)
+
+  def _ticket_failed(self, msg, error: Exception, said: int) -> None:
+    """An operator's line the desk failed on (#729): said in the console
+    (`_say`'s `detail`, issue #76, and the traceback), never in History.
+    ⚠ ANSWERED `refused` (`sender` the operator's) ONLY WHERE NO EVENT HAS
+    ACKNOWLEDGED IT (`said`, the run record's length before it): the desk
+    rolls back a write it could not make, so unacknowledged it was not
+    taken, and a copy sent again is taken whole (the inbox never drops a
+    ticket line as a replay); acknowledged, it was. ⚠ The report never
+    raises itself."""
+    try:
+      taken = any(e.get("ref") == msg.id for e in self.ticket_events[said:])
+      if not taken:
+        self._ticket_event("refused", id=msg.ticket, ref=msg.id, verb=msg.kind,
+                           sender=tickets_desk.OPERATOR,
+                           why=f"the desk could not take it ({type(error).__name__})")
+      self._say(f"TICKET {msg.kind.removeprefix('ticket_')} from "
+                f"{msg.who or 'the operator'} "
+                + ("taken, but what follows it failed" if taken
+                   else "not taken: the desk failed on it"),
+                detail=f"{type(error).__name__}: {error}")
+      traceback.print_exc()
+    except Exception:                             # noqa: BLE001 -- see docstring
+      pass
+
   def _ticket_reply(self, msg) -> None:
     """An operator's line on one of the robot's tickets (issue #284): onto
     the thread, into History (the system quoting the sender, as a visitor's
@@ -3996,9 +4244,21 @@ class HubLifecycle:
     hold, or one already closed, is answered `unknown` -- the fate that
     stops a website re-sending it."""
     who = msg.who or "the operator"
+    if self.tickets.taken(msg.ticket, msg.id):
+      # ⚠ TAKEN ALREADY (#729): sent again, its acknowledgement lost --
+      # answered again, `again`, and never put on the thread twice; as it
+      # was taken while the thread keeps it, else as it came
+      was = self.tickets.line(msg.ticket, msg.id)
+      self._ticket_event("replied", self.tickets.get(msg.ticket),
+                         sender=tickets_desk.OPERATOR,
+                         **{"from": was.who if was else who},
+                         text=was.text if was else msg.text, ref=msg.id,
+                         again=True, **({"cut": True} if was and was.cut else {}))
+      return
     try:
       ticket = self.tickets.reply(msg.ticket, msg.text, float(self.data.time),
-                                  sender=tickets_desk.OPERATOR, who=who)
+                                  sender=tickets_desk.OPERATOR, who=who,
+                                  ref=msg.id)
     except DeskRefused as e:
       self._ticket_event("unknown", id=msg.ticket, ref=msg.id, why=str(e),
                          verb="ticket_reply")
@@ -4037,30 +4297,38 @@ class HubLifecycle:
                          verb="ticket_close")
       self._say(f"TICKET close from {who} ignored: no ticket {msg.ticket!r}")
       return
-    if changed:
-      # Measured off the desk AFTER the close was applied (`sample_ticket`),
-      # never off the message: the evaluator's `closed` is the desk's state.
-      verdict = scoring.evaluate(
-        "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
-        table=self.ledger.table if self.ledger is not None else None)
-      entry = self._bank(verdict)
-      if entry is not None:
-        self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      # ...and only then the closed ones trimmed (#594): trimmed first, a
-      # close the desk ranked past its twentieth was measured as no ticket
-      self.tickets.trim()
-      said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
-              f": {ticket.closed_text}" if ticket.closed_text else "")
-      paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
-      self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
-      # The closing words reach History whole, on a reply's terms (#433).
-      self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
-                     room=tickets_desk.MAX_LINE)
-      self._occur("ticket_replied")
-    self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
-                       text=ticket.closed_text, points=ticket.points,
-                       seq=ticket.seq, ref=msg.id, paid=changed,
-                       **({"cut": True} if ticket.closed_cut else {}))
+    entry = None
+    try:
+      if changed:
+        # Measured off the desk AFTER the close was applied (`sample_ticket`),
+        # never off the message: the evaluator's `closed` is the desk's state.
+        verdict = scoring.evaluate(
+          "ticket", scoring.sample_ticket(self, None, {"ticket": ticket.id, "by": who}, {}),
+          table=self.ledger.table if self.ledger is not None else None)
+        entry = self._bank(verdict)
+        if entry is not None:
+          self.tickets.pay(ticket.id, entry["points"], entry["seq"])
+        # ...and only then the closed ones trimmed (#594): trimmed first, a
+        # close the desk ranked past its twentieth was measured as no ticket
+        self.tickets.trim()
+        said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
+                f": {ticket.closed_text}" if ticket.closed_text else "")
+        paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
+        self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
+        # The closing words reach History whole, on a reply's terms (#433).
+        self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
+                       room=tickets_desk.MAX_LINE)
+        self._occur("ticket_replied")
+    finally:
+      # ⚠ ACKNOWLEDGED ONCE THE DESK HAS IT, WHATEVER FAILS AFTER (#729): a
+      # `refused` would have it sent again, and the copy finds it closed;
+      # what the ledger paid said where the desk's record of it failed
+      recorded = entry if ticket.points is None and entry is not None else {
+        "points": ticket.points, "seq": ticket.seq}
+      self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
+                         text=ticket.closed_text, points=recorded["points"],
+                         seq=recorded["seq"], ref=msg.id, paid=changed,
+                         **({"cut": True} if ticket.closed_cut else {}))
 
   def _ticket_delete(self, msg) -> None:
     """The operator erased a ticket (issue #284): off the desk, open or
@@ -5447,6 +5715,7 @@ class HubLifecycle:
     # this is an EDGE on the arrival of a message the robot has not seen
     # before and carries nothing about who sent it or what it said. A
     # stranger can trigger a row; a stranger cannot choose which one.
+    persons: set[str] = set()
     if self.inbox is not None:
       # ⚠ MESSAGES, never a rating, an admin's reach-in or a ticket's line,
       # which wait in the same queue for code to drain (#518's reviews):
@@ -5457,6 +5726,8 @@ class HubLifecycle:
           continue
         self._seen_visitors.add(msg.id)
         self._occurred.append(("message_received", ""))
+        if msg.sender == text_registry.VISITOR:
+          persons.add(msg.id)
     live = ev.Live(battery=self.battery.fraction,
                    points=(self.ledger.balance() if self.ledger is not None
                            else None),
@@ -5465,6 +5736,12 @@ class HubLifecycle:
     row = self.event_clock.fire(self.event_map, live, float(self.data.time))
     if row is None:
       return
+    if row.event == "message_received" and row.action == ev.ASK:
+      # ...THE ANSWER OWED (#730), a person's alone -- never the other
+      # robot's `tell` -- and whether the slot below takes the row or not:
+      # a charge's hold ends on it (`_spoken_to`)
+      for msg_id in persons:
+        self._owed.setdefault(msg_id, 0)
     # ⚠ AN `ask` ROW STAMPS THE UNMINDED CLOCK AS IT FIRES (issue #426), the
     # moment the map has done its part -- not when the loop runs it, and a
     # row dropped `busy` below included. The period moved on here, so a
@@ -5660,7 +5937,10 @@ class HubLifecycle:
 
     ⚠ THE CLOCK IS RESET BY THE ASK AND NOT BY THE ANSWER -- see
     `UNMINDED_AFTER_S`. This is the only place that does both, so the gap
-    the robot is shown and the clock that kills it can never disagree.
+    the robot is shown and the clock that kills it disagree only after a
+    charge's break, whose ask resets the clock that kills alone (#730,
+    `_arbitrate_routine`): that clock the fresher, a mind can only believe
+    itself nearer its limit than it is.
     """
     t = float(self.data.time)
     self._asked_after_s = (None if self._asked_t is None
@@ -5719,6 +5999,38 @@ class HubLifecycle:
     """
     if self.event_map is None:
       yield from self._decide_routine()
+      return
+    if self._break_owed:
+      # A CHARGE BROKEN FOR A MESSAGE IS ASKED NOW (#730), its plug in: ahead
+      # of the list, and with no moment stood first (the charge held one). A
+      # queued `ask` row is this ask -- the message's own, or another its
+      # slot held -- and a row of any other action waits its turn. The
+      # message's row stamped the clock as it fired (`_owed` is only ever
+      # set then). A consult owed is its why: the answer that pays it is
+      # this one.
+      row = self.queued_row
+      asked_by = {"event": "message_received"}
+      if row is not None and row.action == ev.ASK:
+        # ...named by it, as its own ask would be: the message is in the
+        # context, and the row's reason is the agent's own
+        self.queued_row = None
+        self.overseer.rows_fired[row.event] = \
+            self.overseer.rows_fired.get(row.event, 0) + 1
+        asked_by = {"event": row.event, "kind": row.kind, "value": row.value}
+      if self._consult is not None and (self.mode is None or self.mode.thinking):
+        # ...said only where a mind is asked: free mode come since the break
+        # asks nobody, and the consult stays owed
+        asked_by = dict(self._consult)
+        self._say(f"EVENT asking once: {self._consult['event'].replace('_', ' ')}")
+      # ...and the clock that kills a mind nobody consults is reset by it,
+      # always: a break may ask a message's question long after its row
+      # fired (a gate held it), or with no row behind it at all (a message
+      # still owed after an answer to somebody else), and off an older stamp
+      # a mind just asked could die `unminded`. ⚠ THAT CLOCK ALONE: the
+      # silence it is shown (`_stamp_ask`) stays the rows', or one row's
+      # ask a second before the break's read as a silence of a second.
+      self._last_ask_t = float(self.data.time)
+      yield from self._decide_routine(asked_by, plugged=True)
       return
     if self._consult is not None and (self.mode is None or self.mode.thinking):
       # A CONSULT IS OWED (`_consult`): ahead of the list, whose rows are what
@@ -5836,6 +6148,11 @@ class HubLifecycle:
     (the file's `at`, `ModeSwitch.at`), where that is longer than this
     process has held it. A process started into a pause counted from its own
     start, and on 11-01 a wake said 117 s.
+
+    ⚠ AN OPERATOR'S TICKET LINES ARE TAKEN IN THE PAUSE (#729), each
+    robot's on its own desk and account (`_ticket_lines_step`), their
+    `ticket` events leaving with no frame; everything else waits for the
+    wake (Overseer.md §2g).
     """
     if self.mode is None:
       return
@@ -5850,6 +6167,10 @@ class HubLifecycle:
       life._say("PAUSED by the operator -- physics stopped, stream alive")
       life._remember("paused by the operator")
     while self.mode.poll(force=True) == "paused" and not self.stopping:
+      # ...never once a stop is asked (the test above): what an ending
+      # process takes, the site may never hear acknowledged
+      for life in told:
+        life._ticket_lines_step()
       time.sleep(PAUSE_SLICE_S)
       for hook in list(self.pause_hooks):
         hook(time.monotonic() - wall0)
@@ -5985,11 +6306,20 @@ class HubLifecycle:
   def _decide(self, asked_by: dict | None = None) -> None:
     return self.body.run(self._decide_routine(asked_by))
 
-  def _decide_routine(self, asked_by: dict | None = None) -> Routine:
+  def _decide_routine(self, asked_by: dict | None = None,
+                      plugged: bool = False) -> Routine:
     """Ask the overseer what to do next, and do it.
 
     `asked_by` says what brought the loop here (issue #221) and rides the
-    context as `askedBy`; None is the loop's own decision branch.
+    context as `askedBy`; None is the loop's own decision branch. `plugged`
+    is the ask of a charge a person's message broke (#730), its plug in: a
+    model's answer is acted on as given (#654's rules), and ⚠ A FALLBACK
+    GOES BACK ON THE CHARGE FIRST (Ben's call of 11-18): timed out,
+    offline, garbled, cut off or `busy`, its standing order (or its
+    `decision_failed` row) runs when the charge ends, at the pack it would
+    have run at without the break -- a `charge` being that charge -- and so
+    does any fallback while the charge the break left is open: run at once,
+    an `explore` order unplugged a robot the break had left part-charged.
 
     Reached ONLY when the battery is fine and the errand queue is empty --
     `run()` checks `needs_charge` first and always will. The overseer cannot
@@ -6004,6 +6334,14 @@ class HubLifecycle:
     """
     self.state = "DECIDE"
     self._asked_by = dict(asked_by or {"event": "loop"})
+    self._asking = True
+    try:
+      yield from self._ask_routine(plugged)
+    finally:
+      self._asking = False
+
+  def _ask_routine(self, plugged: bool) -> Routine:
+    """`_decide_routine`'s ask and what it does with the answer."""
     state = overseer_context(self)
     if self.mode is not None and not self.mode.thinking:
       # FREE MODE (issue #37): the agent's own order decides (`idle` where it
@@ -6012,20 +6350,36 @@ class HubLifecycle:
       # to save money looks broken, and a robot that stops deciding looks
       # broken faster.
       decision = self.overseer.decide_scripted(state, "scripted-mode")
-      yield from self._until_stood_up_routine(
-        self._after_decision_routine(decision))
-      return
-    lives = len(self.true_deaths)
-    self.overseer.start(state)
-    while self.overseer.pending:
-      yield from self.body.hold_routine(THINK_SLICE_S)
-    decision = self.overseer.result(state)
-    if len(self.true_deaths) != lives:
-      # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat pack
-      # or an unpaid bill lands mid-think): the answer is its own, and none
-      # of it is the next robot's -- not its list (`Overseer._starts_over`),
-      # its memory writes, its action, or the bootstrap it would spend.
-      self._say(f"ANSWER dropped: the robot that asked is gone ({decision.source})")
+      called = False
+    else:
+      lives = len(self.true_deaths)
+      shown, unseen, newly, persons = self._ask_takes(state)
+      called = self.overseer.start(state, throttle=not plugged)
+      if not called:
+        # ...an ask that sent nobody its context -- a call still out
+        # (`busy`), a gate shut -- spent no message's ask
+        self._seen_visitors -= unseen
+      while self.overseer.pending:
+        yield from self.body.hold_routine(THINK_SLICE_S)
+      decision = self.overseer.result(state)
+      if called and len(self.true_deaths) == lives:
+        # ...never the next robot's, a true death made as the call flew
+        self._asked_about(shown, newly, decision, persons)
+      if len(self.true_deaths) != lives:
+        # ⚠ THE ROBOT THAT ASKED DIED FOR GOOD WHILE THE CALL FLEW (a flat
+        # pack or an unpaid bill lands mid-think): the answer is its own,
+        # and none of it is the next robot's -- not its list
+        # (`Overseer._starts_over`), its memory writes, its action, or the
+        # bootstrap it would spend.
+        self._say(f"ANSWER dropped: the robot that asked is gone ({decision.source})")
+        return
+    if plugged:
+      self._break_owed = False
+    if (decision.scripted and decision.action != "charge"
+        and self._open_charge is not None and self.body.charging()):
+      # ...a later ask's too, while that charge is open, its plug in (an
+      # answer stood still): the charge left open is the robot's own
+      yield from self._order_after_charge_routine(decision, called)
       return
     # ⚠ NO `decision_failed` EVENT IS EMITTED HERE, and that is the
     # migration working rather than an omission (issue #127). The row is
@@ -6039,12 +6393,104 @@ class HubLifecycle:
     yield from self._until_stood_up_routine(
       self._after_decision_routine(decision))
 
+  def _ask_takes(self, state: dict) -> tuple[set, set, set, set]:
+    """The messages an ask's context holds, which are no news to the map
+    now (#730: a message the model was shown fires no second paid ask a
+    tick later); those the map had not seen yet, which an ask that sends
+    nobody its context gives back (`_ask_routine`); of them a person's,
+    owed as the map's row would have made them (`_asked_about`); and the
+    people among all it holds, read off the window the context was built
+    from (after the think, the queue may have put out the one answered).
+    All but the last only where the map's first row for a message asks: a
+    row of another action is no second paid ask, and marked seen it never
+    ran."""
+    shown = {m.get("id", "") for m in state.get("visitorMessages", ())} - {""}
+    if self.inbox is None:
+      return shown, set(), set(), set()
+    persons = {m.id for m in self.inbox.peek(VISITORS_SHOWN, kinds=SHOWN_KINDS)
+               if m.id in shown and m.sender == text_registry.VISITOR}
+    if not self._asks_on_messages:
+      # ...a row of another action (a greeting procedure, say) fires as it
+      # always did: it costs no call
+      return shown, set(), set(), persons
+    unseen = shown - self._seen_visitors
+    self._seen_visitors |= shown
+    return shown, unseen, persons & unseen, persons
+
+  def _asked_about(self, shown: set, newly: set, decision, persons: set) -> None:
+    """What a call that went out did to the answers owed (#730): ⚠ A FAILED
+    ONE TAKES EVERY MESSAGE IT HELD (N = 1: asked about once during an
+    outage, whatever came of it); an answer takes the message it answered,
+    and leaves the others it held owed -- it answers one a turn, and taken
+    off with it, a second person waited out the charge -- unless it answered
+    no person, which counts against each (`OWED_SHOWINGS`): answering the
+    other robot at every break, a mind was asked about a person it never
+    answered at every moment of a charge."""
+    for msg_id in newly:
+      self._owed.setdefault(msg_id, 0)
+    answered = (decision.respond_to
+                if not decision.scripted and decision.responds else "")
+    for msg_id in shown & self._owed.keys():
+      if decision.scripted or msg_id == answered:
+        del self._owed[msg_id]
+      elif answered not in persons:
+        self._owed[msg_id] += 1
+        if self._owed[msg_id] >= OWED_SHOWINGS:
+          del self._owed[msg_id]
+
+  def _order_after_charge_routine(self, decision, called: bool) -> Routine:
+    """A charge's break whose ask came back a fallback (#730, Ben's call of
+    11-18): the decision is said and remembered now, the robot goes back on
+    its charge -- the one the break left open -- and the order runs once it
+    ends, at the pack it would have run at without the break. ⚠ DROPPED
+    WHERE SOMETHING ELSE ENDED THE CHARGE: another message's break (whose
+    ask answers instead), the run's hour (the next run's mind is asked), a
+    death or a stand-up. Said in History once a charge, as the break is, and
+    only for a call that failed (`called`): a gate's refusal is no answer
+    that did not come, and its message keeps its ask (`_ask_routine`)."""
+    said = yield from self._until_stood_up_routine(
+      self._after_decision_routine(decision, act=False))
+    if said is STOOD_UP:
+      return
+    before = self._open_charge
+    if before is None or not self.body.charging():
+      # ...closed as it was said (its plug out, its pack full): nothing to
+      # go back on, and the order runs now
+      yield from self._until_stood_up_routine(self._act_routine(decision))
+      return
+    why = decision.source.partition(":")[2]
+    frac = f"{self.battery.fraction:.0%}"
+    self._say(f"CHARGE: {'no answer came' if called else 'not asked'} ({why}) -- back "
+              f"on my charge at {frac}, and {decision.action} once it ends",
+              doing=f"CHARGE: {'no answer came' if called else 'not asked'} -- back on my charge")
+    said = before.setdefault("said", set())
+    if called and "back" not in said:
+      said.add("back")
+      self._remember(f"charge: no answer came ({why}) at {frac} -- back on my "
+                     f"charge, and {decision.action} once it ends")
+    self.state = "CHARGE"
+    self._charge_trip = True
+    try:
+      ended = yield from self._until_stood_up_routine(self.charge_routine())
+    finally:
+      self._charge_trip = False
+    if (ended is STOOD_UP or self._break_owed or self._hour_up
+        or self.dead is not None):
+      why = "the run's time is up" if self._hour_up else "my charge ended otherwise"
+      self._say(f"DECIDE: {decision.action} dropped -- {why}")
+      return
+    self.state = "DECIDE"
+    self._decided_at = (float(self.data.time), decision.action)
+    yield from self._until_stood_up_routine(self._act_routine(decision))
+
   def _after_decision(self, decision) -> str:
     return self.body.run(self._after_decision_routine(decision))
 
-  def _after_decision_routine(self, decision) -> Routine:
+  def _after_decision_routine(self, decision, act: bool = True) -> Routine:
     """Narrate a decision, remember it, answer whoever it answered, and DO
-    it. Split out of `_decide` so free mode (issue #37) runs the identical
+    it (`_act_routine`; not yet where `act` is False: a charge's break's
+    fallback runs once the charge ends, #730). Split out of `_decide` so
+    free mode (issue #37) runs the identical
     path -- a scripted decision the operator asked for must reach the world
     exactly as a chosen one does, or "the world keeps running and looks
     alive" is only true of the narration.
@@ -6159,7 +6605,14 @@ class HubLifecycle:
       # minute late, 15 of 15. Never at the rack, as the loop's grade.
       yield from self._leave_rack_routine()
       yield from self._grade_routine()
+    self._asking = False                    # ...the ask is over (#730)
+    if not act:
+      return ""                             # ...its action later (#730)
+    return (yield from self._act_routine(decision))
 
+  def _act_routine(self, decision) -> Routine:
+    """DO a decision `_after_decision_routine` has said and remembered: its
+    action, with what it returns (one of `events.ACTION_FAILURES`, or "")."""
     if decision.action == "take_task":
       # The overseer accepting a job somebody offered (issue #21), through
       # the same claim the loop with no mind uses -- whose energy gate,
@@ -6348,6 +6801,9 @@ class HubLifecycle:
       # ...and whether it waits on a run not begun yet (#706): a restart
       # drops the errand it waits on, so it never begins
       "gradeWaits": self._grade_waits is not None,
+      # ...and whether a charge that closed full, its plug left in, was
+      # counted (#730): forgotten, the next run's `charge` counted it again
+      "chargedPlugged": self._charged_plugged,
       # ...and what each hand job's watch has read since its claim (#559):
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()
@@ -6373,6 +6829,10 @@ class HubLifecycle:
       "queuedRow": (None if self.queued_row is None else
                     [self.queued_row.event, self.queued_row.action,
                      self.queued_row.value, self.queued_row.kind]),
+      # ...and what happened that the map has not read yet (#730): a
+      # charge's end the run's last step said reached no map, the map read
+      # at the next tick
+      "occurred": [list(e) for e in self._occurred],
       "metabolism": (self.metabolism.kept_state()
                      if self.metabolism is not None else None),
     }
@@ -6440,6 +6900,7 @@ class HubLifecycle:
     self._grade_pending = str(state.get("gradePending") or "")
     self._grade_waits = (NO_RUN_YET if self._grade_pending and state.get("gradeWaits")
                          else None)
+    self._charged_plugged = bool(state.get("chargedPlugged"))
     if state.get("eventClock"):
       self.event_clock.restore_kept(state["eventClock"])
     # ...only a row of the list in force: one it no longer has (left out at
@@ -6448,6 +6909,8 @@ class HubLifecycle:
     if queued and self.event_map is not None:
       row = ev.Row(*queued)
       self.queued_row = row if row in self.event_map.rows else None
+    if self.event_map is not None:
+      self._occurred = [(str(e), str(k)) for e, k in state.get("occurred") or ()]
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
     # ...and the body's fall count as its own restore put it back, read
@@ -7058,8 +7521,10 @@ class HubLifecycle:
         # touch, and this is the whole of what it touched.
         # ...and never AT the rack (issue #346): a swap, a charge or a
         # failed pick ends there, and a robot thinking where it stands
-        # holds the other robot's bay for as long as the call flies.
-        yield from self._leave_rack_routine()
+        # holds the other robot's bay for as long as the call flies -- but
+        # a charge a message broke is asked at once, its plug in (#730)
+        if not self._break_owed:
+          yield from self._leave_rack_routine()
         yield from self._arbitrate_routine()
       elif not self.floor_explored:
         self._cleared_rack = False
@@ -7095,6 +7560,13 @@ class HubLifecycle:
       # DONE in the other robot's way in, 0.37 m off it on the pair
       # recording's day until asked aside, and 0.88 m off it from then on
       yield from self._leave_rack_routine()
+    # ...and a charge a message left open banks what it got, as the hour's
+    # cut does, its plug left in (#730) -- and its cycle where the pack is
+    # full: left to the next run's `charge`, a pack that filled during an
+    # ask the hour came through was counted only if that run's first act
+    # was one
+    self._close_open_charge()
+    self._break_owed = False
     # ...`CHARGE` still where a charge's plug is in (#654): it is one, and
     # the next run's first line goes by it (`_resumed_line`)
     self.state = "CHARGE" if self.dead is None and self.body.charging() else "DONE"

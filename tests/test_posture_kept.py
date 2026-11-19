@@ -42,7 +42,7 @@ def _holding(left="hold", held=True):
 def test_a_reach_plans_only_in_the_posture_it_is_in_while_the_other_hand_holds(left, held, verb, kept):
   r = _holding(left, held)
   asked = []
-  r._planned = lambda side, goal, approach, postures, flip: (asked.append(postures), (None, goal))[1]
+  r._planned = lambda side, goal, approach, postures, flip: (asked.append(postures), (None, goal, None))[1]
   assert not r.reach("right", rc.HandGoal(np.array([0.4, -0.1, 0.8])), verb=verb)
   assert asked[0] == ((BOWED,) if kept else rc.REACH_POSTURES)
   assert r.kept_by["right"] == ("left" if kept else None)
