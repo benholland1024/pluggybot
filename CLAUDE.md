@@ -2703,8 +2703,10 @@ save a filmstrip PNG named after the script.
   (`SEAT_HELD_M`, 0.54 m; `Body.peer_by_seat`, #731; SimNotes, "A station
   the other robot is plugged into"): its body hid the tags, and Luca
   searched 422-468 s five times behind Rowan's. TAKEN: waited for, or passed
-  with `free`, and searched once nobody is by it, or once the wait's bound
-  is spent with nobody plugged in there. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
+  with `free`, ⚠ one by its seat for `UNSEEN_WAIT_S` (120 s) at most -- only
+  its own word may put it there, and a robot itself lost says it wrong --
+  then searched; and one its way in or seat holds to the wait's bound,
+  nobody plugged in there, searched then. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
   (60 s) RUNNING IS SAID, ONCE, AND SO IS ITS END (#697;
   `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`; the
   Observatory period): a run is every scan refused (`scan_match.REFUSED`:

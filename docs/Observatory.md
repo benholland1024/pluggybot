@@ -36,8 +36,10 @@ is unchanged (`Rowan was at the charging station I needed; I waited for it
 waited 1386 s for it to leave, 3x how long one charge usually takes` (161
 characters; the clause was `Rowan was standing at rest right in front of
 it`). A station out of sight with the other robot by its seat, not plugged
-in, is waited for under the words a wait always had, and searched for
-afterwards as before. The site counts a failed approach off `GO_CHARGE: `
+in, is waited for 120 s at most, said `WAIT: Rowan is standing by the
+charging station -- waiting up to 120 s at (19.7, -4.3)` and remembered
+`Rowan was at the charging station I needed; I waited for it (up to 120
+s)`, then searched for as before. The site counts a failed approach off `GO_CHARGE: `
 lines (`chargeOutcome`): the waits are `WAIT:` lines, and a charge a wait's
 bound ends is one failed approach, as it was.
 
@@ -50,9 +52,10 @@ other says it is plugged in at is held, wherever this robot's belief places
 that robot's body; and a station not in sight from its standoff, with the
 other within a body's width of its seat where it says it stands or where
 this robot sees it (`SEAT_HELD_M`, 0.54 m), is taken, not lost: the charge
-waits as #346's wait does, or with `free` goes on to another station, and
-searches once nobody is by it, or once the wait's bound is spent with nobody
-plugged in there. A robot alone takes no new branch: the station's checks
+waits as #346's wait does, or with `free` goes on to another station, for
+`UNSEEN_WAIT_S` (120 s) at most, and is searched for after; one never in
+sight that its way in or seat holds to the wait's bound, nobody plugged in
+there, is searched for then. A robot alone takes no new branch: the station's checks
 (the approaches, the seats, lost near) fly bit for bit as before. The pair's
 recorded day keeps its trajectories bit for bit; its narration moves, and it
 is recorded again (the site's vendored copy one day behind until it is

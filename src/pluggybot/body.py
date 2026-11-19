@@ -103,6 +103,24 @@ class RackPose:
                            math.cos(self.yaw - other.yaw))))
 
 
+def plugged_among(bodies, x: float, y: float) -> str | None:
+  """The root of one of `bodies` (`KeepClear`s) that says it is plugged in
+  at the station whose seat is (x, y) (`Body.plugged_on`), or None."""
+  return next((b.root for b in bodies if b.plugged is not None
+               and math.dist(b.plugged, (x, y)) < SAME_SEAT_M), None)
+
+
+def nearest_by_seat(bodies, x: float, y: float, width: float) -> float | None:
+  """How far off the seat (x, y) the nearest of `bodies` is, where it says
+  it is or where it is placed, within `width` (`Body.peer_by_seat`), or
+  None."""
+  near = [d for b in bodies
+          for d in (math.hypot(b.x - x, b.y - y),
+                    math.inf if b.said is None else math.dist(b.said, (x, y)))
+          if d < width]
+  return min(near) if near else None
+
+
 class KeepClear(NamedTuple):
   """Another robot, as one of `Body.others` answers it: where to keep clear
   of, and whether it is DOWN (issue #365: fallen) -- a disc round its
@@ -1288,17 +1306,11 @@ class StubBody(Body):
 
   def plugged_on(self, x, y):
     """Off what the other robots say (`others`), as a body's own is."""
-    return next((b.root for b in self._bodies() if b.plugged is not None
-                 and math.dist(b.plugged, (x, y)) < SAME_SEAT_M), None)
+    return plugged_among(self._bodies(), x, y)
 
   def peer_by_seat(self, x, y):
-    """Off where the other robots are placed and say they are (`others`),
-    within the humanoid's body's width (`SEAT_HELD_M`)."""
-    near = [d for b in self._bodies()
-            for d in (math.dist((b.x, b.y), (x, y)),
-                      math.inf if b.said is None else math.dist(b.said, (x, y)))
-            if d < self.SEAT_HELD_M]
-    return min(near) if near else None
+    """Off where the other robots are placed and say they are (`others`)."""
+    return nearest_by_seat(self._bodies(), x, y, self.SEAT_HELD_M)
 
   def watch_for_peers(self, points):
     return None
