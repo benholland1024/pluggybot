@@ -33,7 +33,8 @@ still fall so.
 **What the period is for.**
 - **The acceptance**: falls in a walk's hand-over right after a pull toward
   the body at the counter (2 of the 11-18 wake's 4 fall rows, each in a
-  `step`), against the period before; and none where the rule held an arm.
+  `step`), against the period before. A walk's `armHeld` there is where it
+  acted -- or #693b's hold at the rest, which says the same.
 - **What an arm left held does next**: the walks that go with one (`armHeld`
   in a step's or a walk's report) -- falls during them -- and what each next
   way home does, the loop's charge walk especially (a failed charge is a

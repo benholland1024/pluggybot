@@ -11014,9 +11014,26 @@ way to its pose (#682), nor the line out along the fingers. No word moved:
 "something holds it" says it, and a step reads "stepped".
 
 **Flown** (one Vast pod, an AMD EPYC 7B13, Python 3.12.3, osmesa, beside
-0fb85dc2; the dev box replays its flights): the hand-over-only rule's
-readings are being flown (the bar, the 171, its unseen keys, the hands
-checks' pool sealed by its commit, the charge after a job, the station).
+0fb85dc2; the dev box replays its flights):
+- The 171: hand-over falls 12 -> 2 (the two below), falls 17 -> 7, passes
+  61 -> 67 -- five drawers and a door that fell now pass -- no new fall and
+  no pass lost; every one of its 15 holds came in a step's hand-over, and in
+  each the walk then went with the arm held, none falling after. The rule
+  held 0.05 s at 20 N m read the same verdicts but one drawer, and held in
+  every way home the same 15 (its bar would have stopped about 40).
+- Ben's bar, the hands checks at 0-31 and 32-127 and the tour's five jobs:
+  609 of 736 with 5 falls, the base's, every flight the base's to the step:
+  none of their ways home is a walk's hand-over that shoves. On the rule as
+  first built, watching a withdraw's too, the door lost a pass (above).
+- The loop's charge after a job that left the hand at the knob or the lever
+  (the drawer's 24 keys without the step, and the door's 24 at its live
+  draw): on the base 5 of the 24 drawers fell in the charge walk's
+  hand-over, got up and charged; on the rule none fell, and every charge
+  plugged in, six of them walking with an arm held.
+- The drawer's 24 keys with a `withdraw` before the step: the base's,
+  flight for flight -- 5 fall in the withdraw (the rule's cost).
+- The pair's recorded day: the committed fixture's, line for line but its
+  charge rows' wall-clock stamps, on both trees.
 
 **What it does not take.** `door_final45`'s C_k27 fell sideways, its way
 home reading 10-14 N m away from the hand (a 30 N push across the line out
