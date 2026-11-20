@@ -354,12 +354,12 @@ def test_a_plug_in_waited_for_leaves_the_while_by_the_seat_for_its_unplug():
   assert _said(luca, "by the charging station, which I do not see")
 
 
-def test_a_while_by_the_seat_is_120_s_a_station_its_walks_included_each_wait_counted():
+def test_a_while_by_the_seat_is_one_a_station_a_charge_its_walks_included():
   """Rowan by the seat goes after 100 s and is back by it as Luca walks in
-  again, every walk 30 s long: the while it holds the station is 120 s a
-  station a charge in all, the walks out of its way counted in it (the
-  first shape began a second wait with 20 s left and walked 30), and the
-  wait is said, counted and remembered once, as #346's are."""
+  again, every walk 30 s long: one while a station a charge, 120 s at most,
+  the walk out of its way counted in it (an earlier shape began a second
+  with 20 s left and walked 30), said, counted and remembered once; then
+  the base's own search, and its failure."""
   luca, rowan = _pair(rowan_at=None)
   _live(luca, rowan, 1)
   luca.body.lost = True                               # ...and Luca's dock sees nothing
@@ -391,7 +391,7 @@ def test_a_while_by_the_seat_is_120_s_a_station_its_walks_included_each_wait_cou
   luca._out_of_sight_routine = timed
   waits0 = luca.bay_waits
   assert luca.body.run(luca.go_charge_routine()) is False
-  assert len(held) == 2 and sum(held) <= lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6, held
+  assert len(held) == 1 and held[0] <= lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6, held
   assert luca.bay_waits - waits0 == 1
   said = [ln for ln in luca.thoughts.read("History.md").splitlines()
           if "which I did not see; I waited" in ln]
@@ -401,8 +401,8 @@ def test_a_while_by_the_seat_is_120_s_a_station_its_walks_included_each_wait_cou
 
 def test_a_robot_by_the_seat_that_plugs_in_is_waited_for_as_one_plugged_in():
   """...and one by the seat that plugs in as Luca waits on it a while is a
-  robot plugged in: said so, and waited for as long as a charge, never the
-  while's 120 s it was first said."""
+  robot plugged in: said so, and waited for as long as a charge -- what is
+  left of the station's one bound, counted from the while's start."""
   luca, rowan = _pair(rowan_at=None)
   _live(luca, rowan, 1)
   t0 = float(luca.data.time)
@@ -414,7 +414,7 @@ def test_a_robot_by_the_seat_that_plugs_in_is_waited_for_as_one_plugged_in():
   assert luca.body.run(luca.go_charge_routine()) is False
   bound, _ = luca.wait_bound("charge", 0.0, 0.0)
   assert float(luca.data.time) - t0 >= bound, "the while's 120 s ended a wait for a plug"
-  assert _said(luca, "WAIT: Rowan is plugged in at the charging station -- waiting up to 1386 s")
+  assert _said(luca, "WAIT: Rowan is plugged in at the charging station -- waiting up to 13")
   assert luca.body.lost_at == [] and "Rowan was plugged in at it" in luca.charge_failure
 
 
@@ -495,9 +495,7 @@ def test_a_station_out_of_sight_is_held_by_the_other_by_its_seat_a_while_at_most
   assert _said(luca, "WAIT: Rowan is standing at rest by the charging station, which I do not "
                f"see -- waiting up to {lc.UNSEEN_WAIT_S:.0f} s"), luca.log
   assert _said(luca, "WAIT: Rowan was still by the charging station after 12"), luca.log
-  assert luca.charge_failure.startswith(
-    f"no charge contact ({NOT_SEEN}) -- Rowan was by it, not plugged in; I waited 12"), \
-      luca.charge_failure
+  assert luca.charge_failure == f"no charge contact ({NOT_SEEN})", luca.charge_failure
 
 
 def test_a_station_found_by_its_search_is_no_longer_held_out_of_sight():
@@ -544,12 +542,10 @@ def test_one_come_onto_the_way_in_of_a_station_out_of_sight_holds_it_a_while_too
 
 
 def test_one_on_the_seat_not_plugged_in_holds_a_station_out_of_sight_one_while():
-  """One holder, one wait: Rowan on the seat with its plug out, at rest,
-  refusing to step off, at a station Luca's dock cannot see -- by the
-  planner's own disc on the seat, where #346's wait would hold it 23 more
-  minutes. It holds it its while alone, 120 s, then the station is searched
-  for, and given up naming it (the first shape waited its while, then the
-  full bound)."""
+  """Rowan on the seat with its plug out, at rest, refusing to step off, at
+  a station Luca's dock cannot see -- by the planner's own disc on the seat.
+  It holds it one while, 120 s, asked off; then the base's own search, and
+  its failure (an earlier shape waited its while, then the full bound)."""
   luca, rowan = _pair(rowan_at=None)
   rowan.body.x, rowan.body.y = 50.0, 50.0            # away as Luca walks in
   rowan.body.body_xy = None
@@ -566,7 +562,7 @@ def test_one_on_the_seat_not_plugged_in_holds_a_station_out_of_sight_one_while()
   assert luca.body.run(luca.go_charge_routine()) is False
   assert float(luca.data.time) - marks["t"] < lc.UNSEEN_WAIT_S + 30.0, "waited past its while"
   assert luca.body.lost_at == ["station"] and luca.body.asked_off
-  assert "Rowan was by it, not plugged in" in luca.charge_failure, luca.charge_failure
+  assert luca.charge_failure == f"no charge contact ({NOT_SEEN})", luca.charge_failure
 
 
 def test_no_lost_search_after_a_bound_spent_behind_a_plug():

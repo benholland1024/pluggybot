@@ -55,9 +55,10 @@ other says it is plugged in at is held, wherever this robot's belief places
 that robot's body; and a station not in sight from its standoff, with the
 other within a body's width of its seat where it says it stands or where
 this robot sees it (`SEAT_HELD_M`, 0.54 m), is taken, not lost: the charge
-waits as #346's wait does, or with `free` goes on to another station, for
-`UNSEEN_WAIT_S` (120 s) at most, and is searched for after; one never in
-sight that its way in or seat holds to the wait's bound, nobody plugged in
+waits as #346's wait does, or with `free` goes on to another station --
+one with no plug in it ONE WHILE a station a charge, `UNSEEN_WAIT_S` (120 s)
+at most, then the base's own search and failure; one never in sight that
+its way in or seat holds to the station's one bound, nobody plugged in
 there, is searched for then. A robot alone takes no new branch: the station's checks
 (the approaches, the seats, lost near) fly bit for bit as before. The pair's
 recorded day keeps its trajectories bit for bit; its narration moves, and it

@@ -32,9 +32,10 @@ loop, with the invariants a served day needs read at every step (`Watch`):
      a station a trip at most, the walk to the waiting spot included;
   9. a wait by such a seat is counted (`bay_waits`) and remembered once a
      station a trip, as #346's waits are;
- 10. one holder, one wait: every wait at one station in one trip, by the
-     seat or #346's, ends within ONE bound counted from the first wait there
-     (and the walk out of the way a wait begins with);
+ 10. one holder, one wait: no wait at one station in one trip, by the seat
+     or #346's, holds on past ONE bound counted from the first wait there
+     (but for the walk out of the way a wait begins with): one begun with
+     that bound spent gives up at once;
  11. the day ends: no wait runs past it by more than a bound (`DEADLINE`).
 
 Walks take time here (`WALK_MS`), within their timeouts, so a wait's walk
@@ -257,14 +258,15 @@ class Watch:
         float(life.data.time) - first < bound - 1e-6:
       self.fail(life, f"a wait gave up {float(life.data.time) - first:.0f} s after its first "
                       f"at this station, before its {bound:.0f} s bound")
-    self.one_bound(life, k, first)
+    self.one_bound(life, k, first, t_in)
 
-  def one_bound(self, life, k, first: float) -> None:
-    """10: one holder, one wait -- within one bound of the first wait at a
-    station in a trip, whatever held it and however often."""
+  def one_bound(self, life, k, first: float, t_in: float) -> None:
+    """10: one holder, one wait -- no wait holds on past one bound of the
+    first wait at a station in a trip, whatever held it and however often."""
     bound, _ = life.wait_bound("charge", 0.0, 0.0)
-    if float(life.data.time) > first + bound + lc.CLEAR_DRIVE_S + lc.BAY_POLL_S + 1e-6:
-      self.fail(life, f"waited at one station {float(life.data.time) - first:.0f} s from its "
+    t = float(life.data.time)
+    if t > max(t_in, first + bound) + lc.CLEAR_DRIVE_S + lc.BAY_POLL_S + 1e-6:
+      self.fail(life, f"a wait at one station held on until {t - first:.0f} s from its "
                       f"first wait there, past one {bound:.0f} s bound")
 
   def by_seat(self, life, seat, held_s: float, counted: int) -> None:
@@ -274,7 +276,7 @@ class Watch:
       return
     self.counts["bySeat"] += 1
     t_start = float(life.data.time) - held_s
-    self.one_bound(life, k, trip["firstWait"].setdefault(k, t_start))
+    self.one_bound(life, k, trip["firstWait"].setdefault(k, t_start), t_start)
     first = k not in trip["byAt"]
     trip["byAt"][k] = trip["byAt"].get(k, 0.0) + held_s
     if trip["byAt"][k] > lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6:

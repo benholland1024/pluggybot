@@ -2705,10 +2705,12 @@ save a filmstrip PNG named after the script.
   the other robot is plugged into"): its body hid the tags, and Luca
   searched 422-468 s five times behind Rowan's. TAKEN: waited for, or passed
   with `free` -- ⚠ as long as a charge only by a plug; one by its seat or
-  come onto its way in, `UNSEEN_WAIT_S` (120 s) a station a charge at most,
-  asked off if at rest (only its own word may put it there, and a robot
-  itself lost says it wrong) -- then searched; and one its way in or seat
-  holds to the wait's bound, nobody plugged in there, searched then. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
+  come onto its way in, no plug in it, ONE WHILE a station a charge,
+  `UNSEEN_WAIT_S` (120 s) at most, asked off if at rest (only its own word
+  may put it there, and a robot itself lost says it wrong), then the base's
+  own search and failure -- kept that small on purpose (SimNotes says what
+  it gives up); one its way in or seat holds to the bound, nobody plugged
+  in there, searched then. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
   (60 s) RUNNING IS SAID, ONCE, AND SO IS ITS END (#697;
   `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`; the
   Observatory period): a run is every scan refused (`scan_match.REFUSED`:
