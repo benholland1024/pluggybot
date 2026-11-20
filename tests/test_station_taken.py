@@ -794,6 +794,37 @@ def test_a_search_inside_a_waits_bound_is_said_as_the_searchs_never_as_waited():
     "for it" in luca.charge_failure, luca.charge_failure
 
 
+def test_a_station_seen_since_it_was_out_of_sight_is_not_searched_for_after_its_bound():
+  """...never one seen since: out of sight behind Rowan on the seat, then,
+  Rowan gone, seen by a dock that never got in -- Rowan back on its way in
+  and waited for to the bound, the charge fails naming it, and never
+  searches for a station it saw (#731's review, round 11)."""
+  luca, rowan = _pair(rowan_at=None)
+  rowan.body.x, rowan.body.y = 50.0, 50.0            # away as Luca walks in
+  rowan.body.body_xy = None
+  dock = luca.body.dock_routine
+  docks = []
+
+  def docking(*a, **kw):
+    docks.append(float(luca.data.time))
+    if len(docks) == 1:                               # on the seat as Luca's dock looks
+      rowan.body.x, rowan.body.y = rowan.body.body_xy = ROWAN_BODY
+      return (yield from dock(*a, **kw))
+    rowan.body.x, rowan.body.y = SEATS[LOBBY][0], SEATS[LOBBY][1] + 0.6  # ...back on its way in
+    rowan.body.body_xy = None
+    return "not lined up"
+  luca.body.dock_routine = docking
+
+  def hook():                                         # ...gone 20 s into the while
+    if len(docks) == 1 and float(luca.data.time) >= docks[0] + 20.0 and rowan.body.x < 40.0:
+      rowan.body.x, rowan.body.y, rowan.body.body_xy = 50.0, 50.0, None
+  luca.body.step_hooks.append(hook)
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert len(docks) == 2 and luca.body.lost_at == [], (docks, luca.log[-4:])
+  assert ("Rowan was standing" in luca.charge_failure
+          and "not in sight" not in luca.charge_failure), luca.charge_failure
+
+
 # ---- what still ends a wait --------------------------------------------------
 
 

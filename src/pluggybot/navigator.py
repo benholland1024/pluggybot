@@ -351,9 +351,6 @@ class Navigator:
   INFLATION_CELLS = 7
   OTHER_ROBOT_CELLS = OTHER_ROBOT_CELLS
   DOWN_ROBOT_CELLS = DOWN_ROBOT_CELLS
-  #: A body's width (`body.SEAT_HELD_M`): another robot nearer a station's
-  #: seat stands on it (`peer_by_seat`, #731).
-  SEAT_HELD_M = SEAT_HELD_M
   PEER_STOP_AHEAD_M = PEER_STOP_AHEAD_M
   PEER_STOP_HALF_M = PEER_STOP_HALF_M
   PEER_CLEARANCE_M = PEER_CLEARANCE_M
@@ -1461,7 +1458,7 @@ class Navigator:
     """`Body.peer_by_seat`: where each other robot says it is
     (`KeepClear.said`) or where this robot's own sensors place it (its x, y:
     its body seen, #675, or at rest, #455), within `SEAT_HELD_M`."""
-    return nearest_by_seat(self._bodies(), wx, wy, self.SEAT_HELD_M)
+    return nearest_by_seat(self._bodies(), wx, wy, SEAT_HELD_M)
 
   def robot_at(self, ahead: float, left: float) -> bool:
     """Is the point `ahead` m ahead of this body's centre and `left` m to

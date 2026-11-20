@@ -993,7 +993,6 @@ class StubBody(Body):
   stuck_after_s = 2.0
   held_pitch = 0.0
   head_camera = None
-  SEAT_HELD_M = SEAT_HELD_M
 
   @staticmethod
   def world():
@@ -1305,19 +1304,8 @@ class StubBody(Body):
     return self.sight
 
   def peer_on_the_goal(self, x, y):
-    """Off where a test put other robots (`peers_on`, 0.45 m round each),
-    and where the others are placed (`others`, as the pair wires them), by
-    the humanoid's own arithmetic (`navigator.on_the_goal`)."""
-    from pluggybot.navigator import on_the_goal
-    near = [d for d in (math.dist(p, (x, y)) for p in self.peers_on) if d <= 0.45]
-    near += [d for d in (on_the_goal(self, b, x, y) for b in self._bodies()) if d is not None]
-    return min(near) if near else None
-
-  def _cells(self, b) -> int:
-    """The humanoid's disc round another robot, cells (`HumanoidMission`'s
-    own), for the others the pair wires in (`peer_on_the_goal`)."""
-    from pluggybot.humanoid.mission import HumanoidMission
-    return HumanoidMission.DOWN_ROBOT_CELLS if b.down else HumanoidMission.OTHER_ROBOT_CELLS
+    near = min((math.dist(p, (x, y)) for p in self.peers_on), default=math.inf)
+    return near if near <= 0.45 else None
 
   def _bodies(self) -> list[KeepClear]:
     return [KeepClear(*where()) for where in self.others]
@@ -1328,7 +1316,7 @@ class StubBody(Body):
 
   def peer_by_seat(self, x, y):
     """Off where the other robots are placed and say they are (`others`)."""
-    return nearest_by_seat(self._bodies(), x, y, self.SEAT_HELD_M)
+    return nearest_by_seat(self._bodies(), x, y, SEAT_HELD_M)
 
   def watch_for_peers(self, points):
     return None

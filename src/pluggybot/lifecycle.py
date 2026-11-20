@@ -3033,7 +3033,7 @@ class HubLifecycle:
         named = self.peer_at(held[0], held[1])
       return named[0] if named is not None else "another robot"
 
-    def a_while():
+    def while_routine():
       # ⚠ ...AND ONE NOT PLUGGED IN, BY ITS SEAT OR ON ITS WAY IN, HOLDS IT
       # ONE WHILE, ONCE A STATION A CHARGE: `UNSEEN_WAIT_S` at most, asked off
       # if at rest (`_out_of_sight_routine`), or passed with `free` -- then the
@@ -3059,7 +3059,7 @@ class HubLifecycle:
       arrived = False
       return True
 
-    def search():
+    def search_once_routine():
       # ...lost, once a charge (#476) -- ⚠ never behind a robot that says it
       # is plugged in there (#731)
       nonlocal searched, away, sx, sy, hd, seat
@@ -3073,14 +3073,14 @@ class HubLifecycle:
         seat = self.body.charge_seat()
       return found
 
-    def out_of_sight():
+    def unseen_routine():
       # ...no station in sight: taken, a while, or a robot lost, searched once
       # a charge (#476, #731). True where the loop goes round again
       if not _among(seat, unseen):
         unseen.append(seat)
-      if taken_not_lost() or (yield from a_while()):
+      if taken_not_lost() or (yield from while_routine()):
         return True
-      if not searched and (yield from search()):
+      if not searched and (yield from search_once_routine()):
         return True
       return taken_not_lost()               # ...plugged in as it searched
 
@@ -3117,9 +3117,9 @@ class HubLifecycle:
             booked=_among(seat, had_while))):
           # ⚠ ...BUT ONE NEVER IN SIGHT, WAITED FOR TO ITS BOUND WITH NOBODY
           # PLUGGED IN THERE, IS SEARCHED FOR AFTER ALL (#731): a robot lost and
-          # never searched dies flat
-          if (_among(seat, unseen) and not searched and self.last_bay_wait["why"] == "bound"
-              and (yield from search())):
+          # never searched dies flat -- never one a dock has seen since
+          if (_among(seat, unseen) and tried == NOT_SEEN and not searched
+              and self.last_bay_wait["why"] == "bound" and (yield from search_once_routine())):
             continue
           # ...the wait is why, never a walk, drive or dock before it: its
           # words, not "no charge contact" (#731's review)
@@ -3144,7 +3144,7 @@ class HubLifecycle:
         # station looked at again, for the other may have plugged in
         # meanwhile (#455) -- and near enough the station decides, as below.
         if (tried == NOT_SEEN and not self.body.charging()
-            and (yield from out_of_sight())):
+            and (yield from unseen_routine())):
           continue
         if dock_again():
           continue
@@ -3164,7 +3164,7 @@ class HubLifecycle:
         # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
         # right, the walk goes again, and else its retries as before -- but
         # never with another robot plugged in there or by its seat (#731)
-        if (yield from out_of_sight()):
+        if (yield from unseen_routine()):
           continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
@@ -3179,7 +3179,7 @@ class HubLifecycle:
         # charge -- unless the other robot is what stopped them.
         rec = self.body.last_drive
         if not searched and not (rec is not None and rec["why"] == "peer"):
-          if (yield from search()):
+          if (yield from search_once_routine()):
             spins = 1
             continue
         break
