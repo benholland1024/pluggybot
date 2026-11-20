@@ -11114,7 +11114,7 @@ disc may still hold the station by #346's wait until that station's bound,
 and the charge's failure is the base's words, the robot by the seat named
 in the WAIT lines and History alone. No search begins behind a robot that
 says it is plugged in there, after a dock or after walks that never got
-there. Each station has one bound a charge, counted from its first wait of
+there, and it is waited for instead. Each station has one bound a charge, counted from its first wait of
 either kind (a search inside it said as such, never as waited), and a
 `free` charge never goes back to a station it passed. A
 station never in sight that the way in or the seat holds to that bound,

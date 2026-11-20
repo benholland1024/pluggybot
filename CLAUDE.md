@@ -2368,8 +2368,8 @@ save a filmstrip PNG named after the script.
   THERE, by its own port's word, wherever this robot's belief places its
   body (#731; `Body.plugged_on`, `KeepClear.plugged`: placed through a
   belief 0.6-0.8 m off, one plugged in read free), and asks
-  one resting on the way off it (`Body.ask_off`; afresh after a no, never
-  one on the seat) --
+  one resting on the way off it (`Body.ask_off`; afresh after a no; never
+  one plugged in, nor by #346's wait one on the seat) --
   unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
   `station: "free"` goes on to the nearest station nobody holds,
   `MAX_STATION_SWITCHES`, never back to one it passed (#731), each

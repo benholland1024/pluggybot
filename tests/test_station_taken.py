@@ -825,6 +825,88 @@ def test_a_station_seen_since_it_was_out_of_sight_is_not_searched_for_after_its_
           and "not in sight" not in luca.charge_failure), luca.charge_failure
 
 
+def test_walks_that_never_got_there_wait_for_a_robot_plugged_in_there_meanwhile():
+  """Luca's walks never get there, twice, and Rowan plugs in at the station
+  as Luca looks round after the second: no search behind its plug, nor a
+  charge given up either -- it is waited for as #346's wait waits (#731's
+  review, round 12)."""
+  luca, rowan = _pair(rowan_at=None)
+  rowan.body.x, rowan.body.y = 50.0, 50.0
+  rowan.body.body_xy = None
+  looks = []
+
+  def stuck(x, y, timeout=90.0, stop=None):
+    luca.body.last_drive = {"why": "no_route", "goal": (x, y), "shortM": 3.0}
+    yield from luca.body._wait(5.0)
+    return False
+  luca.body.go_to_routine = stuck
+  look = luca.body.look_around_routine
+
+  def looking(*a, **kw):
+    looks.append(float(luca.data.time))
+    if len(looks) == 2:                                # ...plugged in as Luca looks round
+      rowan.body.x, rowan.body.y = rowan.body.body_xy = ROWAN_BODY
+      rowan.body.on_charger = True
+    return (yield from look(*a, **kw))
+  luca.body.look_around_routine = looking
+  _leaves_at(luca, rowan, 200.0)
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert _said(luca, "WAIT: Rowan is plugged in at the charging station"), luca.log[-4:]
+
+
+def test_a_while_after_a_bay_wait_for_the_same_robot_is_one_wait_booked():
+  """#346's wait for Rowan on the way in, then -- Rowan a step aside, by the
+  seat, Luca's dock seeing nothing -- the while for it: one holder, one wait,
+  remembered and counted once (#731's review, round 12: the while booked a
+  second)."""
+  luca, rowan = _pair(rowan_at=None)
+  rowan.body.x, rowan.body.y = SEATS[LOBBY][0], SEATS[LOBBY][1] + 0.25   # on the way in
+  rowan.body.body_xy = None
+  luca.body.lost = True
+  t0 = float(luca.data.time)
+
+  def hook():
+    if float(luca.data.time) >= t0 + 30.0 and rowan.body.x < SEATS[LOBBY][0] + 0.1:
+      rowan.body.x, rowan.body.y = SEATS[LOBBY][0] + 0.5, SEATS[LOBBY][1]   # ...by the seat
+  luca.body.step_hooks.append(hook)
+  waits0 = luca.bay_waits
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert _said(luca, "which I do not see"), luca.log[-4:]
+  said = [ln for ln in luca.thoughts.read("History.md").splitlines()
+          if "I needed" in ln and "I waited for it" in ln]
+  assert len(said) == 1 and luca.bay_waits - waits0 == 1, (said, luca.bay_waits - waits0)
+
+
+def test_a_station_passed_to_is_never_said_out_of_sight_for_a_dock_at_another():
+  """Luca's dock at the lobby sees nothing, Rowan on its seat: passed with
+  `free` -- and Rowan is at the next station first, and the next, where
+  Luca waits for it to the bound. Its failure never says that station was
+  not in sight: no dock looked at it (#731's review, round 12)."""
+  luca, rowan = _pair(rowan_at=None)
+  rowan.body.x, rowan.body.y = 50.0, 50.0            # away as Luca walks in
+  rowan.body.body_xy = None
+  dock = luca.body.dock_routine
+
+  def comes(*a, **kw):                                # ...onto the seat as Luca's dock looks
+    if rowan.body.x > 40.0:
+      rowan.body.x, rowan.body.y = rowan.body.body_xy = ROWAN_BODY
+    return (yield from dock(*a, **kw))
+  luca.body.dock_routine = comes
+  choose = luca.body.choose_station
+
+  def choosing(*a, **kw):
+    out = choose(*a, **kw)
+    if kw.get("free") is not None and out:            # ...Rowan there first
+      sx, sy, _ = luca.body.charge_standoff()
+      rowan.body.x, rowan.body.y = rowan.body.body_xy = (sx, sy)
+    return out
+  luca.body.choose_station = choosing
+  assert luca.body.run(luca.go_charge_routine(free=True)) is False
+  assert _said(luca, "GO_CHARGE on to the nearest free charging station"), luca.log[-4:]
+  assert ("Rowan was" in luca.charge_failure
+          and "not in sight" not in luca.charge_failure), luca.charge_failure
+
+
 # ---- what still ends a wait --------------------------------------------------
 
 
