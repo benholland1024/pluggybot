@@ -10973,7 +10973,7 @@ down -- the shoulder bringing the upper arm forward as the elbow opens --
 through the knob just pulled and onto the counter's top and the drawer's
 front, up to 720 N; at the door, over the lever's tip and arm at 20-100 N
 for a second or more. The prop and the counter pushed the hand back, the
-root went 0.11-0.29 m back while the standing policy held the legs, and the
+root went 0.15-0.26 m back while the standing policy held the legs, and the
 robot went over backward 1-2 s after the touch.
 
 **What the arm reads.** #708's reading turned round: minus
@@ -10989,7 +10989,7 @@ the door reference's ways home drag a jaw over the door's top or panel at
 65-200 N, past 20 N m but for under 0.2 s: held 0.05 s, 40 of them would
 stop at 20 N m and 49 at 15 (#708's door history: "never on a push or a
 press"); held 0.2 s at 15 N m, 6, each pressing on the world at 140-500 N,
-and a way home that touches nothing reads 9.8 N m at most (read off the
+and a way home that touches nothing reads 9 N m at most (read off the
 recorder's samples every 0.05 s, so near, not exact).
 
 **What is true now** (`Reach._shoved`, `_held_home`, `watch_home`,
@@ -11017,14 +11017,18 @@ way to its pose (#682), nor the line out along the fingers. No word moved:
 0fb85dc2; the dev box replays its flights):
 - The 171: hand-over falls 12 -> 2 (the two below), falls 17 -> 7, passes
   61 -> 67 -- five drawers and a door that fell now pass -- no new fall and
-  no pass lost; every one of its 15 holds came in a step's hand-over, and in
-  each the walk then went with the arm held, none falling after. The rule
-  held 0.05 s at 20 N m read the same verdicts but one drawer, and held in
-  every way home the same 15 (its bar would have stopped about 40).
+  no pass lost. Its 15 holds each came in a step's hand-over; the raise
+  brought 3 of the arms home, and the step walked on with the other 12 held,
+  none falling. The first draft, 20 N m held 0.05 s, read the same verdicts
+  but one drawer's (its bar would have stopped about 40 ways home).
+- The same 171 at noise keys of their own, nobody's to tune on: hand-over
+  falls 8 -> 0, falls 10 -> 2, passes 65 -> 67, no new fall.
 - Ben's bar, the hands checks at 0-31 and 32-127 and the tour's five jobs:
   609 of 736 with 5 falls, the base's, every flight the base's to the step:
   none of their ways home is a walk's hand-over that shoves. On the rule as
-  first built, watching a withdraw's too, the door lost a pass (above).
+  first built, watching a withdraw's too, the door lost a pass (above). The
+  hands checks at 32 set-outs a job held out by its commit's seed: 125 of
+  160 with 4 falls, the base's, every flight.
 - The loop's charge after a job that left the hand at the knob or the lever
   (the drawer's 24 keys without the step, and the door's 24 at its live
   draw): on the base 5 of the 24 drawers fell in the charge walk's
@@ -11032,8 +11036,18 @@ way to its pose (#682), nor the line out along the fingers. No word moved:
   plugged in, six of them walking with an arm held.
 - The drawer's 24 keys with a `withdraw` before the step: the base's,
   flight for flight -- 5 fall in the withdraw (the rule's cost).
+- The station's checks (36 starts round the standoff, 140 seats, 16 lost
+  near): the base's, every row -- the plug-in's and the unplug's ways home
+  are a withdraw's, unwatched (watching them, the rule as first built moved
+  one seat's unplug, 0.3 s sooner).
 - The pair's recorded day: the committed fixture's, line for line but its
   charge rows' wall-clock stamps, on both trees.
+- The reviews' three changes since (the caller now waiting on a way home
+  says whether it is watched, a way home begun counts from nothing, one
+  still to be read home at its rest watched too) moved none of it: the bar's
+  736 flights, the 171's 35 with a hold or drawn, the charge set's 48, the
+  withdraw set's 24 and the station's 199 rows are the rule's as first
+  flown, end state for end state.
 
 **What it does not take.** `door_final45`'s C_k27 fell sideways, its way
 home reading 10-14 N m away from the hand (a 30 N push across the line out
