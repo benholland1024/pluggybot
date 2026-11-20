@@ -10,36 +10,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A way home that would tip the body away from its hand is held there (#693's live family, U2, `loop-693c`) — opens when this PR is deployed
+### A walk's hand-over holds a way home that would tip the body away from its hand (#693's live family, U2, `loop-693c`) — opens when this PR is deployed
 
 **What the robots read** is unmoved: the prompt `6ec0fc48…` (70,256
 characters, 17 sections) and the session host's hello `a61b6376…`. No word
-is new: a `withdraw` reads false saying "your left arm did not get home:
-something holds it there", and a walk's report says `armHeld`, in more
-places -- where an arm's way home met what its hand had just pulled toward
-the body.
+is new: a walk's report says `armHeld` in more places -- where a `step`'s or
+another walk's hand-over held an arm whose way home met what its hand had
+just pulled toward the body.
 
-**The change** (`Reach._shoved`, `_held_home`, `HOME_TIP_NM`, `HOME_TIP_S`;
-SimNotes, "A way home that shoves the body back"). An arm on its way to its
-rest -- in joint space, or its rest commanded and not yet read there --
-whose own force reading tips the body away from its hand past 15 N m for
-0.2 s running is held where its drivers read it, as a way home held at its
-rest is (#693b): pressing on nothing, raised 5 cm and sent home again once
-a way home (never with another robot by), then left where it is held. It
-covers a withdraw's way home and every walk's hand-over (a `step`, a
-`drive_to`, the loop's charge walk); never a way out, a carry's way to its
-pose, nor the line out along the fingers.
+**The change** (`Reach._shoved`, `_held_home`, `watch_home`,
+`retreat(watch=)`, `HOME_TIP_NM`, `HOME_TIP_S`; SimNotes, "A way home that
+shoves the body back"). An arm a walk's hand-over sends home (a `step`, a
+`drive_to`, the loop's charge walk) -- on its way to its rest, or its rest
+commanded and not yet read there -- whose own force reading tips the body
+away from its hand past 15 N m for 0.2 s running is held where its drivers
+read it, as a way home held at its rest is (#693b): pressing on nothing,
+raised 5 cm and sent home again once a way home (never with another robot
+by), then left where it is held, and the walk goes with it. A `withdraw`'s
+way home is as it was: a withdraw right after a pull toward the body can
+still fall so.
 
 **What the period is for.**
-- **The acceptance**: falls in a `step`'s hand-over or a `withdraw` right
-  after a pull toward the body at the counter (2 of the 11-18 wake's 4 fall
-  rows), against the period before; and none where the rule held an arm.
+- **The acceptance**: falls in a walk's hand-over right after a pull toward
+  the body at the counter (2 of the 11-18 wake's 4 fall rows, each in a
+  `step`), against the period before; and none where the rule held an arm.
 - **What an arm left held does next**: the walks that go with one (`armHeld`
-  in a step's or a walk's report) and what each next way home does -- the
-  loop's charge walk especially, since a failed charge is a death; and a
-  robot whose arm is held is no robot resting, so the other robot cannot ask
-  it aside until its next walk takes the arm home.
-- **The words' share**: withdraws reading "held" against the period before.
+  in a step's or a walk's report) -- falls during them -- and what each next
+  way home does, the loop's charge walk especially (a failed charge is a
+  death); and a robot whose arm is held is no robot resting, so the other
+  robot cannot ask it aside until its next walk takes the arm home.
+- **What it leaves**: falls in a `withdraw` right after a pull toward the
+  body, which the rule does not touch.
 
 ### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
 

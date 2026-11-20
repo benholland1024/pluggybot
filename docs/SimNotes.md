@@ -10992,34 +10992,31 @@ press"); held 0.2 s at 15 N m, 6, each pressing on the world at 140-500 N,
 and a way home that touches nothing reads 9.8 N m at most (read off the
 recorder's samples every 0.05 s, so near, not exact).
 
-**What is true now** (`Reach._shoved`, `_held_home`, `HOME_TIP_NM`,
-`HOME_TIP_S`; `tests/test_hands.py`): an arm on its way to its rest -- in
-joint space, or its rest commanded and not yet read there -- whose own
-reading tips the body away from its hand past `HOME_TIP_NM` (15 N m) for
-`HOME_TIP_S` (0.2 s) running is held where its drivers read it, as a way
-home held at its rest is: pressing on nothing, raised `LIFT_M` and sent home
-again once a way home (never with another robot by), then left where it is
-held. A withdraw ends there, "held"; a walk's hand-over goes with it held,
-its report saying so (`armHeld`); the next withdraw or walk sends it home
-again, judged afresh from where it is held. Never a way out (#708's, a tip
-toward the hand), a carry's way to its pose (#682), nor the line out along
-the fingers. No word moved: "something holds it" says it.
+**What is true now** (`Reach._shoved`, `_held_home`, `watch_home`,
+`retreat(watch=)`, `HOME_TIP_NM`, `HOME_TIP_S`; `tests/test_hands.py`,
+`tests/test_humanoid_body.py`): an arm a walk's hand-over sends home
+(`HumanoidMission.to_walk_routine`) -- on its way to its rest in joint space,
+or its rest commanded and not yet read there -- whose own reading tips the
+body away from its hand past `HOME_TIP_NM` (15 N m) for `HOME_TIP_S` (0.2 s)
+running is held where its drivers read it, as a way home held at its rest
+is: pressing on nothing, raised `LIFT_M` and sent home again once a way home
+(never with another robot by), then left where it is held; the walk goes
+with it held, its report saying so (`armHeld`), and the next withdraw or walk
+sends it home again, judged afresh from where it is held. Never a
+`withdraw`'s way home, whose word is the arm's: held so, the bar's door
+reference read "held" of a way home that dragged its jaw across the door's
+panel while the door gave, and a `withdraw` that reads false ends a run that
+does not test it -- the door 28 deg open where the base's run went on to 94
+(hcbig door 112: 608 of 736 against 609, the one pass the bar lost, on the
+rule as first built). So a `withdraw` right after a pull toward the body
+falls as it did. Never a way out (#708's, a tip toward the hand), a carry's
+way to its pose (#682), nor the line out along the fingers. No word moved:
+"something holds it" says it, and a step reads "stepped".
 
 **Flown** (one Vast pod, an AMD EPYC 7B13, Python 3.12.3, osmesa, beside
-0fb85dc2; the dev box replays its flights):
-- The 171: hand-over falls 12 -> 2 (the two below), falls 17 -> 7, passes
-  61 -> 66 -- four drawers and a door that fell now pass -- and no new fall,
-  read first on the rule held 0.05 s at 20 N m (whose bar stopped about 40
-  ways home), the same on every flight read again at 15 N m held 0.2 s.
-- The drawer's 24 keys with a `withdraw` before the step: 5 fell in the
-  withdraw on the base, none on the rule, three withdraws reading "held".
-- The loop's charge after a job that left the hand at the knob (the drawer's
-  24 keys without the step, and the door's 24 at its live draw): on the base
-  4 of 24 drawers fell in the charge walk's hand-over, got up and charged;
-  on the rule none fell, and every charge plugged in.
-- The pair's recorded day: the committed fixture's, line for line but its
-  charge rows' wall-clock stamps, on both trees.
-- BAR
+0fb85dc2; the dev box replays its flights): the hand-over-only rule's
+readings are being flown (the bar, the 171, its unseen keys, the hands
+checks' pool sealed by its commit, the charge after a job, the station).
 
 **What it does not take.** `door_final45`'s C_k27 fell sideways, its way
 home reading 10-14 N m away from the hand (a 30 N push across the line out
