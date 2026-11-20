@@ -10,6 +10,109 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A station the other robot is plugged into is taken, never a robot lost (#731, U1, `loop-731`) — opens when this PR is deployed
+
+**What the robots read.** The prompt (`6ec0fc48…`) and the session host's
+hello (`a61b6376…`) are unmoved. History and the other robot's `doing` move
+only where #731 is. BEFORE, a robot whose charge went to a station the
+other robot was plugged into, its belief 0.6-0.8 m off, read the station
+free, walked in, saw no station behind the other's body, and wrote
+`I did not find my charging station where I believed it was, so I may not
+be where I thought, and I am looking round for it`, then `I looked for my
+charging station for 446 s and did not see it` and `charge: did not charge
+-- no charge contact (station not seen)` -- five times on 11-18. AFTER, it
+waits (or, with `station: "free"`, goes on), saying `WAIT: Rowan is plugged
+in at the charging station -- waiting up to 1386 s at (19.7, -4.3)`, which
+is also what the other robot is shown as its `doing`; where the wait was
+reached before (the plugged-in robot placed on the station's way in), the
+clause was `Rowan is standing at rest right in front of the charging
+station`, or `... 0.47 m from the charging station` with an ask to make way
+every 30 s, which a robot plugged in refused each time (`MAKE WAY: Rowan
+asked me off its way, and I cannot: I am plugged in at my charging
+station`): a plugged-in robot is never asked now. History's line for a wait
+is unchanged (`Rowan was at the charging station I needed; I waited for it
+(up to 1386 s)`), and a wait its bound ends writes `charge: did not charge
+-- never reached the charging station -- Rowan was plugged in at it; I
+waited 1386 s for it to leave, 3x how long one charge usually takes` (161
+characters; the clause was `Rowan was standing at rest right in front of
+it`). A station out of sight with the other robot by its seat, alive and not
+plugged in, is waited for 120 s at most, said `WAIT: Rowan is standing by the
+charging station, which I do not see -- waiting up to 120 s at (19.7,
+-4.3)` and remembered `Rowan was by the charging station I needed, which I
+did not see; I waited for it (up to 120 s)`, one at rest asked off its
+way, then `WAIT: the charging station is free after N s`, or `WAIT: Rowan
+was still by the charging station after 120 s -- I look for it myself` and
+searched for as before. The site counts a failed approach off `GO_CHARGE: `
+lines (`chargeOutcome`): the waits are `WAIT:` lines, and a charge a wait's
+bound ends is one failed approach, as it was.
+
+**The change** (SimNotes, "A station the other robot is plugged into";
+`KeepClear.said`, `plugged`; `Body.plugged_seat`, `plugged_on`,
+`peer_by_seat`; `HubLifecycle._bay_holder`, `go_charge_routine`). Each
+robot's report of itself to the other (`keep_clear`) says where it is and
+the seat of the station its plug is in, by its own port's word. A seat the
+other says it is plugged in at is held, wherever this robot's belief places
+that robot's body; and a station not in sight from its standoff, with the
+other within a body's width of its seat where it says it stands or where
+this robot sees it (`SEAT_HELD_M`, 0.54 m), is taken, not lost: the charge
+waits as #346's wait does, or with `free` goes on to another station --
+one with no plug in it ONE WHILE a station a charge, `UNSEEN_WAIT_S` (120 s)
+at most, then the base's own search and failure; one never in sight that
+its way in or seat holds to the station's one bound, nobody plugged in
+there, is searched for then. A robot alone takes no new branch: the station's checks
+(the approaches, the seats, lost near) fly bit for bit as before. The pair's
+recorded day keeps its trajectories bit for bit; its narration moves, and it
+is recorded again (the site's vendored copy one day behind until it is
+vendored again).
+
+**What the period is for.**
+- **The acceptance** (#731's third box): on a live wake, no charge fails
+  `station not seen` while the other robot is plugged in at that station --
+  read each `charge: did not charge -- no charge contact (station not
+  seen)` and each `lost` drift row against the other robot's plug (its
+  `CHARGE` stretches): none at a station it is plugged into.
+- **What waiting costs now**: how often a charge waits for a robot plugged
+  in (`WAIT: ... is plugged in at`), how long, how often the wait's bound
+  (1,386 s, 3x a charge's occupancy measured on the quadrupeds) ends it while
+  the humanoids' charges run to 107 minutes (11-18), what the robot decides
+  after one, and how often a mind passes a taken station with `free`.
+- **A robot really lost still searched**: `lost` rows with nobody by the
+  seat, as before; and every `WAIT:` that followed a station out of sight
+  ended in a plug-in or a search.
+
+### A walk's hand-over holds a way home that would tip the body away from its hand (#693's live family, U2, `loop-693c`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `6ec0fc48…` (70,256
+characters, 17 sections) and the session host's hello `a61b6376…`. No word
+is new: a walk's report says `armHeld` in more places -- where a `step`'s or
+another walk's hand-over held an arm whose way home met what its hand had
+just pulled toward the body.
+
+**The change** (`Reach._shoved`, `_held_home`, `watch_home`,
+`retreat(watch=)`, `HOME_TIP_NM`, `HOME_TIP_S`; SimNotes, "A way home that
+shoves the body back"). An arm a walk's hand-over sends home (a `step`, a
+`drive_to`, the loop's charge walk) -- on its way to its rest, or its rest
+commanded and not yet read there -- whose own force reading tips the body
+away from its hand past 15 N m for 0.2 s running is held where its drivers
+read it, as a way home held at its rest is (#693b): pressing on nothing,
+raised 5 cm and sent home again once a way home (never with another robot
+by), then left where it is held, and the walk goes with it. A `withdraw`'s
+way home is as it was: a withdraw right after a pull toward the body can
+still fall so.
+
+**What the period is for.**
+- **The acceptance**: falls in a walk's hand-over right after a pull toward
+  the body at the counter (2 of the 11-18 wake's 4 fall rows, each in a
+  `step`), against the period before. A walk's `armHeld` there is where it
+  acted -- or #693b's hold at the rest, which says the same.
+- **What an arm left held does next**: the walks that go with one (`armHeld`
+  in a step's or a walk's report) -- falls during them -- and what each next
+  way home does, the loop's charge walk especially (a failed charge is a
+  death); and a robot whose arm is held is no robot resting, so the other
+  robot cannot ask it aside until its next walk takes the arm home.
+- **What it leaves**: falls in a `withdraw` right after a pull toward the
+  body, which the rule does not touch.
+
 ### A robot answers a person while it charges (#730, T7, `loop-730`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `b4d1ec1f…` (69,557

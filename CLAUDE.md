@@ -387,10 +387,11 @@ save a filmstrip PNG named after the script.
   line, it dragged a jaw over a counter the robot stood turned to for 10 s,
   #560). ⚠ A REACH'S WAY OUT IS JUDGED SO TOO, from its other end
   (`Reach.way_out`, #560): straight, a hanging grip at a table 13 cm out was
-  driven into its top. ⚠ No force guard on
-  it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
+  driven into its top. ⚠ No `BLOCKED_N`
+  guard on it: there one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
+  home") -- but a walk's hand-over's is held for a shove (below). ⚠ A WAY
+  OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
   TRUNK (#722; `Reach._own_kept`, `reach.own_rooms`, `OWN_CLEAR_M`;
   SimNotes, "A way out from a hand already out"): sampled on its model of
   itself, the upper arm, forearm and gripper against the torso, the head and
@@ -430,7 +431,12 @@ save a filmstrip PNG named after the script.
   rested with) -- left "rest" and pressed on toward it, a jaw on a counter's
   top tipped Rowan over backward inside a withdraw's 15 s wait; a withdraw
   ends there ("held"), and a walk's hand-over waits for it and goes with
-  an arm left held, its report saying so (`armHeld`). ⚠ BOTH WAYS KEEP OFF
+  an arm left held, its report saying so (`armHeld`). ⚠ A WALK'S
+  HAND-OVER'S WAY HOME IS HELD SO AT ONCE WHERE WHAT ITS ARM READS TIPS THE
+  BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
+  s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
+  SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
+  whose word is the arm's. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
@@ -2074,7 +2080,10 @@ save a filmstrip PNG named after the script.
   `tests/test_deploy.py` blocks the omitted packages and flies the robot; a
   new runtime dependency goes in the requirements too, and a training stack
   never does (#375). This repo owns the IMAGE; the website repo owns the
-  DEPLOYMENT (`rooftop-media-2026/compose.yaml`). `/var/lib/pluggybot` must be
+  DEPLOYMENT (`rooftop-robotics/compose.yaml`; its checkout on the dev box
+  is `~/rooftop-robotics`). ⚠ `rooftop-media-2026` in a citation is that
+  repo, which GitHub knows as `rooftop-robotics` (rooftop-robotics #524).
+  `/var/lib/pluggybot` must be
   a volume.
 - **The served process watches its own memory and says why it ended** (issue
   #349; `telemetry/vitals.py`, Webserver.md "When the process dies"): a
@@ -2355,12 +2364,17 @@ save a filmstrip PNG named after the script.
   geometry must not settle it -- a charge goes to the station its body
   chose (`Body.choose_station`, below) and WAITS while the other is on
   that station's WAY IN or its SEAT, not only its standoff (the lifecycle's
-  #346 wait, `Body.charge_seat`, `LANE_STEP_M`), and asks one resting on the
-  way off it (`Body.ask_off`; afresh after a no, never one on the seat) --
+  #346 wait, `Body.charge_seat`, `LANE_STEP_M`), ⚠ or SAYS IT IS PLUGGED IN
+  THERE, by its own port's word, wherever this robot's belief places its
+  body (#731; `Body.plugged_on`, `KeepClear.plugged`: placed through a
+  belief 0.6-0.8 m off, one plugged in read free), and asks
+  one resting on the way off it (`Body.ask_off`; afresh after a no; never
+  one plugged in, nor by #346's wait one on the seat) --
   unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
   `station: "free"` goes on to the nearest station nobody holds,
-  `MAX_STATION_SWITCHES`; waiting is the default, and an event-map row's or
-  a standing order's charge waits). ⚠
+  `MAX_STATION_SWITCHES`, never back to one it passed (#731), each
+  station's wait bounded from its own first; waiting is the default, and an
+  event-map row's or a standing order's charge waits). ⚠
   THE PAIR COLLIDES (Ben, 2026-10-14, #455; `humanoid.world.PAIR_BITS`):
   each robot meets every solid geom of the other and none of its own, and
   AVOIDANCE keeps them apart -- before, they passed through each other, and
@@ -2691,7 +2705,18 @@ save a filmstrip PNG named after the script.
   onto a copy within 20 s. The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
-  ONCE a charge. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
+  ONCE a charge -- ⚠ NEVER WITH ANOTHER ROBOT PLUGGED IN THERE OR BY ITS
+  SEAT, alive, where it says it stands or this robot sees it within a
+  body's width (`SEAT_HELD_M`, 0.54 m; `Body.peer_by_seat`, #731; SimNotes,
+  "A station the other robot is plugged into"): its body hid the tags, and
+  the search behind it failed. TAKEN: waited for, or passed
+  with `free` -- ⚠ as long as a charge only by a plug; one by its seat or
+  come onto its way in, no plug in it, ONE WHILE a station a charge,
+  `UNSEEN_WAIT_S` (120 s) at most, asked off if at rest (only its own word
+  may put it there, and a robot itself lost says it wrong), then the base's
+  own search and failure -- kept that small on purpose (SimNotes says what
+  it gives up); one never in sight that its way in or seat holds to the
+  bound, nobody plugged in there, searched then. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
   (60 s) RUNNING IS SAID, ONCE, AND SO IS ITS END (#697;
   `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`; the
   Observatory period): a run is every scan refused (`scan_match.REFUSED`:

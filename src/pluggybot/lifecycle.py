@@ -37,7 +37,7 @@ from pluggybot.behavior.navigation import STRIKES_TO_FINISH
 from pluggybot.contacts import contact_pairs
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.body import (  # noqa: F401 -- the topple's old home
-  NOT_SEEN, TOPPLE_HOLD_S, TOPPLE_TILT_RAD, Body, KeepClear, body_for,
+  NOT_SEEN, SAME_SEAT_M, TOPPLE_HOLD_S, TOPPLE_TILT_RAD, Body, KeepClear, body_for,
 )
 from pluggybot.economy.cadence import CHECK_S
 from pluggybot.economy import energy as energy_model
@@ -403,6 +403,15 @@ WAIT_OCCUPANCIES = 3.0
 #: chosen can be taken by the time it is reached, and twice is every other
 #: station of three.
 MAX_STATION_SWITCHES = 2
+#: ⚠ A STATION OUT OF SIGHT WITH ANOTHER ROBOT BY ITS SEAT IS HELD THIS LONG
+#: AT MOST, s, a station a charge (#731, `_out_of_sight_routine`): never a
+#: charge's bound, which a robot plugged in is waited for:
+#: one there with its plug out is plugging in (then it says so, and is waited
+#: for as long as a charge) or leaving -- MEASURED from the standoff, the dock
+#: 27.0 s (median), 40.6 s at most of 36, and the unplug 25.9 s, 27.7 at most
+#: -- and only its own word may put it there, which a robot itself lost gets
+#: wrong (the fuzz's seed 73). About three times the longest, then searched.
+UNSEEN_WAIT_S = 120.0
 #: What a robot does AT the station: not lingering, whatever the clock says.
 #: A procedure is no business of the station's, refused or run.
 RACK_STATES = ("GO_CHARGE", "CHARGE")
@@ -1659,21 +1668,33 @@ class HubLifecycle:
 
     Either way it says WHO it is, whether it lies down to rest (issue #415)
     -- its posture rides the wire, and a robot resting across the other's
-    way is asked to make way (`make_way`) -- and whether it is dead."""
+    way is asked to make way (`make_way`) -- and whether it is dead.
+
+    ⚠ AND WHAT IT SAYS OF ITSELF, wherever it is placed (#731): where it is,
+    its reported pose -- nothing but standing, never fallen, getting up or
+    dead (above: its reckoning runs on through a fall) -- and the seat of
+    the station its plug is in, by its own port's word (`Body.plugged_seat`):
+    what the other robot's charge reads a station held by (`_bay_holder`).
+    The plug's word stands dead too: the station's one plug is in its port
+    until it is stood up (`RESTART_AFTER_S` on a served world), and unsaid,
+    a dead body plugged in hid the tags as a live one did."""
     down, dead = self.down(), self.dead is not None
     resting = bool(self.body.resting)
+    says = {"said": (None if down or dead or self.body.posture != "standing"
+                     else tuple(self.body.pose_xy())),
+            "plugged": self.body.plugged_seat()}
     if not (down or dead or resting or self.body.posture != "standing"
             or self.body.making_way is not None):
       if not self._seen_by(seen_by):
         x, y = self.body.pose_xy()
-        return KeepClear(x, y, root=self.root)
+        return KeepClear(x, y, root=self.root, **says)
       x, y = seen_by.as_seen(*self.body.footprint_centre())
-      return KeepClear(x, y, root=self.root, seen=True)
+      return KeepClear(x, y, root=self.root, seen=True, **says)
     x, y = self.body.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
     return KeepClear(x, y, down=down, root=self.root,
-                     resting=resting and not (down or dead), dead=dead)
+                     resting=resting and not (down or dead), dead=dead, **says)
 
   def _seen_by(self, other: Body | None) -> bool:
     """Whether `other`'s LIDAR sees this robot (#675): its scans returned
@@ -2200,12 +2221,18 @@ class HubLifecycle:
                      "interrupted the wait",
       "pack": f"; I waited {w['s']:.0f} s, until the pack reached the "
               "reserve",
-      "hour": f"; I waited {w['s']:.0f} s, until this run's time was up"}[w["why"]]
+      "hour": f"; I waited {w['s']:.0f} s, until this run's time was up"}[w["why"]] + (
+        f" -- {w['away']:.0f} s of them looking for it" if w.get("away") else "")
 
   def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
     """The same question asked of a POINT, for the approach that keeps no
     verdict of its own (`go_charge_routine`). Asked as the narration is
-    written, which is the same sim instant the drive gave up in."""
+    written, which is the same sim instant the drive gave up in. A seat
+    another robot says it is plugged in at is that robot's, by its own word
+    (`_bay_holder`'s "plugged", #731)."""
+    root = self.body.plugged_on(wx, wy)
+    if root is not None:
+      return next((p.robot_name or p.root for p in self.peers if p.root == root), root), 0.0
     near = self.body.peer_on_the_goal(wx, wy)
     return None if near is None else self._nearest_peer(wx, wy, near)
 
@@ -2383,7 +2410,14 @@ class HubLifecycle:
     points with one on it (`Body.peer_on_the_goal`) -- the standoff (sx,
     sy), and for a charge, every `LANE_STEP_M` of the way in to `seat`,
     the dock's (#455). `where` is "standoff", "lane" or "dock", the last
-    for one on the seat, charging or not. None where nobody holds it."""
+    for one on the seat, charging or not. None where nobody holds it.
+
+    ⚠ ONE THAT SAYS IT IS PLUGGED IN AT THIS STATION HOLDS IT, "plugged",
+    WHEREVER THIS ROBOT'S BELIEF PLACES ITS BODY (#731; `Body.plugged_on`,
+    its own port's word; SimNotes, "A station the other robot is plugged
+    into")."""
+    if seat is not None and self.body.plugged_on(*seat) is not None:
+      return seat[0], seat[1], 0.0, "plugged"
     pts = [(sx, sy)]
     if seat is not None:
       n = max(1, math.ceil(math.dist((sx, sy), seat) / LANE_STEP_M))
@@ -2403,8 +2437,8 @@ class HubLifecycle:
     return self._bay_holder(standoff[0], standoff[1], seat) is None
 
 
-  def _await_bay_routine(self, sx: float, sy: float, kind: str,
-                         since: float, seat=None) -> Routine:
+  def _await_bay_routine(self, sx: float, sy: float, kind: str, since: float,
+                         seat=None, said=None, away=None, booked=False) -> Routine:
     """Wait for another robot to leave a standoff this one needs (issue
     #346). True once it is free; False once the robot gave up, with why in
     `self.last_bay_wait` (who held it, for how long, and what ended the wait).
@@ -2415,13 +2449,21 @@ class HubLifecycle:
     approaches, after all four of which a robot died flat. So: back off to
     a spot out of the holder's way, say so in History, and look again every
     `BAY_POLL_S` until the bay is free or the bound (`wait_bound`, counted
-    from `since`, the first time THIS interaction found it taken) runs out.
+    from `since`: a charge's, the first time its trip found THIS station
+    taken, #731) runs out.
     Nothing else ends a charge's wait early: charging is what an interrupt
     would ask for, and giving up on it is how the robot dies.
 
     `kind` is `charge`. `seat`, a charge's (`Body.charge_seat`): the
     station's way in and its seat hold the bay too (`_bay_holder`), or the
-    walk in goes on into a robot standing there (#455).
+    walk in goes on into a robot standing there (#455). `said`, the trip's:
+    the bounds whose waits it has said, so a station come back to after a
+    wait at another is not said again (#731). `away`, the trip's search
+    (start, end): inside the bound's span it was no wait, and the words say
+    how long it took (#731's review: a 400 s search read as waited).
+    `booked`: a while by the seat held this station first, its wait
+    remembered and counted then (`_out_of_sight_routine`) -- said as it
+    begins, never booked twice for one holder (#731's review).
 
     ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
     #455; `Body.ask_off`): waited for, it never moved, and on afb473a every
@@ -2441,19 +2483,31 @@ class HubLifecycle:
     who = named[0] if named is not None else "another robot"
     bound, of = self.wait_bound(kind, sx, sy)
     what = "the charging station"
-    first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
+    # ...and a wait whose bound is spent already (a station waited at before,
+    # come back to, #731) is no new wait: it walks nowhere and gives up
+    spent = float(self.data.time) - since >= bound
+    first = not spent and (since not in said if said is not None else
+                           (self.last_bay_wait is None
+                            or self.last_bay_wait.get("since") != since))
+    if first and said is not None:
+      said.add(since)
     # EVERY time, not only the first: a drive that found the bay taken again
     # stops at the edge of the holder's disc, which is its way out.
-    spot = self._waiting_spot(sx, sy)
+    spot = None if spent else self._waiting_spot(sx, sy)
     if first:
+      # ...what is left of it, where a while held the station first (#731)
+      left = bound - (float(self.data.time) - since)
       self._say(f"WAIT: {holder(self.peers, who, where, near, what)} -- waiting up to "
-                f"{bound:.0f} s" + ("" if spot is None else
-                                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"), doing=True)
-      self._remember(f"{who} was at {what} I needed; I waited for it "
-                     f"(up to {bound:.0f} s)")
-      self.bay_waits += 1
-      self.last_bay_wait = {"since": since, "who": who, "kind": kind,
-                       "bound": bound, "of": of, "why": ""}
+                f"{left:.0f} s" + ("" if spot is None else
+                                   f" at ({spot[0]:.1f}, {spot[1]:.1f})"), doing=True)
+      if not booked:
+        self._remember(f"{who} was at {what} I needed; I waited for it "
+                       f"(up to {left:.0f} s)")
+        self.bay_waits += 1
+    # ...and the record is this wait's whatever was said (#731's review): kept
+    # from an earlier one, a wait at another station's took its seconds
+    self.last_bay_wait = {"since": since, "who": who, "kind": kind,
+                          "bound": bound, "of": of, "why": ""}
     if spot is not None:
       yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     ended = ""
@@ -2472,7 +2526,7 @@ class HubLifecycle:
         ended = "hour"
       if ended:
         break
-      if now >= next_ask and held[3] != "dock":
+      if now >= next_ask and held[3] in ("standoff", "lane"):
         if self.body.ask_off(held[0], held[1], asked, beyond):
           next_ask = now + OTHER_WAIT_S
         else:
@@ -2480,16 +2534,75 @@ class HubLifecycle:
           next_ask = now + MAKE_WAY_WAIT_S
       yield from self.body.hold_routine(BAY_POLL_S)
     waited = float(self.data.time) - since
+    aside = 0.0 if away is None or away[0] < since else away[1] - away[0]
     self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
-                               "bound": bound, "of": of,
+                               "bound": bound, "of": of, "away": round(aside),
                                "end": float(self.data.time)})
+    after = f"after {waited:.0f} s" + (f", {aside:.0f} s of them looking for it"
+                                       if round(aside) else "")
     if ended:
-      self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} was still there "
+      self._say(f"WAIT: gave up on {what} {after} -- {who} was still there "
                 + ("and this run's time is up" if ended == "hour"
                    else f"(the bound is {bound:.0f} s)"), doing=True)
       return False
-    self._say(f"WAIT: {what} is free after {waited:.0f} s", doing=True)
+    self._say(f"WAIT: {what} is free {after}", doing=True)
     return True
+
+  def _out_of_sight_routine(self, sx: float, sy: float, seat, left: float, who: str,
+                            holds, booked: bool = False) -> Routine:
+    """A station not in sight from its standoff (sx, sy), held by `who` with
+    no plug in it -- by its seat, where it says it stands or where this
+    robot's sensors place it, or on its way in (`holds()`, the trip's) --
+    (#731): waited for once, out of its way (`_waiting_spot`, the walk there
+    counted), `left` s at most, for that robot to go, or to plug in, when
+    the station is held and #346's wait takes over; said, counted and
+    remembered as a wait is, and one at rest there asked off its way as
+    #346's wait asks (#455). "gone", "plugged", "stayed" (still there as
+    `left` ran out: the station is searched for) or "hour" (the run's end,
+    #654). ⚠ A WHILE, NEVER A CHARGE'S BOUND (`UNSEEN_WAIT_S`): only its
+    own word may put it there, and a robot itself lost says it wrong.
+    `booked`: #346's wait there this trip was remembered and counted, and
+    this one is said alone (#731's review: one holder, one wait)."""
+    what = "the charging station"
+    spot = self._waiting_spot(sx, sy)
+    self._say(f"WAIT: {holder(self.peers, who, 'by', 0.0, what)}, which I do not see -- "
+              f"waiting up to {left:.0f} s" + ("" if spot is None else
+                                               f" at ({spot[0]:.1f}, {spot[1]:.1f})"),
+              doing=True)
+    if not booked:
+      self._remember(f"{who} was by {what} I needed, which I did not see; I waited "
+                     f"for it (up to {left:.0f} s)")
+      self.bay_waits += 1
+    t0 = float(self.data.time)
+    if spot is not None:
+      yield from self.body.go_to_routine(*spot, timeout=min(CLEAR_DRIVE_S, left))
+    asked: dict = {}
+    next_ask = float(self.data.time)
+    while True:
+      now = float(self.data.time)
+      waited = now - t0
+      if self.body.plugged_on(*seat) is not None:
+        return "plugged"
+      if holds() is None:
+        self._say(f"WAIT: {what} is free after {waited:.0f} s", doing=True)
+        return "gone"
+      if self._hour_up:
+        return "hour"
+      if waited >= left:
+        self._say(f"WAIT: {who} was still by {what} after {waited:.0f} s -- I look "
+                  "for it myself", doing=True)
+        return "stayed"
+      if now >= next_ask:
+        # ...as #346's wait asks: at the point of the way in it holds, the
+        # seat beyond, or at the seat it is by (#731's review)
+        held = self._bay_holder(sx, sy, seat)
+        at, beyond = (seat, ()) if held is None else (held[:2], (tuple(seat),))
+        if self.body.ask_off(at[0], at[1], asked, beyond):
+          next_ask = now + OTHER_WAIT_S
+        else:
+          asked.clear()
+          next_ask = now + MAKE_WAY_WAIT_S
+      yield from self.body.hold_routine(BAY_POLL_S)
 
   def _wait_dead_routine(self) -> Routine:
     """A dead robot with somebody who can reset it stands still and keeps
@@ -2861,12 +2974,122 @@ class HubLifecycle:
     # charging is what either would ask for. ⚠ Taken is the standoff OR THE
     # WAY IN OR THE SEAT (#455): the walk in, which sees no robot, walked
     # into one standing there.
-    spins, since, arrived = 0, None, False
+    spins, arrived = 0, False
+    since: dict = {}              # ...the first time each station was found taken (#346)
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
+    away = None                   # ...and when that search ran, (start, end)
     redocked = False              # ...and once a dock seen never got in (#572)
     switched = 0                  # ...and how often a taken station was passed (#560)
+    unseen: list = []             # ...and the seats of those found out of sight (#731)
+    had_while: list = []          # ...and of those one not plugged in held a while
+    passed: list = []             # ...and of those passed with `free`
+    announced: set = set()        # ...and the waits said (`_await_bay_routine`)
+
+    def go_on(who) -> bool:
+      # `free` (#560): a taken station passed for the nearest one nobody
+      # holds, never this one nor one passed already -- by its seat it reads
+      # free, and the trip went back and forth -- `MAX_STATION_SWITCHES` a charge
+      nonlocal switched, sx, sy, hd, seat, tried
+      gone = (*passed, seat)
+      if not (self.peers and free and switched < MAX_STATION_SWITCHES and self.body.choose_station(
+          free=lambda standoff, at: not _among(at, gone) and self._bay_free(standoff, at))):
+        return False
+      passed.append(seat)
+      switched += 1
+      # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
+      self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one", doing=True)
+      self._remember(f"{who} was at the charging station I needed; I went on to the "
+                     "nearest free one")
+      sx, sy, hd = self.body.charge_standoff()
+      seat = self.body.charge_seat()
+      tried = None                        # ...a station no dock has looked at yet
+      return True
+
+    def plugged_here() -> bool:
+      return bool(self.peers) and self.body.plugged_on(*seat) is not None
+
+    def taken_not_lost() -> bool:
+      # ⚠ A STATION NOT IN SIGHT FROM ITS STANDOFF, ANOTHER ROBOT PLUGGED IN
+      # AT IT, IS TAKEN, NEVER A ROBOT LOST (#731; SimNotes, "A station the
+      # other robot is plugged into"): waited for as long as a charge, or
+      # passed with `free`, above. One not plugged in holds it a while (below)
+      nonlocal arrived
+      if not plugged_here():
+        return False
+      arrived = False                     # ...the wait's words, never a walk's
+      return True
+
+    def unplugged_holder():
+      # ...who holds this station with no plug in it: by its seat, where it
+      # says it stands or this robot sees it, or on its way in or seat by the
+      # planner's own disc (`_bay_holder`) -- or None
+      if not self.peers or plugged_here():
+        return None
+      near = self.body.peer_by_seat(*seat)
+      if near is not None:
+        named = self._nearest_peer(*seat, near)
+      else:
+        held = self._bay_holder(sx, sy, seat)
+        if held is None:
+          return None
+        named = self.peer_at(held[0], held[1])
+      return named[0] if named is not None else "another robot"
+
+    def while_routine():
+      # ⚠ ...AND ONE NOT PLUGGED IN, BY ITS SEAT OR ON ITS WAY IN, HOLDS IT
+      # ONE WHILE, ONCE A STATION A CHARGE: `UNSEEN_WAIT_S` at most, asked off
+      # if at rest (`_out_of_sight_routine`), or passed with `free` -- then the
+      # base's own search, or its failure, as before. True where the loop goes
+      # round (it went, plugged in, the run's hour, passed)
+      nonlocal arrived
+      who = None if _among(seat, had_while) else unplugged_holder()
+      if who is None:
+        return False
+      if go_on(who):
+        arrived = False
+        return True
+      # ...within the station's one bound, from its first wait of either kind
+      now = float(self.data.time)
+      start = since.setdefault(_seat_key(seat, since), now)
+      left = min(UNSEEN_WAIT_S, self.wait_bound("charge", sx, sy)[0] - (now - start))
+      if left < BAY_POLL_S:
+        return False
+      had_while.append(seat)
+      # ...one wait booked a station a trip: #346's said there first is it
+      how = yield from self._out_of_sight_routine(sx, sy, seat, left, who, unplugged_holder,
+                                                  booked=start in announced)
+      if how == "stayed":
+        return False
+      arrived = False
+      return True
+
+    def search_once_routine():
+      # ...lost, once a charge (#476) -- ⚠ never behind a robot that says it
+      # is plugged in there (#731)
+      nonlocal searched, away, sx, sy, hd, seat, tried
+      if plugged_here():
+        return False
+      searched, t0 = True, float(self.data.time)
+      found = yield from self._search_routine()
+      away = (t0, float(self.data.time))
+      if found:
+        sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
+        seat = self.body.charge_seat()
+        tried = None                      # ...seen, whichever it is
+      return found
+
+    def unseen_routine():
+      # ...no station in sight: taken, a while, or a robot lost, searched once
+      # a charge (#476, #731). True where the loop goes round again
+      if not _among(seat, unseen):
+        unseen.append(seat)
+      if taken_not_lost() or (yield from while_routine()):
+        return True
+      if not searched and (yield from search_once_routine()):
+        return True
+      return taken_not_lost()               # ...plugged in as it searched
 
     def dock_again() -> bool:
       # ⚠ A DOCK THAT SAW THE STATION AND NEVER GOT IN GOES AGAIN FROM THE
@@ -2888,24 +3111,28 @@ class HubLifecycle:
         self.charge_failure = "this run's time was up"
         self._say(f"GO_CHARGE stopped: {self.charge_failure}", doing=True)
         return False
-      if (self.peers and free and switched < MAX_STATION_SWITCHES
-          and (held := self._bay_holder(sx, sy, seat)) is not None
-          and self.body.choose_station(free=self._bay_free)):
-        switched += 1
+      held = self._bay_holder(sx, sy, seat) if self.peers else None
+      if held is not None:
         named = self.peer_at(held[0], held[1])
-        who = named[0] if named is not None else "another robot"
-        # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
-        self._say(f"GO_CHARGE on to the nearest free charging station -- {who} is at this one", doing=True)
-        self._remember(f"{who} was at the charging station I needed; I went on to the "
-                       "nearest free one")
-        sx, sy, hd = self.body.charge_standoff()
-        seat = self.body.charge_seat()
-        continue
-      if self.peers and self._bay_holder(sx, sy, seat) is not None:
-        since = float(self.data.time) if since is None else since
-        if not (yield from self._await_bay_routine(sx, sy, "charge", since,
-                                                   seat=seat)):
-          driven = None           # the wait is why, not any drive before it
+        if go_on(named[0] if named is not None else "another robot"):
+          continue
+        # ...its bound from the first time THIS station was found taken: one
+        # passed to with `free` is waited for afresh (#731's review)
+        first = since.setdefault(_seat_key(seat, since), float(self.data.time))
+        if not (yield from self._await_bay_routine(
+            sx, sy, "charge", first, seat=seat, said=announced, away=away,
+            booked=_among(seat, had_while))):
+          # ⚠ ...BUT ONE NEVER IN SIGHT, WAITED FOR TO ITS BOUND WITH NOBODY
+          # PLUGGED IN THERE, IS SEARCHED FOR AFTER ALL (#731): a robot lost and
+          # never searched dies flat -- never one a dock has seen since
+          if (_among(seat, unseen) and tried == NOT_SEEN and not searched
+              and self.last_bay_wait["why"] == "bound" and (yield from search_once_routine())):
+            continue
+          # ...the wait is why, never a walk, drive or dock before it: its
+          # words, not "no charge contact" (#731's review)
+          driven, arrived = None, False
+          if tried != NOT_SEEN:
+            tried = None
           break
       driven = (sx, sy)
       x, y = self.body.pose_xy()
@@ -2923,12 +3150,9 @@ class HubLifecycle:
         # until it died flat. Put right, it walks back by the loop -- the
         # station looked at again, for the other may have plugged in
         # meanwhile (#455) -- and near enough the station decides, as below.
-        if tried == NOT_SEEN and not searched and not self.body.charging():
-          searched = True
-          if (yield from self._search_routine()):
-            sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
-            seat = self.body.charge_seat()
-            continue
+        if (tried == NOT_SEEN and not self.body.charging()
+            and (yield from unseen_routine())):
+          continue
         if dock_again():
           continue
         break
@@ -2945,13 +3169,10 @@ class HubLifecycle:
         # ...and no station in sight from within NEAR_STANDOFF_M is a robot
         # LOST too (issue #476): the station is in plain sight from there (a
         # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
-        # right, the walk goes again, and else its retries as before.
-        if not searched:
-          searched = True
-          if (yield from self._search_routine()):
-            sx, sy, hd = self.body.charge_standoff()
-            seat = self.body.charge_seat()
-            continue
+        # right, the walk goes again, and else its retries as before -- but
+        # never with another robot plugged in there or by its seat (#731)
+        if (yield from unseen_routine()):
+          continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()
@@ -2965,12 +3186,14 @@ class HubLifecycle:
         # charge -- unless the other robot is what stopped them.
         rec = self.body.last_drive
         if not searched and not (rec is not None and rec["why"] == "peer"):
-          searched = True
-          if (yield from self._search_routine()):
-            sx, sy, hd = self.body.charge_standoff()
-            seat = self.body.charge_seat()
+          if (yield from search_once_routine()):
             spins = 1
             continue
+        if plugged_here():
+          # ...nor behind one plugged in there meanwhile, which the loop's
+          # top waits for as #346's wait does (#731's review)
+          spins = 1
+          continue
         break
     if not arrived and tried in (None, NOT_SEEN):
       # WHY, and not always "no route" (issue #350): a stall, the other
@@ -7828,11 +8051,27 @@ def lean_word(toward_deg: float) -> str:
           else "left" if toward_deg > 0 else "right")
 
 
+def _seat_key(seat, seats) -> tuple:
+  """The one of `seats` that is `seat`'s station (`body.SAME_SEAT_M`), else
+  `seat` itself, as a key."""
+  return next((s for s in seats if math.dist(seat, s) < SAME_SEAT_M), tuple(seat))
+
+
+def _among(seat, seats) -> bool:
+  """Whether `seat` is one of `seats`: one station's."""
+  return seat is not None and _seat_key(seat, seats) in seats
+
+
 def holder(peers, who: str, where: str, near: float, what: str, verb: str = "is") -> str:
   """A robot holding the station another waits for, as one clause (issues
-  #346, #455): on its standoff, on its way in, or on the seat right in
-  front of it (`HubLifecycle._bay_holder`)."""
+  #346, #455): on its standoff, on its way in, on the seat right in front of
+  it, plugged in there by its own word, or by its seat where the station was
+  not in sight (#731; `HubLifecycle._bay_holder`)."""
+  if where == "plugged":
+    return f"{who} {verb} plugged in at {what}"
   how = posture(peers, who)
+  if where == "by":
+    return f"{who} {verb} {how} by {what}"
   if where == "standoff":
     return f"{who} {verb} {how} {near:.2f} m from {what}"
   if where == "lane":

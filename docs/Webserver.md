@@ -4,7 +4,7 @@ How PluggyBot's world leaves the process: a recording on disk (v0) or a
 live WebSocket stream (v1). Both speak the PluggyWorld wire protocol —
 shapes, fixtures and the per-version changelog are `protocol/README.md`,
 and nothing here restates them; the consumer side is
-`rooftop-media-2026/docs/pluggyworld.md`. The stream exists so the deployed
+`rooftop-robotics/docs/pluggyworld.md`. The stream exists so the deployed
 world can be an observatory and so a visitor can witness, and talk to, the
 robot (PluggyPlan.md "What this project is for"; Evaluation.md §5).
 
@@ -201,7 +201,7 @@ nothing else. Five things about it are decisions rather than boilerplate:
   flags, so `docker run <image> --rate 2.0` still wins.
 
 **This repo owns the image; the website repo owns the deployment.** The
-`sim:` service lives in `rooftop-media-2026/compose.yaml` — one copy, not a
+`sim:` service lives in `rooftop-robotics/compose.yaml` — one copy, not a
 snippet here that drifts from it. It builds from `context: ../pluggybot`
 (the two repos side by side) behind a `sim` compose profile, so `docker
 compose up` still works for someone who only has the website. What it

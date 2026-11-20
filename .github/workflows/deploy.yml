@@ -1,4 +1,4 @@
-# Deploys the PluggyWorld sim to the netcup host that serves rooftop-media.org.
+# Deploys the PluggyWorld sim to the netcup host that serves rooftop-robotics.org.
 #
 # `main` only. `staging` is this repo's default branch but is not hosted --
 # there is one sim and it belongs to production, because the website's ingest

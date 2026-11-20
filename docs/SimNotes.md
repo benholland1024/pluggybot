@@ -5575,7 +5575,8 @@ the world's. A lost robot fixes off WHICHEVER station it sees, its pair
 saying which, and charges there; the loop walks to that station's standoff
 after (`test_a_search_that_found_another_station_walks_to_that_one`). The
 choice rides a restart. A station takes one robot, and the #346 wait is
-per station.
+per station; one the other robot says it is plugged into is taken, never a
+robot lost ("A station the other robot is plugged into", #731).
 
 **The reserve's worst place** is now the middle of the park's west
 sidewalk, where every way round the fenced park is long: 47.3 m on the
@@ -10941,6 +10942,240 @@ every flight, none is a procedure's read, and #721's option 2 left them as
 they are; and a watch's picture taken between two of the arm's ticks is
 placed through the model as whatever posed it last, which may be a felt
 sample rather than the arm's loop.
+
+## A way home that shoves the body back (issue #693's live family, the step's hand-over)
+
+On 11-18 two of the test wake's three fall events were Luca's, each in a
+`step(-0.4)` right after it had pulled the cupboard's lever toward its body,
+opened its hand and waited a second (`door_final41`, `door_final45`).
+Neither fell again at its live draw, but its family did: the robots' own
+procedures at their live draws (the loop of 11-18, T1;
+`~/pluggybot-training/loop-1118/t1-live/`), 171 flights, 10 falling inside
+the step's hand-over on its tree and 12 on `loop-staging` 0fb85dc2 (#726 in
+it) -- `drawer_omega20` 7 of 44, `door_final45` 4 of 65, `chest_final11` 1
+of 38, `door_final46` (the same door without the step back) 0 of 24 -- the
+run ended in the `step`, the legs still the standing policy's, the arm on
+its way home (the loop of 11-19, U2; `~/pluggybot-training/loop-1119/u2-693c/`,
+`c/classify.py`).
+
+**Why.** A walk's hand-over takes an arm home by the withdraw's own way --
+its gripper opened (`HumanoidMission.let_go_routine`), the hand back 8 cm
+along its fingers (`Reach.retreat`), then home in joint space (`_go_home`,
+`way_home`), over by its drivers (above, "A way home something holds") --
+so a `withdraw` in the step's place falls the same way at the same instants
+(the drawer's 24 keys with one before the step: 5 fell "on the way home"),
+and so does the loop's charge walk after a job that left the hand at the
+knob. After a pull toward the body none of the arm is ahead of the front,
+so its way home is judged straight, unchecked: such an arm "worked over
+nothing there" (above, "The way home"). But what it pulled came with it. In
+the drawer the line out drove the gripper into the robot's own torso
+(133-188 N), and the straight way home then swung the open jaws forward and
+down -- the shoulder bringing the upper arm forward as the elbow opens --
+through the knob just pulled and onto the counter's top and the drawer's
+front, up to 720 N; at the door, over the lever's tip and arm at 20-100 N
+for a second or more. The prop and the counter pushed the hand back, the
+root went 0.15-0.26 m back while the standing policy held the legs, and the
+robot went over backward 1-2 s after the touch.
+
+**What the arm reads.** #708's reading turned round: minus
+`Reach._tipping`, its push away from the body at the hand's height plus its
+press down at the hand's reach, off the arm's own force reading and its
+sensed grip. Recorded on every way home of the base's flights (`pod/tiprec.py`,
+reading only; the 171 the base's to the step with it), before 11 of the 12
+hand-over falls the way home held 15-35 N m for 0.4-1 s, from 1.0-1.7 s
+before the fall, the trunk within a degree of upright; the line out into the
+torso reads the other way, -100 to -260 N m (the torso's push is a pull
+toward the body). Over the bar's 736 flights on the base (1,234 ways home),
+the door reference's ways home drag a jaw over the door's top or panel at
+65-200 N, past 20 N m but for under 0.2 s: held 0.05 s, 40 of them would
+stop at 20 N m and 49 at 15 (#708's door history: "never on a push or a
+press"); held 0.2 s at 15 N m, 6, each pressing on the world at 140-500 N,
+and a way home that touches nothing reads 9 N m at most (read off the
+recorder's samples every 0.05 s, so near, not exact).
+
+**What is true now** (`Reach._shoved`, `_held_home`, `watch_home`,
+`retreat(watch=)`, `HOME_TIP_NM`, `HOME_TIP_S`; `tests/test_hands.py`,
+`tests/test_humanoid_body.py`): an arm a walk's hand-over sends home
+(`HumanoidMission.to_walk_routine`) -- on its way to its rest in joint space,
+or its rest commanded and not yet read there -- whose own reading tips the
+body away from its hand past `HOME_TIP_NM` (15 N m) for `HOME_TIP_S` (0.2 s)
+running is held where its drivers read it, as a way home held at its rest
+is: pressing on nothing, raised `LIFT_M` and sent home again once a way home
+(never with another robot by), then left where it is held; the walk goes
+with it held, its report saying so (`armHeld`), and the next withdraw or walk
+sends it home again, judged afresh from where it is held. Never a
+`withdraw`'s way home, whose word is the arm's: held so, the bar's door
+reference read "held" of a way home that dragged its jaw across the door's
+panel while the door gave, and a `withdraw` that reads false ends a run that
+does not test it -- the door 28 deg open where the base's run went on to 94
+(hcbig door 112: 608 of 736 against 609, the one pass the bar lost, on the
+rule as first built). So a `withdraw` right after a pull toward the body
+falls as it did. Never a way out (#708's, a tip toward the hand), a carry's
+way to its pose (#682), nor the line out along the fingers. No word moved:
+"something holds it" says it, and a step reads "stepped".
+
+**Flown** (one Vast pod, an AMD EPYC 7B13, Python 3.12.3, osmesa, beside
+0fb85dc2; the dev box replays its flights):
+- The 171: hand-over falls 12 -> 2 (the two below), falls 17 -> 7, passes
+  61 -> 67 -- five drawers and a door that fell now pass -- no new fall and
+  no pass lost. Its 15 holds each came in a step's hand-over; the raise
+  brought 3 of the arms home, and the step walked on with the other 12 held,
+  none falling. The first draft, 20 N m held 0.05 s, read the same verdicts
+  but one drawer's (its bar would have stopped about 40 ways home).
+- The same 171 at noise keys of their own, nobody's to tune on: hand-over
+  falls 8 -> 0, falls 10 -> 2, passes 65 -> 67, no new fall.
+- Ben's bar, the hands checks at 0-31 and 32-127 and the tour's five jobs:
+  609 of 736 with 5 falls, the base's, every flight the base's to the step:
+  none of their ways home is a walk's hand-over that shoves. On the rule as
+  first built, watching a withdraw's too, the door lost a pass (above). The
+  hands checks at 32 set-outs a job held out by its commit's seed: 125 of
+  160 with 4 falls, the base's, every flight.
+- The loop's charge after a job that left the hand at the knob or the lever
+  (the drawer's 24 keys without the step, and the door's 24 at its live
+  draw): on the base 5 of the 24 drawers fell in the charge walk's
+  hand-over, got up and charged; on the rule none fell, and every charge
+  plugged in, six of them walking with an arm held.
+- The drawer's 24 keys with a `withdraw` before the step: the base's,
+  flight for flight -- 5 fall in the withdraw (the rule's cost).
+- The station's checks (36 starts round the standoff, 140 seats, 16 lost
+  near): the base's, every row -- the plug-in's and the unplug's ways home
+  are a withdraw's, unwatched (watching them, the rule as first built moved
+  one seat's unplug, 0.3 s sooner).
+- The pair's recorded day: the committed fixture's, line for line but its
+  charge rows' wall-clock stamps, on both trees.
+- The reviews' three changes since (the caller now waiting on a way home
+  says whether it is watched, a way home begun counts from nothing, one
+  still to be read home at its rest watched too) moved none of it: the bar's
+  736 flights, the 171's 35 with a hold or drawn, the charge set's 48, the
+  withdraw set's 24 and the station's 199 rows are the rule's as first
+  flown, end state for end state.
+
+**What it does not take.** `door_final45`'s C_k27 fell sideways, its way
+home reading 10-14 N m away from the hand (a 30 N push across the line out
+to the hand, and up); `chest_final11`'s A_k23, its grip missed, in #693b's
+raise, which the rule does not watch; and the line out into the torso
+(133-188 N in 9 of the drawer's 44 flights), a press of the robot on itself
+that pushes nothing over but is no way to treat a gripper: a line out judged
+against the trunk, as #722 judges a way out, is not built.
+
+## A station the other robot is plugged into (issue #731)
+
+From 14:52 to 16:39 UTC on 11-18 Rowan was plugged in at the research center
+lobby's station. Luca, its belief 0.57-0.81 m and 12-15 deg off (#681's
+drift), charged there five times; each walked in, its dock saw no station,
+it searched as a robot lost (422-468 s) and failed `no charge contact
+(station not seen)`: 78 minutes, 29 % down to 7 %. T1 flew both causes as
+static probes (the loop of 11-18): Rowan's body on the seat hid tags 64 and
+65 from every view Luca had (its navigation camera read them from 8 of 9 of
+those views with Rowan walked off), and the taken test (`_bay_holder`)
+placed a plugged-in Rowan -- resting, so placed by its body as Luca's own
+sensors would (#455) -- through Luca's wrong belief, 0.6-0.8 m off the seat,
+and read the station free from 3 of 5 poses. A robot at rest, or one the
+asker's LIDAR sees (#675), is placed where the ASKER's sensors put it, which
+is right for a robot in the way of a walk and wrong for one plugged in at a
+commissioned station.
+
+**Two rules** (Ben's options 1 with 2). Each robot's report of itself to the
+other (`HubLifecycle.keep_clear`, a network fact as its reported pose is)
+says where it is (`KeepClear.said`) and the seat of the station its plug is
+in, by its own port's word (`plugged`, `Body.plugged_seat`: the port's
+catch, never the lifecycle's `docked`). A seat the other says it is plugged
+in at is held -- `_bay_holder`'s "plugged", wherever the asker's belief
+places that robot's body (`Body.plugged_on`) -- so the charge waits, as
+#346's wait does, said `WAIT: Rowan is plugged in at the charging station`,
+or with `free` goes on to the nearest station nobody holds; and a plugged-in
+robot is never asked off its way (the pair's fixture day had Rowan ask a
+plugged-in Pluggy to make way every 30 s of its wait, refused each time). A
+dead robot's plug holds the station too: its one plug is in that port until
+the robot is stood up, and unsaid, a dead body plugged in hid the tags as a
+live one did. And a station not in sight from its standoff, with the other
+robot within a body's width of its seat (`SEAT_HELD_M`, 0.54 m) where it
+says it stands or where this robot sees it (`Body.peer_by_seat`; never one
+whose plug is in a station, which is at that seat, nor one dead, which
+neither plugs in nor goes until it is stood up), is taken, not lost, and
+only a plug holds it as long as a charge. A robot by the seat, or come onto
+the way in, with no plug in it holds it ONE WHILE, once a station a charge
+(`_out_of_sight_routine`): out of its way, one at rest asked off it as
+#346's wait asks, where it holds the way in or at the seat (#455),
+said `WAIT: Rowan is standing by the charging station, which I do not see
+-- waiting up to 120 s`, or passed with `free` -- `UNSEEN_WAIT_S` (120 s)
+at most, its walk out of the way counted in it, within the station's one
+bound: one on the seat with its plug out is plugging in or leaving (the
+dock from the standoff takes 27.0 s, 40.6 s at most of 36; the unplug
+25.9 s, 27.7 at most), and one only its own word puts there may be wrong.
+Gone, the dock goes again; plugged in, #346's wait takes over, said so with
+what is left of the bound, one wait remembered and counted once; still there, `WAIT: Rowan was still by the
+charging station after 120 s -- I look for it myself`, and then the base's
+own search, once a charge, and its own failure. The while is kept that
+small on purpose (the loop of 11-19's reviews: every shape that held such a
+station longer, or twice, broke somewhere): what it gives up is that after
+it the base's own rules apply -- a robot on the way in by the planner's
+disc may still hold the station by #346's wait until that station's bound,
+and the charge's failure is the base's words, the robot by the seat named
+in the WAIT lines and History alone. No search begins behind a robot that
+says it is plugged in there, after a dock or after walks that never got
+there, and it is waited for instead. Each station has one bound a charge, counted from its first wait of
+either kind (a search inside it said as such, never as waited), and a
+`free` charge never goes back to a station it passed. A
+station never in sight that the way in or the seat holds to that bound,
+nobody plugged in, is searched for after all (a robot lost and never
+searched dies flat). A wait the bound ends with the other still plugged in
+ends the charge, never searched: no loop within one decision, and the mind
+decides again. A charge a wait gave up on fails in the wait's words, naming
+who held it, whatever walk or dock came before (one found by its search
+read `no charge contact (station not seen)` again).
+
+**A body's width, measured** (`ring731.py`, the pair in the house, Rowan
+stood round the lobby's seat, the dock's colour imager and the search's
+navigation camera decoding from the true standoff and two of #731's lost
+poses): on the seat's line a body hid both tags from the standoff to 0.2 m
+across it, one of them at 0.3 m, neither from 0.4 m; from the lost poses
+the same, the navigation camera alone reading there. So 0.54 m takes in
+every body that hides a tag with 0.2 m over for where it is placed: Rowan
+plugged in said it stood 0.11-0.27 m off the seat, and through Luca's live
+belief its body lay 0.6-0.83 m off it, past the width -- the report is what
+reads it on the seat, the plug what holds it. A robot standing 1.2-1.5 m
+off the seat is outside it, and a station empty but for one is a robot
+lost, searched as before.
+
+**Measured.** The rules pinned on two stub lifecycles wired as the pair's
+bodies are (`tests/test_station_taken.py`: #731's five lost poses with the
+live beliefs; 41 of its 47 fail on the tree before: its three guards --
+a robot really lost still searches -- pass on both, as do a found search's
+walk in, a robot dead by the seat searched at once, and one of the fuzz's
+two seeded days). A seeded fuzz of the
+stub pair (`tests/fuzz_station_taken.py`: charges waiting or passing with
+`free`, plugged in a drawn while at rest on the seat, on a seat with the plug
+out or near one, beliefs off and put right by a search, a fall plugged in,
+stand-ups by or onto a seat, restarts mid-trip and mid-wait, the run's
+hour) reads eleven invariants at every step; the tree before breaks one in
+54 of 100 seeds (a dock tried at a station the other says it is plugged in
+at), the branch none in 300. Its seed 73 is why the hold by the seat is a
+window: Luca, its belief 0.58 m off, saw no station; Rowan, lost itself, said it
+stood 0.5 m from the seat as it searched 1.3 m off; Luca waited, Rowan found
+the station and plugged in first, and Luca's wait ran its 23 minutes. With
+walks that take their time, its invariants on each wait's bookkeeping (a
+bound from the first wait at that station; a while by the seat 120 s a
+station, its walks included; each wait counted and remembered once; never
+back to a station passed) broke on the branch's own d2d3eced, which review
+found them in, and the one-wait-booked rule broke on b5e45b19. The
+station's checks on one pod (an EPYC 7532, osmesa) fly bit for bit on the
+tree before and on the branch as reviewed last (d639ae75): the approaches
+36 of 36, the seats 140 of 140, lost near 20 of 20, every row identical --
+a robot alone takes no new branch. The pair's recorded day keeps its
+trajectories bit for bit: 2,160 of its 11,664 lines move, each in its
+narration alone (the wait's words, the refused asks gone).
+
+**What is true now** (`KeepClear.said`, `plugged`; `Body.plugged_seat`,
+`plugged_on`, `peer_by_seat`, `SEAT_HELD_M`; `HubLifecycle._bay_holder`,
+`_out_of_sight_routine`, `UNSEEN_WAIT_S`, `go_charge_routine`): a charge
+never walks in on, nor searches behind, a robot that says it is plugged in
+at its station; a station out of sight with the other robot by its seat,
+alive, is waited for, or passed with `free`, `UNSEEN_WAIT_S` at most, then
+searched; and a station truly empty out of sight, or with a dead robot by
+its seat, is a robot lost, searched at once, as before. ⚠ The report is the other robot's
+own word, read as its reported pose is: a robot whose port says nothing
+holds nothing by this rule.
 
 ## Debugging workflow that worked
 

@@ -16,7 +16,7 @@ Evaluation.md §2):
 `guarded`, the control — a mind inside the rails — was retired in #427
 (Evaluation.md §2, "Why there is no control now"). Code: `src/pluggybot/mind/overseer.py` (decide), `mind/events.py` (the map),
 `mind/llm.py` (the backends), `mind/thoughts.py` (memory). The website's side
-is `rooftop-media-2026/docs/pluggyworld.md` § "The LLM overseer".
+is `rooftop-robotics/docs/pluggyworld.md` § "The LLM overseer".
 
 ---
 
