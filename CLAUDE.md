@@ -387,10 +387,11 @@ save a filmstrip PNG named after the script.
   line, it dragged a jaw over a counter the robot stood turned to for 10 s,
   #560). ⚠ A REACH'S WAY OUT IS JUDGED SO TOO, from its other end
   (`Reach.way_out`, #560): straight, a hanging grip at a table 13 cm out was
-  driven into its top. ⚠ No force guard on
-  it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
+  driven into its top. ⚠ No `BLOCKED_N`
+  guard on it: there one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
+  home") -- but a walk's hand-over's is held for a shove (below). ⚠ A WAY
+  OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
   TRUNK (#722; `Reach._own_kept`, `reach.own_rooms`, `OWN_CLEAR_M`;
   SimNotes, "A way out from a hand already out"): sampled on its model of
   itself, the upper arm, forearm and gripper against the torso, the head and
@@ -430,7 +431,12 @@ save a filmstrip PNG named after the script.
   rested with) -- left "rest" and pressed on toward it, a jaw on a counter's
   top tipped Rowan over backward inside a withdraw's 15 s wait; a withdraw
   ends there ("held"), and a walk's hand-over waits for it and goes with
-  an arm left held, its report saying so (`armHeld`). ⚠ BOTH WAYS KEEP OFF
+  an arm left held, its report saying so (`armHeld`). ⚠ A WALK'S
+  HAND-OVER'S WAY HOME IS HELD SO AT ONCE WHERE WHAT ITS ARM READS TIPS THE
+  BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
+  s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
+  SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
+  whose word is the arm's. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a

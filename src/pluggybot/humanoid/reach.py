@@ -315,6 +315,14 @@ HELD_S = 0.5
 #: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
 #: after its command arrived, is left held (`_raise_short`).
 LIFT_M, LIFTS = 0.05, 1
+#: ...and a walk's hand-over's is held so at once, on its way, where what its
+#: arm reads tips the body away from the hand (minus `_tipping`) past this, N
+#: m, this long running, s (`_shoved`, `watch_home`; SimNotes, "A way home
+#: that shoves the body back"): the 11-18 family's shoves held 17-34 N m for
+#: 0.2 s 1.0-1.7 s before their falls. ⚠ NEVER A WITHDRAW'S: its word is the
+#: arm's. ⚠ HELD, NEVER AT ONCE: a push on a prop that gives passes 20 N m for
+#: under 0.2 s; held 0.2 s, a way home that touches nothing read 9 at most.
+HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
 #: (`HELD_S`) -- what the stand's return waits on (`_go_home`), and what a
@@ -1260,6 +1268,11 @@ class Reach:
     #: ...and how long its way out's reading has tipped the body past the
     #: line, running (`OUT_TIP_S`).
     self._tip = {s: 0.0 for s in hm.SIDES}
+    #: ...and how long its way home's reading has tipped the body away from
+    #: the hand past its line, running (`HOME_TIP_S`) -- a way home a walk's
+    #: hand-over sent, watched so (`watch_home`, `retreat(watch=)`).
+    self._shove = {s: 0.0 for s in hm.SIDES}
+    self.watch_home = {s: False for s in hm.SIDES}
     self.every = max(1, round(EVERY_S / model.opt.timestep))
     self.steps = 0
     #: The posture the plan wants -- the pelvis's height off the stand's,
@@ -1981,13 +1994,17 @@ class Reach:
     self.speed[side] = HAND_SPEED
     self.phase[side] = "pull"
 
-  def retreat(self, side: str, approach: float = APPROACH_M) -> None:
+  def retreat(self, side: str, approach: float = APPROACH_M, watch: bool = False) -> None:
     """Out along the line it came in on, then home its own way
     (`way_home`); the posture back to the stand. An arm on its way home
-    already goes on."""
+    already goes on. `watch`, a walk's hand-over's: the way home is held
+    where it would tip the body away from the hand (`_shoved`); a
+    withdraw's never, its word the arm's -- whichever began a way home
+    under way, the caller now waiting on it says which."""
+    self.watch_home[side] = watch
     if self.phase[side] in ("rest", "home", "retreat"):
       return
-    self.lifted[side] = 0
+    self.lifted[side], self._shove[side] = 0, 0.0
     if self.phase[side] in ("joints", "move", "held") or self.cmd[side] is None:
       # an arm moved joint by joint (`set_joints`), still walking out to its
       # pre-grasp, or held where its way home stopped (`HELD_S`), has no
@@ -2399,12 +2416,37 @@ class Reach:
     then left there ("held")."""
     if self.home(side):
       self.homing[side], self.held_for[side] = False, 0.0
+      self.watch_home[side] = False
       return
     self.held_for[side] += dt
     if self.held_for[side] < HELD_S:
       return
+    self._held_home(side)
+
+  def _shoved(self, side: str, dt: float) -> bool:
+    """Whether an arm on a walk's hand-over's way to its rest (`watch_home`)
+    -- in joint space, or its rest commanded and not yet read home
+    (`homing`, `home`) -- reads a tip of the body away from its hand past
+    `HOME_TIP_NM` for `HOME_TIP_S` running (minus `_tipping`, off the force
+    its arm reads it push with); `dt` its tick."""
+    homing = self.watch_home[side] and self.carry_q[side] is None and (
+      self.phase[side] == "home"
+      or (self.phase[side] == "rest" and self.homing[side] and not self.home(side)))
+    over = homing and -self._tipping(side) > HOME_TIP_NM
+    self._shove[side] = self._shove[side] + dt if over else 0.0
+    return self._shove[side] >= HOME_TIP_S - 1e-9
+
+  def _held_home(self, side: str) -> None:
+    """A way home held (`_homed`, `_shoved`): eased where its drivers read
+    it, pressing on nothing, then raised `LIFT_M` and sent home again `LIFTS`
+    times a way home, else left there ("held"). Its count begun again: a
+    raise's line never reads it, and the next way home has its whole hold;
+    its way still to walk forgotten, and left there, watched no longer."""
+    self._shove[side] = 0.0
+    self.homes[side] = []
     q = self._ease(side)
     if self.lifted[side] >= LIFTS or len(self.keep_out):
+      self.watch_home[side] = False
       self._stand_at_ease()
       return
     self.lifted[side] += 1
@@ -2506,7 +2548,7 @@ class Reach:
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
           "allowed", "left", "looks", "looking", "carry_q", "stand_home", "homing",
-          "held_for", "lifted", "kept_by")
+          "held_for", "lifted", "kept_by", "_shove", "watch_home")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -2873,7 +2915,13 @@ class Reach:
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness
       elif phase in ("rest", "move", "joints", "home", "carried", "held"):
-        if phase == "rest" and self.homing[s]:
+        if self._shoved(s, dt):
+          # ...a way home that would tip the body away from its hand is held
+          # where its drivers read it, as one its rest is held from (#693's
+          # live family): eased, or raised, never on toward its rest
+          self._held_home(s)
+          phase = self.phase[s]
+        elif phase == "rest" and self.homing[s]:
           # ...a way home is over once its drivers read it home, or held
           self._homed(s, dt)
         there = self._joints(s, dt)
