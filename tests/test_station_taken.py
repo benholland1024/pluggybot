@@ -613,6 +613,40 @@ def test_a_station_come_back_to_is_not_said_waited_for_again():
   assert len(lines) == 1 and luca.bay_waits - waits == 1, (lines, luca.bay_waits - waits)
 
 
+def test_a_waits_record_is_its_own_after_a_wait_at_another_station():
+  """...and its record is its own (`last_bay_wait`, what a charge's failure
+  says of the wait that ended it): come back to, said nothing new, a wait
+  wrote its seconds into the record of the wait at the other station
+  (#731's review, round 8)."""
+  luca, rowan = _pair()
+  said: set = set()
+  lobby, mall = _rack(LOBBY), _rack("station_mall")
+  leave = [math.inf]
+
+  def hook():
+    if float(luca.data.time) >= leave[0] and rowan.body.on_charger:
+      rowan.body.on_charger, rowan.body.resting = False, False
+      rowan.body.x, rowan.body.y, rowan.body.body_xy = 50.0, 50.0, None
+  luca.body.step_hooks.append(hook)
+
+  def wait(rack, since):
+    # ...Rowan plugged in there, its body on the seat, for 10 s of the wait
+    rowan.body.rack = rowan.body.rack_prior = rack
+    rowan.body.x, rowan.body.y = rowan.body.body_xy = rowan.body.charge_seat()
+    rowan.body.on_charger = rowan.body.resting = True
+    leave[0] = float(luca.data.time) + 10.0
+    luca.body.rack = luca.body.rack_prior = rack
+    sx, sy, _ = luca.body.charge_standoff()
+    assert luca.body.run(luca._await_bay_routine(sx, sy, "charge", since,
+                                                 seat=luca.body.charge_seat(), said=said))
+  t0 = float(luca.data.time)
+  wait(lobby, t0)
+  wait(mall, float(luca.data.time))
+  wait(lobby, t0)
+  assert luca.last_bay_wait["since"] == t0, luca.last_bay_wait
+  assert luca.last_bay_wait["s"] == pytest.approx(float(luca.data.time) - t0, abs=0.1)
+
+
 def test_a_station_never_in_sight_waited_for_to_its_bound_is_searched_after_all():
   """...and one never in sight that is held to its wait's bound -- Rowan
   plugged in as the dock looked, then unplugged and at rest on the
@@ -644,6 +678,44 @@ def test_a_station_never_in_sight_waited_for_to_its_bound_is_searched_after_all(
   assert float(luca.data.time) - t0 >= bound
   assert luca.body.lost_at == ["station"], luca.log[-4:]
   assert luca.body.asked_off, "a robot at rest on the standoff is asked off"
+
+
+def test_a_search_inside_a_waits_bound_is_said_as_the_searchs_never_as_waited():
+  """A station's one bound counts from its first wait, a search after it
+  included: never in sight, held to its bound, searched for 300 s, found
+  and held still, Luca gives up at once -- and says those 300 s were spent
+  looking for it, never that it waited them (#731's review, round 8: a
+  400 s search read "I waited 1786 s")."""
+  luca, rowan = _pair(rowan_at=None, budget_s=2100.0)
+  rowan.body.x, rowan.body.y = 50.0, 50.0           # away, as Luca walks in
+  rowan.body.body_xy = None
+  luca.body.lost = True
+  dock = luca.body.dock_routine
+  t0 = float(luca.data.time)
+
+  def comes(*a, **kw):
+    out = yield from dock(*a, **kw)
+    if not rowan.body.on_charger and float(luca.data.time) < t0 + 1.0:
+      rowan.body.x, rowan.body.y = ROWAN_BODY       # plugged in as Luca looked
+      rowan.body.on_charger = True
+    return out
+  luca.body.dock_routine = comes
+
+  def hook():
+    if rowan.body.on_charger and float(luca.data.time) >= t0 + 60.0:
+      rowan.body.on_charger = False                 # ...out, and at rest past the standoff
+      rowan.body.x, rowan.body.y = SEATS[LOBBY][0], SEATS[LOBBY][1] + 0.8
+  luca.body.step_hooks.append(hook)
+
+  def search(fixture, stop=None):
+    luca.body.lost_at.append(fixture)
+    yield from luca.body.hold_routine(300.0)
+    return True                                     # ...found, and held still
+  luca.body.lost_routine = search
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert luca.body.lost_at == ["station"], luca.log[-4:]
+  assert "for it to leave, 3x how long one charge usually takes -- 300 s of them looking " \
+    "for it" in luca.charge_failure, luca.charge_failure
 
 
 # ---- what still ends a wait --------------------------------------------------

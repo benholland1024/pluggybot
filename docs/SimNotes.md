@@ -10998,7 +10998,8 @@ and the charge's failure is the base's words, the robot by the seat named
 in the WAIT lines and History alone. No search begins behind a robot that
 says it is plugged in there, after a dock or after walks that never got
 there. Each station has one bound a charge, counted from its first wait of
-either kind, and a `free` charge never goes back to a station it passed. A
+either kind (a search inside it said as such, never as waited), and a
+`free` charge never goes back to a station it passed. A
 station never in sight that the way in or the seat holds to that bound,
 nobody plugged in, is searched for after all (a robot lost and never
 searched dies flat). A wait the bound ends with the other still plugged in

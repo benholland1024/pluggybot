@@ -2709,8 +2709,8 @@ save a filmstrip PNG named after the script.
   `UNSEEN_WAIT_S` (120 s) at most, asked off if at rest (only its own word
   may put it there, and a robot itself lost says it wrong), then the base's
   own search and failure -- kept that small on purpose (SimNotes says what
-  it gives up); one its way in or seat holds to the bound, nobody plugged
-  in there, searched then. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
+  it gives up); one never in sight that its way in or seat holds to the
+  bound, nobody plugged in there, searched then. ⚠ A MAP THAT HAS REFUSED EVERY SCAN FOR `REFUSED_TELL_S`
   (60 s) RUNNING IS SAID, ONCE, AND SO IS ITS END (#697;
   `navigator.Refusals`, History's `MAP_REFUSING` / `MAP_MATCHING`; the
   Observatory period): a run is every scan refused (`scan_match.REFUSED`:

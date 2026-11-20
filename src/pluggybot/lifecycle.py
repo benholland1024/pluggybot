@@ -2221,7 +2221,8 @@ class HubLifecycle:
                      "interrupted the wait",
       "pack": f"; I waited {w['s']:.0f} s, until the pack reached the "
               "reserve",
-      "hour": f"; I waited {w['s']:.0f} s, until this run's time was up"}[w["why"]]
+      "hour": f"; I waited {w['s']:.0f} s, until this run's time was up"}[w["why"]] + (
+        f" -- {w['away']:.0f} s of them looking for it" if w.get("away") else "")
 
   def peer_at(self, wx: float, wy: float) -> tuple[str, float] | None:
     """The same question asked of a POINT, for the approach that keeps no
@@ -2437,7 +2438,7 @@ class HubLifecycle:
 
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
-                         since: float, seat=None, said=None) -> Routine:
+                         since: float, seat=None, said=None, away=None) -> Routine:
     """Wait for another robot to leave a standoff this one needs (issue
     #346). True once it is free; False once the robot gave up, with why in
     `self.last_bay_wait` (who held it, for how long, and what ended the wait).
@@ -2456,7 +2457,9 @@ class HubLifecycle:
     station's way in and its seat hold the bay too (`_bay_holder`), or the
     walk in goes on into a robot standing there (#455). `said`, the trip's:
     the bounds whose waits it has said, so a station come back to after a
-    wait at another is not said again (#731).
+    wait at another is not said again (#731). `away`, the trip's search
+    (start, end): inside the bound's span it was no wait, and the words say
+    how long it took (#731's review: a 400 s search read as waited).
 
     ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
     #455; `Body.ask_off`): waited for, it never moved, and on afb473a every
@@ -2477,7 +2480,7 @@ class HubLifecycle:
     bound, of = self.wait_bound(kind, sx, sy)
     what = "the charging station"
     # ...and a wait whose bound is spent already (a station waited at before,
-    # come back to, #731) says nothing new and walks nowhere: it gives up
+    # come back to, #731) is no new wait: it walks nowhere and gives up
     spent = float(self.data.time) - since >= bound
     first = not spent and (since not in said if said is not None else
                            (self.last_bay_wait is None
@@ -2496,9 +2499,10 @@ class HubLifecycle:
       self._remember(f"{who} was at {what} I needed; I waited for it "
                      f"(up to {left:.0f} s)")
       self.bay_waits += 1
-    if first or spent:
-      self.last_bay_wait = {"since": since, "who": who, "kind": kind,
-                            "bound": bound, "of": of, "why": ""}
+    # ...and the record is this wait's whatever was said (#731's review): kept
+    # from an earlier one, a wait at another station's took its seconds
+    self.last_bay_wait = {"since": since, "who": who, "kind": kind,
+                          "bound": bound, "of": of, "why": ""}
     if spot is not None:
       yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     ended = ""
@@ -2525,15 +2529,18 @@ class HubLifecycle:
           next_ask = now + MAKE_WAY_WAIT_S
       yield from self.body.hold_routine(BAY_POLL_S)
     waited = float(self.data.time) - since
+    aside = 0.0 if away is None or away[0] < since else away[1] - away[0]
     self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
-                               "bound": bound, "of": of,
+                               "bound": bound, "of": of, "away": round(aside),
                                "end": float(self.data.time)})
+    after = f"after {waited:.0f} s" + (f", {aside:.0f} s of them looking for it"
+                                       if round(aside) else "")
     if ended:
-      self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} was still there "
+      self._say(f"WAIT: gave up on {what} {after} -- {who} was still there "
                 + ("and this run's time is up" if ended == "hour"
                    else f"(the bound is {bound:.0f} s)"), doing=True)
       return False
-    self._say(f"WAIT: {what} is free after {waited:.0f} s", doing=True)
+    self._say(f"WAIT: {what} is free {after}", doing=True)
     return True
 
   def _out_of_sight_routine(self, sx: float, sy: float, seat, left: float, who: str,
@@ -2960,6 +2967,7 @@ class HubLifecycle:
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once the station was not seen, lost (#476)
+    away = None                   # ...and when that search ran, (start, end)
     redocked = False              # ...and once a dock seen never got in (#572)
     switched = 0                  # ...and how often a taken station was passed (#560)
     unseen: list = []             # ...and the seats of those found out of sight (#731)
@@ -3045,11 +3053,12 @@ class HubLifecycle:
     def search():
       # ...lost, once a charge (#476) -- ⚠ never behind a robot that says it
       # is plugged in there (#731)
-      nonlocal searched, sx, sy, hd, seat
+      nonlocal searched, away, sx, sy, hd, seat
       if plugged_here():
         return False
-      searched = True
+      searched, t0 = True, float(self.data.time)
       found = yield from self._search_routine()
+      away = (t0, float(self.data.time))
       if found:
         sx, sy, hd = self.body.charge_standoff()   # the station it found (#560)
         seat = self.body.charge_seat()
@@ -3095,7 +3104,7 @@ class HubLifecycle:
         # passed to with `free` is waited for afresh (#731's review)
         first = since.setdefault(_seat_key(seat, since), float(self.data.time))
         if not (yield from self._await_bay_routine(sx, sy, "charge", first, seat=seat,
-                                                   said=announced)):
+                                                   said=announced, away=away)):
           # ⚠ ...BUT ONE NEVER IN SIGHT, WAITED FOR TO ITS BOUND WITH NOBODY
           # PLUGGED IN THERE, IS SEARCHED FOR AFTER ALL (#731): a robot lost and
           # never searched dies flat
