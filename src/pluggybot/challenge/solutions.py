@@ -267,13 +267,11 @@ TABLE = _table_job()
 #:    hand-over; `test_solutions`);
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
 #:    further back, its last step over 0.45 m in two, its last turn the
-#:    facing its run wants (the cup's `PASS_CUP_FACING`); its walk to the
-#:    standoff going on where it gave up (a carried piece seen walls the robot
-#:    in 0.1-0.4 m short) -- given up far off, the card's spot there reads
-#:    nothing and ends the run (each of 20 given up 4.4-5.3 m short); no step
-#:    aside after the walk (one after every walk, carrying the cup, fell once)
-#:    but the cup's, off its look at the card before its put-down, where the
-#:    walk left it 5 cm or more too far left (`PASS_CUP_STANCE`);
+#:    facing its run wants (the cup's `PASS_CUP_FACING`); nothing steps aside
+#:    carrying; its walk to the standoff going on where it gave up (a carried
+#:    piece seen walls the robot in 0.1-0.4 m short) -- given up far off, the
+#:    card's spot there reads nothing and ends the run (each of 20 given up
+#:    4.4-5.3 m short);
 #:  - each piece set down from a hover over its spot, its offset in the hand
 #:    the grip's own, each put-down moved by where flights on walk2 set its
 #:    piece down (the hand's sensed place is 1.5-2 cm off) -- the cup's in the
@@ -342,13 +340,6 @@ PASS_CUP_FACING = -0.07
 #: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
 #: from that stance set it down (the reference before aimed at 0.075, 0.24).
 PASS_CUP_AT = (0.066, 0.209)
-#: The cup's stance at the place, off its look at the card before the
-#: put-down, m left: where the card reads right of the first (the robot 5 cm
-#: or more left of where the walk usually leaves it), a step across puts it
-#: at the second, the median read of the cups laid. Read there, the cup's
-#: spot lay past the right hand's band: of 160 put-downs, 11 of the 13 so
-#: read missed (SimNotes, "The place laid from the pass", round 7).
-PASS_CUP_STANCE = (0.0, 0.045)
 #: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
 #: ahead: in one pull, one 0.24 m or longer (a grip 0.45 m out or more) took
 #: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
@@ -419,10 +410,6 @@ PASS_CUP = '''def lay_cup():
   go("right", 0.29, read("right.y"), read("right.z"), 20, 0)
   to_place(%(cup_facing)g)
   spot(93)
-  if read("spot.y") < %(cup_t)g:
-    if not step(0, read("spot.y") - %(cup_y0)g):
-      pass
-    spot(93)
   a = atan2(read("spot.ny"), read("spot.nx"))
   tz = read("spot.z") - 0.055 + oz + 0.10
   reach("right", read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox, read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
@@ -535,8 +522,7 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
            "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
-           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
-           "cup_t": PASS_CUP_STANCE[0], "cup_y0": PASS_CUP_STANCE[1]}
+           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
