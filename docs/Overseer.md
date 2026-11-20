@@ -2266,8 +2266,9 @@ Read off the header alone, all 303 of the 11-18 calls that came back said
 So who answered is the provider the answer names, said in the pin's own
 words (`baseten`, as the catalogue lists the "BaseTen" its answers say:
 `ChatClient.provider_ids`, filled by the catalogue read `pricing()` makes
-as the client starts; a name the catalogue does not list is kept as the
-answer gives it), and the header is kept beside it as `route` -- in
+as the client starts; a name the catalogue does not list, or every name
+where it could not be read, is kept as the answer gives it), and the
+header is kept beside it as `route` -- in
 `Decision.call`, the `call` event and the console's DECIDE line (`baseten
 via openrouter: …`). `pw_decisions.provider` therefore reads `baseten` up
 to the 11-15 wake, `openrouter` from the 11-18 wake to this change's
@@ -2275,13 +2276,16 @@ release, and `baseten` again after it; the site files no `route`.
 Practice's mind reads no catalogue (`scripts/practice.py`): its rows name
 the provider as the answer does.
 
-⚠ **The same pin writes at half the speed on the new route.** The live
+⚠ **On the 11-18 wake the same pin wrote at half the speed.** The live
 calls' tokens out a second, median (10th percentile): 142 (109) on 11-14,
 145 (117) on 11-15, 68 (49) on 11-18, the provider and the effort
-unchanged. At 68 a second, 300 s holds about 20,000 tokens, so a long
-think that was cut off at 32,768 is now a timeout: 13 and 38 cut-offs and 1
-timeout each on 11-14 and 11-15; on 11-18, 29 timeouts of 313 answers and
-no cut-off.
+unchanged. At 68 a second 300 s holds about 20,000 tokens, so a long think
+that had been cut off at 32,768 ran out its time instead: 13 and 38
+cut-offs and 1 timeout on each of 11-14 and 11-15; on 11-18, 29 timeouts
+of 313 answers and no cut-off. Asked again late on the morning of 11-20
+(UTC), on 26 of that wake's own turns, the same pin wrote about 110 a
+second, and 4 of the 26 still ran out their 300 s: the speed is the hour's
+as well as the route's (`~/pluggybot-training/loop-1120/v3-mind/`).
 
 ### The local backend
 
