@@ -1866,8 +1866,12 @@ save a filmstrip PNG named after the script.
   another none and up to 51k. Measure a candidate BY PROVIDER AND EFFORT on
   the live robots' own turns, never the probe's synthetic one alone, and
   confirm it flown. A decision a response came back for says who answered
-  (`Decision.call`, the `call` event, `pw_decisions.provider`). Money has
-  THREE states: "no API cost", "unknown" (`priced: false`), a number.
+  (`Decision.call`, the `call` event, `pw_decisions.provider`): ⚠ THE
+  PROVIDER THE ROUTER'S ANSWER NAMES, in the pin's own words
+  (`llm._who`, `ChatClient.provider_ids` off the catalogue `pricing()`
+  reads), its header beside it as `route`: the header may name only a
+  router behind it (Overseer.md §6, "Who answered"). Money has THREE
+  states: "no API cost", "unknown" (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced

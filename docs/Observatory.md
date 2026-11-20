@@ -10,6 +10,42 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Who answered is the provider the router's answer names, its header kept beside it as `route` (V3, `loop-provider`) — opens when this PR is deployed
+
+**What the robots read.** Nothing moves: the prompt (`6ec0fc48…`, 70,256
+characters, 17 sections) and the session host's hello (byte for byte) are
+unmoved, and so are History and the other robot's `doing`. Who answered is
+the operator's evidence alone: the console's DECIDE line, the `call` event,
+`pw_decisions.provider`.
+
+**The change** (Overseer.md §6, "Who answered, and the route of 11-18").
+`provider` is the provider the router's ANSWER names, in the pin's own
+words (`baseten` for the answer's "BaseTen", off the catalogue the client
+reads as it starts), and the router's `x-inference-provider` header is kept
+beside it as `route` in `Decision.call` and the `call` event (additive, no
+bump; the site files no `route`), the console saying `baseten via
+openrouter: …`.
+
+**Why.** From the 11-18 wake on the router answers through OpenRouter, a
+change of the route nobody here deployed: its header says `openrouter`
+whatever the pin, and read off the header alone all 303 of that wake's
+calls said `openrouter` (421 of 421 on 11-15 said `baseten`). The answer's
+chunks name the provider, so a pinned id answered by another provider can
+be seen again. ⚠ THE BOUNDARY: `pw_decisions.provider` reads `baseten` up
+to the 11-15 wake, `openrouter` from the 11-18 wake until this deploys,
+`baseten` again after; a reading by provider across those days folds the
+middle one in by its build (`build.model`'s pin).
+
+**What the period is for.**
+- **Whether the pin holds**: the decision rows by `provider` against the
+  pin, where a provider other than the pin's is OpenRouter answering for it.
+- **The route's speed**: tokens out per wall second by provider, and the
+  timeouts against 300 s -- 68 a second (median) on 11-18 against 142-145 on
+  11-14 and 11-15, the same pin, and 29 of 313 answers timed out; asked
+  again on 11-20 on 26 of that wake's own turns, the same pin wrote about
+  110 a second and 4 of the 26 ran out their 300 s (V3,
+  `~/pluggybot-training/loop-1120/v3-mind/`).
+
 ### A station the other robot is plugged into is taken, never a robot lost (#731, U1, `loop-731`) — opens when this PR is deployed
 
 **What the robots read.** The prompt (`6ec0fc48…`) and the session host's
