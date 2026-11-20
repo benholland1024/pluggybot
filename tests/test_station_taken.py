@@ -325,6 +325,23 @@ def test_a_robot_on_the_floor_says_nothing_of_where_it_is(how):
   assert luca.body.peer_by_seat(*SEATS[LOBBY]) == pytest.approx(0.0)
 
 
+def test_a_robot_dead_by_the_seat_holds_no_station_out_of_sight():
+  """A robot dead by the seat, its plug out, neither plugs in nor goes until
+  the world stands it up: no while for it, nor an ask; the station out of
+  sight is the base's, a robot lost, searched at once (#731's review, round
+  10: it waited its 120 s, asking a body that could not move)."""
+  luca, rowan = _pair(rowan_at=None)
+  beside = (SEATS[LOBBY][0] + 0.5, SEATS[LOBBY][1])   # by the seat, off its way in
+  rowan.body.x, rowan.body.y = beside
+  rowan.body.body_xy = beside
+  rowan.dead = {"t": 0.0, "cause": "flat", "why": ""}
+  luca.body.lost = True                               # ...and Luca's dock sees nothing
+  t0 = float(luca.data.time)
+  assert luca.body.run(luca.go_charge_routine()) is False
+  assert not _said(luca, "which I do not see"), luca.log[-4:]
+  assert luca.body.lost_at == ["station"] and float(luca.data.time) - t0 < 30.0
+
+
 def test_a_plug_in_waited_for_leaves_the_while_by_the_seat_for_its_unplug():
   """Rowan plugs in as Luca's dock looks, and Luca waits for its plug; Rowan
   unplugs and stands on the seat a moment, turning away (an unplug takes 26

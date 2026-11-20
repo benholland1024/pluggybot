@@ -2360,8 +2360,8 @@ save a filmstrip PNG named after the script.
   that station's WAY IN or its SEAT, not only its standoff (the lifecycle's
   #346 wait, `Body.charge_seat`, `LANE_STEP_M`), ⚠ or SAYS IT IS PLUGGED IN
   THERE, by its own port's word, wherever this robot's belief places its
-  body (#731; `Body.plugged_on`, `KeepClear.plugged`: through Luca's belief
-  0.6-0.8 m off, Rowan's body lay 0.6 m off the seat, read free), and asks
+  body (#731; `Body.plugged_on`, `KeepClear.plugged`: placed through a
+  belief 0.6-0.8 m off, one plugged in read free), and asks
   one resting on the way off it (`Body.ask_off`; afresh after a no, never
   one on the seat) --
   unless its MIND chose otherwise (Ben, 2026-11-03: a decided `charge`'s
@@ -2700,10 +2700,10 @@ save a filmstrip PNG named after the script.
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
   ONCE a charge -- ⚠ NEVER WITH ANOTHER ROBOT PLUGGED IN THERE OR BY ITS
-  SEAT, where it says it stands or this robot sees it within a body's width
-  (`SEAT_HELD_M`, 0.54 m; `Body.peer_by_seat`, #731; SimNotes, "A station
-  the other robot is plugged into"): its body hid the tags, and Luca
-  searched 422-468 s five times behind Rowan's. TAKEN: waited for, or passed
+  SEAT, alive, where it says it stands or this robot sees it within a
+  body's width (`SEAT_HELD_M`, 0.54 m; `Body.peer_by_seat`, #731; SimNotes,
+  "A station the other robot is plugged into"): its body hid the tags, and
+  the search behind it failed. TAKEN: waited for, or passed
   with `free` -- ⚠ as long as a charge only by a plug; one by its seat or
   come onto its way in, no plug in it, ONE WHILE a station a charge,
   `UNSEEN_WAIT_S` (120 s) at most, asked off if at rest (only its own word

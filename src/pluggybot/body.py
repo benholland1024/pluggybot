@@ -114,8 +114,11 @@ def nearest_by_seat(bodies, x: float, y: float, width: float) -> float | None:
   """How far off the seat (x, y) the nearest of `bodies` is, where it says
   it is or where it is placed, within `width` (`Body.peer_by_seat`), or
   None. One that says its plug is in a station is at that one's seat: by
-  its own port's word (`plugged_among`), never by where it says it stands."""
-  near = [d for b in bodies if b.plugged is None
+  its own port's word (`plugged_among`), never by where it says it stands.
+  One dead is by no seat: it neither plugs in nor goes until the world
+  stands it up, and a station is held by the seat for nothing else (#731's
+  review)."""
+  near = [d for b in bodies if b.plugged is None and not b.dead
           for d in (math.hypot(b.x - x, b.y - y),
                     math.inf if b.said is None else math.dist(b.said, (x, y)))
           if d < width]

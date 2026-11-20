@@ -10976,7 +10976,8 @@ the robot is stood up, and unsaid, a dead body plugged in hid the tags as a
 live one did. And a station not in sight from its standoff, with the other
 robot within a body's width of its seat (`SEAT_HELD_M`, 0.54 m) where it
 says it stands or where this robot sees it (`Body.peer_by_seat`; never one
-whose plug is in a station, which is at that seat), is taken, not lost, and
+whose plug is in a station, which is at that seat, nor one dead, which
+neither plugs in nor goes until it is stood up), is taken, not lost, and
 only a plug holds it as long as a charge. A robot by the seat, or come onto
 the way in, with no plug in it holds it ONE WHILE, once a station a charge
 (`_out_of_sight_routine`): out of its way, one at rest asked off it as
@@ -11049,12 +11050,13 @@ no new branch. The pair's recorded day keeps its trajectories bit for bit:
 words, the refused asks gone).
 
 **What is true now** (`KeepClear.said`, `plugged`; `Body.plugged_seat`,
-`plugged_on`, `peer_by_seat`, `SEAT_HELD_M`; `HubLifecycle._bay_holder`'s
-`unseen`, `UNSEEN_WAIT_S`, `go_charge_routine`): a charge never walks in on,
-nor searches behind, a robot that says it is plugged in at its station; a
-station out of sight with the other robot by its seat is waited for, or
-passed with `free`, `UNSEEN_WAIT_S` at most, then searched; and a station
-truly empty out of sight is a robot lost, searched at once, as before. ⚠ The report is the other robot's
+`plugged_on`, `peer_by_seat`, `SEAT_HELD_M`; `HubLifecycle._bay_holder`,
+`_out_of_sight_routine`, `UNSEEN_WAIT_S`, `go_charge_routine`): a charge
+never walks in on, nor searches behind, a robot that says it is plugged in
+at its station; a station out of sight with the other robot by its seat,
+alive, is waited for, or passed with `free`, `UNSEEN_WAIT_S` at most, then
+searched; and a station truly empty out of sight, or with a dead robot by
+its seat, is a robot lost, searched at once, as before. ⚠ The report is the other robot's
 own word, read as its reported pose is: a robot whose port says nothing
 holds nothing by this rule.
 
