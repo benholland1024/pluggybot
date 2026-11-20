@@ -2278,10 +2278,8 @@ Practice's mind reads no catalogue (`scripts/practice.py`): its rows name
 the provider as the answer does.
 
 How fast each provider writes on this route, and how often a think runs
-out its 300 s, is a reading of its own, never a design fact here: V3's of
-2026-11-20, the 11-18 wake's turns asked again by provider and effort
-(`~/pluggybot-training/loop-1120/v3-mind/`), and the Observatory's period
-for this change.
+out its 300 s, is a reading, never a design fact here: the Observatory's
+period for this change.
 
 ### The local backend
 

@@ -261,6 +261,7 @@ def test_who_answered_is_said_in_the_pins_own_words():
     {"provider": "fireworks-ai", "provider_name": "Fireworks", "status": "live",
      "pricing": {"input": 0.15, "output": 0.5}},
     {"provider": "together", "provider_name": "Together AI", "status": "live"},
+    {"provider": "early", "provider_name": "Featherless-AI", "status": "live"},
     {"provider": "featherless-ai", "status": "live"}]}]})
 
   def answered(name):
@@ -275,7 +276,8 @@ def test_who_answered_is_said_in_the_pins_own_words():
             messages=[{"role": "user", "content": "state"}])
   said = [client.messages.create(**kw) for _ in range(6)]
   # ...the name's case aside, and by the provider's id where the catalogue
-  # names it otherwise or not at all: the two catalogues are kept apart
+  # names it otherwise or not at all -- an id before any provider's name
+  # (the review's catch: listed first, "early"'s name stood for that id)
   assert [r.provider for r in said] == ["baseten", "fireworks-ai", "Somebody", "baseten",
                                         "together", "featherless-ai"]
   call = overseer._call_record(said[0], 12.0)

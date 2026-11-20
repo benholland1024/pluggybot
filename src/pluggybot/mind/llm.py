@@ -594,12 +594,13 @@ class HFClient(ChatClient):
     for entry in payload.get("data", ()):
       if entry.get("id") != base:
         continue
-      for p in entry.get("providers", ()):
-        if isinstance(p.get("provider"), str):
-          # by its id too, where it gives no name or another name than its answers'
-          for said in (p["provider"], p.get("provider_name")):
-            if isinstance(said, str):
-              self.provider_ids.setdefault(said.casefold(), p["provider"])
+      ids = [p for p in entry.get("providers", ()) if isinstance(p.get("provider"), str)]
+      # every id first, so no provider's name can stand for another's id;
+      # by its id too, where the catalogue names it otherwise or not at all
+      for key in ("provider", "provider_name"):
+        for p in ids:
+          if isinstance(p.get(key), str):
+            self.provider_ids.setdefault(p[key].casefold(), p["provider"])
       live = [p for p in entry.get("providers", ())
               if p.get("status") == "live" and p.get("pricing")]
       if policy and policy != "cheapest":
