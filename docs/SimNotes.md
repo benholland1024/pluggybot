@@ -11140,29 +11140,31 @@ lost, searched as before.
 
 **Measured.** The rules pinned on two stub lifecycles wired as the pair's
 bodies are (`tests/test_station_taken.py`: #731's five lost poses with the
-live beliefs; 34 of its 38 fail on the tree before, its three guards --
-a robot really lost still searches -- pass on both, and so does a found
-search's walk in). A seeded fuzz of the
+live beliefs; 41 of its 47 fail on the tree before: its three guards --
+a robot really lost still searches -- pass on both, as do a found search's
+walk in, a robot dead by the seat searched at once, and one of the fuzz's
+two seeded days). A seeded fuzz of the
 stub pair (`tests/fuzz_station_taken.py`: charges waiting or passing with
 `free`, plugged in a drawn while at rest on the seat, on a seat with the plug
 out or near one, beliefs off and put right by a search, a fall plugged in,
 stand-ups by or onto a seat, restarts mid-trip and mid-wait, the run's
-hour) reads six invariants at every step; the tree before breaks one in 55
-of 100 seeds (50 a dock tried, 5 a lost search, at a station the other says
-it is plugged in at). Its seed 73 is why the hold by the seat is a window:
-Luca, its belief 0.58 m off, saw no station; Rowan, lost itself, said it
+hour) reads eleven invariants at every step; the tree before breaks one in
+54 of 100 seeds (a dock tried at a station the other says it is plugged in
+at), the branch none in 300. Its seed 73 is why the hold by the seat is a
+window: Luca, its belief 0.58 m off, saw no station; Rowan, lost itself, said it
 stood 0.5 m from the seat as it searched 1.3 m off; Luca waited, Rowan found
 the station and plugged in first, and Luca's wait ran its 23 minutes. With
 walks that take their time, its invariants on each wait's bookkeeping (a
 bound from the first wait at that station; a while by the seat 120 s a
 station, its walks included; each wait counted and remembered once; never
 back to a station passed) broke on the branch's own d2d3eced, which review
-found them in. The station's checks on one pod (an EPYC 7532,
-osmesa) fly bit for bit on both trees: the approaches 36 of 36, the seats
-140 of 140, lost near 20 of 20, every row identical -- a robot alone takes
-no new branch. The pair's recorded day keeps its trajectories bit for bit:
-2,160 of its 11,664 lines move, each in its narration alone (the wait's
-words, the refused asks gone).
+found them in, and the one-wait-booked rule broke on b5e45b19. The
+station's checks on one pod (an EPYC 7532, osmesa) fly bit for bit on the
+tree before and on the branch as reviewed last (d639ae75): the approaches
+36 of 36, the seats 140 of 140, lost near 20 of 20, every row identical --
+a robot alone takes no new branch. The pair's recorded day keeps its
+trajectories bit for bit: 2,160 of its 11,664 lines move, each in its
+narration alone (the wait's words, the refused asks gone).
 
 **What is true now** (`KeepClear.said`, `plugged`; `Body.plugged_seat`,
 `plugged_on`, `peer_by_seat`, `SEAT_HELD_M`; `HubLifecycle._bay_holder`,

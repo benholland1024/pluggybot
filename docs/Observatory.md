@@ -35,8 +35,8 @@ is unchanged (`Rowan was at the charging station I needed; I waited for it
 -- never reached the charging station -- Rowan was plugged in at it; I
 waited 1386 s for it to leave, 3x how long one charge usually takes` (161
 characters; the clause was `Rowan was standing at rest right in front of
-it`). A station out of sight with the other robot by its seat, not plugged
-in, is waited for 120 s at most, said `WAIT: Rowan is standing by the
+it`). A station out of sight with the other robot by its seat, alive and not
+plugged in, is waited for 120 s at most, said `WAIT: Rowan is standing by the
 charging station, which I do not see -- waiting up to 120 s at (19.7,
 -4.3)` and remembered `Rowan was by the charging station I needed, which I
 did not see; I waited for it (up to 120 s)`, one at rest asked off its
