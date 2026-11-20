@@ -5575,7 +5575,8 @@ the world's. A lost robot fixes off WHICHEVER station it sees, its pair
 saying which, and charges there; the loop walks to that station's standoff
 after (`test_a_search_that_found_another_station_walks_to_that_one`). The
 choice rides a restart. A station takes one robot, and the #346 wait is
-per station.
+per station; one the other robot says it is plugged into is taken, never a
+robot lost ("A station the other robot is plugged into", #731).
 
 **The reserve's worst place** is now the middle of the park's west
 sidewalk, where every way round the fenced park is long: 47.3 m on the
@@ -11056,6 +11057,125 @@ raise, which the rule does not watch; and the line out into the torso
 (133-188 N in 9 of the drawer's 44 flights), a press of the robot on itself
 that pushes nothing over but is no way to treat a gripper: a line out judged
 against the trunk, as #722 judges a way out, is not built.
+
+## A station the other robot is plugged into (issue #731)
+
+From 14:52 to 16:39 UTC on 11-18 Rowan was plugged in at the research center
+lobby's station. Luca, its belief 0.57-0.81 m and 12-15 deg off (#681's
+drift), charged there five times; each walked in, its dock saw no station,
+it searched as a robot lost (422-468 s) and failed `no charge contact
+(station not seen)`: 78 minutes, 29 % down to 7 %. T1 flew both causes as
+static probes (the loop of 11-18): Rowan's body on the seat hid tags 64 and
+65 from every view Luca had (its navigation camera read them from 8 of 9 of
+those views with Rowan walked off), and the taken test (`_bay_holder`)
+placed a plugged-in Rowan -- resting, so placed by its body as Luca's own
+sensors would (#455) -- through Luca's wrong belief, 0.6-0.8 m off the seat,
+and read the station free from 3 of 5 poses. A robot at rest, or one the
+asker's LIDAR sees (#675), is placed where the ASKER's sensors put it, which
+is right for a robot in the way of a walk and wrong for one plugged in at a
+commissioned station.
+
+**Two rules** (Ben's options 1 with 2). Each robot's report of itself to the
+other (`HubLifecycle.keep_clear`, a network fact as its reported pose is)
+says where it is (`KeepClear.said`) and the seat of the station its plug is
+in, by its own port's word (`plugged`, `Body.plugged_seat`: the port's
+catch, never the lifecycle's `docked`). A seat the other says it is plugged
+in at is held -- `_bay_holder`'s "plugged", wherever the asker's belief
+places that robot's body (`Body.plugged_on`) -- so the charge waits, as
+#346's wait does, said `WAIT: Rowan is plugged in at the charging station`,
+or with `free` goes on to the nearest station nobody holds; and a plugged-in
+robot is never asked off its way (the pair's fixture day had Rowan ask a
+plugged-in Pluggy to make way every 30 s of its wait, refused each time). A
+dead robot's plug holds the station too: its one plug is in that port until
+the robot is stood up, and unsaid, a dead body plugged in hid the tags as a
+live one did. And a station not in sight from its standoff, with the other
+robot within a body's width of its seat (`SEAT_HELD_M`, 0.54 m) where it
+says it stands or where this robot sees it (`Body.peer_by_seat`; never one
+whose plug is in a station, which is at that seat, nor one dead, which
+neither plugs in nor goes until it is stood up), is taken, not lost, and
+only a plug holds it as long as a charge. A robot by the seat, or come onto
+the way in, with no plug in it holds it ONE WHILE, once a station a charge
+(`_out_of_sight_routine`): out of its way, one at rest asked off it as
+#346's wait asks, where it holds the way in or at the seat (#455),
+said `WAIT: Rowan is standing by the charging station, which I do not see
+-- waiting up to 120 s`, or passed with `free` -- `UNSEEN_WAIT_S` (120 s)
+at most, its walk out of the way counted in it, within the station's one
+bound: one on the seat with its plug out is plugging in or leaving (the
+dock from the standoff takes 27.0 s, 40.6 s at most of 36; the unplug
+25.9 s, 27.7 at most), and one only its own word puts there may be wrong.
+Gone, the dock goes again; plugged in, #346's wait takes over, said so with
+what is left of the bound, one wait remembered and counted once; still there, `WAIT: Rowan was still by the
+charging station after 120 s -- I look for it myself`, and then the base's
+own search, once a charge, and its own failure. The while is kept that
+small on purpose (the loop of 11-19's reviews: every shape that held such a
+station longer, or twice, broke somewhere): what it gives up is that after
+it the base's own rules apply -- a robot on the way in by the planner's
+disc may still hold the station by #346's wait until that station's bound,
+and the charge's failure is the base's words, the robot by the seat named
+in the WAIT lines and History alone. No search begins behind a robot that
+says it is plugged in there, after a dock or after walks that never got
+there, and it is waited for instead. Each station has one bound a charge, counted from its first wait of
+either kind (a search inside it said as such, never as waited), and a
+`free` charge never goes back to a station it passed. A
+station never in sight that the way in or the seat holds to that bound,
+nobody plugged in, is searched for after all (a robot lost and never
+searched dies flat). A wait the bound ends with the other still plugged in
+ends the charge, never searched: no loop within one decision, and the mind
+decides again. A charge a wait gave up on fails in the wait's words, naming
+who held it, whatever walk or dock came before (one found by its search
+read `no charge contact (station not seen)` again).
+
+**A body's width, measured** (`ring731.py`, the pair in the house, Rowan
+stood round the lobby's seat, the dock's colour imager and the search's
+navigation camera decoding from the true standoff and two of #731's lost
+poses): on the seat's line a body hid both tags from the standoff to 0.2 m
+across it, one of them at 0.3 m, neither from 0.4 m; from the lost poses
+the same, the navigation camera alone reading there. So 0.54 m takes in
+every body that hides a tag with 0.2 m over for where it is placed: Rowan
+plugged in said it stood 0.11-0.27 m off the seat, and through Luca's live
+belief its body lay 0.6-0.83 m off it, past the width -- the report is what
+reads it on the seat, the plug what holds it. A robot standing 1.2-1.5 m
+off the seat is outside it, and a station empty but for one is a robot
+lost, searched as before.
+
+**Measured.** The rules pinned on two stub lifecycles wired as the pair's
+bodies are (`tests/test_station_taken.py`: #731's five lost poses with the
+live beliefs; 41 of its 47 fail on the tree before: its three guards --
+a robot really lost still searches -- pass on both, as do a found search's
+walk in, a robot dead by the seat searched at once, and one of the fuzz's
+two seeded days). A seeded fuzz of the
+stub pair (`tests/fuzz_station_taken.py`: charges waiting or passing with
+`free`, plugged in a drawn while at rest on the seat, on a seat with the plug
+out or near one, beliefs off and put right by a search, a fall plugged in,
+stand-ups by or onto a seat, restarts mid-trip and mid-wait, the run's
+hour) reads eleven invariants at every step; the tree before breaks one in
+54 of 100 seeds (a dock tried at a station the other says it is plugged in
+at), the branch none in 300. Its seed 73 is why the hold by the seat is a
+window: Luca, its belief 0.58 m off, saw no station; Rowan, lost itself, said it
+stood 0.5 m from the seat as it searched 1.3 m off; Luca waited, Rowan found
+the station and plugged in first, and Luca's wait ran its 23 minutes. With
+walks that take their time, its invariants on each wait's bookkeeping (a
+bound from the first wait at that station; a while by the seat 120 s a
+station, its walks included; each wait counted and remembered once; never
+back to a station passed) broke on the branch's own d2d3eced, which review
+found them in, and the one-wait-booked rule broke on b5e45b19. The
+station's checks on one pod (an EPYC 7532, osmesa) fly bit for bit on the
+tree before and on the branch as reviewed last (d639ae75): the approaches
+36 of 36, the seats 140 of 140, lost near 20 of 20, every row identical --
+a robot alone takes no new branch. The pair's recorded day keeps its
+trajectories bit for bit: 2,160 of its 11,664 lines move, each in its
+narration alone (the wait's words, the refused asks gone).
+
+**What is true now** (`KeepClear.said`, `plugged`; `Body.plugged_seat`,
+`plugged_on`, `peer_by_seat`, `SEAT_HELD_M`; `HubLifecycle._bay_holder`,
+`_out_of_sight_routine`, `UNSEEN_WAIT_S`, `go_charge_routine`): a charge
+never walks in on, nor searches behind, a robot that says it is plugged in
+at its station; a station out of sight with the other robot by its seat,
+alive, is waited for, or passed with `free`, `UNSEEN_WAIT_S` at most, then
+searched; and a station truly empty out of sight, or with a dead robot by
+its seat, is a robot lost, searched at once, as before. ⚠ The report is the other robot's
+own word, read as its reported pose is: a robot whose port says nothing
+holds nothing by this rule.
 
 ## Debugging workflow that worked
 

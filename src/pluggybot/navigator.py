@@ -30,7 +30,7 @@ from scipy import ndimage
 from pluggybot.behavior.navigation import (
   BACKOFF_TIME, FRONT_STOP_RANGE, W_SPIN, drive_toward, path_to_waypoints,
 )
-from pluggybot.body import KeepClear
+from pluggybot.body import SEAT_HELD_M, KeepClear, nearest_by_seat, plugged_among
 from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
@@ -1446,6 +1446,19 @@ class Navigator:
     """
     return min((d for d in (on_the_goal(self, b, wx, wy) for b in self._bodies())
                 if d is not None), default=None)
+
+  def plugged_on(self, wx: float, wy: float) -> str | None:
+    """`Body.plugged_on`: off the other robots' own word, carried as their
+    reported poses are (`KeepClear.plugged`), never where this robot's
+    belief places their bodies (#731; SimNotes, "A station the other robot
+    is plugged into")."""
+    return plugged_among(self._bodies(), wx, wy)
+
+  def peer_by_seat(self, wx: float, wy: float) -> float | None:
+    """`Body.peer_by_seat`: where each other robot says it is
+    (`KeepClear.said`) or where this robot's own sensors place it (its x, y:
+    its body seen, #675, or at rest, #455), within `SEAT_HELD_M`."""
+    return nearest_by_seat(self._bodies(), wx, wy, SEAT_HELD_M)
 
   def robot_at(self, ahead: float, left: float) -> bool:
     """Is the point `ahead` m ahead of this body's centre and `left` m to
