@@ -260,8 +260,11 @@ class _Homing:
   def carry_pose(self, side):
     return np.array([0.15, 0.25, 0.0, 2.0, -1.0, -1.0])
 
-  def retreat(self, side, approach=None) -> None:
+  def retreat(self, side, approach=None, watch=False) -> None:
     self.sent, self.steps = True, 0
+    #: ...and whether each way home was a walk's hand-over's, watched for a
+    #: shove (#693's live family, `Reach.retreat(watch=)`)
+    self.watched = dict(getattr(self, "watched", {}), **{side: watch})
     if self.log is not None:
       self.log.append(("retreat", side, self.at()))
 
@@ -308,8 +311,8 @@ class _Out(_Homing):
         self.phase[s] = "hold"
         self.report[s] = {"why": self.lifts.get(s, "distance")}
 
-  def retreat(self, side, approach=None) -> None:
-    super().retreat(side, approach)
+  def retreat(self, side, approach=None, watch=False) -> None:
+    super().retreat(side, approach, watch)
     self.phase[side] = "rest" if self.carry_q[side] is None else "carried"
 
   def hold_posture(self, height, pitch) -> None:
@@ -375,8 +378,8 @@ class _HomingOut(_Out):
     super().__init__(grippers, out, log, at)
     self.n_home, self.since = n, {}
 
-  def retreat(self, side, approach=None) -> None:
-    super().retreat(side, approach)
+  def retreat(self, side, approach=None, watch=False) -> None:
+    super().retreat(side, approach, watch)
     self.homing[side], self.since[side] = True, self.steps
 
   def step(self) -> None:
@@ -419,9 +422,31 @@ def test_a_walk_takes_the_legs_with_an_arm_held_as_it_is(monkeypatch):
     if steps > 5000:
       raise AssertionError("the walk's hand-over waited on an arm left held")
   m.reach.on_step = bounded
-  m.reach.retreat = lambda side, approach=None: None
+  m.reach.retreat = lambda side, approach=None, watch=False: None
   body.run(m.to_walk_routine())
   assert m.legs == "walk"
+
+
+def test_a_walks_hand_over_has_its_ways_home_watched_for_a_shove_and_a_withdraw_never():
+  """#693's live family: the 11-18 wake's falls in a `step` right after a pull
+  toward the body came in the walk's hand-over, whose way home is held where
+  what its arm reads would tip the body away from the hand (`Reach._shoved`)
+  -- sent home watched (`retreat(watch=True)`) -- and a withdraw's never,
+  its word the arm's: held there, a reference's withdraw read "held" and its
+  run ended with the door 28 deg open, where it went on to 94 (the bar's
+  door 112)."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), ("left",), log, lambda: float(body.data.time))
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk" and m.reach.watched == {"left": True}
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach = _Homing(30, _opened(m.reach.grippers))
+  m.reach.phase["left"] = "hold"
+  assert body.run(body.release_routine("left")) == "home"
+  assert m.reach.watched == {"left": False}
 
 
 def test_a_release_begun_in_a_get_up_waits_it_out_then_comes_home(monkeypatch):
@@ -559,8 +584,8 @@ class _Homeward(_Out):
     self.posture = np.array(posture, dtype=float)
     self.waiting = False
 
-  def retreat(self, side, approach=None) -> None:
-    _Homing.retreat(self, side, approach)
+  def retreat(self, side, approach=None, watch=False) -> None:
+    _Homing.retreat(self, side, approach, watch)
     self.phase[side] = "home"
     if self.posture.any() and not self.ahead:
       self.waiting = True

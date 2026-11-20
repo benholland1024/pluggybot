@@ -488,6 +488,7 @@ def _bare_reach():
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
+  r.watch_home = {s: False for s in hm.SIDES}
   r.slack = {s: True for s in hm.SIDES}
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
@@ -1616,12 +1617,14 @@ def test_a_transient_past_the_line_while_the_body_takes_its_posture_walks_on():
   assert r.phase["left"] == "blocked"
 
 
-def _walking_home(phase="home"):
+def _walking_home(phase="home", watch=True):
   """`_walking_out`'s left arm on its way HOME instead, in joint space, its
   command ahead of where its drivers read it, the hand out to the robot's
   left front by its senses (0.4, 0.3, 0.9) -- or its rest commanded and not
-  yet read there (`phase` "rest", `homing`)."""
+  yet read there (`phase` "rest", `homing`) -- sent so by a walk's
+  hand-over (`watch`, `Reach.retreat(watch=)`), or not."""
   r, rc = _walking_out(phase)
+  r.watch_home["left"] = watch
   r.q_to["left"] = r.rest["left"].copy()
   # ...its command far enough off its rest that no hold a test waits on
   # (`HOME_TIP_S`, three times over) walks it home
@@ -1674,6 +1677,30 @@ def test_a_way_home_whose_reading_tips_the_body_away_from_the_hand_is_held_where
     r.feel(past)
     r._update(0.01)
   assert r.held("left") and np.allclose(r.q_cmd["left"], read), "it moved on its own"
+
+
+def test_a_withdraws_way_home_is_never_held_for_its_reading(monkeypatch):
+  """...only a walk's hand-over's (`watch_home`, set by `retreat(watch=True)`):
+  a withdraw's way home walks on whatever its arm reads, its word the arm's as
+  it comes home -- held so, the bar's door reference read "held" of a way home
+  dragging its jaw across the door's panel, which gave, and its run ended there
+  (door 112: 28 deg open where the base's went on to 94)."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(watch=False)
+  ahead = r.q_cmd["left"].copy()
+  for _ in range(3 * round(rc.HOME_TIP_S / 0.01)):
+    r.feel(3.0 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.phase["left"] == "home" and np.abs(r.q_cmd["left"] - ahead).max() > 0.0
+  # ...and `retreat` says which: the hand-over's watched, a withdraw's not
+  for watch in (True, False):
+    r = _standing_reach()
+    _sent_home(r, "left", RAISED)
+    r.set_joints("left", RAISED)
+    r.q_cmd["left"] = RAISED.copy()
+    r.retreat("left", watch=watch)
+    assert r.phase["left"] == "home" and r.watch_home["left"] is watch
 
 
 def test_a_way_home_pressing_down_at_the_hands_reach_is_held_too(monkeypatch):

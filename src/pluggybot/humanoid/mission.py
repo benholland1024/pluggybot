@@ -693,7 +693,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         yield from self._getup_routine()
       for s in hm.SIDES:
         if self.reach.phase[s] != "rest" and not self.reach.carried(s):
-          self.reach.retreat(s)
+          # ...its way home held where it would tip the body away from the
+          # hand (#693's live family; `Reach._shoved`): no verb's word rides it
+          self.reach.retreat(s, watch=True)
       # ...the stand asked as each arm sets off home, by its own way
       # (`Reach._go_home`, #693: off the stand, one with none of it ahead
       # once it is home), and the trunk waited on still there,

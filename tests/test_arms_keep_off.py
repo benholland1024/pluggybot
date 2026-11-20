@@ -474,7 +474,7 @@ class _Arms:
     self.kept[side] = {"home": True, "m": 0.62, "x": 0.1, "y": -0.61, "short": 0.2}
     return False
 
-  def retreat(self, side, approach=None) -> None:
+  def retreat(self, side, approach=None, watch=False) -> None:
     self.log.append(("retreat", side, self.at(), list(self.keep_out)))
     self.phase[side] = "rest" if self.carry_q[side] is None else "carried"
 

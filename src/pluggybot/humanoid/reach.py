@@ -315,21 +315,24 @@ HELD_S = 0.5
 #: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
 #: after its command arrived, is left held (`_raise_short`).
 LIFT_M, LIFTS = 0.05, 1
-#: ...AND HELD SO AT ONCE, ON ITS WAY, WHERE WHAT ITS ARM READS HAS TIPPED THE
-#: BODY AWAY FROM THE HAND past this, N m, this long running, s (`_shoved`;
-#: SimNotes, "A way home that shoves the body back"): minus #708's
-#: `_tipping` -- its push away from the body at the hand's height, plus its
-#: press down at the hand's reach. After a pull toward the body none of the
-#: arm is ahead of the front, its way home is judged straight, and the open
-#: jaws swung forward and down through the knob or the lever just pulled: the
-#: root went 0.15-0.26 m back under the standing policy and the robot over
-#: backward, 12 of the 11-18 wake's 171 flights on 0fb85dc2; in the 10 this
-#: takes, the reading held past the line 1.0-1.7 s before the fall (17-34 N m
-#: held 0.2 s). ⚠ HELD, NEVER AT ONCE: the door reference's ways home drag
-#: a jaw over the door's top at 65-200 N for under 0.2 s, and held 0.05 s
-#: about 40 of the bar's ways home stopped; held 0.2 s, one that touches
-#: nothing read 9 at most. ⚠ A GRIPPER DRIVEN INTO ITS OWN TORSO ON ITS LINE
-#: OUT READS THE OTHER WAY, a pull toward the body.
+#: ...AND A WALK'S HAND-OVER'S IS HELD SO AT ONCE, ON ITS WAY, WHERE WHAT ITS
+#: ARM READS HAS TIPPED THE BODY AWAY FROM THE HAND past this, N m, this long
+#: running, s (`_shoved`, `watch_home`; SimNotes, "A way home that shoves the
+#: body back"): minus #708's `_tipping` -- its push away from the body at the
+#: hand's height, plus its press down at the hand's reach. After a pull toward
+#: the body none of the arm is ahead of the front, its way home is judged
+#: straight, and the open jaws swung forward and down through the knob or the
+#: lever just pulled: the root went 0.15-0.26 m back under the standing policy
+#: and the robot over backward, 12 of the 11-18 wake's 171 flights on
+#: 0fb85dc2, each in a `step`'s hand-over; in the 10 this takes, the reading
+#: held past the line 1.0-1.7 s before the fall (17-34 N m held 0.2 s). ⚠
+#: NEVER A WITHDRAW'S: its word is the arm's, and held so, the bar's door
+#: reference read "held" of a way home dragging its jaw across the door's
+#: panel, which gave, and its run ended with the door at 28 deg, where it
+#: went on to 94. ⚠ HELD, NEVER AT ONCE: such drags pass 20 N m for under
+#: 0.2 s, and held 0.05 s about 40 of the bar's ways home stopped; held 0.2
+#: s, one that touches nothing read 9 at most. ⚠ A GRIPPER DRIVEN INTO ITS
+#: OWN TORSO ON ITS LINE OUT READS THE OTHER WAY, a pull toward the body.
 HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
@@ -1277,8 +1280,10 @@ class Reach:
     #: line, running (`OUT_TIP_S`).
     self._tip = {s: 0.0 for s in hm.SIDES}
     #: ...and how long its way home's reading has tipped the body away from
-    #: the hand past its line, running (`HOME_TIP_S`).
+    #: the hand past its line, running (`HOME_TIP_S`) -- a way home a walk's
+    #: hand-over sent, watched so (`watch_home`, `retreat(watch=)`).
     self._shove = {s: 0.0 for s in hm.SIDES}
+    self.watch_home = {s: False for s in hm.SIDES}
     self.every = max(1, round(EVERY_S / model.opt.timestep))
     self.steps = 0
     #: The posture the plan wants -- the pelvis's height off the stand's,
@@ -2000,13 +2005,16 @@ class Reach:
     self.speed[side] = HAND_SPEED
     self.phase[side] = "pull"
 
-  def retreat(self, side: str, approach: float = APPROACH_M) -> None:
+  def retreat(self, side: str, approach: float = APPROACH_M, watch: bool = False) -> None:
     """Out along the line it came in on, then home its own way
     (`way_home`); the posture back to the stand. An arm on its way home
-    already goes on."""
+    already goes on. `watch`, a walk's hand-over's: the way home is held
+    where it would tip the body away from the hand (`_shoved`); a
+    withdraw's never, its word the arm's."""
     if self.phase[side] in ("rest", "home", "retreat"):
       return
     self.lifted[side] = 0
+    self.watch_home[side] = watch
     if self.phase[side] in ("joints", "move", "held") or self.cmd[side] is None:
       # an arm moved joint by joint (`set_joints`), still walking out to its
       # pre-grasp, or held where its way home stopped (`HELD_S`), has no
@@ -2425,12 +2433,12 @@ class Reach:
     self._held_home(side)
 
   def _shoved(self, side: str, dt: float) -> bool:
-    """Whether an arm on its way to its rest -- in joint space, or its rest
-    commanded and not yet read home (`homing`, `home`) -- reads a tip of the
-    body away from its hand past `HOME_TIP_NM` for `HOME_TIP_S` running
-    (minus `_tipping`, off the force its arm reads it push with); `dt` its
-    tick."""
-    homing = self.carry_q[side] is None and (
+    """Whether an arm on a walk's hand-over's way to its rest (`watch_home`)
+    -- in joint space, or its rest commanded and not yet read home
+    (`homing`, `home`) -- reads a tip of the body away from its hand past
+    `HOME_TIP_NM` for `HOME_TIP_S` running (minus `_tipping`, off the force
+    its arm reads it push with); `dt` its tick."""
+    homing = self.watch_home[side] and self.carry_q[side] is None and (
       self.phase[side] == "home"
       or (self.phase[side] == "rest" and self.homing[side] and not self.home(side)))
     over = homing and -self._tipping(side) > HOME_TIP_NM
@@ -2546,7 +2554,7 @@ class Reach:
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
           "allowed", "left", "looks", "looking", "carry_q", "stand_home", "homing",
-          "held_for", "lifted", "kept_by", "_shove")
+          "held_for", "lifted", "kept_by", "_shove", "watch_home")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
