@@ -239,7 +239,7 @@ def test_the_decision_names_the_call_behind_it(menu):
     usage={"input_tokens": 14000, "output_tokens": 900})).decide({})
   assert d.source == "llm"
   assert {k: v for k, v in d.as_dict()["call"].items() if k != "wallS"} == {
-    "provider": None, "tokensIn": 14000, "tokensOut": 900, "cut": False}
+    "provider": None, "route": None, "tokensIn": 14000, "tokensOut": 900, "cut": False}
   offline = make(menu, RuntimeError("connection reset")).decide({})
   assert offline.call is None and "call" not in offline.as_dict()
 

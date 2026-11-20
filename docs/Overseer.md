@@ -2248,6 +2248,41 @@ first, pinned in the box's `.env` on 2026-11-05 (no effort named):
 - ⚠ **Not `:cheapest`**: it still lands on novita, whose decisions take
   three minutes and whose interrupts run out of their tokens.
 
+### Who answered, and the route of 11-18
+
+From the 11-18 wake on (the 11-15 calls still named `baseten`), the router
+answers through another router, OpenRouter. Read on 2026-11-20, one ask a
+pin, streamed and whole: every reply's `x-inference-provider` header says
+`openrouter`, beside OpenRouter's own (`x-generation-id`,
+`x-openrouter-release`), whatever the pin; every chunk of the answer names
+the provider that wrote it, by OpenRouter's name for it (`"provider":
+"BaseTen"`; DeepInfra, Together, Fireworks, Novita for those pins, each its
+own; `:cheapest` landed on Wafer), beside OpenRouter's model slug
+(`z-ai/glm-5.3-flash`), and the usage chunk carries the think apart
+(`completion_tokens_details.reasoning_tokens`) and what it cost (`cost`).
+Read off the header alone, all 303 of the 11-18 calls that came back said
+`openrouter`, and a pin answered by another provider could not be seen.
+
+So who answered is the provider the answer names, said in the pin's own
+words (`baseten`, as the catalogue lists the "BaseTen" its answers say:
+`ChatClient.provider_ids`, filled by the catalogue read `pricing()` makes
+as the client starts; a name the catalogue does not list is kept as the
+answer gives it), and the header is kept beside it as `route` -- in
+`Decision.call`, the `call` event and the console's DECIDE line (`baseten
+via openrouter: …`). `pw_decisions.provider` therefore reads `baseten` up
+to the 11-15 wake, `openrouter` from the 11-18 wake to this change's
+release, and `baseten` again after it; the site files no `route`.
+Practice's mind reads no catalogue (`scripts/practice.py`): its rows name
+the provider as the answer does.
+
+⚠ **The same pin writes at half the speed on the new route.** The live
+calls' tokens out a second, median (10th percentile): 142 (109) on 11-14,
+145 (117) on 11-15, 68 (49) on 11-18, the provider and the effort
+unchanged. At 68 a second, 300 s holds about 20,000 tokens, so a long
+think that was cut off at 32,768 is now a timeout: 13 and 38 cut-offs and 1
+timeout each on 11-14 and 11-15; on 11-18, 29 timeouts of 313 answers and
+no cut-off.
+
 ### The local backend
 
 `--overseer-backend local` puts the same loop in front of ollama

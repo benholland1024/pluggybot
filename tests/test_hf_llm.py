@@ -173,7 +173,9 @@ def test_who_answered_is_the_one_the_router_names_in_its_answer(monkeypatch):
   of the wake's calls said `openrouter`, and a pin answered by another
   provider could not be seen. The answer's own word wins, streamed or not,
   a stream stopped at its deadline included; where it names nobody, the
-  header's stands. Shown to fail without the fix: `openrouter`."""
+  header's stands, and the header is kept as the route either way. Shown
+  to fail without the fix: `openrouter`. (The answer's name in the pin's
+  own words is the next test's.)"""
   def stream(lines, headers):
     class Answered:
       def __init__(self):
@@ -201,7 +203,8 @@ def test_who_answered_is_the_one_the_router_names_in_its_answer(monkeypatch):
                         lambda req, timeout, s=stream(lines, headers): s)
     status, payload = llm.stream_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
     assert status == 200 and payload["provider"] == provider
-    assert create(fake_fetch([(status, payload)])).provider == provider
+    resp = create(fake_fetch([(status, payload)]))
+    assert resp.provider == provider and resp.route == "openrouter"
   # ...a stream still being written at its deadline names who was writing it
   now = [0.0]
 
@@ -231,7 +234,42 @@ def test_who_answered_is_the_one_the_router_names_in_its_answer(monkeypatch):
         "content": '{"action": "idle"}'}}]}).encode()
   monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout: Whole())
   status, payload = llm._default_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
-  assert create(fake_fetch([(status, payload)])).provider == "DeepInfra"
+  resp = create(fake_fetch([(status, payload)]))
+  assert resp.provider == "DeepInfra" and resp.route == "openrouter"
+
+
+def test_who_answered_is_said_in_the_pins_own_words():
+  """The answer names its provider as the router behind the router does
+  ("BaseTen", "Fireworks"), where a model id pins it, and every row before
+  11-18 named it, by the catalogue's id (`baseten`, `fireworks-ai`): read
+  as given, one provider would be two in any reading across that day. The
+  catalogue `pricing()` reads at the client's start lists both, so the
+  answer is said in the pin's words, the route beside it -- in the call
+  record and on the console line -- and a name the catalogue does not list
+  is kept as the answer gives it."""
+  catalogue = (200, {"data": [{"id": "org/model-8b", "providers": [
+    {"provider": "baseten", "provider_name": "BaseTen", "status": "live",
+     "pricing": {"input": 0.15, "output": 0.5}},
+    {"provider": "fireworks-ai", "provider_name": "Fireworks", "status": "live",
+     "pricing": {"input": 0.15, "output": 0.5}},
+    {"provider": "featherless-ai", "status": "live"}]}]})
+
+  def answered(name):
+    return (200, {"choices": [{"message": {"content": '{"action": "idle"}'}}],
+                  "usage": {"prompt_tokens": 9, "completion_tokens": 3},
+                  "provider": name, "route": "openrouter"})
+  client = HFClient(token="hf_test", fetch=fake_fetch(
+    [catalogue, answered("BaseTen"), answered("Fireworks"), answered("Somebody")]))
+  assert client.pricing("org/model-8b:baseten") == (0.15, 0.5)
+  kw = dict(model="org/model-8b:baseten", max_tokens=64, system=SYSTEM,
+            messages=[{"role": "user", "content": "state"}])
+  said = [client.messages.create(**kw) for _ in range(3)]
+  assert [r.provider for r in said] == ["baseten", "fireworks-ai", "Somebody"]
+  call = overseer._call_record(said[0], 12.0)
+  assert call["provider"] == "baseten" and call["route"] == "openrouter"
+  assert overseer.call_said(call).startswith("baseten via openrouter: 9 in, 3 out")
+  # ...and where the router reached it directly, its one name says both
+  assert overseer.call_said(dict(call, route="baseten")).startswith("baseten: 9 in")
 
 
 def test_a_streamed_answer_its_tokens_ran_out_on_says_so(monkeypatch):

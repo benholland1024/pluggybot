@@ -486,16 +486,24 @@ wire could say who sent them or why they stopped. One event type and one
 - **`call`**: one per decision a response came back for, at the same `t`
   and `robot` as its `DECIDE` line and, on the live stream, just before
   it: `source` (the decision's), `provider` (who answered: the provider
-  the router's answer names, else its `x-inference-provider` header, null
-  where nothing names one), `tokensIn`, `tokensOut`, `cut` (its tokens ran
-  out) and `wallS` (the request, asked to answered). None for a decision
-  no call answered: a map row, a policy fallback, a timeout. The decision
-  carries the same record as `call` in `decisions[]`, and the console has
-  it beside its `DECIDE` line.
+  the router's answer names, in the id a model id pins (`baseten` for the
+  answer's "BaseTen", off the router's catalogue; a name it does not list
+  is kept as given), else its `x-inference-provider` header, null where
+  nothing names one), `route` (that header: how the router reached it,
+  `openrouter` since 11-18; null where it sent none, and absent from the
+  calls before it was added, on 2026-11-20), `tokensIn`, `tokensOut`,
+  `cut` (its tokens ran out) and `wallS` (the request, asked to answered).
+  None for a decision no call answered: a map row, a policy fallback, a
+  timeout. The decision carries the same record as `call` in
+  `decisions[]`, and the console has it beside its `DECIDE` line. ⚠ From
+  the 11-18 wake until that change is deployed, `provider` reads
+  `openrouter` for every call: the header alone was read, and it names the
+  route.
 
   ```jsonc
   {"type": "call", "t": 129950.3, "robot": "pluggybot", "source": "fallback:cutoff",
-   "provider": "baseten", "tokensIn": 29811, "tokensOut": 16384, "cut": true, "wallS": 96.8}
+   "provider": "baseten", "route": "openrouter", "tokensIn": 29811, "tokensOut": 16384,
+   "cut": true, "wallS": 96.8}
   ```
 
 - **`fallback:cutoff`**, a decision's `source` (the `DECIDE` line's tail):

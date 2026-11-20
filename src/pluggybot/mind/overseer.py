@@ -752,9 +752,10 @@ class Decision:
   #: answer took, and an undefine that waits for its define. None where
   #: nothing was. Said once in History and as a `left_out` event.
   left_out: dict | None = None
-  #: THE CALL BEHIND IT (issue #604): `{provider, tokensIn, tokensOut, cut,
-  #: wallS}` -- who answered (the provider the router's answer names, else its
-  #: `x-inference-provider` header, None where nothing names one), what it
+  #: THE CALL BEHIND IT (issue #604): `{provider, route, tokensIn, tokensOut,
+  #: cut, wallS}` -- who answered (the provider the router's answer names, in
+  #: the pin's own words, else its `x-inference-provider` header, None where
+  #: nothing names one), how the router reached it (that header), what it
   #: billed, whether its tokens ran out, and how long it took. Set by code on
   #: every decision a response came back for, a `garbled` or `cutoff`
   #: fallback's included -- an empty answer is the one that most needs saying
@@ -5288,6 +5289,7 @@ def _call_record(response, wall_s: float) -> dict:
   # an estimate (`llm.stream_fetch`), and the row says no count came
   counted = not getattr(response, "usage_estimated", False)
   return {"provider": getattr(response, "provider", None),
+          "route": getattr(response, "route", None),
           "tokensIn": int(getattr(usage, "input_tokens", 0) or 0) if counted else None,
           "tokensOut": int(getattr(usage, "output_tokens", 0) or 0) if counted else None,
           "cut": getattr(response, "stop_reason", None) == "max_tokens",
@@ -5303,7 +5305,10 @@ def call_said(call: dict | None) -> str:
   def count(key):
     n = call.get(key, 0)
     return "?" if n is None else n        # no count came (`_call_record`)
-  return (f"{call.get('provider') or 'unnamed'}: {count('tokensIn')} in, "
+  who, route = call.get("provider") or "unnamed", call.get("route")
+  if route and route != who:
+    who = f"{who} via {route}"
+  return (f"{who}: {count('tokensIn')} in, "
           f"{count('tokensOut')} out{', cut off' if call.get('cut') else ''}, "
           f"{float(call.get('wallS') or 0):.1f} s")
 
