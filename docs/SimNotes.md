@@ -8456,15 +8456,16 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     toward its head (the pinch still off the fork's middle of mass) the
     strikes fell from 14 to 5 at 25 N and the places rose from 40 to 42, with
     2 more falls; at 40 N it laid 55 forks where 40 N alone laid 51, but 44
-    places where 45, with 2 more falls in the fork's trip off the pass; and
+    places where 45, the robot falling 3 more times in the fork's trip off
+    the pass (and once fewer at the table's approach); and
     every fork, tilted or not, eased to 8 N and pushed 3 cm more at 6 N
     before its let-go laid 41 places where 40 N alone laid 45.
   - **The cup's stance at the place.** Over 159 put-downs in rounds 5's and
-    6's readings the walk left the cup's trip reading the card a median 4.4
-    cm to its left; the 13 that read it to the right stood 4-27 cm left of
+    6's readings the walk left the cup's trip reading the card a median 4.45
+    cm to its left; the 14 that read it to the right stood 3-27 cm left of
     the card's line (all 159: a median 0.6 cm; one walk's last turn, 14 deg,
     shuffled it 28 cm), where the cup's spot lies past the right hand's
-    band, and 11 of those 13 missed. Stepped across to the median read of
+    band, and 11 of those 14 missed. Stepped across to the median read of
     the cups laid and looked at again, it laid all 5 dev places it acted on
     (the reference none) -- one step left the card reading 0.1006 m, past
     the rule's 0.10, its cup laid -- and was frozen. A lever that acts on
@@ -8475,7 +8476,7 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     the put-down's spread, 2.6-3.2 cm off in any direction; the plate's let
     go carried rode tilted in its pinch into the walk to the place -- on the
     dev draws 4 of 5 after it struck the pass as the walk turned away (it
-    struck in 25 of 64 trips, and 1 of the other 39 came down).
+    struck in 25 of 63 trips, and 1 of the other 38 came down).
 
 ## The arms keep off the other robot (issue #678)
 
