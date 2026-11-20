@@ -1703,6 +1703,38 @@ def test_a_withdraws_way_home_is_never_held_for_its_reading(monkeypatch):
     assert r.phase["left"] == "home" and r.watch_home["left"] is watch
 
 
+def test_the_caller_waiting_on_a_way_home_under_way_says_whether_it_is_watched(monkeypatch):
+  """Review 2: `retreat` leaves a way home under way to go on, and kept the
+  flag of whoever began it -- a walk's hand-over waiting on a withdraw's way
+  home went unwatched, and a withdraw on a hand-over's read "held". The
+  caller now waiting on it says which, and a way home it begins has its
+  whole hold."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(watch=False)
+  r.retreat("left", watch=True)
+  assert r.phase["left"] == "home" and r.watch_home["left"], "the way home goes on, watched"
+  for _ in range(round(rc.HOME_TIP_S / 0.01)):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.held("left")
+  r, _ = _walking_home(watch=True)
+  r.retreat("left")
+  assert r.phase["left"] == "home" and not r.watch_home["left"], "a withdraw's: never watched"
+  # ...a way home begun anew counts its hold from nothing
+  r, _ = _walking_home(watch=True)
+  for _ in range(round(rc.HOME_TIP_S / 0.01) - 1):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  r.phase["left"] = "joints"           # ...cut short where the count is not read
+  r.retreat("left", watch=True)
+  assert r.phase["left"] == "home"
+  for k in range(round(rc.HOME_TIP_S / 0.01) - 1):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+
+
 def test_a_way_home_pressing_down_at_the_hands_reach_is_held_too(monkeypatch):
   """...a press down at the hand's reach tips the body away from it as a
   push does: the drawer's jaw on the knob just pulled read 35-80 N down and

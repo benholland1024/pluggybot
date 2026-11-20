@@ -317,22 +317,14 @@ HELD_S = 0.5
 LIFT_M, LIFTS = 0.05, 1
 #: ...AND A WALK'S HAND-OVER'S IS HELD SO AT ONCE, ON ITS WAY, WHERE WHAT ITS
 #: ARM READS HAS TIPPED THE BODY AWAY FROM THE HAND past this, N m, this long
-#: running, s (`_shoved`, `watch_home`; SimNotes, "A way home that shoves the
-#: body back"): minus #708's `_tipping` -- its push away from the body at the
-#: hand's height, plus its press down at the hand's reach. After a pull toward
-#: the body none of the arm is ahead of the front, its way home is judged
-#: straight, and the open jaws swung forward and down through the knob or the
-#: lever just pulled: the root went 0.15-0.26 m back under the standing policy
-#: and the robot over backward, 12 of the 11-18 wake's 171 flights on
-#: 0fb85dc2, each in a `step`'s hand-over; in the 10 this takes, the reading
-#: held past the line 1.0-1.7 s before the fall (17-34 N m held 0.2 s). ⚠
-#: NEVER A WITHDRAW'S: its word is the arm's, and held so, the bar's door
-#: reference read "held" of a way home dragging its jaw across the door's
-#: panel, which gave, and its run ended with the door at 28 deg, where it
-#: went on to 94. ⚠ HELD, NEVER AT ONCE: such drags pass 20 N m for under
-#: 0.2 s, and held 0.05 s about 40 of the bar's ways home stopped; held 0.2
-#: s, one that touches nothing read 9 at most. ⚠ A GRIPPER DRIVEN INTO ITS
-#: OWN TORSO ON ITS LINE OUT READS THE OTHER WAY, a pull toward the body.
+#: running, s (`_shoved`, `watch_home`; minus #708's `_tipping`; SimNotes, "A
+#: way home that shoves the body back"): after a pull toward the body its
+#: way home swung the open jaws through what it had pulled, and the robot went
+#: over backward 1.0-1.7 s after its reading held past 15 N m (17-34 held 0.2
+#: s). ⚠ NEVER A WITHDRAW'S: its word is the arm's, and held so, a reference's
+#: withdraw read "held" of a push on a door that gave, and its run ended. ⚠
+#: HELD, NEVER AT ONCE: such pushes pass 20 N m for under 0.2 s; held 0.2 s,
+#: a way home that touches nothing read 9 at most.
 HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
@@ -2010,11 +2002,12 @@ class Reach:
     (`way_home`); the posture back to the stand. An arm on its way home
     already goes on. `watch`, a walk's hand-over's: the way home is held
     where it would tip the body away from the hand (`_shoved`); a
-    withdraw's never, its word the arm's."""
+    withdraw's never, its word the arm's -- whichever began a way home
+    under way, the caller now waiting on it says which."""
+    self.watch_home[side] = watch
     if self.phase[side] in ("rest", "home", "retreat"):
       return
-    self.lifted[side] = 0
-    self.watch_home[side] = watch
+    self.lifted[side], self._shove[side] = 0, 0.0
     if self.phase[side] in ("joints", "move", "held") or self.cmd[side] is None:
       # an arm moved joint by joint (`set_joints`), still walking out to its
       # pre-grasp, or held where its way home stopped (`HELD_S`), has no

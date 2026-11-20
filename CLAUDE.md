@@ -387,10 +387,11 @@ save a filmstrip PNG named after the script.
   line, it dragged a jaw over a counter the robot stood turned to for 10 s,
   #560). ⚠ A REACH'S WAY OUT IS JUDGED SO TOO, from its other end
   (`Reach.way_out`, #560): straight, a hanging grip at a table 13 cm out was
-  driven into its top. ⚠ No force guard on
-  it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
+  driven into its top. ⚠ No `BLOCKED_N`
+  guard on it: there one stopped a blocked reach's press as well as a
   caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
-  home"). ⚠ A WAY OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
+  home") -- but a walk's hand-over's is held for a shove (below). ⚠ A WAY
+  OUT FROM A HAND ALREADY OUT KEEPS OFF THE ROBOT'S OWN
   TRUNK (#722; `Reach._own_kept`, `reach.own_rooms`, `OWN_CLEAR_M`;
   SimNotes, "A way out from a hand already out"): sampled on its model of
   itself, the upper arm, forearm and gripper against the torso, the head and
