@@ -1735,6 +1735,24 @@ def test_the_caller_waiting_on_a_way_home_under_way_says_whether_it_is_watched(m
     assert r.phase["left"] == "home", k
 
 
+def test_a_way_home_over_is_watched_no_longer_and_a_shove_leaves_no_way_to_walk(monkeypatch):
+  """Review 3: the watch is a way home's own -- read home, or left held, it
+  is over -- and an arm held for a shove partway along its way keeps none of
+  the way it had left to walk (`homes`)."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(phase="rest")
+  r.sensed[r.self_model.arm["left"]] = r.rest["left"] + 0.5 * rc.HOME_RAD
+  r._update(0.01)
+  assert r.home("left") and not r.watch_home["left"], "home: watched no longer"
+  r, _ = _walking_home()
+  r.homes["left"] = [r.rest["left"] + 0.2, r.rest["left"].copy()]
+  for _ in range(round(rc.HOME_TIP_S / 0.01)):
+    r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
+    r._update(0.01)
+  assert r.held("left") and r.homes["left"] == [] and not r.watch_home["left"]
+
+
 def test_a_way_home_pressing_down_at_the_hands_reach_is_held_too(monkeypatch):
   """...a press down at the hand's reach tips the body away from it as a
   push does: the drawer's jaw on the knob just pulled read 35-80 N down and

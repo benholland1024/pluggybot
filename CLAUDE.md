@@ -432,19 +432,11 @@ save a filmstrip PNG named after the script.
   top tipped Rowan over backward inside a withdraw's 15 s wait; a withdraw
   ends there ("held"), and a walk's hand-over waits for it and goes with
   an arm left held, its report saying so (`armHeld`). ⚠ A WALK'S
-  HAND-OVER'S WAY HOME IS HELD SO AT ONCE, ON ITS WAY TO ITS REST, WHERE WHAT
-  ITS ARM READS HAS TIPPED THE BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15
-  N m) FOR `HOME_TIP_S` (0.2 s) RUNNING (#693's live family of 11-18;
-  `Reach._shoved`, `_held_home`, `retreat(watch=True)`; SimNotes, "A way home
-  that shoves the body back"): after a pull toward the body none of the arm
-  is ahead of the front, its way home is judged straight, and in a `step`'s
-  hand-over the open jaws swung forward and down through the knob or lever
-  just pulled, the root went back under the standing policy and the robot
-  over backward (12 of the wake's 171 flights). ⚠ NEVER A WITHDRAW'S, whose
-  word is the arm's: held so, a reference's withdraw read "held" of a way
-  home that pushed a door which gave, and its run ended there (a withdraw
-  after a pull falls as before). ⚠ Held, never at once: such drags pass the
-  line for under 0.2 s. ⚠ BOTH WAYS KEEP OFF
+  HAND-OVER'S WAY HOME IS HELD SO AT ONCE WHERE WHAT ITS ARM READS TIPS THE
+  BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
+  s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
+  SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
+  whose word is the arm's. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a

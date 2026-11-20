@@ -449,6 +449,24 @@ def test_a_walks_hand_over_has_its_ways_home_watched_for_a_shove_and_a_withdraw_
   assert m.reach.watched == {"left": False}
 
 
+def test_a_walks_hand_over_watches_a_way_home_still_to_be_read_home_at_its_rest():
+  """Review 3: the hand-over sent home only the arms not at their rest, so one
+  whose rest was commanded and not yet read home (`homing`) -- a way home
+  under way that the rule covers -- kept the watch of whoever began it."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), (), log, lambda: float(body.data.time))
+  m.reach.homing["right"] = True
+
+  def over(steps):
+    if steps >= 5:
+      m.reach.homing["right"] = False
+  m.reach.on_step = over
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk" and m.reach.watched == {"right": True}
+
+
 def test_a_release_begun_in_a_get_up_waits_it_out_then_comes_home(monkeypatch):
   """Every hand routine waits out a get-up under way first: begun in one, a
   release spent its `RELEASE_S` on the arm the fall had let go of, and said

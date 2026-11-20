@@ -315,16 +315,13 @@ HELD_S = 0.5
 #: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
 #: after its command arrived, is left held (`_raise_short`).
 LIFT_M, LIFTS = 0.05, 1
-#: ...AND A WALK'S HAND-OVER'S IS HELD SO AT ONCE, ON ITS WAY, WHERE WHAT ITS
-#: ARM READS HAS TIPPED THE BODY AWAY FROM THE HAND past this, N m, this long
-#: running, s (`_shoved`, `watch_home`; minus #708's `_tipping`; SimNotes, "A
-#: way home that shoves the body back"): after a pull toward the body its
-#: way home swung the open jaws through what it had pulled, and the robot went
-#: over backward 1.0-1.7 s after its reading held past 15 N m (17-34 held 0.2
-#: s). ⚠ NEVER A WITHDRAW'S: its word is the arm's, and held so, a reference's
-#: withdraw read "held" of a push on a door that gave, and its run ended. ⚠
-#: HELD, NEVER AT ONCE: such pushes pass 20 N m for under 0.2 s; held 0.2 s,
-#: a way home that touches nothing read 9 at most.
+#: ...and a walk's hand-over's is held so at once, on its way, where what its
+#: arm reads tips the body away from the hand (minus `_tipping`) past this, N
+#: m, this long running, s (`_shoved`, `watch_home`; SimNotes, "A way home
+#: that shoves the body back"): the 11-18 family's shoves held 17-34 N m for
+#: 0.2 s 1.0-1.7 s before their falls. ⚠ NEVER A WITHDRAW'S: its word is the
+#: arm's. ⚠ HELD, NEVER AT ONCE: a push on a prop that gives passes 20 N m for
+#: under 0.2 s; held 0.2 s, a way home that touches nothing read 9 at most.
 HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
@@ -2419,6 +2416,7 @@ class Reach:
     then left there ("held")."""
     if self.home(side):
       self.homing[side], self.held_for[side] = False, 0.0
+      self.watch_home[side] = False
       return
     self.held_for[side] += dt
     if self.held_for[side] < HELD_S:
@@ -2442,10 +2440,13 @@ class Reach:
     """A way home held (`_homed`, `_shoved`): eased where its drivers read
     it, pressing on nothing, then raised `LIFT_M` and sent home again `LIFTS`
     times a way home, else left there ("held"). Its count begun again: a
-    raise's line never reads it, and the next way home has its whole hold."""
+    raise's line never reads it, and the next way home has its whole hold;
+    its way still to walk forgotten, and left there, watched no longer."""
     self._shove[side] = 0.0
+    self.homes[side] = []
     q = self._ease(side)
     if self.lifted[side] >= LIFTS or len(self.keep_out):
+      self.watch_home[side] = False
       self._stand_at_ease()
       return
     self.lifted[side] += 1
