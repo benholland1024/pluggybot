@@ -7896,9 +7896,8 @@ walker (`scripts/solve.py --feature pass --from tour`; the readings are
 below), eight times, and has not met it (the reference as it stands, round
 5's, read 17 of 32 and 15 held out beside round 7's lever, on its tree and
 pod and 5060fe0's pool; on the same 32 draws it read 15 on round 5's tree
-and pod and 14 on round 6's: the count moves with the tree -- round 7's
-carried #693's live family, a change to the walk's hand-over -- and the
-CPU, and the bar is still 7 away). What
+and pod and 14 on round 6's: the tree and the CPU changed together each
+time, and the count moved with them; the bar is still 7 away). What
 developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
@@ -8444,42 +8443,39 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     toward the fingertips, tilted 12-33 deg (14 of 61 trips) -- and the
     carried head strikes the pass's face as the walk turns away (15), never
     in the hand-over itself.
-  - **The fork's levers, none taken**: at 40 N (round 5's squeeze) 1 trip
+  - **The fork's levers, none taken**: at 40 N (1c4fabe's squeeze) 1 trip
     slipped and 3 rode tilted 20 deg or more, and 41 places were laid (+8
-    -2; on top of the cup's stance 45 where 40), but the head struck the
-    pass in 20 and the robot fell once more, at the table's approach step
-    with the fork carried: its sign test read p 0.11 against the 0.10 the
-    rule written first asked, and the rule asked no more falls. A step
-    straight back before the walk turns (asked 0.12 m, it walked about 7 cm)
-    cut the strikes at 25 N from 15 to 4 and laid 35 (+5 -5, one more
-    fall); at 40 N the carry pose itself put the head on the pass's face as
-    the step began (16 strikes there), 9 places were lost to a fork set down
-    off its spot (40 N alone, 2), and it laid 34 (+6 -7). Beside the
-    reading, on top of the cup's stance: gripped 1.5 cm toward its head at
-    40 N (its pinch still off the fork's middle of mass), 55 forks laid
-    where 48, but the robot fell 3 more times in the fork's trip off the
-    pass (44 places); every fork, tilted or not, eased to 8 N and pushed 3
-    cm more at 6 N before its let-go laid fewer than 40 N alone (46 against
-    51).
-  - **The cup's stance at the place.** The walk to the place leaves the
-    cup's trip with its look reading the card a median 4.4 cm to its left,
-    and now and then to its right, the robot 4-27 cm left of the card's line
-    (a median 0.6; one walk's last turn, 14 deg, shuffled it 28 cm): there
-    the cup's spot lies past the right hand's band, and of 159 put-downs in
-    rounds 5's and 6's readings, 11 of the 13 that read the card to the
-    right missed. Stepped across to the median read of the cups laid and
-    looked at again, it laid all 5 dev places it acted on (the reference
-    none) -- one step left the card reading 0.1006 m, past the rule's 0.10,
-    its cup laid -- and was frozen; read, its flips were the fork's (above).
-    A lever that acts on one place in a dozen, after which the later trips
-    part, is not read on 64 places.
-  - **What the reference loses** (its first pieces not laid: the reading,
-    above): the cup's, set down off its spot at its usual stance, are the
-    put-down's spread, 2.6-3.2 cm off in any direction; the plate's, let go
-    carried, rode tilted 19-44 deg in its pinch into the walk to the place
-    (on the dev draws 4 of 5 after it struck the pass as the walk turned
-    away: it struck in 25 of 64 trips, and 1 of the other 39 came down);
-    the fork's are its tilt (above).
+    -2), but the head struck the pass in 20 and the robot fell once more, at
+    the table's approach step with the fork carried: its sign test read p
+    0.11 against the 0.10 the rule written first asked, which asked no more
+    falls too. A step straight back before the walk turns (asked 0.12 m, it
+    walked about 7 cm) cut the strikes at 25 N from 15 to 4 and laid 35 (+5
+    -5, one more fall); at 40 N the carry pose itself put the head on the
+    pass's face as the step began (16 strikes there), and it laid 34 (+6
+    -7). Beside the reading, on top of the cup's stance: gripped 1.5 cm
+    toward its head (the pinch still off the fork's middle of mass) the
+    strikes fell from 14 to 5 at 25 N and the places rose from 40 to 42, with
+    2 more falls; at 40 N it laid 55 forks where 40 N alone laid 51, but 44
+    places where 45, with 2 more falls in the fork's trip off the pass; and
+    every fork, tilted or not, eased to 8 N and pushed 3 cm more at 6 N
+    before its let-go laid 41 places where 40 N alone laid 45.
+  - **The cup's stance at the place.** Over 159 put-downs in rounds 5's and
+    6's readings the walk left the cup's trip reading the card a median 4.4
+    cm to its left; the 13 that read it to the right stood 4-27 cm left of
+    the card's line (all 159: a median 0.6 cm; one walk's last turn, 14 deg,
+    shuffled it 28 cm), where the cup's spot lies past the right hand's
+    band, and 11 of those 13 missed. Stepped across to the median read of
+    the cups laid and looked at again, it laid all 5 dev places it acted on
+    (the reference none) -- one step left the card reading 0.1006 m, past
+    the rule's 0.10, its cup laid -- and was frozen. A lever that acts on
+    one place in a dozen, after which the later trips part, is not read on
+    64 places.
+  - **What else the reference loses** (its first pieces not laid: the
+    reading, above): the cup's set down off its spot at its usual stance are
+    the put-down's spread, 2.6-3.2 cm off in any direction; the plate's let
+    go carried rode tilted in its pinch into the walk to the place -- on the
+    dev draws 4 of 5 after it struck the pass as the walk turned away (it
+    struck in 25 of 64 trips, and 1 of the other 39 came down).
 
 ## The arms keep off the other robot (issue #678)
 
