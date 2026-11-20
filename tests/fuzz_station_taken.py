@@ -30,8 +30,8 @@ loop, with the invariants a served day needs read at every step (`Watch`):
      trip: a wait never gives up on its bound sooner;
   8. a robot by the seat of a station out of sight holds it `UNSEEN_WAIT_S`
      a station a trip at most, the walk to the waiting spot included;
-  9. each wait by such a seat is counted (`bay_waits`), and remembered once
-     a station a trip.
+  9. a wait by such a seat is counted (`bay_waits`) and remembered once a
+     station a trip, as #346's waits are.
 
 Walks take time here (`WALK_MS`), within their timeouts, so a wait's walk
 counts. Invariants 7-9 and the switch back were review findings on the
@@ -249,16 +249,17 @@ class Watch:
                       f"at this station, before its {bound:.0f} s bound")
 
   def by_seat(self, life, seat, held_s: float, counted: int) -> None:
-    """8 and 9: a while by the seat, a station a trip; each counted."""
+    """8 and 9: a while by the seat, a station a trip, counted once."""
     trip, k = self.trips.get(life.root), self.key(life, seat)
     if trip is None or k is None:
       return
     self.counts["bySeat"] += 1
+    first = k not in trip["byAt"]
     trip["byAt"][k] = trip["byAt"].get(k, 0.0) + held_s
     if trip["byAt"][k] > lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6:
       self.fail(life, f"held by the seat {trip['byAt'][k]:.1f} s at one station")
-    if counted != 1:
-      self.fail(life, f"a wait by the seat counted {counted} times")
+    if counted != (1 if first else 0):
+      self.fail(life, f"a wait by the seat counted {counted} times ({'first' if first else 'again'})")
 
   def said_by(self, life, line: str) -> None:
     trip = self.trips.get(life.root)

@@ -410,6 +410,14 @@ class _SharedDepth:
     pass
 
 
+def _seat(frame) -> tuple[float, float]:
+  """Where a robot stands to plug in at the station `frame` (its
+  commissioned one, `activity.station`'s +x into the wall): what every robot
+  puts a station's seat at, so one's plug is another's seat (#731)."""
+  from pluggybot.activity import station as st
+  return frame.to_world(st.SEAT_X, st.SEAT_Y)
+
+
 class HumanoidBody(Body):
   """The humanoid (module docstring)."""
 
@@ -506,7 +514,7 @@ class HumanoidBody(Body):
     if held is not None:
       m.station = held
       return held
-    ways = {name: (frame.to_world(st.STANDOFF_X, st.SEAT_Y), frame.to_world(st.SEAT_X, st.SEAT_Y))
+    ways = {name: (frame.to_world(st.STANDOFF_X, st.SEAT_Y), _seat(frame))
             for name, (frame, _) in m.stations.items()}
     if free is not None:
       ways = {name: way for name, way in ways.items() if free(*way)}
@@ -1881,8 +1889,7 @@ class HumanoidBody(Body):
 
   def charge_seat(self):
     """Where it stands to plug in: another robot there holds the station."""
-    from pluggybot.activity import station as st
-    return self._station.to_world(st.SEAT_X, st.SEAT_Y)
+    return _seat(self._station)
 
   def dock_routine(self):
     """From the standoff, plugged in (`humanoid.charge`): it faces the
@@ -1927,12 +1934,11 @@ class HumanoidBody(Body):
   def plugged_seat(self):
     """The seat of the station whose port catch holds its plug
     (`HumanoidMission.plugged_at`), off that station's commissioned frame
-    as `charge_seat` puts it, or None."""
-    from pluggybot.activity import station as st
+    as `charge_seat` puts it (`_seat`), or None."""
     name = self.mission.plugged_at()
     if name is None or name not in self.mission.stations:
       return None
-    return self.mission.stations[name][0].to_world(st.SEAT_X, st.SEAT_Y)
+    return _seat(self.mission.stations[name][0])
 
   def anchor_at_dock(self) -> None:
     """The station fixes its belief as it charges (#476), off the look it

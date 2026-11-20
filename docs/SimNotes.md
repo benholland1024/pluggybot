@@ -10976,18 +10976,18 @@ the robot is stood up, and unsaid, a dead body plugged in hid the tags as a
 live one did. And a station not in sight from its standoff, with the other
 robot within a body's width of its seat (`SEAT_HELD_M`, 0.54 m) where it
 says it stands or where this robot sees it (`Body.peer_by_seat`; never one
-whose plug is in a station, which is at that seat), is taken, not lost: the
-way in and the seat are read first as they always were, so one at rest on
-the way in is still asked off (#455), and a robot by the seat is waited for
-on its own (`_out_of_sight_routine`), out of its way, said `WAIT: Rowan is
-standing by the charging station, which I do not see -- waiting up to 120 s`
-and remembered once a station a charge, or passed with `free` -- for
-`UNSEEN_WAIT_S` (120 s) a station a charge at most, its walks out of the
-way counted in it: one on the seat with its plug out is plugging in or leaving (the dock
+whose plug is in a station, which is at that seat), is taken, not lost, and
+only a plug holds it as long as a charge: a robot by the seat, or come onto
+the way in, is waited for on its own (`_out_of_sight_routine`), out of its
+way, one at rest asked off it (#455), said `WAIT: Rowan is standing by the
+charging station, which I do not see -- waiting up to 120 s`, counted and
+remembered once a station a charge as #346's waits are, or passed with
+`free` -- for `UNSEEN_WAIT_S` (120 s) a station a charge at most, its walks
+out of the way counted in it: one on the seat with its plug out is plugging in or leaving (the dock
 from the standoff takes 27.0 s, 40.6 s at most of 36; the unplug 25.9 s,
 27.7 at most), and one only its own word puts there may be wrong. Gone, the
 dock goes again; plugged in, #346's wait takes over, said so; still there,
-`WAIT: Rowan still stood by the charging station after 120 s -- I look for
+`WAIT: Rowan was still by the charging station after 120 s -- I look for
 it myself`, and the station is searched for, once a charge. No search
 begins behind a robot that says it is plugged in there, after a dock or
 after walks that never got there. Each station's wait counts its bound from
@@ -11013,7 +11013,7 @@ lost, searched as before.
 
 **Measured.** The rules pinned on two stub lifecycles wired as the pair's
 bodies are (`tests/test_station_taken.py`: #731's five lost poses with the
-live beliefs; 28 of its 32 fail on the tree before, its three guards --
+live beliefs; 31 of its 35 fail on the tree before, its three guards --
 a robot really lost still searches -- pass on both, and so does a found
 search's walk in). A seeded fuzz of the
 stub pair (`tests/fuzz_station_taken.py`: charges waiting or passing with

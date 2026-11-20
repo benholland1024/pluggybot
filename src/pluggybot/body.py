@@ -1224,8 +1224,11 @@ class StubBody(Body):
 
   def choose_station(self, free=None):
     """A stub's racks are its stations (`stations`, else its one rack): the
-    nearest of the free ones as the crow flies."""
+    one it is on the charger at, else the nearest of the free ones as the
+    crow flies."""
     racks = self.stations or {"station": self.rack}
+    if self.on_charger:
+      return next((n for n, r in racks.items() if r == self.rack), "station")
     ways = {name: (r.to_world(0.5, 0.0), r.to_world(0.0, 0.0)) for name, r in racks.items()}
     if free is not None:
       ways = {name: way for name, way in ways.items() if free(*way)}
@@ -1299,11 +1302,20 @@ class StubBody(Body):
     return self.sight
 
   def peer_on_the_goal(self, x, y):
-    """Off where a test put other robots (`peers_on`) and where the others
-    are placed (`others`, as the pair wires them), 0.45 m round each."""
-    near = min((math.dist(p, (x, y)) for p in
-                (*self.peers_on, *((b.x, b.y) for b in self._bodies()))), default=math.inf)
-    return near if near <= 0.45 else None
+    """Off where a test put other robots (`peers_on`, 0.45 m round each),
+    and where the others are placed (`others`, as the pair wires them), by
+    the humanoid's own arithmetic (`navigator.on_the_goal`)."""
+    from pluggybot.navigator import on_the_goal
+    near = [d for d in (math.dist(p, (x, y)) for p in self.peers_on) if d <= 0.45]
+    near += [d for d in (on_the_goal(self, b, x, y) for b in self._bodies()) if d is not None]
+    return min(near) if near else None
+
+  #: The humanoid's discs round another robot, cells (`HumanoidMission`'s),
+  #: for the others the pair wires in (`peer_on_the_goal`).
+  OTHER_ROBOT_CELLS, DOWN_ROBOT_CELLS = 13, 24
+
+  def _cells(self, b) -> int:
+    return self.DOWN_ROBOT_CELLS if b.down else self.OTHER_ROBOT_CELLS
 
   def _bodies(self) -> list[KeepClear]:
     return [KeepClear(*where()) for where in self.others]

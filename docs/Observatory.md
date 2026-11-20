@@ -39,9 +39,10 @@ it`). A station out of sight with the other robot by its seat, not plugged
 in, is waited for 120 s at most, said `WAIT: Rowan is standing by the
 charging station, which I do not see -- waiting up to 120 s at (19.7,
 -4.3)` and remembered `Rowan was by the charging station I needed, which I
-did not see; I waited for it (up to 120 s)`, then `WAIT: the charging
-station is free after N s`, or `WAIT: Rowan still stood by the charging
-station after 120 s -- I look for it myself` and searched for as before. The site counts a failed approach off `GO_CHARGE: `
+did not see; I waited for it (up to 120 s)`, one at rest asked off its
+way, then `WAIT: the charging station is free after N s`, or `WAIT: Rowan
+was still by the charging station after 120 s -- I look for it myself` and
+searched for as before. The site counts a failed approach off `GO_CHARGE: `
 lines (`chargeOutcome`): the waits are `WAIT:` lines, and a charge a wait's
 bound ends is one failed approach, as it was.
 
