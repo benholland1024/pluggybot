@@ -10979,7 +10979,8 @@ says it stands or where this robot sees it (`Body.peer_by_seat`; never one
 whose plug is in a station, which is at that seat), is taken, not lost, and
 only a plug holds it as long as a charge. A robot by the seat, or come onto
 the way in, with no plug in it holds it ONE WHILE, once a station a charge
-(`_out_of_sight_routine`): out of its way, one at rest asked off it (#455),
+(`_out_of_sight_routine`): out of its way, one at rest asked off it as
+#346's wait asks, where it holds the way in or at the seat (#455),
 said `WAIT: Rowan is standing by the charging station, which I do not see
 -- waiting up to 120 s`, or passed with `free` -- `UNSEEN_WAIT_S` (120 s)
 at most, its walk out of the way counted in it, within the station's one
@@ -10987,7 +10988,7 @@ bound: one on the seat with its plug out is plugging in or leaving (the
 dock from the standoff takes 27.0 s, 40.6 s at most of 36; the unplug
 25.9 s, 27.7 at most), and one only its own word puts there may be wrong.
 Gone, the dock goes again; plugged in, #346's wait takes over, said so with
-what is left of the bound; still there, `WAIT: Rowan was still by the
+what is left of the bound, one wait remembered and counted once; still there, `WAIT: Rowan was still by the
 charging station after 120 s -- I look for it myself`, and then the base's
 own search, once a charge, and its own failure. The while is kept that
 small on purpose (the loop of 11-19's reviews: every shape that held such a
@@ -11004,7 +11005,9 @@ station never in sight that the way in or the seat holds to that bound,
 nobody plugged in, is searched for after all (a robot lost and never
 searched dies flat). A wait the bound ends with the other still plugged in
 ends the charge, never searched: no loop within one decision, and the mind
-decides again.
+decides again. A charge a wait gave up on fails in the wait's words, naming
+who held it, whatever walk or dock came before (one found by its search
+read `no charge contact (station not seen)` again).
 
 **A body's width, measured** (`ring731.py`, the pair in the house, Rowan
 stood round the lobby's seat, the dock's colour imager and the search's

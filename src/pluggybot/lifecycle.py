@@ -2437,8 +2437,8 @@ class HubLifecycle:
     return self._bay_holder(standoff[0], standoff[1], seat) is None
 
 
-  def _await_bay_routine(self, sx: float, sy: float, kind: str,
-                         since: float, seat=None, said=None, away=None) -> Routine:
+  def _await_bay_routine(self, sx: float, sy: float, kind: str, since: float,
+                         seat=None, said=None, away=None, booked=False) -> Routine:
     """Wait for another robot to leave a standoff this one needs (issue
     #346). True once it is free; False once the robot gave up, with why in
     `self.last_bay_wait` (who held it, for how long, and what ended the wait).
@@ -2449,7 +2449,8 @@ class HubLifecycle:
     approaches, after all four of which a robot died flat. So: back off to
     a spot out of the holder's way, say so in History, and look again every
     `BAY_POLL_S` until the bay is free or the bound (`wait_bound`, counted
-    from `since`, the first time THIS interaction found it taken) runs out.
+    from `since`: a charge's, the first time its trip found THIS station
+    taken, #731) runs out.
     Nothing else ends a charge's wait early: charging is what an interrupt
     would ask for, and giving up on it is how the robot dies.
 
@@ -2460,6 +2461,9 @@ class HubLifecycle:
     wait at another is not said again (#731). `away`, the trip's search
     (start, end): inside the bound's span it was no wait, and the words say
     how long it took (#731's review: a 400 s search read as waited).
+    `booked`: a while by the seat held this station first, its wait
+    remembered and counted then (`_out_of_sight_routine`) -- said as it
+    begins, never booked twice for one holder (#731's review).
 
     ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
     #455; `Body.ask_off`): waited for, it never moved, and on afb473a every
@@ -2496,9 +2500,10 @@ class HubLifecycle:
       self._say(f"WAIT: {holder(self.peers, who, where, near, what)} -- waiting up to "
                 f"{left:.0f} s" + ("" if spot is None else
                                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"), doing=True)
-      self._remember(f"{who} was at {what} I needed; I waited for it "
-                     f"(up to {left:.0f} s)")
-      self.bay_waits += 1
+      if not booked:
+        self._remember(f"{who} was at {what} I needed; I waited for it "
+                       f"(up to {left:.0f} s)")
+        self.bay_waits += 1
     # ...and the record is this wait's whatever was said (#731's review): kept
     # from an earlier one, a wait at another station's took its seconds
     self.last_bay_wait = {"since": since, "who": who, "kind": kind,
@@ -2585,7 +2590,11 @@ class HubLifecycle:
                   "for it myself", doing=True)
         return "stayed"
       if now >= next_ask:
-        if self.body.ask_off(seat[0], seat[1], asked, ()):
+        # ...as #346's wait asks: at the point of the way in it holds, the
+        # seat beyond, or at the seat it is by (#731's review)
+        held = self._bay_holder(sx, sy, seat)
+        at, beyond = (seat, ()) if held is None else (held[:2], (tuple(seat),))
+        if self.body.ask_off(at[0], at[1], asked, beyond):
           next_ask = now + OTHER_WAIT_S
         else:
           asked.clear()
@@ -3103,15 +3112,20 @@ class HubLifecycle:
         # ...its bound from the first time THIS station was found taken: one
         # passed to with `free` is waited for afresh (#731's review)
         first = since.setdefault(_seat_key(seat, since), float(self.data.time))
-        if not (yield from self._await_bay_routine(sx, sy, "charge", first, seat=seat,
-                                                   said=announced, away=away)):
+        if not (yield from self._await_bay_routine(
+            sx, sy, "charge", first, seat=seat, said=announced, away=away,
+            booked=_among(seat, had_while))):
           # ⚠ ...BUT ONE NEVER IN SIGHT, WAITED FOR TO ITS BOUND WITH NOBODY
           # PLUGGED IN THERE, IS SEARCHED FOR AFTER ALL (#731): a robot lost and
           # never searched dies flat
           if (_among(seat, unseen) and not searched and self.last_bay_wait["why"] == "bound"
               and (yield from search())):
             continue
-          driven = None           # the wait is why, not any drive before it
+          # ...the wait is why, never a walk, drive or dock before it: its
+          # words, not "no charge contact" (#731's review)
+          driven, arrived = None, False
+          if tried != NOT_SEEN:
+            tried = None
           break
       driven = (sx, sy)
       x, y = self.body.pose_xy()
