@@ -260,6 +260,7 @@ def test_who_answered_is_said_in_the_pins_own_words():
      "pricing": {"input": 0.15, "output": 0.5}},
     {"provider": "fireworks-ai", "provider_name": "Fireworks", "status": "live",
      "pricing": {"input": 0.15, "output": 0.5}},
+    {"provider": "together", "provider_name": "Together AI", "status": "live"},
     {"provider": "featherless-ai", "status": "live"}]}]})
 
   def answered(name):
@@ -268,18 +269,23 @@ def test_who_answered_is_said_in_the_pins_own_words():
                   "provider": name, "route": "openrouter"})
   client = HFClient(token="hf_test", fetch=fake_fetch(
     [catalogue, answered("BaseTen"), answered("Fireworks"), answered("Somebody"),
-     answered("Baseten")]))
+     answered("Baseten"), answered("Together"), answered("Featherless-AI")]))
   assert client.pricing("org/model-8b:baseten") == (0.15, 0.5)
   kw = dict(model="org/model-8b:baseten", max_tokens=64, system=SYSTEM,
             messages=[{"role": "user", "content": "state"}])
-  said = [client.messages.create(**kw) for _ in range(4)]
-  # ...the name's case aside: the two catalogues are kept apart
-  assert [r.provider for r in said] == ["baseten", "fireworks-ai", "Somebody", "baseten"]
+  said = [client.messages.create(**kw) for _ in range(6)]
+  # ...the name's case aside, and by the provider's id where the catalogue
+  # names it otherwise or not at all: the two catalogues are kept apart
+  assert [r.provider for r in said] == ["baseten", "fireworks-ai", "Somebody", "baseten",
+                                        "together", "featherless-ai"]
   call = overseer._call_record(said[0], 12.0)
   assert call["provider"] == "baseten" and call["route"] == "openrouter"
   assert overseer.call_said(call).startswith("baseten via openrouter: 9 in, 3 out")
-  # ...and where the router reached it directly, its one name says both
+  # ...and where the router reached it directly, its one name says both,
+  # in either's spelling
   assert overseer.call_said(dict(call, route="baseten")).startswith("baseten: 9 in")
+  assert overseer.call_said(dict(call, provider="BaseTen", route="baseten")).startswith(
+    "BaseTen: 9 in")
   # ...and a client whose catalogue read failed says every name as given
   unread = HFClient(token="hf_test", fetch=fake_fetch([(503, {}), answered("BaseTen")]))
   assert unread.pricing("org/model-8b:baseten") is None

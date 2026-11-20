@@ -495,10 +495,9 @@ wire could say who sent them or why they stopped. One event type and one
   `cut` (its tokens ran out) and `wallS` (the request, asked to answered).
   None for a decision no call answered: a map row, a policy fallback, a
   timeout. The decision carries the same record as `call` in
-  `decisions[]`, and the console has it beside its `DECIDE` line. ⚠ From
-  the 11-18 wake until that change is deployed, `provider` reads
-  `openrouter` for every call: the header alone was read, and it names the
-  route.
+  `decisions[]`, and the console has it beside its `DECIDE` line. (The
+  calls from the 11-18 wake until that change say `openrouter` as the
+  provider: Overseer.md §6, "Who answered".)
 
   ```jsonc
   {"type": "call", "t": 129950.3, "robot": "pluggybot", "source": "fallback:cutoff",

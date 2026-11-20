@@ -2277,16 +2277,11 @@ release, and `baseten` again after it; the site files no `route`.
 Practice's mind reads no catalogue (`scripts/practice.py`): its rows name
 the provider as the answer does.
 
-⚠ **On the 11-18 wake the same pin wrote at half the speed.** The live
-calls' tokens out a second, median (10th percentile): 142 (109) on 11-14,
-145 (117) on 11-15, 68 (49) on 11-18, the provider and the effort
-unchanged. At 68 a second 300 s holds about 20,000 tokens, so a long think
-that had been cut off at 32,768 ran out its time instead: 13 and 38
-cut-offs and 1 timeout on each of 11-14 and 11-15; on 11-18, 29 timeouts
-of 313 answers and no cut-off. Asked again late on the morning of 11-20
-(UTC), on 26 of that wake's own turns, the same pin wrote about 110 a
-second, and 4 of the 26 still ran out their 300 s: the speed is the hour's
-as well as the route's (`~/pluggybot-training/loop-1120/v3-mind/`).
+How fast each provider writes on this route, and how often a think runs
+out its 300 s, is a reading of its own, never a design fact here: V3's of
+2026-11-20, the 11-18 wake's turns asked again by provider and effort
+(`~/pluggybot-training/loop-1120/v3-mind/`), and the Observatory's period
+for this change.
 
 ### The local backend
 

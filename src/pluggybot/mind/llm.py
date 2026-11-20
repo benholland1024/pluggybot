@@ -514,8 +514,8 @@ class ChatClient:
     usage = payload.get("usage") or {}
     finish = ((payload.get("choices") or [{}])[0] or {}).get("finish_reason")
     named = payload.get("provider")
-    if isinstance(named, str):
-      named = self.provider_ids.get(named.casefold(), named)
+    provider = (self.provider_ids.get(named.casefold(), named)
+                if isinstance(named, str) else None)
     return SimpleNamespace(
       content=[SimpleNamespace(type="text", text=text)],
       usage=SimpleNamespace(
@@ -529,7 +529,7 @@ class ChatClient:
       # or was still going at its deadline (`deadline_fetch`)
       stop_reason=("max_tokens" if finish == "length"
                    else finish if finish in ("closed", "deadline", "failed") else "end_turn"),
-      provider=named if isinstance(named, str) else None,
+      provider=provider,
       # ...and the router's own word for how it reached it (its header)
       route=payload.get("route"),
       # how a stream that failed mid-answer failed (`stream_fetch`)
@@ -594,9 +594,12 @@ class HFClient(ChatClient):
     for entry in payload.get("data", ()):
       if entry.get("id") != base:
         continue
-      self.provider_ids.update(
-        {p["provider_name"].casefold(): p["provider"] for p in entry.get("providers", ())
-         if isinstance(p.get("provider_name"), str) and isinstance(p.get("provider"), str)})
+      for p in entry.get("providers", ()):
+        if isinstance(p.get("provider"), str):
+          # by its id too, where it gives no name or another name than its answers'
+          for said in (p["provider"], p.get("provider_name")):
+            if isinstance(said, str):
+              self.provider_ids.setdefault(said.casefold(), p["provider"])
       live = [p for p in entry.get("providers", ())
               if p.get("status") == "live" and p.get("pricing")]
       if policy and policy != "cheapest":

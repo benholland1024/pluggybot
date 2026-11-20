@@ -5306,7 +5306,7 @@ def call_said(call: dict | None) -> str:
     n = call.get(key, 0)
     return "?" if n is None else n        # no count came (`_call_record`)
   who, route = call.get("provider") or "unnamed", call.get("route")
-  if route and route != who:
+  if route and str(route).casefold() != str(who).casefold():
     who = f"{who} via {route}"
   return (f"{who}: {count('tokensIn')} in, "
           f"{count('tokensOut')} out{', cut off' if call.get('cut') else ''}, "

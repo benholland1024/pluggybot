@@ -41,8 +41,10 @@ middle one in by its build (`build.model`'s pin).
   pin, where a provider other than the pin's is OpenRouter answering for it.
 - **The route's speed**: tokens out per wall second by provider, and the
   timeouts against 300 s -- 68 a second (median) on 11-18 against 142-145 on
-  11-14 and 11-15, the same pin, and 29 of 313 answers timed out
-  (Overseer.md §6).
+  11-14 and 11-15, the same pin, and 29 of 313 answers timed out; asked
+  again on 11-20 on 26 of that wake's own turns, the same pin wrote about
+  110 a second and 4 of the 26 ran out their 300 s (V3,
+  `~/pluggybot-training/loop-1120/v3-mind/`).
 
 ### A station the other robot is plugged into is taken, never a robot lost (#731, U1, `loop-731`) — opens when this PR is deployed
 
