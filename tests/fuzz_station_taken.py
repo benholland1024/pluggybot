@@ -31,7 +31,11 @@ loop, with the invariants a served day needs read at every step (`Watch`):
   8. a robot by the seat of a station out of sight holds it `UNSEEN_WAIT_S`
      a station a trip at most, the walk to the waiting spot included;
   9. a wait by such a seat is counted (`bay_waits`) and remembered once a
-     station a trip, as #346's waits are.
+     station a trip, as #346's waits are;
+ 10. one holder, one wait: every wait at one station in one trip, by the
+     seat or #346's, ends within ONE bound counted from the first wait there
+     (and the walk out of the way a wait begins with);
+ 11. the day ends: no wait runs past it by more than a bound (`DEADLINE`).
 
 Walks take time here (`WALK_MS`), within their timeouts, so a wait's walk
 counts. Invariants 7-9 and the switch back were review findings on the
@@ -70,6 +74,9 @@ HIDES_M, SEES_M = 0.35, 0.45
 ZERO_TIME_ROUNDS = 2000
 #: How fast a fuzz body walks, m/s: a walk takes its distance's time.
 WALK_MS = 0.5
+#: Sim seconds past the day's end a trip may run before it is a wait with
+#: no end (11): a charge's bound and a search's patience, and over.
+DEADLINE = 3000.0
 #: What "nothing truly by the seat" is read against (`body.SEAT_HELD_M`;
 #: the same width where a tree before #731 has none, to fly the fuzz there).
 SEAT_HELD_M = getattr(body_mod, "SEAT_HELD_M", 0.54)
@@ -198,8 +205,8 @@ class FuzzBody(StubBody):
 class Watch:
   """Every invariant, read as the day goes."""
 
-  def __init__(self, seed: int, lives: list) -> None:
-    self.seed, self.lives = seed, lives
+  def __init__(self, seed: int, lives: list, end_s: float = math.inf) -> None:
+    self.seed, self.lives, self.end_s = seed, lives, end_s
     self.trips: dict = {}                       # root -> the trip under way
     self.counts = {"trips": 0, "waits": 0, "searches": 0, "notSeen": 0, "hidden": 0,
                    "lost": 0, "switches": 0, "charged": 0, "restarts": 0,
@@ -220,7 +227,10 @@ class Watch:
                              "firstWait": {}, "byAt": {}, "bySaid": {}, "seats": []}
 
   def step(self) -> None:
-    """Each trip's station as it goes: a switch never back to one passed."""
+    """Each trip's station as it goes: a switch never back to one passed;
+    and the day's end (11)."""
+    if float(self.lives[0].data.time) > self.end_s + DEADLINE:
+      self.fail(self.lives[0], "the day ran on past its end: a wait with no end")
     for life in self.lives:
       trip = self.trips.get(life.root)
       if trip is None:
@@ -247,6 +257,15 @@ class Watch:
         float(life.data.time) - first < bound - 1e-6:
       self.fail(life, f"a wait gave up {float(life.data.time) - first:.0f} s after its first "
                       f"at this station, before its {bound:.0f} s bound")
+    self.one_bound(life, k, first)
+
+  def one_bound(self, life, k, first: float) -> None:
+    """10: one holder, one wait -- within one bound of the first wait at a
+    station in a trip, whatever held it and however often."""
+    bound, _ = life.wait_bound("charge", 0.0, 0.0)
+    if float(life.data.time) > first + bound + lc.CLEAR_DRIVE_S + lc.BAY_POLL_S + 1e-6:
+      self.fail(life, f"waited at one station {float(life.data.time) - first:.0f} s from its "
+                      f"first wait there, past one {bound:.0f} s bound")
 
   def by_seat(self, life, seat, held_s: float, counted: int) -> None:
     """8 and 9: a while by the seat, a station a trip, counted once."""
@@ -254,6 +273,8 @@ class Watch:
     if trip is None or k is None:
       return
     self.counts["bySeat"] += 1
+    t_start = float(life.data.time) - held_s
+    self.one_bound(life, k, trip["firstWait"].setdefault(k, t_start))
     first = k not in trip["byAt"]
     trip["byAt"][k] = trip["byAt"].get(k, 0.0) + held_s
     if trip["byAt"][k] > lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6:
@@ -472,7 +493,7 @@ def fly(seed: int, sim_s: float = 7200.0) -> dict:
     life, rng = _robot(seed, model, data, handle, name, None)
     lives.append(life)
     rngs.append(rng)
-  watch = Watch(seed, lives)
+  watch = Watch(seed, lives, end_s=sim_s)
   hour = random.Random(f"{seed}:hour")
   if hour.random() < 0.3:
     # ...a day that ends on the run's hour, the next run carrying on (#654)

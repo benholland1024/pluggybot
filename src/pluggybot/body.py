@@ -1310,12 +1310,11 @@ class StubBody(Body):
     near += [d for d in (on_the_goal(self, b, x, y) for b in self._bodies()) if d is not None]
     return min(near) if near else None
 
-  #: The humanoid's discs round another robot, cells (`HumanoidMission`'s),
-  #: for the others the pair wires in (`peer_on_the_goal`).
-  OTHER_ROBOT_CELLS, DOWN_ROBOT_CELLS = 13, 24
-
   def _cells(self, b) -> int:
-    return self.DOWN_ROBOT_CELLS if b.down else self.OTHER_ROBOT_CELLS
+    """The humanoid's disc round another robot, cells (`HumanoidMission`'s
+    own), for the others the pair wires in (`peer_on_the_goal`)."""
+    from pluggybot.humanoid.mission import HumanoidMission
+    return HumanoidMission.DOWN_ROBOT_CELLS if b.down else HumanoidMission.OTHER_ROBOT_CELLS
 
   def _bodies(self) -> list[KeepClear]:
     return [KeepClear(*where()) for where in self.others]
