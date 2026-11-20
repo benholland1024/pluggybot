@@ -166,6 +166,74 @@ def test_a_streamed_answer_says_who_answered(monkeypatch):
   assert create(fake_fetch([ok_payload('{"action": "idle"}')])).provider is None
 
 
+def test_who_answered_is_the_one_the_router_names_in_its_answer(monkeypatch):
+  """Since 11-18 the router answers through another router, whose header
+  names only itself (`openrouter`, whatever the pin) and whose every chunk
+  names the provider that answered: read off the header alone, 303 of 303
+  of the wake's calls said `openrouter`, and a pin answered by another
+  provider could not be seen. The answer's own word wins, streamed or not,
+  a stream stopped at its deadline included; where it names nobody, the
+  header's stands. Shown to fail without the fix: `openrouter`."""
+  def stream(lines, headers):
+    class Answered:
+      def __init__(self):
+        self.headers = headers
+
+      def __enter__(self):
+        return self
+
+      def __exit__(self, *a):
+        return False
+
+      def __iter__(self):
+        yield from lines
+    return Answered()
+  routed = {"x-inference-provider": "openrouter"}
+  thinking = (b'data: {"id": "gen-1", "provider": "BaseTen", "model": "z-ai/glm", '
+              b'"choices": [{"delta": {"reasoning": "hm"}}]}\n')
+  answer = (b'data: {"id": "gen-1", "provider": "BaseTen", "choices": [{"delta": '
+            b'{"content": "{\\"action\\": \\"idle\\"}"}, "finish_reason": "stop"}], '
+            b'"usage": {"prompt_tokens": 9, "completion_tokens": 3}}\n')
+  for lines, headers, provider in (([thinking, answer, b"data: [DONE]\n"], routed, "BaseTen"),
+                                   ([thinking.replace(b'"provider": "BaseTen", ', b""),
+                                     b"data: [DONE]\n"], routed, "openrouter")):
+    monkeypatch.setattr(llm.urllib.request, "urlopen",
+                        lambda req, timeout, s=stream(lines, headers): s)
+    status, payload = llm.stream_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
+    assert status == 200 and payload["provider"] == provider
+    assert create(fake_fetch([(status, payload)])).provider == provider
+  # ...a stream still being written at its deadline names who was writing it
+  now = [0.0]
+
+  def tick():
+    now[0] += 1.0
+    return now[0]
+  monkeypatch.setattr(llm, "monotonic", tick)
+  monkeypatch.setattr(llm.urllib.request, "urlopen",
+                      lambda req, timeout: stream([thinking] * 50, routed))
+  status, payload = llm.deadline_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 10.0)
+  assert payload["choices"][0]["finish_reason"] == "deadline"
+  assert payload["provider"] == "BaseTen"
+
+  # ...and an answer not streamed, as `_default_fetch` reads one
+  class Whole:
+    status = 200
+    headers = routed
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *a):
+      return False
+
+    def read(self):
+      return json.dumps({"provider": "DeepInfra", "choices": [{"message": {
+        "content": '{"action": "idle"}'}}]}).encode()
+  monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout: Whole())
+  status, payload = llm._default_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
+  assert create(fake_fetch([(status, payload)])).provider == "DeepInfra"
+
+
 def test_a_streamed_answer_its_tokens_ran_out_on_says_so(monkeypatch):
   """37 of #493's answers ran out of their tokens still thinking, and read
   as an answer that was not JSON: the stream's finish is kept, and the

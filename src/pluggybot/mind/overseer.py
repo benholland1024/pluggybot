@@ -753,14 +753,14 @@ class Decision:
   #: nothing was. Said once in History and as a `left_out` event.
   left_out: dict | None = None
   #: THE CALL BEHIND IT (issue #604): `{provider, tokensIn, tokensOut, cut,
-  #: wallS}` -- who answered (the router's `x-inference-provider`, None
-  #: where nothing names one), what it billed, whether its tokens ran out,
-  #: and how long it took. Set by code on every decision a response came
-  #: back for, a `garbled` or `cutoff` fallback's included -- an empty
-  #: answer is the one that most needs saying who sent it -- and a stream
-  #: stopped at the deadline's (`StillWriting`), whose tokens are None: its
-  #: count never came. None where nothing came back. A `call` event on the
-  #: wire beside the DECIDE line.
+  #: wallS}` -- who answered (the provider the router's answer names, else its
+  #: `x-inference-provider` header, None where nothing names one), what it
+  #: billed, whether its tokens ran out, and how long it took. Set by code on
+  #: every decision a response came back for, a `garbled` or `cutoff`
+  #: fallback's included -- an empty answer is the one that most needs saying
+  #: who sent it -- and a stream stopped at the deadline's (`StillWriting`),
+  #: whose tokens are None: its count never came. None where nothing came
+  #: back. A `call` event on the wire beside the DECIDE line.
   call: dict | None = None
   source: str = "llm"
 

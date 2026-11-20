@@ -621,15 +621,16 @@ LEFT_OUT_WHYS = ("filled", "placeholder", "decline")
 #: THE CALL BEHIND A DECISION (issue #604), additive on the wire, no bump:
 #: one `call` event per decision a response came back for, at its DECIDE
 #: line's `t` and, on the live stream, just before it -- `source`,
-#: `provider` (who answered: the router's `x-inference-provider`, null
-#: where nothing names one), `tokensIn`, `tokensOut`, `cut` (its tokens ran
-#: out) and `wallS` (the request, asked to answered); `tokensIn` and
-#: `tokensOut` null where the stream sent no count (#604's follow-up: one
-#: stopped at the deadline or failed mid-answer, `timeout` or `offline`,
-#: has its call). None for a decision no call answered: a map row, a
-#: policy fallback, a timeout where nothing came back. The
-#: observatory files the fields on the decision row of the same robot and
-#: `t`; the decision carries the same record as `call` in `decisions[]`.
+#: `provider` (who answered: the provider the router's answer names, else
+#: its `x-inference-provider` header, null where nothing names one),
+#: `tokensIn`, `tokensOut`, `cut` (its tokens ran out) and `wallS` (the
+#: request, asked to answered); `tokensIn` and `tokensOut` null where the
+#: stream sent no count (#604's follow-up: one stopped at the deadline or
+#: failed mid-answer, `timeout` or `offline`, has its call). None for a
+#: decision no call answered: a map row, a policy fallback, a timeout where
+#: nothing came back. The observatory files the fields on the decision row
+#: of the same robot and `t`; the decision carries the same record as `call`
+#: in `decisions[]`.
 CALL_EVENT_TYPES = ("call",)
 
 #: THE BELIEF AGAINST THE TRUTH (issue #476), additive on the wire, no

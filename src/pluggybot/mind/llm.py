@@ -212,8 +212,9 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
   An HTTP error status is RETURNED rather than raised, because a 4xx body is
   data this module reads (the retry decision, the endpoint's error message);
   only transport-level failures raise. An answer keeps who sent it, as
-  `stream_fetch`'s does (`provider`, the router's `x-inference-provider`;
-  issue #604: the deployed mind's empty answers could not say).
+  `stream_fetch`'s does (`provider`: the answer's own word where it names
+  one, else the router's `x-inference-provider`; issue #604: the deployed
+  mind's empty answers could not say).
   """
   data = json.dumps(body).encode() if body is not None else None
   req = urllib.request.Request(url, data=data, headers=headers,
@@ -240,7 +241,9 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   together as the one JSON a request not streamed is answered with (its
   reasoning before its answer, in `<think>`, as `_answer_text` reads it),
   why it ended (`finish_reason`: "length" where the tokens ran out) and
-  who answered (`provider`, the router's `x-inference-provider`).
+  who answered (`provider`: the one its chunks name, else the router's
+  `x-inference-provider` -- which since 11-18 names only the router behind
+  it, `openrouter`, whatever the pin).
   `timeout` is each read's, and `wall_s`, where given, the whole
   exchange's: no read waits past it (a worker still reading makes the next
   decision `busy`), and a stream still going at it ends "deadline", its
@@ -297,6 +300,9 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
             said = err.get("message") if isinstance(err, dict) else err
             failed = f"the stream failed mid-answer: {str(said or d)[:160]}"
             break
+          named = d.get("provider")
+          if isinstance(named, str) and named.strip():
+            provider = named.strip()
           usage = d.get("usage") or usage
           for choice in d.get("choices") or ():
             delta = choice.get("delta") or {}
