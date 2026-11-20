@@ -389,3 +389,98 @@ def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
   assert [m[0] for m in back] == ["go", "go"], f"the fork is brought back by {back}"
   first, last = (float(m[1][1]) for m in back)
   assert first == solutions.PASS_FORK_MID and first - last >= 0.1, (first, last)
+
+
+def _cup_stance(monkeypatch, y: float) -> list[tuple[str, tuple]]:
+  """The cup's run from its walk to the place to its put-down's reach as the
+  language runs it (callees compiled first, `lang._eval`), its look at the
+  card reading `y` m left (and the rest of `spot` a card 0.52 m ahead, square
+  on): the verbs it asks in order -- each `step` with its ahead and left as
+  worked out, each `spot` -- a test on a verb taken as done. A statement this
+  walk does not follow fails, never one followed otherwise."""
+  from types import SimpleNamespace
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import library as lib
+  facts = world_facts(HUMANOID_HOME)
+  library = lib.Library(facts)
+  for source in (*solutions.LIBRARY["set_table_pass"], solutions.PROCEDURES["set_table_pass"][0]):
+    library.define(solutions._def_name(source), source)
+  body = library.entries["lay_cup"].procedure.body
+  spot = {"spot.x": 0.52, "spot.y": y, "spot.z": 0.775, "spot.nx": 1.0, "spot.ny": 0.0, "spot.nz": 0.0}
+  for k in spot:
+    monkeypatch.setitem(axes.SENSORS, k, SimpleNamespace(read=lambda life, k=k: spot[k]))
+  env = {"oz": 0.0, "ox": 0.0, "oy": 0.0}
+  asked = []
+
+  def value(expr):
+    return lang._eval(expr, env, SimpleNamespace(), facts)
+
+  def verb(name, args):
+    if name == "step":
+      asked.append(("step", tuple(value(args[a]) for a in ("ahead", "left") if a in args)
+                    + (("turn",) if "turn" in args else ())))
+    elif name in ("spot", "reach"):
+      asked.append((name, ()))
+    else:
+      raise AssertionError(f"the cup's walk to its put-down asks a {name} this walk does not follow")
+    return name == "reach"
+
+  def run(stmts) -> bool:
+    """True once the put-down's reach is asked."""
+    for s in stmts:
+      if s[0] == "verb":
+        if verb(s[1], s[2]):
+          return True
+      elif s[0] == "set":
+        env[s[1]] = value(s[2])
+      elif s[0] == "if":
+        for cond, then in s[1]:
+          if cond[0] == "try":
+            verb(cond[2][1], cond[2][2])
+            held = not cond[1]  # the verb did what it said
+          else:
+            held = lang._truth(value(cond))
+          if held:
+            if run(then):
+              return True
+            break
+        else:
+          if run(s[2]):
+            return True
+      elif s[0] != "pass":
+        raise AssertionError(f"the cup's walk to its put-down holds a {s[0]} this walk does not follow")
+    return False
+  walk = next(i for i, s in enumerate(body) if s[0] == "call" and s[1] == "to_place")
+  assert run(body[walk + 1:]), "the cup's run never reaches for its put-down"
+  return asked
+
+
+def test_the_pass_cup_steps_across_where_the_walk_left_it_too_far_left(monkeypatch):
+  """#682's stage C, round 7: the walk to the place leaves the cup's trip a
+  median 4.6 cm right of the card's line as its look at the card reads it --
+  and sometimes, its last turn shuffling it up to 28 cm, 5-27 cm left of
+  there: the cup's spot then lies past the right hand's band, and of 160
+  put-downs of the reference before (round 5's and round 6's readings), 11
+  of the 13 that read the card right of the robot's line (`spot.y` under 0)
+  were not laid. Stepped across to the median read first, all 5 such on
+  round 7's 64 dev draws were laid, where the reference before laid none of
+  them (SimNotes, "The place laid from the pass", round 7). Off the
+  reference's own source, run by the language for looks round the line:
+  where the card reads right of `PASS_CUP_STANCE`'s first, one step across,
+  no turn, to its second, and a look again before the put-down's reach;
+  elsewhere no step."""
+  from pluggybot.challenge import solutions
+  t, y0 = solutions.PASS_CUP_STANCE
+  for y in (-0.27, -0.12, -0.05, t - 0.004):
+    asked = _cup_stance(monkeypatch, y)
+    steps = [a for n, a in asked if n == "step"]
+    assert len(steps) == 1 and len(steps[0]) == 2, f"read {y}: {asked}"
+    ahead, left = steps[0]
+    assert ahead == 0 and abs(left - (y - y0)) < 1e-9, f"read {y}: {asked}"
+    after = [n for n, _ in asked[asked.index(("step", steps[0])) + 1:]]
+    assert after[:2] == ["spot", "reach"], f"read {y}: after the step {after}"
+  for y in (t, t + 0.009, y0, 0.14):
+    asked = _cup_stance(monkeypatch, y)
+    assert not [a for n, a in asked if n == "step"], f"read {y}: {asked}"
