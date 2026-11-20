@@ -205,6 +205,15 @@ def default_url(backend: str) -> str:
   return os.environ.get(URL_ENV, "").strip() or LOCAL_URL
 
 
+def _who(named, header: str | None) -> str | None:
+  """Who answered: the answer's own word where it gives a name, else the
+  router's header (`x-inference-provider`), which may name only a router
+  behind it (Overseer.md §6, "Who answered"). One rule for both fetches."""
+  if isinstance(named, str) and named.strip():
+    return named.strip()
+  return header
+
+
 def _default_fetch(url: str, body: dict | None, headers: dict,
                    timeout: float) -> tuple[int, dict]:
   """One HTTP exchange: (status, parsed JSON). The injection seam for tests.
@@ -212,9 +221,8 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
   An HTTP error status is RETURNED rather than raised, because a 4xx body is
   data this module reads (the retry decision, the endpoint's error message);
   only transport-level failures raise. An answer keeps who sent it, as
-  `stream_fetch`'s does (`provider`: the answer's own word where it names
-  one, else the router's `x-inference-provider`, kept as `route`; issue
-  #604: the deployed mind's empty answers could not say).
+  `stream_fetch`'s does (`_who`, the header kept as `route`; issue #604:
+  the deployed mind's empty answers could not say).
   """
   data = json.dumps(body).encode() if body is not None else None
   req = urllib.request.Request(url, data=data, headers=headers,
@@ -223,9 +231,9 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
     with urllib.request.urlopen(req, timeout=timeout) as resp:
       payload = json.loads(resp.read().decode())
       route = resp.headers.get("x-inference-provider")
-      if route and isinstance(payload, dict):
-        payload.setdefault("provider", route)
-        payload.setdefault("route", route)
+      if isinstance(payload, dict) and (route or "provider" in payload):
+        payload["provider"] = _who(payload.get("provider"), route)
+        payload["route"] = route
       return resp.status, payload
   except urllib.error.HTTPError as e:
     try:
@@ -242,10 +250,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   together as the one JSON a request not streamed is answered with (its
   reasoning before its answer, in `<think>`, as `_answer_text` reads it),
   why it ended (`finish_reason`: "length" where the tokens ran out) and
-  who answered (`provider`: the one its chunks name, else the router's
-  `x-inference-provider`, kept as `route` -- since 11-18 the router
-  answers through another, OpenRouter, and its header names only that,
-  `openrouter`, whatever the pin).
+  who answered (`provider`, `_who`: the one its chunks name, else the
+  router's header, kept as `route`).
   `timeout` is each read's, and `wall_s`, where given, the whole
   exchange's: no read waits past it (a worker still reading makes the next
   decision `busy`), and a stream still going at it ends "deadline", its
@@ -302,9 +308,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
             said = err.get("message") if isinstance(err, dict) else err
             failed = f"the stream failed mid-answer: {str(said or d)[:160]}"
             break
-          named = d.get("provider")
-          if isinstance(named, str) and named.strip():
-            provider = named.strip()
+          provider = _who(d.get("provider"), provider)
           usage = d.get("usage") or usage
           for choice in d.get("choices") or ():
             delta = choice.get("delta") or {}
@@ -442,10 +446,10 @@ class ChatClient:
     self.reasoning_effort = (reasoning_effort or "").strip() or None
     self.label = label
     self.fetch = fetch or _default_fetch
-    #: Who answered, from the name an answer gives to the id a model id
-    #: pins (`HFClient.pricing` reads them off the catalogue): an answer
-    #: says "BaseTen" where the pin and the rows before 11-18 say
-    #: `baseten`. A name it does not hold is kept as given.
+    #: Who answered, from the name an answer gives (case aside) to the id
+    #: a model id pins ("BaseTen" -> `baseten`). ⚠ Filled by `pricing()`
+    #: alone, off the catalogue: a client whose catalogue read failed says
+    #: every name as the answer gives it (and its run reads unpriced).
     self.provider_ids: dict[str, str] = {}
     # `.messages.create(...)` -- the seam, shaped like the SDK's.
     self.messages = SimpleNamespace(create=self._create)
@@ -510,6 +514,8 @@ class ChatClient:
     usage = payload.get("usage") or {}
     finish = ((payload.get("choices") or [{}])[0] or {}).get("finish_reason")
     named = payload.get("provider")
+    if isinstance(named, str):
+      named = self.provider_ids.get(named.casefold(), named)
     return SimpleNamespace(
       content=[SimpleNamespace(type="text", text=text)],
       usage=SimpleNamespace(
@@ -523,7 +529,7 @@ class ChatClient:
       # or was still going at its deadline (`deadline_fetch`)
       stop_reason=("max_tokens" if finish == "length"
                    else finish if finish in ("closed", "deadline", "failed") else "end_turn"),
-      provider=(self.provider_ids.get(named, named) if isinstance(named, str) else named),
+      provider=named if isinstance(named, str) else None,
       # ...and the router's own word for how it reached it (its header)
       route=payload.get("route"),
       # how a stream that failed mid-answer failed (`stream_fetch`)
@@ -589,7 +595,7 @@ class HFClient(ChatClient):
       if entry.get("id") != base:
         continue
       self.provider_ids.update(
-        {p["provider_name"]: p["provider"] for p in entry.get("providers", ())
+        {p["provider_name"].casefold(): p["provider"] for p in entry.get("providers", ())
          if isinstance(p.get("provider_name"), str) and isinstance(p.get("provider"), str)})
       live = [p for p in entry.get("providers", ())
               if p.get("status") == "live" and p.get("pricing")]

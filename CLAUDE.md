@@ -1868,12 +1868,10 @@ save a filmstrip PNG named after the script.
   confirm it flown. A decision a response came back for says who answered
   (`Decision.call`, the `call` event, `pw_decisions.provider`): ⚠ THE
   PROVIDER THE ROUTER'S ANSWER NAMES, in the pin's own words
-  (`ChatClient.provider_ids`, off the catalogue `pricing()` reads), its
-  header beside it as `route` -- since 11-18 the router answers through
-  OpenRouter, whose header says `openrouter` whatever the pin, and read off
-  the header alone every call of the 11-18 wake said so (Overseer.md §6,
-  "Who answered"). Money has THREE states: "no API cost", "unknown"
-  (`priced: false`), a number.
+  (`llm._who`, `ChatClient.provider_ids` off the catalogue `pricing()`
+  reads), its header beside it as `route`: the header may name only a
+  router behind it (Overseer.md §6, "Who answered"). Money has THREE
+  states: "no API cost", "unknown" (`priced: false`), a number.
 - **What an errand costs** (`economy/energy.py` + `energy.json`,
   `$PLUGGY_ENERGY`; Overseer.md §5).
   `needs_charge` is checked BETWEEN errands, so every errand is priced

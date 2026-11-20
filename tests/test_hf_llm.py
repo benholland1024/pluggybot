@@ -218,10 +218,15 @@ def test_who_answered_is_the_one_the_router_names_in_its_answer(monkeypatch):
   assert payload["choices"][0]["finish_reason"] == "deadline"
   assert payload["provider"] == "BaseTen"
 
-  # ...and an answer not streamed, as `_default_fetch` reads one
+  # ...and an answer not streamed, as `_default_fetch` reads one -- by the
+  # same rule: a name with its spaces off, and none (null, "", not a name)
+  # the header's (the review's catch: `setdefault` kept a null)
   class Whole:
     status = 200
     headers = routed
+
+    def __init__(self, named):
+      self.named = named
 
     def __enter__(self):
       return self
@@ -230,12 +235,14 @@ def test_who_answered_is_the_one_the_router_names_in_its_answer(monkeypatch):
       return False
 
     def read(self):
-      return json.dumps({"provider": "DeepInfra", "choices": [{"message": {
+      return json.dumps({"provider": self.named, "choices": [{"message": {
         "content": '{"action": "idle"}'}}]}).encode()
-  monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout: Whole())
-  status, payload = llm._default_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
-  resp = create(fake_fetch([(status, payload)]))
-  assert resp.provider == "DeepInfra" and resp.route == "openrouter"
+  for named, provider in ((" DeepInfra ", "DeepInfra"), (None, "openrouter"), ("", "openrouter"),
+                          ({"name": "x"}, "openrouter")):
+    monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout, n=named: Whole(n))
+    status, payload = llm._default_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
+    resp = create(fake_fetch([(status, payload)]))
+    assert resp.provider == provider and resp.route == "openrouter"
 
 
 def test_who_answered_is_said_in_the_pins_own_words():
@@ -246,7 +253,8 @@ def test_who_answered_is_said_in_the_pins_own_words():
   catalogue `pricing()` reads at the client's start lists both, so the
   answer is said in the pin's words, the route beside it -- in the call
   record and on the console line -- and a name the catalogue does not list
-  is kept as the answer gives it."""
+  is kept as the answer gives it, a client whose catalogue read failed
+  keeping every name so."""
   catalogue = (200, {"data": [{"id": "org/model-8b", "providers": [
     {"provider": "baseten", "provider_name": "BaseTen", "status": "live",
      "pricing": {"input": 0.15, "output": 0.5}},
@@ -259,17 +267,23 @@ def test_who_answered_is_said_in_the_pins_own_words():
                   "usage": {"prompt_tokens": 9, "completion_tokens": 3},
                   "provider": name, "route": "openrouter"})
   client = HFClient(token="hf_test", fetch=fake_fetch(
-    [catalogue, answered("BaseTen"), answered("Fireworks"), answered("Somebody")]))
+    [catalogue, answered("BaseTen"), answered("Fireworks"), answered("Somebody"),
+     answered("Baseten")]))
   assert client.pricing("org/model-8b:baseten") == (0.15, 0.5)
   kw = dict(model="org/model-8b:baseten", max_tokens=64, system=SYSTEM,
             messages=[{"role": "user", "content": "state"}])
-  said = [client.messages.create(**kw) for _ in range(3)]
-  assert [r.provider for r in said] == ["baseten", "fireworks-ai", "Somebody"]
+  said = [client.messages.create(**kw) for _ in range(4)]
+  # ...the name's case aside: the two catalogues are kept apart
+  assert [r.provider for r in said] == ["baseten", "fireworks-ai", "Somebody", "baseten"]
   call = overseer._call_record(said[0], 12.0)
   assert call["provider"] == "baseten" and call["route"] == "openrouter"
   assert overseer.call_said(call).startswith("baseten via openrouter: 9 in, 3 out")
   # ...and where the router reached it directly, its one name says both
   assert overseer.call_said(dict(call, route="baseten")).startswith("baseten: 9 in")
+  # ...and a client whose catalogue read failed says every name as given
+  unread = HFClient(token="hf_test", fetch=fake_fetch([(503, {}), answered("BaseTen")]))
+  assert unread.pricing("org/model-8b:baseten") is None
+  assert unread.messages.create(**kw).provider == "BaseTen"
 
 
 def test_a_streamed_answer_its_tokens_ran_out_on_says_so(monkeypatch):

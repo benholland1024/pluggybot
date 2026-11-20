@@ -2264,11 +2264,12 @@ Read off the header alone, all 303 of the 11-18 calls that came back said
 `openrouter`, and a pin answered by another provider could not be seen.
 
 So who answered is the provider the answer names, said in the pin's own
-words (`baseten`, as the catalogue lists the "BaseTen" its answers say:
-`ChatClient.provider_ids`, filled by the catalogue read `pricing()` makes
-as the client starts; a name the catalogue does not list, or every name
-where it could not be read, is kept as the answer gives it), and the
-header is kept beside it as `route` -- in
+words (`baseten`, as the catalogue lists the "BaseTen" its answers say,
+case aside: `ChatClient.provider_ids`, filled by the catalogue read
+`pricing()` makes as the client starts; a name the catalogue does not
+list, or every name where it could not be read, is kept as the answer
+gives it), one rule for the streamed and the whole answer (`llm._who`),
+and the header is kept beside it as `route` -- in
 `Decision.call`, the `call` event and the console's DECIDE line (`baseten
 via openrouter: …`). `pw_decisions.provider` therefore reads `baseten` up
 to the 11-15 wake, `openrouter` from the 11-18 wake to this change's
