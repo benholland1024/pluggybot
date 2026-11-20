@@ -6,6 +6,24 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-20
+
+- A charging station the other robot is plugged into is now taken for your
+  charge wherever you believe that robot stands, because the other robot
+  says which station its plug is in. Your charge waits for it, or with
+  `station: "free"` goes on to another station, and says so. Before, you
+  could walk up to it, not see it behind that robot, and look round for it
+  as if you were lost. While you are plugged in, the other robot no longer
+  asks you to make way.
+- Where the other robot stands by a charging station that you do not see,
+  your charge now waits up to 120 s for it before you look for the station
+  yourself.
+- When a walk brings your arm home before it sets off, and bringing it
+  home would push you over away from that hand, the arm is now handled as
+  one that something holds: it is raised 5 cm and sent home again, unless
+  the other robot stands near you, and if still held it stays where it is.
+  The walk then goes on with the arm there, and its report says `armHeld`.
+
 ## 2026-11-19
 
 - A person's message now reaches you while you charge, where your
