@@ -30,8 +30,9 @@ loop, with the invariants a served day needs read at every step (`Watch`):
      trip: a wait never gives up on its bound sooner;
   8. a robot by the seat of a station out of sight holds it `UNSEEN_WAIT_S`
      a station a trip at most, the walk to the waiting spot included;
-  9. a wait by such a seat is counted (`bay_waits`) and remembered once a
-     station a trip, as #346's waits are;
+  9. a station's waits in a trip, by the seat or #346's, are counted
+     (`bay_waits`) once, the first of them -- a while by the seat first or
+     after #346's wait there alike -- and a while remembered once;
  10. one holder, one wait: no wait at one station in one trip, by the seat
      or #346's, holds on past ONE bound counted from the first wait there
      (but for the walk out of the way a wait begins with): one begun with
@@ -225,7 +226,8 @@ class Watch:
   def begin(self, life) -> None:
     self.counts["trips"] += 1
     self.trips[life.root] = {"lostAt": None, "searched": False, "logAt": len(life.log),
-                             "firstWait": {}, "byAt": {}, "bySaid": {}, "seats": []}
+                             "firstWait": {}, "byAt": {}, "bySaid": {}, "booked": {},
+                             "seats": []}
 
   def step(self) -> None:
     """Each trip's station as it goes: a switch never back to one passed;
@@ -270,19 +272,30 @@ class Watch:
                       f"first wait there, past one {bound:.0f} s bound")
 
   def by_seat(self, life, seat, held_s: float, counted: int) -> None:
-    """8 and 9: a while by the seat, a station a trip, counted once."""
+    """8 and 9: a while by the seat, a station a trip, counted once -- and
+    not at all after #346's wait there was."""
     trip, k = self.trips.get(life.root), self.key(life, seat)
     if trip is None or k is None:
       return
     self.counts["bySeat"] += 1
     t_start = float(life.data.time) - held_s
     self.one_bound(life, k, trip["firstWait"].setdefault(k, t_start), t_start)
-    first = k not in trip["byAt"]
+    first = not trip["booked"].get(k, 0)
     trip["byAt"][k] = trip["byAt"].get(k, 0.0) + held_s
     if trip["byAt"][k] > lc.UNSEEN_WAIT_S + lc.BAY_POLL_S + 1e-6:
       self.fail(life, f"held by the seat {trip['byAt'][k]:.1f} s at one station")
     if counted != (1 if first else 0):
       self.fail(life, f"a wait by the seat counted {counted} times ({'first' if first else 'again'})")
+    self.booked(life, seat, counted)
+
+  def booked(self, life, seat, counted: int) -> None:
+    """9: a station's waits in a trip, either kind, counted once at most."""
+    trip, k = self.trips.get(life.root), self.key(life, seat)
+    if trip is None or k is None or not counted:
+      return
+    trip["booked"][k] = trip["booked"].get(k, 0) + counted
+    if trip["booked"][k] > 1:
+      self.fail(life, f"waits at one station counted {trip['booked'][k]} times in one trip")
 
   def said_by(self, life, line: str) -> None:
     trip = self.trips.get(life.root)
@@ -387,7 +400,7 @@ def _wrap(life, watch) -> None:
   wait, holder = life._await_bay_routine, life._bay_holder
 
   def watched_wait(sx, sy, kind, since, seat=None, **kw):
-    t_in = float(life.data.time)
+    t_in, n0 = float(life.data.time), life.bay_waits
     watch.waiting[life.root] = True
     try:
       out = yield from wait(sx, sy, kind, since, seat=seat, **kw)
@@ -396,6 +409,7 @@ def _wrap(life, watch) -> None:
     watch.wait(life, since, t_in)
     if seat is not None:
       watch.bay_wait(life, seat, t_in, not out)
+      watch.booked(life, seat, life.bay_waits - n0)
     return out
 
   oos = getattr(life, "_out_of_sight_routine", None)
