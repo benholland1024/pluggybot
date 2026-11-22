@@ -132,21 +132,24 @@ class Watch:
   piece's fastest fall while nothing of the robot touched it and how high
   it was ever lifted, the robot's worst tilt and its falls, and -- once
   `hold` -- what of the robot touched a piece. Off the true state. The robot
-  never sees it."""
+  never sees it. Its pieces are `pieces`, each a body on a free joint named
+  `<piece>_free` (the shelf's products are watched so too, `challenge.shelf`)."""
+
+  pieces: tuple[str, ...] = PIECES
 
   def __init__(self, model, data, body=None, table: str | None = None) -> None:
     self.model, self.data, self.body = model, data, body
-    self.ids = {p: int(model.body(p).id) for p in PIECES}
-    self.dofs = {p: int(model.jnt_dofadr[model.joint(f"{p}_free").id]) for p in PIECES}
+    self.ids = {p: int(model.body(p).id) for p in self.pieces}
+    self.dofs = {p: int(model.jnt_dofadr[model.joint(f"{p}_free").id]) for p in self.pieces}
     self.piece_of = np.full(model.ngeom, -1, dtype=int)
-    for k, p in enumerate(PIECES):
+    for k, p in enumerate(self.pieces):
       self.piece_of[model.geom_bodyid == self.ids[p]] = k
     self.mine = None if body is None else np.zeros(model.ngeom, dtype=bool)
     if body is not None:
       self.mine[list(body.geom_ids)] = True
-    self.z0: dict = {p: None for p in PIECES}
-    self.highest = {p: 0.0 for p in PIECES}
-    self.fastest_free = {p: 0.0 for p in PIECES}
+    self.z0: dict = {p: None for p in self.pieces}
+    self.highest = {p: 0.0 for p in self.pieces}
+    self.fastest_free = {p: 0.0 for p in self.pieces}
     self.worst_tilt = None if body is None else 0.0
     self.falls0 = None if body is None else int(body.falls)
     self.holding = False
@@ -173,7 +176,7 @@ class Watch:
     lid.kept_falls(self, state)
 
   def __call__(self) -> None:
-    held = np.zeros(len(PIECES), dtype=bool)
+    held = np.zeros(len(self.pieces), dtype=bool)
     if self.mine is not None:
       g = contact_pairs(self.data)
       if g.shape[0]:
@@ -187,7 +190,7 @@ class Watch:
                         | ((self.piece_of[b_] >= 0) & self.mine[a_])].tolist():
             mine = y if self.mine[y] else x
             self.touched.add(self.model.geom(mine).name or f"geom {mine}")
-    for k, p in enumerate(PIECES):
+    for k, p in enumerate(self.pieces):
       z = float(self.data.xpos[self.ids[p]][2])
       if self.z0[p] is None:
         self.z0[p] = z

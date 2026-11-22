@@ -259,9 +259,12 @@ def set_const(model) -> None:
   held (`ngravcomp`, which Python cannot write), and MuJoCo holds none while
   the count is 0: counted with the pieces set out, a put-away after held
   nothing -- they fell at g and were put back every second (Observatory.md,
-  the period of `loop-k4`). So it is recomputed with every piece counted."""
+  the period of `loop-k4`). So it is recomputed with every piece counted,
+  and the store's products (`activity.stock`, #736) with them."""
   import mujoco
-  held = [b for b in (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, p) for p in PIECES)
+  from pluggybot.activity.stock import PRODUCTS
+  held = [b for b in (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, p)
+                      for p in (*PIECES, *PRODUCTS))
           if b >= 0]
   was = model.body_gravcomp[held].copy()
   extent, center = float(model.stat.extent), model.stat.center.copy()

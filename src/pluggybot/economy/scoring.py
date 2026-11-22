@@ -53,7 +53,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.challenge import door, drawer, lid, place, table
+from pluggybot.challenge import door, drawer, lid, place, shelf, table
 
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
@@ -498,6 +498,10 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # A place laid at a dining table (issue #560, its first task): a plate, a
   # fork and a cup at a place card, practiced offline as the checks are.
   "table": table.eval_table,
+  # A shelf stocked from a cart (issue #736, #560's first store task): a
+  # candle and a desk frame each over its label, practiced offline as the
+  # table's place is.
+  "shelf": shelf.eval_shelf,
   # ...and set into the house (#559, stage 3): the humanoids' first jobs,
   # each its check's predicate under a row of its own -- paid, and shown
   # where a world offers it -- the practice's rows unpaid beside them
@@ -628,6 +632,8 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "place": place.sample_place,
   # ...and the table's place (#560), off its pieces and the card.
   "table": table.sample_table,
+  # ...and the shelf's products (#736), off them, the boards and the labels.
+  "shelf": shelf.sample_shelf,
   # ...and the humanoids' served jobs (#559), off the same props on the
   # storeroom's counter -- called by the grade on the seam (`HubLifecycle.
   # _grade_hands_routine`), which hands each the watch it kept from the

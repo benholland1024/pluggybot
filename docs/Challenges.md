@@ -523,3 +523,49 @@ what flying took and what it read).
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.
+
+## 13. Stock a shelf (issue #736, #560's first store task)
+
+The store's first job, easy mode (#736's nine calls, Ben's defaults of
+2026-11-22): a pillar candle and a desk frame taken off a cart standing at
+the shop's back shelf beside its slots, and each set down over the label its
+job names (`challenge/shelf.py`; the stock `activity/stock.py`; where the
+labels and the cart stand `home/store.py`; the set-out
+`counter.shelf_set_out`). Its slots are three on each of the shelf's second
+and third boards (tops 0.56 and 0.96 m: the two whose fronts the body
+reaches), each marked by a 40 mm label on the board's front edge, 79-81 and
+82-84 left to right as one faces it; the products wear 76 (the candle's top)
+and 77 (the frame's face); the lamp (78) is a round of its own.
+
+**The criteria**, written before any procedure flew them, in the SHELF's
+frame off its boards' true poses -- along it to the right as one faces it,
+out of its front edge, and up: (1) 5 s after the call each product rests on
+its label's board (its bottom within 4 mm of the board's top), its middle
+within 4 cm of its label's middle along the board, its front no more than
+10 cm behind the board's front edge and not over it, upright within 10 deg
+(the frame as its strut stands it), and the frame's face toward the aisle
+within 20 deg; (2) no product nothing of the robot touched ever came down
+faster than 0.5 m/s (the table's line and its watch); (3) nothing of the
+robot touches a product during the hold; (4) in time; (5) no fall, the
+lid's (6). Said beside, gating nothing: how high each was lifted, how far
+each was from its label at the call, each one's tilt and the frame's turn,
+and the body's worst tilt.
+
+**Which label is the job's word**, never the world's: the measurement reads
+each label and each product off the world, and pairs them by the job's
+`slots` ({product: label}), which an offer states. **Its reason names every
+product at fault** as the table's does (§12): once, by its first fault in
+the criteria's order -- its drop, where it ended (which side of its label,
+and how far over or under its board), its front, how it stands, the
+frame's turn -- each rule said once over the products it names. ⚠ A reading
+past its line is printed at the precision that tells it from the line
+(`shelf.beside`: "4.01 cm" against "within 4 cm"), never as the line's own
+number (#737's trap, in the graders before it).
+
+**The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,
+as the checks' rows are. No world offers it: the stock is not in the served
+house (`home.store`'s docstring has why, and what bringing it in moves).
+
+**What it cannot grade**, beyond §6: whether the shelf looks right, and
+anything but its two products: stock already on the shelf and "nothing
+else moved" are facing's, #560's next store task.

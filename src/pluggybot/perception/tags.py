@@ -119,6 +119,14 @@ STUDY_TAG_IDS = (75,)
 DISH_TAG_IDS = (90, 91, 92)
 PLACE_TAG_IDS = (93,)
 DISH_TAG_SIZES = {90: 0.048, 91: 0.040, 92: 0.019, 93: 0.080}
+#: The store's stock (#736, `activity.stock`): the candle's, on its top,
+#: and the desk frame's, on its face (78 is the lamp's, its own round's);
+#: and the shelf's slot labels, one on each slot's front edge, three on its
+#: second board and three on its third, left to right as one faces it --
+#: each its black square, m. 85-89 are kept for the store.
+STOCK_TAG_IDS = (76, 77)
+LABEL_TAG_IDS = (79, 80, 81, 82, 83, 84)
+STOCK_TAG_SIZES = {76: 0.040, 77: 0.056, **{i: 0.040 for i in LABEL_TAG_IDS}}
 
 #: The picture a tag detector decodes, pixels (the colour imager's and the
 #: navigation camera's alike): what `spot`'s and `watch`'s texts count their
@@ -146,7 +154,7 @@ TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
                                            *COUNTER_TAG_IDS, *RESTAURANT_TAG_IDS,
                                            *SHOP_TAG_IDS, *PARK_TAG_IDS, *ROOM_TAG_IDS,
                                            *STUDY_TAG_IDS)},
-             **DISH_TAG_SIZES}
+             **DISH_TAG_SIZES, **STOCK_TAG_SIZES}
 
 TAG_DIR = Path("models/tags")
 

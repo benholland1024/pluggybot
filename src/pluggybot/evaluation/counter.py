@@ -408,6 +408,73 @@ def pass_set_out(k: int) -> TableSetOut:
                      surface=PASS_H)
 
 
+#: STOCKING THE SHOP'S SHELF (#736, #560's first store task, easy mode):
+#: the products on the cart at the shelf beside the slots (`home.store`),
+#: each over a label the draw names. Where each product waits on the cart,
+#: in the shelf's frame S (`home.store.to_world`: s along to the right as
+#: one faces it, d out of its front), m -- near the cart's front edge, 16 cm
+#: in, as the table's pieces lie from its edge -- how far either way it is
+#: drawn off it, m, and how far its turn is, rad (the frame's face looking
+#: out of the shelf, the candle's any).
+SHELF_SOURCES = {"candle": ((0.15, -0.16), (0.015, 0.015), math.pi),
+                 "frame": ((-0.15, -0.16), (0.015, 0.015), math.radians(10.0))}
+#: Where an offline flight starts (`world`; the served job's begins wherever
+#: the robot is): its soles' middle this far out of the cart's front edge,
+#: in front of the cart's middle, facing the shelf, m.
+CART_GAP = 0.13
+#: `shelf_set_out(k)`'s stream is this and k: a stream of its own, never the
+#: products' hidden draw's (`stock.draw`).
+SHELF_SEED = 7362
+
+
+@dataclass(frozen=True)
+class ShelfSetOut:
+  """Stocking k at the shop's shelf (#736): the products' hidden parameters
+  (`stock.draw(k)`), where each waits on the cart (world x, y, yaw), which
+  label each goes over ({product: label id}, the job's word), and the
+  humanoid's start (x, y, heading)."""
+  k: int
+  load: object
+  products: dict
+  slots: dict
+  start: tuple[float, float, float]
+  counter: None = None
+
+  def attach(self, spec) -> None:
+    """The cart, the labels and the products, set out (`home.store.attach`)."""
+    from pluggybot.home import store
+    store.attach(spec, self, parked=False)
+
+
+def shelf_set_out(k: int) -> ShelfSetOut:
+  """Stocking `k` (seeded): each product on the cart round `SHELF_SOURCES`,
+  drawn off it and turned, and each its own label -- the candle any of the
+  six, the frame any other -- off a stream of its own; the robot in front
+  of the cart, facing the shelf."""
+  from pluggybot.activity import stock as st
+  from pluggybot.home import store
+  if k < 0:
+    raise ValueError(f"a set-out is a whole number from 0, not {k}")
+  rng = np.random.default_rng((SHELF_SEED, k))
+  cart_front = store.CART_BACK_GAP + 2 * st.CART_HALF[0]
+  heading = store.facing_in()
+  products = {}
+  for name in st.PRODUCTS:
+    (s, d), (ds, dd), turn = SHELF_SOURCES[name]
+    s = store.CART_AT + s + float(rng.uniform(-ds, ds))
+    d = cart_front + d + float(rng.uniform(-dd, dd))
+    products[name] = (*store.to_world(s, d), heading + float(rng.uniform(-turn, turn)))
+  labels = list(st.LABEL_IDS)
+  slots = {}
+  for name in st.PRODUCTS:
+    slots[name] = int(labels.pop(int(rng.integers(len(labels)))))
+  sx, sy = store.to_world(store.CART_AT, cart_front + CART_GAP)
+  # the start is the pelvis's: the soles' middle stands `_stance_ahead()` before it
+  ahead = _stance_ahead()
+  start = (sx - ahead * math.cos(heading), sy - ahead * math.sin(heading), heading)
+  return ShelfSetOut(k=k, load=st.draw(k), products=products, slots=slots, start=start)
+
+
 def world(so, policy=None, noise: str | None = None):
   """A set-out's world: the house with the humanoid standing at its start,
   the counter and the prop on it -- the chest (`SetOut`), or a check's
