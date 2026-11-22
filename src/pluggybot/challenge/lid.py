@@ -110,7 +110,9 @@ def against(reading: float, line: float, places: int = 0,
   `line_places` (`places` unsaid) up to the reading's. A reading far from
   its line keeps its whole words ("came out 0 cm, short of the 15"); one
   near it never prints as the line ("14.7 cm, short of the 15", never "15
-  cm"; "57.1 deg, short of the 57.3", never "57, short of the 57.3")."""
+  cm"; "57.1 deg, short of the 57.3", never "57, short of the 57.3"). ⚠ One
+  exactly ON its line prints as it, failed or not: a lid exactly 5 deg open
+  fails the shut line, a `>=`, and reads "5 deg open"."""
   line_places = places if line_places is None else line_places
   sign = (reading > line) - (reading < line)
   for p in range(places, max(places, 17) + 1):
