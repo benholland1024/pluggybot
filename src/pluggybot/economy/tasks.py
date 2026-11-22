@@ -225,8 +225,10 @@ TABLE_MINUTES = 14
 #: place_cube`), rounded up -- Ben's call, 2026-11-11, over 8, three times
 #: the tour's slowest on a fresh map (159 s; the tour has no mall): a claim
 #: at the mall then left about 300 s to write the procedure, where one
-#: answer may take 300 (`CALL_TIMEOUT_S`). A claim there on a fresh map, its
-#: find before the walk, was not flown.
+#: answer could take 300 (`CALL_TIMEOUT_S`; 600 since 11-22, so one think
+#: may now outlast what the walk leaves: the minutes were not moved with
+#: it). A claim there on a fresh map, its find before the walk, was not
+#: flown.
 CUBE_MINUTES = 9
 #: ...and the place laid from the pass's (#682's stage C, easy mode): NOT
 #: OFFERED, so a generous limit its reference's flights are graded under,

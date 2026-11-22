@@ -136,9 +136,21 @@ def test_the_budget_is_sized_to_the_deadline():
   deadline at 112 tokens a second, its wall in (the flight's thinks over
   10k wrote at 114-246); the interrupt's comes back inside its own patience
   at the slowest writer measured, 60 a second, after a 10 s first byte.
-  Fails at #604's pair (16,384 tokens, 115 s)."""
+  Fails at #604's pair (16,384 tokens, 115 s).
+
+  ⚠ ONE MOVES WITH THE OTHER (11-22, the deadline doubled): at 112 tokens a
+  second the budget fills more than half the deadline. On the wakes of
+  11-21/22, 140 of 170 failed decisions were thinks cut off at 32,768 inside
+  300 s (110-248 tokens a second); a deadline doubled over that budget would
+  have turned none of them into an answer, only stood the robot still
+  longer on the 26 that timed out. Fails at (32,768 tokens, 600 s). ⚠ And
+  no higher than the default model writes: `claude-haiku-4-5`'s 64,000
+  (the Anthropic path; above it every call there is a 400). Fails at
+  65,536."""
   assert ov.MAX_TOKENS_AUTONOMOUS > 26637
   assert ov.MAX_TOKENS_AUTONOMOUS / 112 <= ov.CALL_TIMEOUT_S
+  assert ov.MAX_TOKENS_AUTONOMOUS / 112 > ov.CALL_TIMEOUT_S / 2
+  assert ov.MODEL == "claude-haiku-4-5" and ov.MAX_TOKENS_AUTONOMOUS <= 64000
   assert ov.MAX_TOKENS / 60 + 10 <= ov.INTERRUPT_TIMEOUT_S
   assert ov.ESCALATE_MAX_TOKENS == ov.MAX_TOKENS_AUTONOMOUS
 
