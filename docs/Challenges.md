@@ -340,7 +340,8 @@ departures, both about where an attempt starts:
   remembered (180 s; `tasks.CUBE_MINUTES`), offered later on the table's
   terms: three times its slowest over the tour, 159 s on a fresh map, gave
   8, and left a claim at the mall about 300 s to write the procedure in,
-  where one answer may take 300 (Ben's call, 2026-11-11). Held past them
+  where one answer could take 300 (Ben's call, 2026-11-11; one may take
+  600 since 11-22, and the minutes were not moved with it). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
   charge trip ("not graded within the 960 s the job allows -- the drawer
