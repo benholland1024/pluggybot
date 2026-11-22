@@ -141,11 +141,11 @@ PROBE_TIMEOUT_S = max(120.0, 2 * CALL_TIMEOUT_S)
 
 #: The ladder the timeout share is reported at. It brackets the original
 #: 8 s, the local backend's 45 s, #117's 90 s, #604's 115 s and the
-#: streamed 300 s since, so the number is read off a curve rather than
+#: streamed 300 s and 600 s since, so the number is read off a curve rather than
 #: argued for one value at a time. The row for the deadline actually in
 #: force is marked, whatever it is.
 CANDIDATE_DEADLINES = (5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 115.0,
-                       180.0, 240.0, 300.0, 420.0, 600.0)
+                       180.0, 240.0, 300.0, 420.0, 600.0, 900.0)
 
 
 def timeout_share(latencies: list[float], deadline: float) -> float:

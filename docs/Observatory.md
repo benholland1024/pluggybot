@@ -10,6 +10,96 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The minds' deadline doubled, the budget with it (W0, `loop-deadline`) — opens when this PR is deployed
+
+**What the robots read.** The prompt (`6ec0fc48…`, 70,256 characters, 17
+sections) and the session host's hello are unmoved: neither says the
+deadline nor the budget. Two of History's fallback reasons say the new
+numbers, each at the length it had (History's `chose …` line, 136 and
+155 characters on 11-21/22):
+- BEFORE `… -- your answer was still being written when its 300 s ran out`;
+  AFTER `… its 600 s ran out`.
+- BEFORE `… -- your answer was cut off: it ran out of its 32,768 tokens
+  before it was written`; AFTER `… its 64,000 tokens …` (the provider's
+  count, where it gives one).
+
+The header's `build.deadlineS` says 600, which the site files per run, so a
+reading by run splits here by itself.
+
+**The change** (Overseer.md §6, "The deadline doubled"). `CALL_TIMEOUT_S`
+300 -> 600 s; `MAX_TOKENS_AUTONOMOUS` 32,768 -> 64,000, the escalation's
+with it; `ESCALATE_TIMEOUT_S` 360 -> 720. Unchanged: the mind and its
+effort (`zai-org/GLM-5.3-Flash:baseten`, none named), the interrupt's 115 s
+and 4,096 tokens, `STREAM_SILENCE_S` (115), `UNMINDED_AFTER_S` (1800), the
+cooloff, the purse ($20 a week), every job's minutes.
+
+**Why.** Ben's call of 11-22, quality before speed, the effort kept. On the
+wakes of 11-21/22 the calls failed 170 of 564 times, and 140 of the 170
+were thinks cut off at 32,768 tokens inside the 300 s (a median 212 s, at
+110-248 tokens a second). Doubling the deadline over that budget would have
+answered none of them, so the budget doubles too.
+
+**Measured before deploying** (`~/pluggybot-training/loop-1122/w0-deadline/`,
+the deployed pin through the code's own client):
+- the provider takes the budget (65,536 asked, a 200; and 64,000 through
+  every other GLM-5.3-Flash pin, `:cheapest`, two DeepSeek-V4.1-Flash pins
+  and the escalation's model);
+- the route carries a stream past 300 s (two made-up asks streamed 466 s and
+  516 s, at 127-141 tokens a second, and ended at their 65,536 tokens);
+- the weekend's own failed turns finish. Of 15 rebuilt from the 11-21 wake
+  (12 cut-offs, 3 timeouts), 14 answered at the new pair, 8 of them with
+  more than 32,768 tokens or after 300 s; one ran out of its 64,000 at
+  538 s. At the old pair the same turns answered 7 times of 15 (asked
+  straight after, at a slower hour), and no turn answered there that did
+  not at the new pair.
+
+**What it can cost.**
+- A think is spent standing still at about 93 W: 600 s is 15.5 Wh, 80 % of
+  the 19.5 Wh reserve. No decision of 11-21/22 or of 11-18 began within
+  20 Wh of the reserve; the lowest packs at a decision were 9 % of 777.6 Wh
+  (70 Wh, Rowan, 11-21/22) and 7 % (54 Wh, Luca, 11-18).
+- A held job's minutes run while the robot thinks, and none was moved. The
+  cube's 9 left a claim at the mall about 300 s to write in, and the
+  table's 14 left its lay about 560 s; one think may now take 600.
+- The death clock: both robots' maps carried an `every` ask through the
+  weekend (Luca every 900 s, Rowan every 1500 s), which stamps the clock
+  whatever the robot is doing, and the longest logged gap between asks was
+  901 s and 1501 s. And for a map that asks when it has nothing to do, no
+  chain of failed thinks and cooloffs can outlast the clock: one think to
+  its deadline, the idle a failed call leaves and the moment between two
+  decisions come to about 666 s, and 1,388 s with an escalation's second
+  leg (off on the deployed world; pinned).
+- The purse. At the catalogue's rates the weekend's wakes cost about $4.4
+  and $4.0. A rolling week holds three wakes (Wednesday's and the
+  weekend's), about $13 of the $20. On the 12 cut-off turns, the new pair's
+  answers averaged 33.1k tokens out, about the 32,768 each cut-off was
+  billed for, and an answer brings no re-ask after it. So a wake should
+  cost about what it did. A call at the cap costs $0.037 against $0.021
+  before, and the week runs out only at about 1.5 times the weekend's spend
+  a wake ($6.7). Past that, `fallback:allowance` refuses every call until
+  the week's end.
+
+**What the period is for** (Wednesday 11-25's test wake, then the weekend's;
+the baseline is the wakes of 11-21/22, on the release of 11-20, and the
+release that carries this carries the loop of 11-22's other changes too):
+- **Failed calls by kind, per decision**: cut-off, timeout, offline,
+  garbled. Baseline: 140, 26 and 4 of 564 (the 170 above, 30 %), and 1
+  garbled answer.
+- **The decision's seconds**: the median and p90 `wallS`, and the share of
+  each robot's day spent standing still thinking. Baseline: a median of
+  124 s and 142 s, about two thirds of each day.
+- **How much of the new room is used**: answers past 32,768 tokens or past
+  300 s. Baseline: none could be.
+- **Passes**: jobs passed of those tried, and offers expired. Baseline: 25
+  of 104, and 50 table offers expired.
+- **The purse**: dollars a wake, and any `fallback:allowance`. Baseline:
+  about $4.4 and $4.0.
+- **The pack**: decisions begun near the reserve, and any `flat` death.
+
+⚠ A wake's provider speed moves every one of these: 68 tokens a second on
+11-18 against about 155 on 11-21/22, the same pin. So read tokens per wall
+second beside each number. One test wake is a count, not a verdict.
+
 ### Who answered is the provider the router's answer names, its header kept beside it as `route` (V3, `loop-provider`) — opens when this PR is deployed
 
 **What the robots read.** Nothing moves: the prompt (`6ec0fc48…`, 70,256

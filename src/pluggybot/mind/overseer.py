@@ -133,63 +133,43 @@ MODEL = "claude-haiku-4-5"
 #: The SDK gets the same number as its own request timeout, so the HTTP call
 #: is actually abandoned rather than left running behind a fallback.
 #:
-#: MEASURED (issue #117; `scripts/overseer_probe.py --calls 50`, quiet box,
-#: `Qwen/Qwen3-4B-Instruct-2507` on the HF router, 2026-09-07):
-#:
-#:     min 3.55 · median 4.88 · p90 5.89 · p95 6.59 · max 7.38 s
-#:     timeout share at EVERY candidate from 8 s up: 0 %
-#:     malformed answers: 0 of 50
-#:
-#: ⚠ THE CURVE SAYS THE OLD 8 s WAS NOT FAILING -- IT SAYS IT HAD NO MARGIN.
-#: Nothing timed out on a quiet box, and the slowest call still used 92 % of
-#: the deadline; put a VM and five sims on the same six cores and the same
-#: mind went to 19-47 % fallback.
-#:
-#: ⚠ ...AND A MISSION IS SLOWER THAN THE PROBE, MEASURED IN FLIGHT: five
-#: quiet days at this deadline (Evaluation.md section 3) put a real
-#: decision at a 7.49 s median, a 9.33 s p95 and a 16.69 s MAX, with 34 %
-#: of calls over the old 8 s. A mission's prompt carries a day of
-#: `History.md`, thoughts and offers that a synthetic state does not, so the
-#: probe under-measures by roughly half. Choose a deadline from the probe;
-#: confirm it with a flight. Zero timeouts in those five days.
-#:
 #: It is a deliberate PATIENCE budget, and the reasoning is the project's
 #: rather than the distribution's: this world exists to let a mind make a
 #: complicated choice, and a decision lost to a clock is the one failure
-#: that is purely ours. ⚠ 300 s SINCE #604's follow-up, STREAMED
-#: (`llm.deadline_fetch`): not streamed, no call outlived the router's
-#: gateway, a 504 at 120 s of silence (#604's 115 s), and a provider that
-#: held its answer to the end never came back. On the live robots' own
-#: turns (Overseer.md §6) GLM-5.3-Flash thought up to 98 s on baseten, and
-#: flown writing procedures 208 s, and 315 s on novita (26,945 tokens): a
-#: flowing think is ended only by this, a silent stream by
-#: `llm.STREAM_SILENCE_S`. `MAX_TOKENS_AUTONOMOUS` is sized to it; the
-#: interrupt keeps its own (`INTERRUPT_TIMEOUT_S`).
+#: that is purely ours. How it was first chosen off a probe's curve (#117)
+#: and how it grew is Overseer.md §6, "The deadline". ⚠ 600 s SINCE 11-22
+#: (Ben's call: quality before speed; 300 s from #604's follow-up),
+#: STREAMED (`llm.deadline_fetch`): on the wakes of 11-21/22 the deployed
+#: mind failed 170 of 564 decisions, 140 of them thinks cut off at the
+#: 32,768 tokens they had (a median 212 s, 110-248 tokens a second) and 26
+#: still thinking at 300 s. A flowing think is ended only by this, a silent
+#: stream by `llm.STREAM_SILENCE_S`; the router closes a stream at 20
+#: minutes. `MAX_TOKENS_AUTONOMOUS` is sized to it; the interrupt keeps its
+#: own (`INTERRUPT_TIMEOUT_S`).
 #:
 #: ⚠ A DEADLINE IS A CAP, NOT A COST -- but a long think IS one: `_decide`
 #: steps the sim while a call is in flight (`THINK_SLICE_S`), the robot
 #: standing still at the ~93 W a humanoid draws standing while its world
-#: goes on: the other robot, the board, a held job's minutes. 300 s of it
-#: is 7.8 Wh, 40 % of the reserve (`humanoid.world.RESERVE_WH`), and a
+#: goes on: the other robot, the board, a held job's minutes. 600 s of it
+#: is 15.5 Wh, 80 % of the reserve (`humanoid.world.RESERVE_WH`), and a
 #: call's wall comes out of the 1800 s its map has to ask again in
-#: (`lifecycle.UNMINDED_AFTER_S`, stamped at the ask). At the live pair's
-#: ~48 calls an hour, the MEDIAN think stands each robot still ~5 minutes
-#: of its hour on deepinfra and ~16 on baseten -- flown on procedure work,
-#: half of it, and the robot is told when one outlived it (`StillWriting`).
+#: (`lifecycle.UNMINDED_AFTER_S`, stamped at the ask). On those wakes each
+#: robot stood still thinking about two thirds of its day, and the robot is
+#: told when a think outlived the deadline (`StillWriting`).
 #: The two ways to spend the
 #: cap itself: a DEAD endpoint cannot, much -- a silent stream ends at
 #: `STREAM_SILENCE_S`, and three failures in a row start a cooloff
 #: (`MAX_CONSECUTIVE_ERRORS`, `COOLOFF_BASE_S`, doubling); a mind SLOW BUT
 #: ALIVE, thinking to the cap every time, can, and the fallback rate and
 #: the `call` rows' `wallS` are what say so.
-CALL_TIMEOUT_S = 300.0
+CALL_TIMEOUT_S = 600.0
 #: ...and the outer poll deadline, which must be the looser of the two or a
 #: call that finishes at 7.9 s would be discarded by its own supervisor.
 POLL_GRACE_S = 2.0
 #: THE MID-ERRAND INTERRUPT'S PATIENCE (issue #116), its own since the
 #: decision's went to minutes: asked as the pack runs low, it holds the
 #: robot still mid-errand, and "carry on?" must not take a decision's
-#: 300 s. #604's 115 s, unchanged: its answer is `MAX_TOKENS` (4,096, below),
+#: 600 s. #604's 115 s, unchanged: its answer is `MAX_TOKENS` (4,096, below),
 #: which the slowest writer measured (Qwen3.5-397B on deepinfra, 60 tokens a
 #: second) finishes in ~70 s after a first byte under 10 s; on the live
 #: turns it thought 162-2,918 tokens and answered within 21 s everywhere but
@@ -233,25 +213,25 @@ from pluggybot.mind.look import LOOK_S, MAX_LOOK_RUN  # noqa: E402, F401
 #: spends the budget it needed to close the object.
 #: ⚠ A REASONING MODEL SPENDS IT ON ITS REASONING FIRST, and what it cannot
 #: finish is an empty answer, billed in full: `fallback:cutoff` (#604).
-#: 32,768 SINCE #604's follow-up (16,384 since #604, 8,192 at #225's pick),
-#: measured streamed: on the live robots' turns GLM-5.3-Flash on baseten
-#: thought 1.1k-19.7k tokens (29 calls), and FLOWN, writing and mending its
-#: procedures, a median of 11.3k and 22.2k-24.6k on 3 of 13, one cut off at
-#: 24,576; DeepSeek-V4.1-Flash at `low`, up to 26.6k. ⚠ SIZED TO THE
-#: DEADLINE: 32,768 comes back inside `CALL_TIMEOUT_S` at 112 tokens a
-#: second or more, its wall in -- the flight's thinks over 10k wrote at
-#: 114-246 -- a cut-off metered and said; slower (2 of the replays' 17 long
-#: answers wrote at 100-106; novita at 76-94), a think that ran out is a
-#: timeout, booked at an estimate and counted toward the cooloff (Overseer.md
-#: §6). A ceiling, not a spend.
-MAX_TOKENS_AUTONOMOUS = 32768
+#: 64,000 SINCE 11-22, WITH THE DEADLINE (32,768 from #604's follow-up,
+#: 16,384 at #604, 8,192 at #225's pick): on the wakes of 11-21/22, 140 of
+#: the deployed mind's thinks ran out of 32,768 inside 300 s, most of them
+#: with nothing of the answer written. ⚠ SIZED TO THE DEADLINE: it comes
+#: back inside `CALL_TIMEOUT_S` at 112 tokens a second or more, its wall in
+#: (#604's flight wrote its long thinks at 114-246, the wakes their cut-offs
+#: at 110-248), a cut-off metered and said; slower, a think that ran out is
+#: a timeout, booked at an estimate and counted toward the cooloff
+#: (Overseer.md §6). ⚠ AND NO HIGHER THAN THE DEFAULT MODEL TAKES:
+#: `claude-haiku-4-5` writes at most 64,000 (`MODEL`, the Anthropic path).
+#: A ceiling, not a spend.
+MAX_TOKENS_AUTONOMOUS = 64000
 #: ...and the mid-errand interrupt's (issue #116): one boolean and a
 #: sentence, after the same reasoning. On the live robots' own turns it
 #: thought 489-1,846 tokens (#604), 7 of 20 past the 1,024 it had, and a
 #: failed interrupt stops the errand. ⚠ NOT the decision's budget: it is
 #: asked as the pack runs low, mid-errand, and 4,096 -- twice the longest --
-#: comes back in ~28 s where 32,768 could stand the robot still for four
-#: minutes and more; it keeps its own deadline too (`INTERRUPT_TIMEOUT_S`).
+#: comes back in ~28 s where the decision's could stand the robot still
+#: for ten minutes; it keeps its own deadline too (`INTERRUPT_TIMEOUT_S`).
 MAX_TOKENS = 4096
 
 #: THE ESCALATION (issue #37). Routine decisions run on whatever backend the
@@ -291,13 +271,14 @@ ESCALATE_ASSUMED_IN = 3500
 #: Wall seconds a bigger mind gets. Longer than `CALL_TIMEOUT_S` because a
 #: 70B answering ~1 000 tokens is genuinely slower than an 8B answering 200
 #: -- an ordering, not an independent number, so it moves whenever that one
-#: does (issue #117: 30 -> 120 when the routine deadline went 8 -> 90).
+#: does (issue #117: 30 -> 120 when the routine deadline went 8 -> 90;
+#: 360 -> 720 when it went 300 -> 600).
 #: ⚠ Measured, the escalation is not in fact the slow one: the 235B pick
 #: answers in 2.05 s (docs/Overseer.md section 8). This is headroom for the
 #: case where it is, not a prediction that it will be. Through the router it
 #: streams as the routine call does (`llm.deadline_fetch`, #604's follow-up),
 #: so the gateway's 120 s no longer bounds it, and the ordering holds.
-ESCALATE_TIMEOUT_S = 360.0
+ESCALATE_TIMEOUT_S = 720.0
 
 #: Claude Haiku 4.5, USD per million tokens (skill: claude-api). Used only to
 #: report a cost per sim-hour -- nothing here spends or gates on money.
