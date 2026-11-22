@@ -296,7 +296,8 @@ def _laid(raw: dict, metrics: dict) -> tuple[bool, str]:
                   + (f", {above:.0f} cm over the table" if above > 1 else ""))
     elif tilt > math.degrees(UPRIGHT_RAD):
       lies = "upright" if p == "cup" else "flat"
-      askew.append(f"the {p} rests at its place tipped {tilt:.0f} deg: it must stand {lies}")
+      tipped = lid.against(tilt, math.degrees(UPRIGHT_RAD))[0]
+      askew.append(f"the {p} rests at its place tipped {tipped} deg: it must stand {lies}")
     elif p == "fork" and turn > math.degrees(FORK_RAD):
       lies, within = lid.against(turn, math.degrees(FORK_RAD))
       askew.append(f"the fork lies {lies} deg off the place's line: it must lie along it, "

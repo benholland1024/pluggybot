@@ -2216,7 +2216,8 @@ old History line, what somebody said last week, a line you unpinned. Choose \
 `find` to a few words to search for. A find searches all you keep from this \
 life -- your History, `think`s, notes and findings (their topics and titles \
 too), goals, pinned lines and the lines you took out -- and brings back at \
-most %(found)d, the best match first. You stand still for ten seconds and the \
+most %(found)d, the best match first, after anything `read` brings. You stand \
+still for ten seconds and the \
 lines arrive on your next turn as `recalled`, each with its number. They \
 stay while you keep recalling and go when you do anything else, so `pin` or \
 `note` what you want to keep. You may recall at most three times in a row \

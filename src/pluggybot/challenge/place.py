@@ -210,7 +210,8 @@ def _place(raw: dict, metrics: dict) -> tuple[bool, str]:
     where = f"{at} cm from the mat's middle" + (f", {above:.0f} cm over it" if above > 1 else "")
     return False, f"the cube ended {where}: it must rest on the mat, within {within} cm of its middle"
   if tilt > math.degrees(UPRIGHT_RAD):
-    return False, f"the cube rests on the mat tipped {tilt:.0f} deg"
+    tipped = lid.against(tilt, math.degrees(UPRIGHT_RAD))[0]
+    return False, f"the cube rests on the mat tipped {tipped} deg"
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
     return False, f"the cube on the mat, but {touched} still touched it after the call -- let go"

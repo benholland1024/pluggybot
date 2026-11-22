@@ -104,13 +104,13 @@ def judged(falls, ok: bool, reason: str) -> tuple[bool, str]:
 def against(reading: float, line: float, places: int = 0,
             line_places: int | None = None) -> tuple[str, str]:
   """A reading and the line it was judged against, as a reason prints them,
-  the lid's and every hands check's (#737): each at the fewest decimal
-  places -- the reading's from `places`, the line's from `line_places`
-  (`places` unsaid), the reading's first -- at which the two printed compare
-  as the two measured do. A reading far from its line keeps its whole words
-  ("came out 0 cm, short of the 15"); one near it never prints as the line
-  ("14.7 cm, short of the 15", never "15 cm"; "57.1 deg, short of the
-  57.3")."""
+  the lid's and every hands check's (#737), so that the two printed compare
+  as the two measured do: the reading at the fewest decimal places from
+  `places` that lets them, and at each, the line at the fewest from
+  `line_places` (`places` unsaid) up to the reading's. A reading far from
+  its line keeps its whole words ("came out 0 cm, short of the 15"); one
+  near it never prints as the line ("14.7 cm, short of the 15", never "15
+  cm"; "57.1 deg, short of the 57.3", never "57, short of the 57.3")."""
   line_places = places if line_places is None else line_places
   sign = (reading > line) - (reading < line)
   for p in range(places, max(places, 17) + 1):
@@ -286,6 +286,8 @@ def _lid(raw: dict, metrics: dict) -> tuple[bool, str]:
   """Criteria 1 to 5 on measurements all there: the verdict and its
   reason."""
   top, down, end = (float(raw[k]) for k in ("topDeg", "downRadS", "angleDeg"))
+  # a lid past its line says so beside the "57.3" a lid short of it reads
+  opened = against(top, math.degrees(OPEN_RAD), 0, 1)[0]
   # A short hold is the HARNESS's fault, and it still fails.
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
     held, asked = against(float(raw["holdS"]), HOLD_S, 1, 0)
@@ -301,16 +303,16 @@ def _lid(raw: dict, metrics: dict) -> tuple[bool, str]:
     return False, f"the lid rose to {rose} deg, short of the {past} it must open past"
   if down > LOWER_RAD_S:
     fast, most = against(down, LOWER_RAD_S, 1)
-    return False, (f"opened to {top:.0f} deg, but it came down at {fast} "
+    return False, (f"opened to {opened} deg, but it came down at {fast} "
                    f"rad/s while open -- let fall, not lowered (no faster than {most})")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
-    return False, (f"opened to {top:.0f} deg and lowered, but {touched} still "
+    return False, (f"opened to {opened} deg and lowered, but {touched} still "
                    "touched the lid or its handle after the call -- let go")
   if end >= math.degrees(SHUT_RAD):
-    return False, (f"opened to {top:.0f} deg and lowered, but the lid was "
+    return False, (f"opened to {opened} deg and lowered, but the lid was "
                    f"{end:.0f} deg open {HOLD_S:.0f} s after the call")
-  return True, (f"opened to {top:.0f} deg and set down in "
+  return True, (f"opened to {opened} deg and set down in "
                 f"{float(raw['elapsedS']):.0f} s: lowered at most {down:.2f} rad/s "
                 f"while open, shut {'and caught ' if raw['caught'] else ''}"
                 f"{HOLD_S:.0f} s after the call, let go")

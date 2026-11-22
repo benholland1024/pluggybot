@@ -85,6 +85,13 @@ def test_the_passing_set_outs_pass():
   (table.eval_table, _table(fork={"turnDeg": 15.3}),
    "the fork lies 15.3 deg off the place's line: it must lie along it, its head toward the "
    "card, within 15 deg"),
+  # the tilt (#737's review): its line is the practice's "upright within 10 degrees"
+  (place.eval_place, CUBE | {"tiltDeg": 10.3}, "the cube rests on the mat tipped 10.3 deg"),
+  (table.eval_table, _table(cup={"tiltDeg": 10.3}),
+   "the cup rests at its place tipped 10.3 deg: it must stand upright"),
+  # a lid past its line says so beside the "57.3" one short of it reads
+  (lid.eval_lid, LID | {"topDeg": 57.4, "downRadS": 1.2}, "opened to 57.4 deg, but it came down at 1.2"),
+  (lid.eval_lid, LID | {"topDeg": 57.32, "angleDeg": 8.0}, "opened to 57.32 deg and lowered, but the lid"),
 ] + [
   # Rowan's t_0758 (W1's comment on #737): every grader's time limit, and its hold
   (grade, passing | {"elapsedS": 960.3}, "called 960.3 s after the start, past the 960 s the job allows")
@@ -126,6 +133,9 @@ SENTENCES = [
   ("table", ("cup.offM",), table.PLACE_M, 100, r"ended ([\d.]+) cm .* within ([\d.]+) cm", 1),
   ("table", ("fork.turnDeg",), math.degrees(table.FORK_RAD), 1,
    r"lies ([\d.]+) deg .* within ([\d.]+) deg", 1),
+  ("cube", ("tiltDeg",), math.degrees(place.UPRIGHT_RAD), 1, r"on the mat tipped ([\d.]+) deg()", 1),
+  ("table", ("cup.tiltDeg",), math.degrees(table.UPRIGHT_RAD), 1,
+   r"cup rests at its place tipped ([\d.]+) deg()", 1),
 ] + [
   (name, ("elapsedS",), 960.0, 1, r"called ([\d.]+) s after the start, past the ([\d.]+) s", 1)
   for name in GRADERS
@@ -160,6 +170,22 @@ def test_every_reading_against_its_line_prints_as_it_was_judged(name, keys, line
     shown = float(hit.group(1))
     said = float(hit.group(2)) if hit.group(2) else scale * line
     assert (shown > said) - (shown < said) == way, (reading, why)
+
+
+def test_a_lid_past_its_line_never_reads_as_one_short_of_it():
+  """Past its line a lid prints past the "57.3" a lid short of it is told
+  (#737's review): where it read "opened to 57 deg" from 57.30 to 57.49. Its
+  line is 1 rad, 57.2958 deg, so in the sliver up to about 57.3005 it prints at
+  the places that tell it from 1 rad, "57.300" at the least."""
+  line = math.degrees(lid.OPEN_RAD)
+  for top in (57.3006, 57.301, 57.304, 57.305, 57.31, 57.349, 57.35, 57.4, 57.49, 58.0, 62.0):
+    why = lid.eval_lid(LID | {"topDeg": top, "angleDeg": 8.0})[2]
+    shown = float(re.search(r"opened to ([\d.]+) deg", why).group(1))
+    assert shown > 57.3, (top, why)
+  for top in (line + 1e-5, line + 0.001, 57.2999, 57.3, 57.3001):
+    why = lid.eval_lid(LID | {"topDeg": top, "angleDeg": 8.0})[2]
+    assert float(re.search(r"opened to ([\d.]+) deg", why).group(1)) > line, (top, why)
+  assert lid.eval_lid(LID)[2].startswith("opened to 64 deg and set down in 84 s")
 
 
 # ---- 2. far from its line, its words as they were ------------------------------------
