@@ -41,7 +41,9 @@ answered none of them, so the budget doubles too.
 
 **Measured before deploying** (`~/pluggybot-training/loop-1122/w0-deadline/`,
 the deployed pin through the code's own client):
-- the provider takes the budget (65,536 asked, a 200);
+- the provider takes the budget (65,536 asked, a 200; and 64,000 through
+  every other GLM-5.3-Flash pin, `:cheapest`, two DeepSeek-V4.1-Flash pins
+  and the escalation's model);
 - the route carries a stream past 300 s (two made-up asks streamed 466 s and
   516 s, at 127-141 tokens a second, and ended at their 65,536 tokens);
 - the weekend's own failed turns finish. Of 15 rebuilt from the 11-21 wake
@@ -56,16 +58,17 @@ the deployed pin through the code's own client):
   the 19.5 Wh reserve. No decision of 11-21/22 or of 11-18 began within
   20 Wh of the reserve; the lowest packs at a decision were 9 % of 777.6 Wh
   (70 Wh, Rowan, 11-21/22) and 7 % (54 Wh, Luca, 11-18).
-- A held job's minutes run while the robot thinks. The cube's 9 left a
-  claim at the mall about 300 s to write in, and one think may now take
-  600.
+- A held job's minutes run while the robot thinks, and none was moved. The
+  cube's 9 left a claim at the mall about 300 s to write in, and the
+  table's 14 left its lay about 560 s; one think may now take 600.
 - The death clock: both robots' maps carried an `every` ask through the
   weekend (Luca every 900 s, Rowan every 1500 s), which stamps the clock
   whatever the robot is doing, and the longest logged gap between asks was
   901 s and 1501 s. And for a map that asks when it has nothing to do, no
   chain of failed thinks and cooloffs can outlast the clock: one think to
   its deadline, the idle a failed call leaves and the moment between two
-  decisions come to about 666 s (pinned).
+  decisions come to about 666 s, and 1,388 s with an escalation's second
+  leg (off on the deployed world; pinned).
 - The purse. At the catalogue's rates the weekend's wakes cost about $4.4
   and $4.0. A rolling week holds three wakes (Wednesday's and the
   weekend's), about $13 of the $20. On the 12 cut-off turns, the new pair's
@@ -80,7 +83,8 @@ the deployed pin through the code's own client):
 the baseline is the wakes of 11-21/22, on the release of 11-20, and the
 release that carries this carries the loop of 11-22's other changes too):
 - **Failed calls by kind, per decision**: cut-off, timeout, offline,
-  garbled. Baseline: 140, 26, 4 and 1 of 564 (30 %).
+  garbled. Baseline: 140, 26 and 4 of 564 (the 170 above, 30 %), and 1
+  garbled answer.
 - **The decision's seconds**: the median and p90 `wallS`, and the share of
   each robot's day spent standing still thinking. Baseline: a median of
   124 s and 142 s, about two thirds of each day.

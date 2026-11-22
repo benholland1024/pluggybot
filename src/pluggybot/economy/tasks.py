@@ -217,7 +217,9 @@ class _Blank(dict):
 HAND_MINUTES = 16
 #: ...and the table's (#560): three times its reference's slowest pass over
 #: the tour, 279 s from the claim to the call (`scripts/solve.py --feature
-#: table --from tour`, one pod), rounded up.
+#: table --from tour`, one pod), rounded up. ⚠ Not moved when one think's
+#: deadline went to 600 s (11-22): 840 s leaves that pass 240 s after a
+#: think that long, and the cube's 9 (below) leave it none.
 TABLE_MINUTES = 14
 #: ...and the cube's (#560): three times its reference's slowest pass from
 #: the dearest station, the mall's, its area remembered, 177-180 s to its

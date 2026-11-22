@@ -2305,7 +2305,10 @@ Measured before it was deployed, through the code's own client and the
 deployed pin (`~/pluggybot-training/loop-1122/w0-deadline/`):
 - **The provider takes the budget.** The router's catalogue lists baseten
   at a 1,048,576-token context and no output cap. A call asking 65,536
-  with the decision's JSON schema was answered.
+  with the decision's JSON schema was answered, and so was one asking
+  64,000 through GLM-5.3-Flash's other pins (deepinfra, together,
+  fireworks-ai, novita, `:cheapest`), DeepSeek-V4.1-Flash on deepinfra and
+  baseten, and the escalation's Qwen3-235B.
 - **The route carries a stream past 300 s.** Two made-up asks streamed 466
   s and 516 s through the router, OpenRouter and baseten, at 127-141
   tokens a second. Each ended at its 65,536 tokens, all of them thinking, with no

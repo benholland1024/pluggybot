@@ -218,9 +218,9 @@ Before doing anything, read the doc that owns what you are about to touch:
   not streamed, none outlived the router's gateway (a 504 at 120 s of
   silence; #604's 115), and novita held its answers to the end.
   ⚠ A LONG THINK IS SPENT STANDING STILL (~93 W, the world going on; 600 s
-  is 15.5 Wh, 80 % of the reserve; on 11-21/22 each robot stood thinking
-  about two thirds of its wake) and comes out of the 1800 s between asks
-  (`UNMINDED_AFTER_S`, stamped at the ask) and out of a held job's minutes.
+  is 15.5 Wh, 80 % of the reserve) and comes out of the 1800 s between asks
+  (`UNMINDED_AFTER_S`, stamped at the ask) and out of a held job's minutes
+  (the cube's 9 and the table's 14 were not moved with it).
   ⚠ A stream silent for `llm.STREAM_SILENCE_S` (115) ends there, and no read
   waits past the deadline (a worker still reading makes the next decision
   `busy`). `INTERRUPT_TIMEOUT_S` (115) is the interrupt's own, never the
@@ -228,8 +228,8 @@ Before doing anything, read the doc that owns what you are about to touch:
   `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load).
   ⚠ The token budget is sized to it: one moves with the other
   (`MAX_TOKENS_AUTONOMOUS`, below: at 112 tokens a second it comes back
-  inside the deadline and fills more than half of it; the deadline doubled
-  over 32,768 would have answered none of 11-21/22's 140 cut-offs). ⚠
+  inside the deadline and fills more than half of it; why, Overseer.md §6
+  "The deadline doubled"). ⚠
   `scripts/overseer_probe.py --calls 50` under-measures a mission by about
   half: choose from the live robots' own turns, confirm with a flight.
 - **A fallback's reason is FAILURE or POLICY, and the partition is ONE**

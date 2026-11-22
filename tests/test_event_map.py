@@ -1439,17 +1439,20 @@ def test_a_chain_of_failed_thinks_cannot_outlast_the_unminded_clock():
   """The deadline doubled (11-22): a think may stand the robot still 600 s,
   and three failures in a row buy a cooloff, doubling. Neither starves a
   map that asks when it has nothing to do: each ask stamps the clock as it
-  fires (#426), a think runs at most to its deadline, a failed one leaves
+  fires (#426), a think runs at most to its deadline -- and an escalated
+  one on through the escalation's, its second leg -- a failed one leaves
   the robot idle (`AUTONOMOUS_IDLE_S`) where it left no order, and a
-  cooloff refuses at once -- so the longest no-ask stretch a chain of
-  failures can make is one think, the idle and the moment between two
-  decisions, inside the clock. (An `every` ask under it, as both
-  served robots' maps carried through 11-21/22, stamps whatever the robot
-  is doing.) Fails at a deadline of 1800 s."""
+  cooloff refuses at once: so the longest no-ask stretch a chain of
+  failures can make is one think and its escalation, the idle and the
+  moment between two decisions, inside the clock. (An `every` ask under
+  it, as both served robots' maps carried through 11-21/22, stamps
+  whatever the robot is doing.) ⚠ The deadlines are wall seconds and the
+  clock sim seconds: read as one on the served world, paced to real time.
+  Fails at a deadline of 1800 s, or an escalation's of 1200 s."""
   import pluggybot.lifecycle as lc
   import pluggybot.mind.overseer as ov
-  longest = (ov.CALL_TIMEOUT_S + ov.POLL_GRACE_S + lc.AUTONOMOUS_IDLE_S
-             + lc.DECIDED_IDLE_S)
+  longest = (ov.CALL_TIMEOUT_S + ov.POLL_GRACE_S + ov.ESCALATE_TIMEOUT_S
+             + ov.POLL_GRACE_S + lc.AUTONOMOUS_IDLE_S + lc.DECIDED_IDLE_S)
   assert longest < UNMINDED_AFTER_S
 
 
