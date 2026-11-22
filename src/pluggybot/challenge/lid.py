@@ -311,7 +311,8 @@ def _lid(raw: dict, metrics: dict) -> tuple[bool, str]:
                    "touched the lid or its handle after the call -- let go")
   if end >= math.degrees(SHUT_RAD):
     return False, (f"opened to {opened} deg and lowered, but the lid was "
-                   f"{end:.0f} deg open {HOLD_S:.0f} s after the call")
+                   f"{against(end, math.degrees(SHUT_RAD))[0]} deg open {HOLD_S:.0f} s after "
+                   "the call")
   return True, (f"opened to {opened} deg and set down in "
                 f"{float(raw['elapsedS']):.0f} s: lowered at most {down:.2f} rad/s "
                 f"while open, shut {'and caught ' if raw['caught'] else ''}"

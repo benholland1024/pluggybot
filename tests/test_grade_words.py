@@ -92,6 +92,8 @@ def test_the_passing_set_outs_pass():
   # a lid past its line says so beside the "57.3" one short of it reads
   (lid.eval_lid, LID | {"topDeg": 57.4, "downRadS": 1.2}, "opened to 57.4 deg, but it came down at 1.2"),
   (lid.eval_lid, LID | {"topDeg": 57.32, "angleDeg": 8.0}, "opened to 57.32 deg and lowered, but the lid"),
+  # a lid not shut (#737's review, round 2): open is "more than 5 degrees" in the practice's job
+  (lid.eval_lid, LID | {"angleDeg": 5.3}, "but the lid was 5.3 deg open 5 s after the call"),
 ] + [
   # Rowan's t_0758 (W1's comment on #737): every grader's time limit, and its hold
   (grade, passing | {"elapsedS": 960.3}, "called 960.3 s after the start, past the 960 s the job allows")
@@ -133,6 +135,7 @@ SENTENCES = [
   ("table", ("cup.offM",), table.PLACE_M, 100, r"ended ([\d.]+) cm .* within ([\d.]+) cm", 1),
   ("table", ("fork.turnDeg",), math.degrees(table.FORK_RAD), 1,
    r"lies ([\d.]+) deg .* within ([\d.]+) deg", 1),
+  ("lid", ("angleDeg",), math.degrees(lid.SHUT_RAD), 1, r"the lid was ([\d.]+) deg open()", 1),
   ("cube", ("tiltDeg",), math.degrees(place.UPRIGHT_RAD), 1, r"on the mat tipped ([\d.]+) deg()", 1),
   ("table", ("cup.tiltDeg",), math.degrees(table.UPRIGHT_RAD), 1,
    r"cup rests at its place tipped ([\d.]+) deg()", 1),

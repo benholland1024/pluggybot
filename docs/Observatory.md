@@ -48,6 +48,9 @@ at the fewest places that tell it from its line (`lid.against`):
 - a lid past its line: "opened to 57.4 deg, but …" where every lid from
   57.30 to 57.49 deg read "opened to 57 deg", beside one short of it at
   "57.1 deg, short of the 57.3";
+- a lid not shut: "but the lid was 5.3 deg open 5 s after the call" where
+  it read "5 deg open" (the practice's job: open is "more than 5
+  degrees");
 - the time limit, all five jobs: BEFORE "called 960 s after the start, past
   the 960 s the job allows" (Rowan's t_0758, 11-22 15:03, 960.3 s); AFTER
   "called 960.3 s …", and a limit that is not whole is said as it is
