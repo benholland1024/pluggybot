@@ -2533,7 +2533,11 @@ gate every document write passes (the files' `append`, the library's
   §10), `changelog` for the world's changelog a page at a time (#617, §7b),
   a line's `#123`) and/or `find` words (FTS5 over
   everything this generation, retired rows included, OR-joined and bm25
-  ranked; `FIND_LIMIT` 8). The robot stands still `RECALL_S` (10 s — thinking
+  ranked; `FIND_LIMIT` 8). ⚠ The RECALL rule says what a find searches,
+  each kind of record in the robot's words, and `FIND_LIMIT` formatted in
+  (#738): told only "a few words to search for", Rowan read a topic's notes
+  as History lines and concluded a find searches History alone. The robot
+  stands still `RECALL_S` (10 s — thinking
   takes real seconds) and the block (`{read, find, hits, lines}`, each line
   `#id [where] text`, ≤ `RECALLED_CHARS` 4000) rides the NEXT turn as
   `recalled`. **The chain**: blocks accumulate (≤ `RECALLED_CHAIN_CHARS`

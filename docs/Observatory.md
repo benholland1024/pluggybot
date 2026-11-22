@@ -10,6 +10,77 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### What a find searches, said; a grade's reading told from its line (#738, #737; W5, `loop-words2`) — opens when this PR is deployed
+
+**What the robots read.** The prompt moves, `6ec0fc48…` (70,256
+characters, 17 sections) -> `419028a9…` (70,476, 17 sections), by one
+sentence in the RECALL bullet (#738), its number formatted in off
+`FIND_LIMIT`:
+- BEFORE "… -- and/or `find` to a few words to search for. You stand still
+  for ten seconds …"
+- AFTER "… -- and/or `find` to a few words to search for. A find searches
+  all you keep from this life -- your History, `think`s, notes and
+  findings (their topics and titles too), goals, pinned lines and the lines
+  you took out -- and brings back at most 8, the best match first. You
+  stand still for ten seconds …"
+
+The grades' reasons move where a reading sits within half a printed unit
+of its line (#737; History and the site, never the prompt). Each is printed
+at the fewest places that tell it from its line (`lid.against`):
+- the drawer: BEFORE "the drawer came out 15 cm, short of the 15 it must"
+  (Luca's t_0735, 11-22 13:07, a little under 15); AFTER "came out 14.7 cm"
+  (or 14.97: as many places as it takes), and so "but was 14.97 cm out when
+  you finished" and "but 14.96 cm 5 s later";
+- the door: BEFORE "the door opened 50 deg, short of the 50 it must"
+  (Rowan's, 11-15); AFTER "opened 49.6 deg", and so its other two;
+- the lid: BEFORE "the lid rose to 57 deg, short of the 57 it must open
+  past" (never seen live); AFTER "rose to 57.1 deg, short of the 57.3 it
+  must open past" -- its line is 1 rad, 57.30 deg, and its job says "past 57
+  degrees" (Ben's call, below);
+- the three speed limits: "came down at 1.04 rad/s … (no faster than 1.0)"
+  where it read "1.0 rad/s", the cube's and the table's "came down at 0.53
+  m/s … (no faster than 0.5)" where they read "0.5 m/s";
+- the fork: "lies 15.3 deg off the place's line … within 15 deg" where it
+  read "lies 15 deg";
+- the time limit, all five jobs: BEFORE "called 960 s after the start, past
+  the 960 s the job allows" (Rowan's t_0758, 11-22 15:03, 960.3 s); AFTER
+  "called 960.3 s …", and a limit that is not whole is said as it is
+  ("past the 0.6 s", where it read "past the 1 s");
+- the hold, all five: "measured 4.97 s after the call, not the 5 s" where
+  it read "5.0 s".
+
+Unmoved: every reading far from its line ("came out 0 cm, short of the
+15", "rose to 50 deg, short of the 57", "called 1038 s …, past the 960
+s"), the cube's and the table's distances (a reading past 2.5 cm already
+rounds to 3), every line said with no reading ("it must open past 57
+deg"), every pass. A reason grows 1-4 characters a number near its line:
+over 767 mixes of the table's faults with every reading a hair past its
+line, the worst it can be, the longest History line 467 -> 480 characters
+and those past 400 60 -> 69. The session host's hello (sha1 `a61b6376`) and
+every recording are unmoved (the counter's carries a pass).
+
+**Why.** #738: Rowan asked on 11-21 whether a find searches notes as well
+as History (tk_0062), and on 11-22 answered itself wrongly from a `read`
+whose six notes it took for History lines. #737: Luca read its drawer's
+grade as the grader failing it at the line itself (tk_0066: "claim bars
+need to sit above the grade line by that margin"), and Rowan took "past
+the 960 s" for a law of the job's clock.
+
+**Ben's call, the lid's line.** Left as it is: the line 1 rad and the job's
+"past 57 degrees" (`economy/tasks.py`), so a lid at 57.1 deg fails and now
+reads "the lid rose to 57.1 deg, short of the 57.3 it must open past" beside
+a job that says 57. The other ways: the job says "past 57.3 degrees" (a
+job's words), or the line moves to 57 deg (a grader changed, Challenges.md
+§3). No lid grade of 11-14 to 11-22 read 57.
+
+**What the period is for.**
+- **Finds**: the share of `recall`s with a `find`, and whether a robot's
+  notes or tickets still say a find searches History alone. Baseline: 23 of
+  91 recalls on 11-21/22 carried a find (7 alone, 16 beside a `read`).
+- **Grades near their line**: none reads as its line now, by construction;
+  what the robots write of a near miss. Baseline: 2 of 104 grades on
+  11-21/22 printed their reading as the line (t_0735, t_0758).
+
 ### The minds' deadline doubled, the budget with it (W0, `loop-deadline`) — opens when this PR is deployed
 
 **What the robots read.** The prompt (`6ec0fc48…`, 70,256 characters, 17
