@@ -63,11 +63,11 @@ def test_the_place_passes_laid_let_go_in_time_and_on_nothing_less():
     ok, _, why = table.eval_table(_laid(**{p: {"tiltDeg": math.degrees(table.UPRIGHT_RAD) + 0.5}}))
     assert not ok and why.startswith(f"the {p} rests at its place tipped"), why
     ok, _, why = table.eval_table(_laid(**{p: {"fastestFreeMS": table.DROP_M_S + 0.01}}))
-    assert not ok and why.startswith(f"the {p} came down at 0.5 m/s with nothing holding it"), why
+    assert not ok and why.startswith(f"the {p} came down at 0.51 m/s with nothing holding it"), why
   assert "upright" in table.eval_table(_laid(cup={"tiltDeg": 30.0}))[2]
   assert "flat" in table.eval_table(_laid(plate={"tiltDeg": 30.0}))[2]
   ok, _, why = table.eval_table(_laid(fork={"turnDeg": math.degrees(table.FORK_RAD) + 0.5}))
-  assert not ok and why.startswith("the fork lies 15 deg off the place's line"), why
+  assert not ok and why.startswith("the fork lies 15.5 deg off the place's line"), why
   # laid backwards -- its head toward the diner -- is no fork laid
   assert not table.eval_table(_laid(fork={"turnDeg": 180.0}))[0]
   ok, _, why = table.eval_table(_laid(touchedDuringHold=["left_jaw_a_pad"]))

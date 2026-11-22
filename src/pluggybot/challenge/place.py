@@ -194,19 +194,21 @@ def _place(raw: dict, metrics: dict) -> tuple[bool, str]:
   """Criteria 1 to 4 on measurements all there: the verdict and its
   reason."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                   f"not the {HOLD_S:.0f} s the job asks for")
+    held, asked = lid.against(float(raw["holdS"]), HOLD_S, 1, 0)
+    return False, f"measured {held} s after the call, not the {asked} s the job asks for"
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                   f"the {limit:.0f} s the job allows")
+    took, allows = lid.against(float(raw["elapsedS"]), limit)
+    return False, f"called {took} s after the start, past the {allows} s the job allows"
   off, above, tilt = 100 * float(raw["offM"]), 100 * float(raw["aboveM"]), float(raw["tiltDeg"])
   if float(raw["fastestFreeMS"]) > DROP_M_S:
-    return False, (f"the cube came down at {float(raw['fastestFreeMS']):.1f} m/s with nothing "
-                   f"holding it -- dropped, not set down (no faster than {DROP_M_S:.1f})")
+    fast, most = lid.against(float(raw["fastestFreeMS"]), DROP_M_S, 1)
+    return False, (f"the cube came down at {fast} m/s with nothing holding it -- dropped, "
+                   f"not set down (no faster than {most})")
   if off > 100 * PLACE_M or abs(above) > 100 * RESTING_M:
-    where = f"{off:.0f} cm from the mat's middle" + (f", {above:.0f} cm over it" if above > 1 else "")
-    return False, f"the cube ended {where}: it must rest on the mat, within {100 * PLACE_M:.1f} cm of its middle"
+    at, within = lid.against(off, 100 * PLACE_M, 0, 1)
+    where = f"{at} cm from the mat's middle" + (f", {above:.0f} cm over it" if above > 1 else "")
+    return False, f"the cube ended {where}: it must rest on the mat, within {within} cm of its middle"
   if tilt > math.degrees(UPRIGHT_RAD):
     return False, f"the cube rests on the mat tipped {tilt:.0f} deg"
   if metrics["touchedDuringHold"]:

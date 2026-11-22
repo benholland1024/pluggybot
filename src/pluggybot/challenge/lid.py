@@ -101,6 +101,27 @@ def judged(falls, ok: bool, reason: str) -> tuple[bool, str]:
   return ok, reason
 
 
+def against(reading: float, line: float, places: int = 0,
+            line_places: int | None = None) -> tuple[str, str]:
+  """A reading and the line it was judged against, as a reason prints them,
+  the lid's and every hands check's (#737): each at the fewest decimal
+  places -- the reading's from `places`, the line's from `line_places`
+  (`places` unsaid), the reading's first -- at which the two printed compare
+  as the two measured do. A reading far from its line keeps its whole words
+  ("came out 0 cm, short of the 15"); one near it never prints as the line
+  ("14.7 cm, short of the 15", never "15 cm"; "57.1 deg, short of the
+  57.3")."""
+  line_places = places if line_places is None else line_places
+  sign = (reading > line) - (reading < line)
+  for p in range(places, max(places, 17) + 1):
+    shown = f"{reading:.{p}f}"
+    for q in range(line_places, max(line_places, p) + 1):
+      said = f"{line:.{q}f}"
+      if (float(shown) > float(said)) - (float(shown) < float(said)) == sign:
+        return shown, said
+  return repr(float(reading)), repr(float(line))
+
+
 # ---- the chest's parts --------------------------------------------------------
 
 def _subtree(model, root: int) -> np.ndarray:
@@ -267,21 +288,21 @@ def _lid(raw: dict, metrics: dict) -> tuple[bool, str]:
   top, down, end = (float(raw[k]) for k in ("topDeg", "downRadS", "angleDeg"))
   # A short hold is the HARNESS's fault, and it still fails.
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                   f"not the {HOLD_S:.0f} s the job asks for")
+    held, asked = against(float(raw["holdS"]), HOLD_S, 1, 0)
+    return False, f"measured {held} s after the call, not the {asked} s the job asks for"
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                   f"the {limit:.0f} s the job allows")
+    took, allows = against(float(raw["elapsedS"]), limit)
+    return False, f"called {took} s after the start, past the {allows} s the job allows"
   if top < math.degrees(OPEN_RAD):
     if top < math.degrees(SHUT_RAD):
       return False, f"the lid never opened: it must open past {math.degrees(OPEN_RAD):.0f} deg"
-    return False, (f"the lid rose to {top:.0f} deg, short of the "
-                   f"{math.degrees(OPEN_RAD):.0f} it must open past")
+    rose, past = against(top, math.degrees(OPEN_RAD))
+    return False, f"the lid rose to {rose} deg, short of the {past} it must open past"
   if down > LOWER_RAD_S:
-    return False, (f"opened to {top:.0f} deg, but it came down at {down:.1f} "
-                   f"rad/s while open -- let fall, not lowered (no faster than "
-                   f"{LOWER_RAD_S:.1f})")
+    fast, most = against(down, LOWER_RAD_S, 1)
+    return False, (f"opened to {top:.0f} deg, but it came down at {fast} "
+                   f"rad/s while open -- let fall, not lowered (no faster than {most})")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
     return False, (f"opened to {top:.0f} deg and lowered, but {touched} still "
