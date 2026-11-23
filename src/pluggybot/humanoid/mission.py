@@ -701,7 +701,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
           self.reach.retreat(s, watch=True)
       # ...the stand asked as each arm sets off home, by its own way
       # (`Reach._go_home`, #693: off the stand, one with none of it ahead
-      # once it is home), and the trunk waited on still there,
+      # once its command is home), and the trunk waited on still there,
       # `STAND_BACK_S` at most
       if all(p in NOT_OUT for p in self.reach.phase.values()):
         self.reach.hold_posture(0.0, 0.0)

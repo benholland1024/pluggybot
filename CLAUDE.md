@@ -421,9 +421,11 @@ save a filmstrip PNG named after the script.
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
-  straight, unchecked -- has the stand once it is home (asked as it set
-  off, the stand swung Luca's hand 3.4 cm past the toes onto the counter's
-  top: 5 of 33 fell), one with some ahead as it sets off (held, the check
+  straight, unchecked -- has the stand once its COMMAND is home, its
+  drivers not yet read (asked as it set off, the stand swung Luca's hand
+  3.4 cm past the toes onto the counter's top: 5 of 33 fell; and #693's
+  withdraw case fell the same with it never asked: below, the stall), one
+  with some ahead as it sets off (held, the check
   lost 3 doors and 23 tables of 32); a withdraw and a walk's hand-over wait
   for the trunk still in the stand (`_posture_held`, `STAND_BACK_S` at
   most), a withdraw's word the arm's as it came home. ⚠ A WAY HOME IS OVER

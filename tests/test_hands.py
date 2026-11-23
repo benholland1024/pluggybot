@@ -489,6 +489,7 @@ def _bare_reach():
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}
+  r._stall = {s: 0.0 for s in hm.SIDES}
   r.slack = {s: True for s in hm.SIDES}
   r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
   r.pulls = {s: None for s in hm.SIDES}
@@ -1632,6 +1633,11 @@ def _walking_home(phase="home", watch=True):
   r.homing["left"] = phase in ("home", "rest")
   if phase == "rest":
     r.q_cmd["left"] = r.rest["left"].copy()
+  else:
+    # ...its drivers just behind its command, as an arm that follows: no
+    # stall (`STALL_RAD`) inside any test's wait here (`_stalling_home`'s)
+    r.sensed[r.self_model.arm["left"]] = r.q_cmd["left"] - 0.1
+    assert 3 * rc.HOME_TIP_S < (rc.STALL_RAD - 0.1) / rc.JOINT_RATE + rc.STALL_S, "the premise"
   return r, rc
 
 
@@ -1892,6 +1898,103 @@ def test_a_way_home_held_for_tipping_the_body_away_is_raised_and_sent_home_again
     r.feel(1.05 * rc.HOME_TIP_NM / 0.9 * AWAY)
     r._update(0.01)
   assert r.held("left") and r.lifted["left"] == 0
+
+
+def _stalling_home(lag, carry=None):
+  """`_walking_home`'s left arm, a withdraw's way home (never watched), its
+  drivers reading it `lag` rad further from its rest than its command on its
+  first joint -- something holds it there as its command walks on -- its way
+  ending at `carry` where given (#682)."""
+  r, rc = _walking_home(watch=False)
+  r.carry_q["left"] = carry
+  arm = r.self_model.arm["left"]
+  r.sensed[arm] = r.q_cmd["left"]
+  r.sensed[arm[0]] += lag
+  return r, rc, r.sensed[arm].copy()
+
+
+def test_a_way_home_its_arm_stalls_on_is_held_where_its_drivers_read_it(monkeypatch):
+  """#693's withdraw case (the loop of 11-20's V2, through the served runner;
+  Luca's two door withdraws of 11-21 and 11-22, flown at their live draws):
+  after a back-out over a top's edge, or a door's pulls, the way home is
+  judged straight, unchecked, and brought a jaw down on the top's edge or the
+  counter; its command walked on to the rest while the arm stood still, 0.04
+  -> 0.7 rad behind it over 1.3 s, the press growing 16 -> 57 N and shoving
+  the robot 13 cm back -- then the jaw slipped off, the arm snapped home, and
+  the robot went over backward (V2's 4 of 4; the stand's timing was no part
+  of it: never asked, it fell the same). Any way home in joint space whose
+  drivers read the arm more than `STALL_RAD` behind its command for `STALL_S`
+  running is held where they read it, as one held at its rest is (`HELD_S`):
+  pressing on nothing, then raised and sent home again, its lifts spent left
+  there -- a withdraw's too, unwatched for its reading."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _, read = _stalling_home(1.05 * rc.STALL_RAD)
+  ticks = round(rc.STALL_S / 0.01)
+  for k in range(ticks - 1):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+  r.feel(np.zeros(3))
+  r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and r.home_over("left")
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read), \
+    "still pressed on toward its rest"
+  # ...and raised and sent home again, its lifts not spent (as `HELD_S`'s)
+  monkeypatch.setattr(rc, "LIFTS", 1)
+  r, _, read = _stalling_home(1.05 * rc.STALL_RAD)
+  for _ in range(ticks):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  assert np.allclose(r.q_cmd["left"], read)
+
+
+def test_a_way_home_its_arm_follows_or_catches_on_briefly_walks_on(monkeypatch):
+  """⚠ HELD, NEVER AT ONCE: the door check's first ways home catch a jaw on
+  the door's top up to 0.97 rad behind their command and slip free inside
+  0.45 s (Ben's bar, 9ee9298b), and pass. A way home its drivers read under
+  `STALL_RAD` behind walks on however long; past it for less than `STALL_S`,
+  its count begins again; and a carry's way to its pose (#682) never is."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  ticks = round(rc.STALL_S / 0.01)
+  # ...each watched while its command is still on its way (`_walking_home`'s, 1 rad off)
+  n = round(1.5 * ticks)
+  assert n * 0.01 * rc.JOINT_RATE < 1.0, "the premise: its command not yet at the rest"
+  r, _, _ = _stalling_home(0.0)
+  arm = r.self_model.arm["left"]
+  for k in range(n):
+    # ...its drivers following, just under the line behind
+    r.sensed[arm] = r.q_cmd["left"]
+    r.sensed[arm[0]] += 0.95 * rc.STALL_RAD
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+  # ...past it, then caught up a tick, then past it again: never `STALL_S` running
+  r, _, _ = _stalling_home(0.0)
+  for k in range(n):
+    r.sensed[arm] = r.q_cmd["left"]
+    r.sensed[arm[0]] += 0.0 if k == ticks - 2 else 1.05 * rc.STALL_RAD
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+  # ...and a carry's way to its pose
+  r, _, _ = _stalling_home(1.05 * rc.STALL_RAD, carry=np.array([0.15, 0.25, 0.0, 2.0, 0.0, 0.0]))
+  for k in range(n):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+
+
+def test_each_way_home_begins_its_stall_count_afresh():
+  """A way home's count of its arm stalled (`STALL_S`) is its own: one a
+  way before it left running holds no new way home early."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  r._stall["left"] = rc.STALL_S - 0.01
+  _sent_home(r, "left", RAISED)
+  assert r.phase["left"] == "home" and r._stall["left"] == 0.0
 
 
 @pytest.mark.parametrize("phase", ["joints", "home", "rest"])
