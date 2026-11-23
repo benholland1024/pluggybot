@@ -1769,11 +1769,12 @@ class Reach:
     # `verb`'s carry (#719)
     only = {} if kept is None else {"postures": (kept,)}
     # ...nor -- a `verb`'s hand that holds nothing -- while it reads a load
-    # (`CARRY_PRESSED_SHARE`, #699): it goes as far as its arm reaches
+    # (`CARRY_PRESSED_SHARE`, #699): it goes as far as its arm reaches from
+    # the posture it holds -- or is kept in (#719)
     open_ = verb and not self.grippers[side].held()
     loaded = open_ and self._pressed(self.force[side], 0.0, CARRY_PRESSED_SHARE)
     if loaded:
-      posture = tuple(float(v) for v in self.posture)
+      posture = kept if kept is not None else tuple(float(v) for v in self.posture)
     elif ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
       posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, **only)
@@ -2730,16 +2731,20 @@ class Reach:
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`) -- none
-      # while that hand reads a load, nor once one was given up
-      st["planned"] = st["t"]
-      posture = None if loaded or st.get("given") else self.posture_for(side, c.pos, rot=c.rot)
+      # while that hand reads a load, nor once one was given up: asked as
+      # soon as it reads light, as a pull's is
       if loaded:
         st["loaded"] = True
-      if posture is not None and tuple(posture) != tuple(self.posture):
-        if st.get("open") and "began" not in st:
-          st["began"] = self._standing_in()
-        self.hold_posture(*posture)
-        st["postured"] = st["t"]
+      elif not st.get("given"):
+        st["planned"] = st["t"]
+        posture = self.posture_for(side, c.pos, rot=c.rot)
+        if posture is not None and tuple(posture) != tuple(self.posture):
+          if st.get("open") and "began" not in st:
+            st["began"] = self._standing_in()
+          self.hold_posture(*posture)
+          st["postured"] = st["t"]
+          # ...and one taken since a load is no posture kept for it
+          st.pop("loaded", None)
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:
