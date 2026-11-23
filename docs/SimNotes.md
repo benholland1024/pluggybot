@@ -8534,12 +8534,13 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     lost) -- as round 7's flips did. Over the 64, 40 N laid 49 forks where the
     reference laid 45, and a place is three pieces.
   - **A step straight back with the plate**, before its walk to the place
-    (0.12 m asked; it walked 6-10 cm): the plate's strikes on the pass stayed
-    13 of 62, it was let go carried 3 times where 4 and laid 59 times where
-    55, and the robot fell 4 times where it never did. Two of those falls
-    came at the fork's step at the table's approach, one in the fork's find
-    off the pass, and one in the plate's own trip. It laid 32 places (+11
-    -11); with 40 N, 39 (+13 -6) and 2 falls.
+    (0.12 m asked; it walked 6.4-10.5 cm): the plate's strikes on the pass stayed
+    13 of 62, it was let go carried 3 times where 4 -- none of the reference's
+    four, so the step moved which plates came down, not how many -- and the
+    robot fell 4 times where it never did: twice at the fork's step at the
+    table's approach, once in the fork's find off the pass, and once at the
+    plate's own put-down. It laid 32 places (+11 -11); with 40 N, 39 (+13 -6)
+    and 2 falls.
   - **Where the reference loses now** (its first piece not laid, over the
     dev draws and the bar's 64: 63 misses of 128):
     - the cup, 28: set down off its spot or dropped 19, let go carried or
