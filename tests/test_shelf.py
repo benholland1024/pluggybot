@@ -540,6 +540,6 @@ def test_our_reference_is_told_each_set_outs_labels_as_an_offer_would():
   for k in range(8):
     so = ct.shelf_set_out(k)
     src = hc.source("shelf", k)
-    assert f"  c = {so.slots['candle']}\n" in src and f"  f = {so.slots['frame']}\n" in src
+    assert f"  one({so.slots['frame']}, 0)\n" in src and f"  one({so.slots['candle']}, 1)\n" in src
     assert len(src) <= lang.MAX_SOURCE_CHARS
     assert hc.compiled("shelf", k).name == "stock_shelf"

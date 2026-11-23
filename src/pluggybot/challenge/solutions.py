@@ -530,27 +530,43 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
 PASS_LIBRARY, PASS = _pass_job()
 
 
-#: THE SHOP'S SHELF STOCKED (#736, stage 1; not offered): the walk to the
-#: cart, then the shelf check's procedure from the check's start
+#: THE SHOP'S SHELF STOCKED (#736; not offered): the walk to the cart, then
+#: the shelf check's procedure from the check's start
 #: (`evaluation.hands_check.SHELF`, its labels filled from the job's,
 #: `job_routine`). The walk finds the shop's left wall tag (70) round the
 #: shop's address -- the labels are no place of the served house's
 #: (`world_facts`), so `find` takes none of them -- walks to `SHELF_OUT` m
 #: out of the shelf in front of where the cart stands (off that tag by the
-#: store's layout, `home.store`), faces the shelf, and steps in by the
-#: frame's tag to where the check starts, the frame 0.32 m ahead and 0.21 m
-#: left (`counter.SHELF_SOURCES`, `CART_GAP`), in two.
+#: store's layout, `home.store`), faces the shelf, steps to 0.62 m from the
+#: frame's tag, then in to leave the frame 0.35 m ahead and 0.21 m left
+#: (the check's start is 0.32: the looks that follow creep the stance in, and
+#: nearer than 0.29 the frame's tag no longer reads). ⚠ AT EACH OF THE TWO
+#: IT IS SQUARED OFF THE LINE FROM THE FRAME TO THE CANDLE (`square`), past 3
+#: deg: square, the line lies 4.8 deg off the robot's side, to 2 either way
+#: over the set-outs' spread. Walked there and faced by its belief, the robot
+#: stood 10-12 deg off square in 5 of 9 flights, and the carried trips then
+#: took it out of the labels' view; squared once, the oblique step in turned
+#: it 2-4 deg again (SimNotes, "Stocking the shop's shelf").
 SHELF_APPROACH = '''def to_shelf():
-  budget(steps=16, seconds=900)
+  budget(steps=30, seconds=900)
   find(70, %(ax)g, %(ay)g, 600)
   drive_to(read("find.x") + %(dx)g, read("find.y") + %(dy)g, 180)
   face(%(facing)g)
   spot(77)
-  if not step(read("spot.x") - 0.62, read("spot.y") - 0.21):
-    pass
+  if not step(read("spot.x") - 0.62, read("spot.y") - 0.21): pass
+  square()
   spot(77)
-  if not step(read("spot.x") - 0.32, read("spot.y") - 0.21):
-    pass
+  if not step(read("spot.x") - 0.35, read("spot.y") - 0.21): pass
+  square()
+
+
+def square():
+  spot(77)
+  fx = read("spot.x"); fy = read("spot.y")
+  if spot(76):
+    a = atan2(read("spot.x") - fx, fy - read("spot.y")) - 0.085
+    if a * a > 0.0027:
+      if not step(0, 0, a): pass
 '''
 #: How far out of the shelf's front the walk stops, m: half a metre further
 #: out than the check's start, in the aisle (1.68 m wide) clear of the cart.

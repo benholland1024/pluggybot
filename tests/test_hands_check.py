@@ -1094,3 +1094,205 @@ def test_the_doors_reach_stopped_short_turns_its_fingers_toward_the_middle_befor
   verbs = [v for v, _ in log]
   for i in [k for k, v in enumerate(verbs) if v == "reach"][:3]:
     assert verbs[i + 1] == "withdraw", verbs
+
+
+def _shelf_tags(k: int = 0):
+  """Set-out k's tags in the check's start stance frame (x ahead, y left), each with the way into
+  its face: the frame's on its face, the candle's on its top, each label on its board's front edge."""
+  from pluggybot.activity import stock
+  from pluggybot.home import store
+  so = ct.shelf_set_out(k)
+  o, out, right = store.axes()
+  s0, d0 = store.CART_AT, store.CART_BACK_GAP + 2 * stock.CART_HALF[0] + ct.CART_GAP
+  tags = {}
+  for name, (x, y, yaw) in so.products.items():
+    p = np.array([x, y]) - o
+    s, d = float(p @ right), float(p @ out)
+    turn = math.remainder(yaw - store.facing_in(), 2 * math.pi)
+    if name == "frame":
+      face = stock.PANEL[0] + stock.FILM / 2
+      tags[77] = (d0 - d - face * math.cos(turn), s0 - s - face * math.sin(turn),
+                  stock.CART_TOP + stock.PANEL[2], (math.cos(turn), math.sin(turn), 0.0))
+    else:
+      tags[76] = (d0 - d, s0 - s, stock.CART_TOP + stock.CANDLE_H, (0.0, 0.0, -1.0))
+  for lab in stock.LABEL_IDS:
+    tags[lab] = (d0, s0 - store.label_along(lab), store.board_top(stock.BOARD_OF[lab]) - 0.025,
+                 (1.0, 0.0, 0.0))
+  return so, tags
+
+
+def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0):
+  """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
+  set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
+  turning `drift` rad more than it asked; its first `held_back` descents onto a product held back
+  and its first `short` set-down reaches stopped short; its presses landing at `press_n` N. The
+  stub, the run and each verb as it began (with the stub's pose then)."""
+  from pluggybot.body import StubBody
+  from test_hands import _bare, _Life
+  so, tags = _shelf_tags(k)
+  log = []
+
+  class Seeing(StubBody):
+    def __init__(self, *a, **kw):
+      super().__init__(*a, **kw)
+      self.descents = self.shorts = 0
+
+    def spot(self, tag, at_height=None):
+      # ...the look's count is the verb's, never the body's (a look bows and looks again)
+      looks = sum(1 for v, a, _ in log if v == "spot" and int(a["tag"]) == int(tag))
+      if int(tag) not in tags or (hide is not None and hide(int(tag), self, looks)):
+        return None
+      x, y, z, n = tags[int(tag)]
+      return {"x": x, "y": y, "z": z, "normal": list(n), "edge": [0.0, 1.0, 0.0], "range": 0.5}
+
+    def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
+      return (yield from super().step_routine(ahead, left, turn + drift, patience))
+
+    def reach_routine(self, side, pos, rot=None, **kw):
+      if self.grips.get(side) and self.shorts < short:
+        self.shorts += 1
+        self._why[side] = "stopped short"
+        return False
+      return (yield from super().reach_routine(side, pos, rot, **kw))
+
+    def move_hand_routine(self, side, pos, *a, **kw):
+      at = np.asarray(self.hand_at(side), dtype=float)
+      if side in self.hands and not self.grips.get(side) and pos[2] < at[2] - 0.05:
+        self.descents += 1
+        if self.descents <= held_back:
+          return {"why": "held back", "seconds": 0.0, "moved": 0.04, "dx": 0.0, "dy": 0.0,
+                  "dz": -0.04}
+      return (yield from super().move_hand_routine(side, pos, *a, **kw))
+
+    def pull_routine(self, side, direction, limit_n, distance_m, *a, **kw):
+      out = yield from super().pull_routine(side, direction, limit_n, distance_m, *a, **kw)
+      if direction[2] < -0.5:
+        out["force"] = float(press_n)
+      return out
+  body = Seeing(*_bare())
+  life = _Life(body)
+  life.verb_began = lambda count, line, verb, values: log.append(
+    (verb, dict(values), (body.x, body.y, body.theta, bool(body.grips.get("left")))))
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(hc.SHELF % so.slots, facts), facts))
+  return body, ran, log, so, tags
+
+
+def _after(log, verb, tag):
+  """The verbs after the first look at `tag` (`spot`)."""
+  i = next(i for i, (v, a, _) in enumerate(log) if v == verb and int(a.get("tag", -1)) == tag)
+  return log[i + 1:]
+
+
+def test_a_tag_its_first_look_misses_is_looked_for_the_way_it_most_likely_went():
+  """⚠ A MISSED LOOK STEPS THE WAY ITS TAG MOST LIKELY WENT (#736 stage 2): a label after the carried
+  trip to its left (the trip over-travels: its steps' counts read short of the feet), the candle
+  after the trip back to its right; standing still, it was never found."""
+  so, _ = _shelf_tags(0)
+  label = so.slots["frame"]
+  body, ran, log, _, _ = _shelf_flown(hide=lambda tag, b, n: tag == label and n == 1)
+  assert ran["ok"], ran
+  nxt = next(a for v, a, _ in _after(log, "spot", label) if v in ("step", "spot"))
+  assert nxt.get("left", 0) > 0.05, nxt
+  body, ran, log, _, _ = _shelf_flown(hide=lambda tag, b, n: tag == 76 and n == 1)
+  assert ran["ok"], ran
+  nxt = next(a for v, a, _ in _after(log, "spot", 76) if v in ("step", "spot"))
+  assert nxt.get("left", 0) < -0.05, nxt
+
+
+def test_the_shelf_is_squared_off_its_label_before_each_set_down_and_the_trip_back():
+  """⚠ SQUARED OFF A LABEL'S FACE (#736 stage 2): the corrective steps and the set-down turned the
+  stance 5-9 deg, and a metre's sidestep 9 deg off square moved the robot 16 cm off the shelf going
+  back and 9 cm in going out, where no low label was in view. A stub that turns 0.03 rad a step
+  more than asked stands square (within the 2 deg the rule leaves) at each set-down's reach."""
+  body, ran, log, _, _ = _shelf_flown(drift=0.03)
+  assert ran["ok"], ran
+  downs = [pose for v, a, pose in log if v == "reach" and pose[3]]
+  assert len(downs) == 2, log
+  for _, _, theta, _ in downs:
+    # ...within the rule's 2 deg and the one step it may take after its turn
+    assert abs(theta) < math.radians(2.0) + 0.03 + 1e-9, downs
+  done = [v for v, _, _ in log].index("withdraw")
+  back = next(pose for v, a, pose in log[done:] if v == "step" and a.get("left", 0) > 0.2)
+  assert abs(back[2]) < math.radians(2.0) + 0.03 + 1e-9, back
+
+
+def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
+  """⚠ A SET-DOWN'S PRESS THAT READ UNDER 3 N NEVER LANDED (#736 stage 2): on the upper board at
+  full stretch it ended out of reach 5-7 cm up, and the product let go there fell; a press that
+  landed read 3.5 N or more. Under 3, the hand goes 5 cm lower first."""
+  for n, lowered in ((0.0, True), (6.0, False)):
+    body, ran, log, _, _ = _shelf_flown(press_n=n)
+    assert ran["ok"], ran
+    i = next(i for i, (v, a, _) in enumerate(log) if v == "pull" and a["dz"] < -0.5)
+    between = log[i + 1:]
+    between = between[:[v for v, _, _ in between].index("open_hand")]
+    assert [v for v, _, _ in between] == (["move_hand"] if lowered else []), (n, between)
+
+
+def test_a_pick_held_back_backs_out_and_looks_again():
+  """⚠ A DESCENT HELD BACK ON A PRODUCT'S TOP IS TRIED AGAIN FROM A FRESH LOOK (#736 stage 2): the
+  frame is 75 mm across the jaws' 90, and a descent a few mm off lands a jaw on its top; reached
+  level from there, the pick closed on nothing. The hand opens, backs off, goes home, and the
+  pick begins again from its look."""
+  body, ran, log, _, _ = _shelf_flown(held_back=1)
+  assert ran["ok"], ran
+  verbs = [v for v, _, _ in log]
+  i = verbs.index("move_hand")
+  assert verbs[i + 1:i + 6] == ["close_hand", "open_hand", "pull", "withdraw", "open_hand"], verbs[i:i + 8]
+  assert verbs[i + 6] == "spot", verbs[i:i + 8]
+
+
+def test_the_candle_is_gripped_above_its_middle():
+  """⚠ HELD ACROSS ITS MIDDLE THE CANDLE TURNED OVER IN THE HAND (#736 stage 2): at its centre of
+  mass it hangs free to spin about the jaws' line, and the swing to the carry pose spun it upside
+  down; gripped 1.5 cm above, it hangs."""
+  body, ran, log, so, tags = _shelf_flown()
+  assert ran["ok"], ran
+  descent = [a for v, a, _ in _after(log, "spot", 76) if v == "move_hand"][0]
+  assert descent["z"] == pytest.approx(tags[76][2] - 0.035, abs=1e-6)
+
+
+def test_a_set_down_reach_stopped_short_reaches_again_from_further_back_and_higher():
+  """⚠ THE UPPER BOARD'S SET-DOWN REACH STOPPED SHORT (#736 stage 2): the frame carried at the hip
+  came forward but not up, 13-28 cm short of a goal 1.07 m up; tried again 8 cm further back and
+  3 cm higher, then carried in."""
+  body, ran, log, _, _ = _shelf_flown(short=1)
+  assert ran["ok"], ran
+  held = [a for v, a, pose in log if v == "reach" and pose[3]]
+  first, again = held[0], held[1]
+  assert again["x"] == pytest.approx(first["x"] - 0.08, abs=1e-6)
+  assert again["z"] == pytest.approx(first["z"] + 0.03, abs=1e-6)
+
+
+def test_the_walk_to_the_shelf_squares_itself_off_the_frame_to_candle_line():
+  """⚠ THE WALK THERE SQUARES ITSELF (#736 stage 2; `solutions.SHELF_APPROACH`'s `square`): faced by
+  its belief, the robot stood 10-12 deg off square in 5 of 9 flights from across the house, and its
+  carried trips then took it out of the labels' view. The frame and the candle stand on the cart
+  along a line 4.8 deg off the robot's side when square (to 2 either way over the set-outs'
+  spread): turned 10 deg either way, it turns back to the set-out's own line; within 3 deg, never."""
+  from pluggybot.body import StubBody
+  from pluggybot.challenge import solutions as so
+  from test_hands import _bare, _Life
+  source = so.SHELF[0]
+  square = source[source.index("def square():"):]
+  so_, tags = _shelf_tags(0)
+  line = math.atan2(tags[76][0] - tags[77][0], tags[77][1] - tags[76][1]) - 0.085
+
+  class Seeing(StubBody):
+    def spot(self, tag, at_height=None):
+      if int(tag) not in (76, 77):
+        return None
+      x, y, z, n = tags[int(tag)]
+      return {"x": x, "y": y, "z": z, "normal": list(n), "edge": [0.0, 1.0, 0.0], "range": 0.5}
+  for turned, back in ((math.radians(10), True), (-math.radians(10), True), (math.radians(1), False)):
+    body = Seeing(*_bare())
+    body.theta = turned
+    facts = st.hand_facts()
+    ran = body.run(lang.run_procedure_routine(
+      _Life(body), lang.compile_procedure("def go():\n  square()\n\n\n" + square, facts), facts))
+    assert ran["ok"], ran
+    if back:
+      assert body.theta == pytest.approx(line, abs=1e-6), (turned, body.theta)
+    else:
+      assert body.stepped == [], body.stepped
