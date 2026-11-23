@@ -10163,8 +10163,27 @@ held as it is asked takes no posture while the hand reads past 20 N
 and gives a coming one up there as a pull does, backing off toward where
 the carry began until it reads no more, held there, that carry taking no
 other; it goes as far as its arm reaches from there, out of reach at once
-where it cannot follow. Ended out of reach where another posture would
-reach, it says so (`steps.MOVE_LOADED`), never that no posture would.
+where it cannot follow. A posture refused for a load is asked again at
+the next command that reads light, as a pull's is; loaded at the ask with
+the other hand out holding something, the carry takes the posture #719
+keeps it in -- where the body has got to -- never the one it was going to.
+Ended out of reach where another posture would reach, its last posture
+withheld for a load, it says so (`steps.MOVE_LOADED`), never that no
+posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
+own noise): at Rowan's draw with the belief 0.85 m off, on the tree it fell on
+(9914a40c, which flies W1's 24 rows exactly) 2 of 24 fell -- one in the
+carry, one in a `pull` with the cube gripped -- and with this rule 1 of 24,
+the gripped one, bit for bit; on the tree of 11-23 (3619f4eb) neither fell
+(0 of 24 both ways), the base taking 18 postures deeper while an open carry
+read past 20 N, in 10 flights (to (-0.20 m, 0.55 rad)), the rule none but
+its give-ups' way back. Where it gave up, the true push on the hand was 21-33
+N; the reading can also fall short of it (14 N read, 29 N true). Ben's bar
+(the hands checks at set-outs 0-31 and 32-127, the tour's five jobs: 736
+flights) passed 609 and fell 5 on both trees; of its 421 open carries
+(median 1.9 N, 95th percentile 13 N) 8 read past 20 N, all our door's hand
+drawn back off its lever after letting go, 7 of them for 0.01-0.04 s as it
+was asked with no posture coming; the rule changed one flight, a door that
+failed either way.
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,
