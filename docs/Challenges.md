@@ -564,10 +564,9 @@ each label and each product off the world, and pairs them by the job's
 product at fault** as the table's does (§12): once, by its first fault in
 the criteria's order -- its drop, where it ended (which side of its label,
 and how far over or under its board), its front, how it stands, the
-frame's turn -- each rule said once over the products it names. ⚠ A reading
-past its line is printed at the precision that tells it from the line
-(`shelf.beside`: "4.01 cm" against "within 4 cm"), never as the line's own
-number (#737's trap, in the graders before it).
+frame's turn -- each rule said once over the products it names, and each
+reading against its line as the five graders say theirs (`lid.against`,
+#737): "4.01 cm" against "within 4 cm", never the line's own number.
 
 **The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,
 as the checks' rows are. No world offers it: the stock is not in the served

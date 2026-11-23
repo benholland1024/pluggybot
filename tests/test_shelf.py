@@ -28,7 +28,7 @@ import pytest
 
 from pluggybot.activity import dishware as dw
 from pluggybot.activity import stock as st
-from pluggybot.challenge import shelf
+from pluggybot.challenge import lid, shelf
 from pluggybot.economy import scoring
 from pluggybot.evaluation import counter as ct
 from pluggybot.home import store
@@ -130,9 +130,9 @@ def test_each_line_is_its_own_and_a_product_on_it_passes():
 
 
 def test_a_reading_past_its_line_never_reads_as_the_line():
-  """#737's trap in this grader's words: a reading just past its line is
-  printed at the precision that tells it from the line -- "4.01 cm", never
-  "4 cm" against "within 4 cm"."""
+  """#737's rule in this grader's words (`lid.against`, the five graders'):
+  a reading just past its line is printed at the precision that tells it
+  from the line -- "4.01 cm", never "4 cm" against "within 4 cm"."""
   ok, _, why = shelf.eval_shelf(_stocked(candle={"alongM": 0.0401}))
   assert not ok and "ended 4.01 cm right of label 80" in why, why
   ok, _, why = shelf.eval_shelf(_stocked(frame={"backM": 0.1004}))
@@ -145,7 +145,8 @@ def test_a_reading_past_its_line_never_reads_as_the_line():
   assert not ok and "tipped 10.2 deg" in why, why
   ok, _, why = shelf.eval_shelf(_stocked(candle={"backM": -0.0003}))
   assert not ok and "juts 0.03 cm out over" in why, why
-  assert shelf.beside(4.6, 4.0) == "5" and shelf.beside(15.0, 15.0) == "15.0000"
+  # ...through the five graders' one helper, #737's `lid.against`
+  assert lid.against(4.6, 4.0) == ("5", "4")
 
 
 def test_the_reason_names_every_product_at_fault_once():

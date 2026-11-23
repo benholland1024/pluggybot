@@ -222,17 +222,6 @@ def eval_shelf(m: dict) -> tuple[bool, dict, str]:
   return ok, metrics, reason
 
 
-def beside(x: float, line: float, places: int = 0) -> str:
-  """`x` printed at `places` decimals, or at as many more as tell it apart
-  from `line` printed so: a reading past its line never reads as the line's
-  own number (#737's trap, "came out 15 cm, short of the 15")."""
-  for n in range(places, places + 4):
-    shown = f"{x:.{n}f}"
-    if shown != f"{line:.{n}f}":
-      return shown
-  return f"{x:.{places + 4}f}"
-
-
 _listed = table._listed
 
 
@@ -244,17 +233,19 @@ def _stocked(raw: dict, metrics: dict) -> tuple[bool, str]:
   names, as the table's reason is (#687). What still touched a product is
   said of a shelf otherwise stocked."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                   f"not the {HOLD_S:.0f} s the job asks for")
+    held, asked = lid.against(float(raw["holdS"]), HOLD_S, 1, 0)
+    return False, f"measured {held} s after the call, not the {asked} s the job asks for"
   said = []
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    said.append(f"called {beside(float(raw['elapsedS']), limit)} s after the start, past "
-                f"the {limit:.0f} s the job allows")
+    took, allows = lid.against(float(raw["elapsedS"]), limit)
+    said.append(f"called {took} s after the start, past the {allows} s the job allows")
+  # ...each reading against its line as `lid.against` prints it (#737), the
+  # lines said once over both products exact at the places they are said at
   dropped = [p for p in PRODUCTS if float(raw[p]["fastestFreeMS"]) > DROP_M_S]
   if dropped:
     said.append(_listed([f"the {p} came down at "
-                         f"{beside(float(raw[p]['fastestFreeMS']), DROP_M_S, 1)} m/s"
+                         f"{lid.against(float(raw[p]['fastestFreeMS']), DROP_M_S, 1)[0]} m/s"
                          for p in dropped])
                 + (" with" if len(dropped) == 1 else ", each with")
                 + " nothing holding it -- dropped or knocked over, not set down (no faster "
@@ -265,25 +256,27 @@ def _stocked(raw: dict, metrics: dict) -> tuple[bool, str]:
     along, above, back = float(q["alongM"]), float(q["aboveM"]), float(q["backM"])
     tilt, label = float(q["tiltDeg"]), int(q["slot"])
     if abs(along) > ALONG_M or abs(above) > RESTING_M:
-      cm = (beside(100 * abs(along), 100 * ALONG_M) if abs(along) > ALONG_M
+      cm = (lid.against(100 * abs(along), 100 * ALONG_M)[0] if abs(along) > ALONG_M
             else f"{100 * abs(along):.0f}")
       words = f"the {p} ended {cm} cm {'right' if along > 0 else 'left'} of label {label}"
       if abs(above) > RESTING_M:
-        words += (f", {beside(100 * abs(above), 100 * RESTING_M, 1)} cm "
+        words += (f", {lid.against(100 * abs(above), 100 * RESTING_M, 1)[0]} cm "
                   f"{'over' if above > 0 else 'under'} its board's top")
       away.append(words)
     elif back > FRONT_IN_M:
-      fronts.append(f"the {p}'s front ended {beside(100 * back, 100 * FRONT_IN_M)} cm behind "
-                    "the board's edge")
+      fronts.append(f"the {p}'s front ended {lid.against(100 * back, 100 * FRONT_IN_M)[0]} cm "
+                    "behind the board's edge")
     elif back < 0.0:
-      fronts.append(f"the {p} juts {beside(-100 * back, 0.0, 1)} cm out over the board's edge")
+      fronts.append(f"the {p} juts {lid.against(-100 * back, 0.0, 1)[0]} cm out over the "
+                    "board's edge")
     elif tilt > math.degrees(UPRIGHT_RAD):
-      askew.append(f"the {p} stands tipped {beside(tilt, math.degrees(UPRIGHT_RAD))} deg: it "
-                   f"must stand upright, within {math.degrees(UPRIGHT_RAD):.0f} deg")
+      tipped, within = lid.against(tilt, math.degrees(UPRIGHT_RAD))
+      askew.append(f"the {p} stands tipped {tipped} deg: it must stand upright, within "
+                   f"{within} deg")
     elif p == "frame" and abs(float(q["turnDeg"])) > math.degrees(FACING_RAD):
-      askew.append(f"the frame faces {beside(abs(float(q['turnDeg'])), math.degrees(FACING_RAD))} "
-                   "deg off the aisle: its face must look out of the shelf within "
-                   f"{math.degrees(FACING_RAD):.0f} deg")
+      faces, within = lid.against(abs(float(q["turnDeg"])), math.degrees(FACING_RAD))
+      askew.append(f"the frame faces {faces} deg off the aisle: its face must look out of the "
+                   f"shelf within {within} deg")
   if away:
     said.append(_listed(away) + (": it" if len(away) == 1 else ": each")
                 + f" must rest on its label's board, its middle within {100 * ALONG_M:.0f} cm "
