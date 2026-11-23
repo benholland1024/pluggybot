@@ -2938,8 +2938,8 @@ record no settle): docked and unplugged 39 of 39 round the standoff, 140 of
 140 seats and 20 of 20 lost, no fall, as the base; 196 of its 199 rows the
 base's own, the other three a dock 0.1 s longer and two lost robots'
 let-goes a millimetre elsewhere, one docked 2.8 s sooner. The pair's
-fixture line, flown on 98d0c9ac, is the base's line for line but two
-wall-clock stamps.
+fixture line, flown on 98d0c9ac and again on 4fcd086d, is the base's line
+for line but two wall-clock stamps.
 
 ## The way home (issue #539)
 

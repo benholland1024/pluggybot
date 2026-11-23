@@ -77,7 +77,9 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: `SETTLE_MORE_S` longer, a `step` then saying so (`to_stand_routine`):
 #: after a sidestep the walker held still steps on in place, a foot still
 #: lifting in the settle's last 0.3 s one time in fifteen (never after a
-#: step ahead or back).
+#: step ahead or back). ⚠ It reads no load: both soles down and still for
+#: an instant between two steps in place pass (on the base's flights, 9
+#: of the 56 settles with a late lift, each landed 0.10-0.28 s before).
 SETTLE_S = 0.8
 PLANTED_S, SETTLE_MORE_S = 0.1, 1.2
 #: A posture back at the stand -- a withdraw's (`HumanoidBody.release_routine`)
