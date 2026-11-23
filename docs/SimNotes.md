@@ -7893,11 +7893,14 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), eight times, and has not met it (the reference as it stands, round
-5's, read 17 of 32 and 15 held out beside round 7's lever, on its tree and
-pod and 5060fe0's pool; on the same 32 draws it read 15 on round 5's tree
-and pod and 14 on round 6's: the tree and the CPU changed together each
-time, and the count moved with them; the bar is still 7 away). What
+below), nine times, and has not met it (the reference as it stands, round
+5's, read 17 of 32 beside round 7's lever and again beside round 8's, the
+same flights on two trees and two pods of one CPU type, and 15 and 16 held
+out on 5060fe0's pool and eba1489f's -- round 8's tree 9ee9298b, before
+#693's withdraw case, which the pass has not flown; on the same 32 draws it read 15 on
+round 5's tree and pod and 14 on round 6's: the tree and the CPU changed
+together each time, and the count moved with them; the bar is still 7
+away). What
 developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
@@ -7905,8 +7908,9 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 `~/pluggybot-training/loop-1114/n4-pass/`, round 4's in
 `~/pluggybot-training/loop-1115/m6-pass4/`, round 5's in
 `~/pluggybot-training/loop-1117/r7-pass5/`, round 6's in
-`~/pluggybot-training/loop-1118/t6-pass6/` and round 7's in
-`~/pluggybot-training/loop-1120/v1-pass7/`):
+`~/pluggybot-training/loop-1118/t6-pass6/`, round 7's in
+`~/pluggybot-training/loop-1120/v1-pass7/` and round 8's in
+`~/pluggybot-training/loop-1122/w4-pass8/`):
 
 - **A carried piece hangs under the pass's top.** The carry pose holds the
   cup's grip at 0.89 m and the plate's at 0.865, 0.23-0.26 m ahead of the
@@ -8088,7 +8092,8 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   read twice on one pod (an AMD EPYC 7B13, osmesa), then a third time on
   another (an AMD EPYC 7K62), a fourth on another (an AMD EPYC 7763), and a
   fifth and a sixth on another (an AMD EPYC 9684X), a seventh on another
-  (an AMD EPYC 7742), and an eighth on another (an AMD EPYC 9654):
+  (an AMD EPYC 7742), an eighth on another (an AMD EPYC 9654), and a
+  ninth on another of that kind:
   - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
     0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
     (walk2's bar and held-out draws, then the carry walker's): the cup let
@@ -8245,6 +8250,24 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     1), the fork's walk off the pass, the same flight in both; the walk 0
     and 1 (0 and 1). Not better on the bar's draws, and it was taken back
     out (round 7, below).
+  - At eba1489f (round 8, below: the fork shut at 40 N at the pass), on
+    walk2: 15 of 32; held out (sealed by eba1489f), 19; each laid in 404-518
+    s. On the same pod, the bar's draws and the pool eba1489f sealed, round
+    5's reference (on round 8's tree, 9ee9298b) laid 17 of 32 -- each of those flights
+    the one it flew beside round 7's lever -- and 16 held out. Every draw's
+    cup and plate trips were the reference's flight (64 of 64). The first
+    piece not laid (the bar's draws, then the held-out; the reference in
+    brackets): the lay 10 and 7 (8 and 11) -- a cup set down off its spot or
+    dropped 5 and 5 (5 and 5), a fork off its spot or dropped 4 and 2 (2 and
+    6), the plate off 1 and 0 (1 and 0); the carry 6 and 4 (6 and 4) -- a
+    cup 2 and 3 (2 and 3), a plate 2 and 0 (2 and 0), a fork walking or at
+    the walk's hand-over 2 and 1 (2 and 1); the grip 1 and 1 (1 and 1); a
+    fall 0 and 1 (0 and 0), in the fork's second pull-back off the pass, a
+    place the reference lost too (its fork dropped at the put-down).
+    Over the 64 the fork slipped at the hand-over in 2 trips where the
+    reference's slipped in 18, and was laid 49 times where 45. Not better on
+    the bar's draws, and it fell once more: it was taken back out (round 8,
+    below).
 - **What round 3 left, measured beside its reading** (not in the
   reference; round 3 ended with the reading):
   - **The fork's pull-back as a fixed length** from where its hand gripped
@@ -8477,6 +8500,66 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     go carried rode tilted in its pinch into the walk to the place -- on the
     dev draws 4 of 5 after it struck the pass as the walk turned away (it
     struck in 25 of 63 trips, and 1 of the other 38 came down).
+- **Round 8** (the loop of 11-22/23;
+  `~/pluggybot-training/loop-1122/w4-pass8/`, one pod, an AMD EPYC 9654,
+  osmesa, each draw its own noise; its tree, 9ee9298b, flies round 7's
+  flights, flight for flight -- #693's withdraw case, merged after, was not
+  flown on the pass): every lever sized in WHOLE PLACES on 64 fresh dev draws
+  (3600-3663), beside the reference on the same draws (32 laid, no fall); the
+  fork at 40 N frozen, read and taken back out (its reading, above); the
+  reference is round 5's.
+  - **Round 7's extra fall at 40 N: no contact of the squeeze's, but a step's
+    hand-back.** Flown again with every contact recorded, its flight round
+    7's, it came in a place already lost -- its plate let go carried and lying
+    on the floor, which the right sole pushed 25 cm along it 2-4 s before the
+    step began (25 N's flight pushed it 55 cm over 10 s and did not fall) --
+    as a step to the side ended at the table's approach. The walker held still
+    through its 0.8 s settle while the left foot came up and came back down
+    (about 100 N, 0.02 s before the hand-back), the legs went to the standing
+    policy with that sole unloading (49 N) and lifting again (off the floor
+    0.06 s later), and the trunk went from 3 to 34 deg in 0.46 s. Through the
+    step nothing else touched: the soles only the floor, the jaws only the
+    fork, no pair of the robot's own parts at 1 N, the plate (its middle
+    0.21-0.28 m from both soles' middles) touching neither. 40 N brought the
+    robot there by a trajectory of its own, parted from 25 N's at the fork's
+    shut; a step handing back its legs with a foot coming up is served
+    behaviour, not the pass's.
+  - **The fork at 40 N.** On the dev draws it laid 38 places where the
+    reference laid 32 (+9 -3), with no fall: the hand-over's slips 12 to 2,
+    forks tilted 20 deg or more at the put-down 9 to 5, strikes on the pass 13
+    to 16. The screen written first, on round 8's 64 alone, asked a sign test
+    of 0.10 and no more falls, and read 0.15; it was frozen on round 7's and
+    round 8's dev draws together (+17 -5 over 128, and one more fall,
+    lab_3511's, above), both clauses set aside by the orchestrator's call, and
+    read on the bar (above). Its held-out fall: the second pull-back's posture
+    swung the waist from 15 deg one way to 15 deg the other with a 20 cm
+    crouch and a 0.55 rad bow, and the hand read 43-77 N; at its peak the jaw
+    that held the fork was pressing on the pass's top edge (25-42 N). The
+    posture went back to the stand, under which the pelvis came 0.27 m forward
+    over feet that stayed where they were, and the postures taken again with
+    the waist at 30 and 45 deg carried it 0.15 m further (the soles' middles
+    rising 2-3 cm under the stand and 5 cm by the end, still on the floor: on
+    their toes); the torso, the pelvis, a thigh and the other gripper came
+    down on the pass (up to 676 N; what the fork itself touched was not
+    recorded). On the bar's draws fewer slips did not lay more places: every
+    place the two parted on turned on the fork, both ways -- its put-down, its
+    carry, the hand-over (4 gained, 6 lost) -- as round 7's flips did.
+  - **A step straight back with the plate**, before its walk to the place
+    (0.12 m asked; it walked 6.4-10.5 cm): the plate's strikes on the pass
+    stayed 13 of 62, it was let go carried 3 times where 4 -- none of the
+    reference's four -- and the robot fell 4 times where it never did: twice
+    at the fork's step at the table's approach, once in the fork's find off
+    the pass, and once at the plate's own put-down. It laid 32 places (+11
+    -11); with 40 N, 39 (+13 -6) and 2 falls.
+  - **Where the reference loses now** (its first piece not laid, over the
+    dev draws and the bar's 64: 63 misses of 128):
+    - the cup, 28: set down off its spot or dropped 19, let go carried or
+      by the hand-over 5, a walk that never got there 2, its pick 2;
+    - the fork, 26: its put-down 17 (5 of them after a slip at the
+      hand-over), lost at the hand-over 5, its pick 3, carried 1;
+    - the plate, 9: let go carried 6, its pick 1, its put-down 2.
+
+    The cup's put-down and the fork's are more than half of it (36 of 63).
 
 ## The arms keep off the other robot (issue #678)
 
