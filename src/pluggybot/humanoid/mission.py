@@ -45,7 +45,7 @@ from pluggybot import tick
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import GRIP_S, SelfModel, kept_value, value_back
 from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver, tipped
-from pluggybot.humanoid.odometry import StanceOdometry
+from pluggybot.humanoid.odometry import PlantedRun, StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandDriver, StandPolicy)
@@ -71,8 +71,13 @@ MOTION_EPS = 1e-3
 V_MIN, W_MIN = 0.2, 0.3
 VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: The standing policy's hand-back: the walking one is held still this
-#: long first, s, its stride settled.
+#: long first, s, its stride settled -- ⚠ AND ON, ITS SOLES NOT BOTH READ
+#: PLANTED FOR `PLANTED_S` RUNNING (#740; `odometry.PlantedRun`), at most
+#: `SETTLE_MORE_S` longer, the hand-over then saying so (`to_stand_routine`):
+#: after a sidestep the walker held still stepped on in place in the last
+#: 0.3 s of 30 settles of 338 (none after a step ahead or back, of 376).
 SETTLE_S = 0.8
+PLANTED_S, SETTLE_MORE_S = 0.1, 1.2
 #: A posture back at the stand -- a withdraw's (`HumanoidBody.release_routine`)
 #: and a walk's hand-over's -- is waited on this long at most, s: 4.0, twice
 #: the 2.0 s the standing policy's posture takes to cross its whole range at
@@ -873,34 +878,47 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def to_stand_routine(self, getup: bool = True):
     """The legs to the standing policy: the walking one held still
-    `SETTLE_S` first, its stride settled, then handed over. ⚠ A fall while
-    it settles is the get-up's until it stands (#520): at the settle's end
-    the legs went to the standing policy whatever had happened in it --
-    or, `getup` False, a get-up under way or begun as it settles ends it
-    there, for a caller a fall ends at once (`Body.release_routine`). ⚠ It
-    ends a step aside under way (#559), and one asked as it settles (#668):
-    the aside walked the settle's STILL steps, and the legs went to the
-    standing policy mid-stride."""
+    `SETTLE_S` first, its stride settled, then handed over -- ⚠ ONLY ONCE
+    ITS SOLES HAVE BOTH READ PLANTED `PLANTED_S` RUNNING (#740;
+    `odometry.PlantedRun`, its legs' reckoning), held on for it
+    `SETTLE_MORE_S` at most: handed over as the settle ended, a sole coming
+    down from the walker's last step unloading and lifting again, the
+    standing policy let the robot fall forward. Returns True where they
+    did, False where the bound ran out first (handed over all the same),
+    None where it handed nothing over. ⚠ A fall while it settles is the
+    get-up's until it stands (#520): at the settle's end the legs went to
+    the standing policy whatever had happened in it -- or, `getup` False, a
+    get-up under way or begun as it settles ends it there, for a caller a
+    fall ends at once (`Body.release_routine`). ⚠ It ends a step aside
+    under way (#559), and one asked as it settles (#668): the aside walked
+    the settle's STILL steps, and the legs went to the standing policy
+    mid-stride."""
     if getup:
       yield from self._getup_routine()
     if self._aside is not None:
       self._end_aside("its own move", STILL)
     if self.legs == "stand":
-      return
-    for _ in range(int(round(SETTLE_S / self.model.opt.timestep))):
-      if self.legs != "walk":
+      return None
+    dt = self.model.opt.timestep
+    least, most = int(round(SETTLE_S / dt)), int(round((SETTLE_S + SETTLE_MORE_S) / dt))
+    run, need = PlantedRun(), int(round(PLANTED_S / dt))
+    planted = 0
+    for k in range(most):
+      if self.legs != "walk" or (k >= least and planted >= need):
         break
       if self._aside is not None:
         self._end_aside("its own move", STILL)
       yield STILL
       self._after_step()
+      planted = run.read(self.odo.apart)
     if self.legs != "walk":
       if getup:
         yield from self._getup_routine()
-      return
+      return None
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
     self.legs = "stand"
+    return planted >= need
 
   # ---- the drive -------------------------------------------------------------
 

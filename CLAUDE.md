@@ -1294,7 +1294,20 @@ save a filmstrip PNG named after the script.
   FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home, or a
   hand that holds carried, a turn on the spot and a walk on the walking policy, its report
-  where the stance went in the frame before (`step.*`) -- ⚠ A WALK ITS OWN
+  where the stance went in the frame before (`step.*`) -- ⚠ ITS LEGS, AND
+  EVERY WALK'S, GO BACK TO THE STANDING POLICY ONLY ONCE BOTH SOLES HAVE READ
+  PLANTED `PLANTED_S` (0.1 s) RUNNING (#740; `HumanoidMission.
+  to_stand_routine`, `odometry.PlantedRun`; SimNotes, "The step's hand-back
+  once its soles are planted"): the other sole's LOWEST CORNER within
+  `DOWN_M` (4 mm) of the planted one's and STILL, every reading of the run
+  within `STILL_M` (3 mm) -- the walker held still `SETTLE_S` (0.8 s) as
+  before, and handed over then where they have, else on, `SETTLE_MORE_S`
+  (1.2 s) at most, then all the same, the step's report saying so
+  (`feetDown`: false): after a sidestep the walker held still steps on in
+  place, and handed over as the settle ended, a sole come down unloading and
+  lifting again, the standing policy let the robot fall forward. ⚠ Never
+  a sole's tilt: one loaded on its edge is no hazard, and reads not flat
+  still. -- ⚠ A WALK ITS OWN
   LEGS RECKON WENT UNDER `STEP_LEAST_M` READS `too short`, never `stepped`
   (#649: a walk's first 0.3 s are the pelvis leaning over planted feet, so a
   short ask could end before a foot lifted and read `stepped`), its stop

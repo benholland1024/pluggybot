@@ -692,7 +692,8 @@ class Body(abc.ABC):
     frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
     turned into -- and, where its scans of the room say otherwise, by them
-    (`mdx`, `mdy`, #718)."""
+    (`mdx`, `mdy`, #718); `feetDown` false where its legs went back to
+    standing before both its soles read down (#740)."""
 
   @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
