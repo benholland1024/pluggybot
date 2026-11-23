@@ -59,14 +59,24 @@ CLEAR_M, STEP_M = 0.01, 0.05
 #: such reading of the window within `STILL_M` of the others, m -- a foot
 #: landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES
 #: THE SWAP COMPARES ON ONE FLOOR: over the pass's and the family's 822
-#: hand-overs (X2, base 95f8aefb) this read 27 of the 31 whose walker still
-#: had a foot off the floor in its last 0.3 s, acting on 12 others; the
+#: hand-overs (X2, base 95f8aefb) this held 26 of the 31 whose walker still
+#: had a foot off the floor in its last 0.3 s, and 12 others; the
 #: middles read 11-21, and with both soles flat besides it acted on 63-85
 #: others -- a loaded sole on its edge reads not flat and is no hazard. ⚠ Two
 #: soles truly down read up to 5.6 mm apart at their corners (a stance's
 #: offset in the model of itself), so a few settles are held for nothing
 #: (SimNotes, "The step's hand-back once its soles are planted").
 DOWN_M, STILL_M = 0.004, 0.003
+#: ...and FLAT ENOUGH: neither sole's four corners spread over more than this
+#: of height, m (`spread`) -- one on its toes or an edge. ⚠ THE HEIGHTS ALONE
+#: MISS THE FALL #740 WAS FILED FOR: on an EPYC 9654, where it replays,
+#: lab_3511's walker held its left foot 1-2 mm up, unloading to 0 N, while
+#: the right carried the robot on its toes, tilted 11.5 deg (its corners 16-21
+#: mm apart), and its corners read level and still -- so did the falls of W4's
+#: two others (20-21 mm). Over the base's 2,098 hand-overs this holds 5 more
+#: (75), and all 8 where a sole carried under 50 N; a loaded sole tilted a few
+#: degrees on an edge, still, is no hazard (97 such, nothing followed).
+SPREAD_M = 0.015
 #: A sole lies flat when its up is within this of the world's (cos of 3
 #: deg): only then is its footprint the ground's (`felt`).
 FLAT_COS = math.cos(math.radians(3.0))
@@ -79,23 +89,25 @@ CORNERS = np.array([[a, b, -1.0] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
 
 class PlantedRun:
   """Whether both soles have read PLANTED for its last `steps` readings
-  (#740), a reading at a time -- the odometry's `apart` each physics step:
-  every one within `DOWN_M`, and all within `STILL_M` of each other, since a
-  foot landing or lifting moves it. ⚠ A WINDOW, NEVER THE RUN SINCE IT
-  BEGAN: kept so, a reading drifting a few mm over a settle as both soles
-  settle started the run again late, and over the base's 2,098 hand-overs
-  held 270 where the window holds 70. None (no tick yet) reads nothing
-  up."""
+  (#740), a reading at a time -- the odometry's `apart` and `spread` each
+  physics step: every `apart` within `DOWN_M`, and all within `STILL_M` of
+  each other, since a foot landing or lifting moves it; every `spread`
+  within `SPREAD_M`. ⚠ A WINDOW, NEVER THE RUN SINCE IT BEGAN: kept so, a
+  reading drifting a few mm over a settle as both soles settle started the
+  run again late, and over the base's 2,098 hand-overs held 270 where the
+  window holds 70. None (no tick yet) reads nothing up."""
 
   def __init__(self, steps: int):
     self.window: deque = deque(maxlen=steps)
 
-  def read(self, apart: float | None) -> bool:
-    self.window.append(apart)
+  def read(self, apart: float | None, spread: float | None = None) -> bool:
+    self.window.append((apart, spread))
     if len(self.window) < self.window.maxlen:
       return False
-    known = [a for a in self.window if a is not None]
-    return not known or (max(known) <= DOWN_M and max(known) - min(known) <= STILL_M)
+    known = [a for a, _ in self.window if a is not None]
+    tilts = [t for _, t in self.window if t is not None]
+    return ((not known or (max(known) <= DOWN_M and max(known) - min(known) <= STILL_M))
+            and (not tilts or max(tilts) <= SPREAD_M))
 
 
 class StanceOdometry:
@@ -138,9 +150,11 @@ class StanceOdometry:
     self.corrected = np.zeros(3)
     self.foot: int | None = None
     self.last: np.ndarray | None = None
-    #: The other sole's lowest corner over the planted one's as its last tick
-    #: read them, m (`PlantedRun`); None before its first tick.
+    #: The other sole's lowest corner over the planted one's, and the larger
+    #: of the soles' corners' spreads, as its last tick read them, m
+    #: (`PlantedRun`); None before its first tick.
     self.apart: float | None = None
+    self.spread: float | None = None
     self.soles = self.sm.soles
 
   @property
@@ -227,8 +241,10 @@ class StanceOdometry:
       self.y -= s * moved[0] + c * moved[1]
       self.z -= moved[2]
     #: ...and the other sole's lowest corner over the planted one's, m: over
-    #: the ground mapped under each where it differs by a riser (`PlantedRun`)
+    #: the ground mapped under each where it differs by a riser; and the larger
+    #: of the soles' corners' spreads of height, m, its tilt (`PlantedRun`)
     self.apart = float(lows[1 - self.foot] - lows[self.foot])
+    self.spread = float(np.ptp(self.corners[:, :, 2], axis=1).max())
     if self.felt is not None and self.flat[self.foot]:
       sole = soles[self.foot]
       self.felt(self.x + c * sole[0] - s * sole[1], self.y + s * sole[0] + c * sole[1],

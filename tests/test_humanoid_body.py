@@ -854,11 +854,12 @@ def test_an_aside_asked_as_the_legs_come_back_is_ended_and_the_settle_stays_stil
     body.close()
 
 
-def _settled(planted, fall_at=None, apart=None):
+def _settled(planted, fall_at=None, apart=None, spread=None):
   """`to_stand_routine` on a fake mission (#740), a command a physics step:
   the walker held still, its odometry reading both soles down and level
   (`apart` 0) from its step `planted` on (None: never; or a test of the steps
   held so far) and a sole 1 cm up before -- or `apart(steps)` itself, m --
+  each sole flat unless `spread(steps)` says how far its corners spread, m,
   the get-up taking the legs after step `fall_at`. Returns (the STILL steps
   held, what it returned, whose the legs are)."""
   from pluggybot.humanoid import mission as hmi
@@ -872,6 +873,10 @@ def _settled(planted, fall_at=None, apart=None):
       if apart is not None:
         return apart(len(held))
       return 0.0 if reads(len(held)) else 0.01
+
+    @property
+    def spread(self):
+      return 0.0 if spread is None else spread(len(held))
   fake = NS(legs="walk", _aside=None, model=NS(opt=NS(timestep=0.002)), odo=Odo(),
             stand=NS(last_action=np.ones(12), posture=np.ones(2)),
             _getup_routine=lambda: iter(()))
@@ -921,6 +926,15 @@ def test_the_legs_go_back_to_the_stand_only_once_both_soles_have_read_planted():
   # held 270 of the base's 2,098 hand-overs where the window holds 70
   drift = lambda n: 0.000039 * min(max(n - (least - 100), 0), 100)  # noqa: E731
   assert _settled(None, apart=drift) == (least, True, "stand"), "a drift is still"
+  # ...and a sole on its toes, its corners 2 cm apart, is not planted
+  # (lab_3511 on the 9654: its heights read level and still): held to the
+  # bound, or until it has lain flat a window long
+  from pluggybot.humanoid.odometry import SPREAD_M
+  toes = SPREAD_M + 0.005
+  assert _settled(0, spread=lambda n: toes) == (most, False, "stand"), "on its toes throughout"
+  flat_from = least + 50
+  assert _settled(0, spread=lambda n: toes if n < flat_from else 0.0) == (
+    flat_from + need - 1, True, "stand"), "flat again: a window later"
   # ...and a fall while it holds on is the get-up's, nothing handed over
   assert _settled(None, fall_at=least + 50) == (least + 50, None, "getup")
 
@@ -960,6 +974,17 @@ def test_both_soles_read_planted_off_the_legs_reckoning():
     "a drift under STILL_M a window is still"
   run = PlantedRun(2)
   assert [run.read(None), run.read(None)] == [False, True], "no tick yet: nothing read up"
+  from pluggybot.humanoid.odometry import SPREAD_M
+  run = PlantedRun(2)
+  assert [run.read(0.0, 0.0), run.read(0.0, SPREAD_M + 0.001), run.read(0.0, 0.0),
+          run.read(0.0, SPREAD_M)] == [False, False, False, True], \
+    "a sole on its toes in the window is not planted"
+  odo.step(q0, down)
+  assert odo.spread < 0.002, odo.spread
+  rolled = q0.copy()
+  rolled[names.index("left_ankle_roll")] += math.radians(12.0)
+  odo.step(rolled, down)
+  assert odo.spread > SPREAD_M, "a sole rolled 12 deg onto its edge"
 
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():

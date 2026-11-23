@@ -910,7 +910,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         self._end_aside("its own move", STILL)
       yield STILL
       self._after_step()
-      planted = run.read(self.odo.apart)
+      planted = run.read(self.odo.apart, self.odo.spread)
     if self.legs != "walk":
       if getup:
         yield from self._getup_routine()
