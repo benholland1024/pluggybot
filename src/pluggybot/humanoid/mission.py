@@ -74,7 +74,7 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: The standing policy's hand-back: the walking one is held still this
 #: long first, s, its stride settled -- ⚠ AND ON, ITS SOLES NOT BOTH READ
 #: PLANTED FOR `PLANTED_S` RUNNING (#740; `odometry.PlantedRun`), at most
-#: `SETTLE_MORE_S` longer, the hand-over then saying so (`to_stand_routine`):
+#: `SETTLE_MORE_S` longer, a `step` then saying so (`to_stand_routine`):
 #: after a sidestep the walker held still stepped on in place in the last
 #: 0.3 s of 55 settles of 838 (none after a step ahead or back, of 1,068).
 SETTLE_S = 0.8

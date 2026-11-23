@@ -59,8 +59,8 @@ CLEAR_M, STEP_M = 0.01, 0.05
 #: such reading of the window within `STILL_M` of the others, m -- a foot
 #: landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES
 #: THE SWAP COMPARES ON ONE FLOOR: over the pass's and the family's 822
-#: hand-overs (X2, base 95f8aefb) this held 26 of the 31 whose walker still
-#: had a foot off the floor in its last 0.3 s, and 12 others; the
+#: hand-overs (X2, base 95f8aefb) these heights alone held 26 of the 31 whose
+#: walker still had a foot off the floor in its last 0.3 s, and 12 others; the
 #: middles read 11-21, and with both soles flat besides it acted on 63-85
 #: others -- a loaded sole on its edge reads not flat and is no hazard. ⚠ Two
 #: soles truly down read up to 5.6 mm apart at their corners (a stance's
