@@ -664,18 +664,35 @@ def test_a_later_try_steps_back_by_no_clock_again(monkeypatch):
   assert between.index(("hold", charge.LOOK_SETTLE_S)) < between.index("spot"), between
 
 
-def test_a_step_back_the_other_robot_keeps_it_from_looks_and_steps_no_more(monkeypatch):
-  """Kept off the other robot standing behind (`blocked`), the same ask goes
-  the same way: no look, no back-off's step after it, and the try goes on
-  from where it stands -- as the back-off's own step does."""
+def test_a_step_back_whatever_its_word_looks_and_backs_off_as_before(monkeypatch):
+  """A step back that went nowhere or not all the way -- kept off the other
+  robot behind (`blocked`), out of its time partway, fallen and up again
+  with the plug still in -- still looks, and its back-off and its try go on
+  as they did before a step back was asked: skipped, a step back that ran
+  out of its time 10 cm in left the hand to reach from there."""
   monkeypatch.setattr(charge, "port", _port)
-  body, believed, _ = _crept_body(0.18)
-  body.step_routine = lambda *a, **kw: (body.stepped.append(a), body._done({"why": "blocked"}))[1]
-  trace = []
-  assert _drive(charge.unplug_routine(body, believed, trace,
-                                      back=charge.crept(3000.0))) == "unplugged"
-  assert len(body.stepped) == 1 and {"step": "blocked"} in trace, trace
-  assert not any("looked" in t or "seat" in t for t in trace), trace
+  for word, went in (("blocked", 0.0), ("out of time", 0.5), ("fell", 0.0)):
+    body, _, _ = _crept_body(0.18)
+    deep = _station_at((-0.30, 0.0), 0.0)        # believed 30 cm past its seat
+    real, first = body.step_routine, [True]
+
+    def step(ahead, left=0.0, turn=0.0, body=body, word=word, went=went, real=real, first=first):
+      if not first[0]:
+        return real(ahead, left, turn)
+      first[0] = False
+      body.stepped.append((ahead, left, turn))
+      x, y, yaw = body.stance
+      body.stance = (x + ahead * went, y, yaw)    # partway, along its facing
+      body._call("step")
+      return body._done({"why": word})
+    body.step_routine = step
+    trace = []
+    assert _drive(charge.unplug_routine(body, deep, trace,
+                                        back=charge.crept(3000.0))) == "unplugged"
+    assert {"step": word} in trace and {"looked": False} in trace, (word, trace)
+    # ...and its back-off by the station it had, on to its seat as it believes it
+    assert len(body.stepped) == 2, (word, body.stepped)
+    assert body.stance[0] == pytest.approx(-0.30, abs=1e-9), (word, body.stance)
 
 
 def test_a_step_back_that_freed_the_plug_reaches_for_none(monkeypatch):
@@ -735,6 +752,7 @@ def test_the_undock_steps_back_by_its_own_clock_kept_from_its_dock(monkeypatch):
   class Body:
     plugged_s = HumanoidBody.plugged_s
     dock_routine = HumanoidBody.dock_routine
+    redock_routine = HumanoidBody.redock_routine
     undock_routine = HumanoidBody.undock_routine
     _station = RackPose(0.35, -0.075, 0.0)
     pose = (0.0, 0.0, 0.0)
@@ -773,6 +791,18 @@ def test_the_undock_steps_back_by_its_own_clock_kept_from_its_dock(monkeypatch):
   body.mission.plugged_t = body._d.time + 50.0
   _drive(body.undock_routine())
   assert asked.pop() == charge.crept(None)
+  # ...its unplug's trace its own, for a failed one's log
+  body._charge_trace = [{"seat": [0.0, 0.0, 0.0]}]
+  _drive(body.undock_routine())
+  assert body._charge_trace == [{"undock": "its hand did not get behind the plug (stopped short)"}]
+  # ...a redock keeps the clock -- its feet never left the creep it counts --
+  # and a dock that does not plug in leaves none
+  body.plugged, body.mission.plugged_t, body._station_seen = False, 7.0, RackPose(0.35, -0.075, 0.0)
+  _drive(body.redock_routine())
+  assert body.mission.plugged_t == 7.0
+  monkeypatch.setattr(charge, "plug_in_routine",
+                      lambda body, seen, trace: _done("it pushed the plug in and the port never took it"))
+  assert _drive(body.dock_routine()) != "docked" and body.mission.plugged_t is None
 
 
 def _done(value):

@@ -1899,6 +1899,8 @@ class HumanoidBody(Body):
     from pluggybot.activity import station as st
     from pluggybot.humanoid import charge
     self._charge_trace = []
+    # ...and no clock until this dock puts the plug in (#703)
+    self.mission.plugged_t = None
     if self._station is None:
       return "no station"
     # ...facing the cup from where it stands, never the station's own
@@ -1925,7 +1927,7 @@ class HumanoidBody(Body):
     self._station_seen = seen
     why = yield from charge.plug_in_routine(self, seen, self._charge_trace)
     if why == "plugged in":
-      # ...its own clock from here, which its unplug judges the creep by (#703)
+      # ...its own clock from here (#703; SimNotes, "The unplug after a long charge")
       self.mission.plugged_t = float(self._d.time)
     return "docked" if why == "plugged in" else why
 
@@ -1954,7 +1956,8 @@ class HumanoidBody(Body):
     return self.hold_routine(seconds)
 
   def redock_routine(self):
-    """Its plug out while it charged: plugged in again from where it stands."""
+    """Its plug out while it charged: plugged in again from where it stands,
+    its clock kept (`plugged_s`): its feet never left the creep it counts."""
     from pluggybot.humanoid import charge
     seen = self._station_seen or charge.look(self)
     if seen is None or self.charging():
@@ -1978,6 +1981,8 @@ class HumanoidBody(Body):
     its balancer at the cup, and turned away from the station: its walker
     barely backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
     from pluggybot.humanoid import charge
+    # ...its trace the unplug's alone, for a failed one's log
+    self._charge_trace = []
     seen = self._station_seen or charge.look(self) or self._station
     if self.charging():
       why = yield from charge.unplug_routine(self, seen, self._charge_trace,

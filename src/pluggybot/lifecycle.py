@@ -3415,8 +3415,7 @@ class HubLifecycle:
               doing="CHARGE: unplugging")
     yield from self.body.undock_routine()
     if self.body.charging():
-      # ...its tries' trace the log's alone, as a failed dock's (#703: live, the
-      # log said nothing between "unplugging" and this)
+      # ...its tries' trace the log's alone, as a failed dock's (#703)
       self._say(UNPLUG_FAILED, detail=self.body.charge_trace(), doing=True)
     else:
       self._close_open_charge()             # ...a charge a message left open (#730)

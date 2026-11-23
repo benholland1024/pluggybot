@@ -144,10 +144,11 @@ BACK_OFF_ENDS = ("blocked", "fell", "out of time")
 UNPLUG_TRIES = 2
 #: The creep its own clock plugged in tells (#703's option 2, Ben's call of
 #: 2026-11-23: never its belief, which drifted 0.13-0.21 m live through such
-#: charges and hid it), m/s, until its plug meets the box this far past its
-#: seat, m. MEASURED at the lobby's station, every noise alike: 7.5 mm a
-#: minute from where it docked, until 18.3 cm past the seat (SimNotes, "The
-#: unplug after a long charge").
+#: charges and hid it), m/s, and the most it can carry it, m: until its plug
+#: meets the box 18.3 cm past its seat -- docked past its seat, the creep
+#: stops that much sooner and its step back ends further behind the seat.
+#: MEASURED at the lobby's station, every noise alike: 7.5 mm a minute from
+#: where it docked (SimNotes, "The unplug after a long charge").
 CREEP_M_S, CREEP_MOST_M = 0.0075 / 60.0, 0.183
 #: ...so a charge longer than this, s, may have crept it past where its hand
 #: gets behind the plug, and its first try steps back first; shorter, its
@@ -303,16 +304,16 @@ def crept(plugged_s: float | None) -> float | None:
 def _step_back_routine(body, station: RackPose, back: float, trace: list):
   """A charge long enough to have crept it in (`crept`): it steps `back` m
   straight back along its own facing first, whatever its belief says --
-  never turned on the spot first (`_back_off_routine`'s pin) -- then a plain
-  look taken standing still (`LOOK_SETTLE_S`) places the station, as no look
-  could from where the creep left it: (the station so seen, else `station`;
-  the step's word). A step whose word is one of `BACK_OFF_ENDS` takes no
-  look."""
+  never turned on the spot first (`_back_off_routine`'s pin) -- then, its
+  plug still in, a plain look taken standing still (`LOOK_SETTLE_S`) places
+  the station, as no look could from where the creep left it: (the station
+  so seen, else `station`; the step's word). Whatever that word, the
+  back-off goes on after it as before (`unplug_routine`)."""
   trace.append({"crept": round(back, 3)})
   r = yield from body.step_routine(-back, 0.0, 0.0)
   said = str(r.get("why", "")) if isinstance(r, dict) else str(r)
   trace.append({"step": said})
-  if said in BACK_OFF_ENDS:
+  if not body.charging():
     return station, said
   yield from body.hold_routine(LOOK_SETTLE_S)
   seen = look(body)
@@ -526,9 +527,9 @@ def unplug_routine(body, station: RackPose, trace: list, back: float | None = No
   begun at its seat, backed off to it first from further in than
   `UNPLUG_IN_M` (`_back_off_routine`) by the station as it last saw it, and
   a later try's off a plain look of its own taken standing still,
-  `UNPLUG_TRIES` in all -- the first, where a charge `back` long by its
-  clock may have crept it in (`crept`), after a step back that far and a
-  look of its own (`_step_back_routine`, #703's option 2)."""
+  `UNPLUG_TRIES` in all -- the first, where a charge long by its clock may
+  have crept it in (`crept`), after a step `back` m straight back and a look
+  of its own (`_step_back_routine`, #703's option 2), then as before."""
   why = ""
   for k in range(UNPLUG_TRIES):
     stepped = ""
@@ -538,8 +539,8 @@ def unplug_routine(body, station: RackPose, trace: list, back: float | None = No
     elif back is not None:
       station, stepped = yield from _step_back_routine(body, station, back, trace)
     # ...from wherever its steps left it: from partway in it unplugged too
-    # (13 cm in), and a step the other robot keeps it from goes nowhere
-    if stepped not in BACK_OFF_ENDS and body.charging():
+    # (9 cm in), and a step the other robot keeps it from goes nowhere
+    if body.charging():
       station, more = yield from _back_off_routine(body, station, trace)
       stepped = more or stepped
     if not body.charging():

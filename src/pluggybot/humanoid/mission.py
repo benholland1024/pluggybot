@@ -1076,8 +1076,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              # ...and the station its charge went to (#560): restarted plugged
              # in at the mall, an unplug would reach for the house's plug
              "station": self.station,
-             # ...and when its plug went in (#703): every live unplug that
-             # failed began a run that began plugged in
+             # ...and when its plug went in, its unplug's clock (#703;
+             # SimNotes, "The unplug after a long charge")
              "pluggedT": self.plugged_t},
             arrays)
 
