@@ -27,9 +27,11 @@ its 384). Every other `move_hand` says what it said.
 `steps.MOVE_LOADED`; SimNotes, "A pull's posture and the hand it rests
 on"). A procedure's `move_hand` of a hand whose gripper does not read it
 holds something, as the carry is asked, takes no new posture while the
-hand reads past 20 N: as the carry is asked, its posture the one it holds
-(or #719 keeps it in); on its way, none where the arm runs out of reach
-until it reads light again. A posture coming is given up where the hand
+hand reads past 20 N: as the carry is asked, the posture the body is in
+(where it has got to, if one is still coming); on its way, none until it
+reads light again (a path's or a turned carry's posture is chosen once, as
+it is asked). An end no posture reaches is refused, nothing moved, as
+always. A posture coming is given up where the hand
 reads past it, the body backing off toward where the carry began until the
 hand reads no more, held there; that carry takes no other, and goes as far
 as its arm reaches. A hand that grips what it carries, and the loop's own

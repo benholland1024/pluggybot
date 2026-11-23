@@ -10163,13 +10163,17 @@ held as it is asked takes no posture while the hand reads past 20 N
 and gives a coming one up there as a pull does, backing off toward where
 the carry began until it reads no more, held there, that carry taking no
 other; it goes as far as its arm reaches from there, out of reach at once
-where it cannot follow. A posture refused for a load is asked again at
-the next command that reads light, as a pull's is; loaded at the ask with
-the other hand out holding something, the carry takes the posture #719
-keeps it in -- where the body has got to -- never the one it was going to.
-Ended out of reach where another posture would reach, its last posture
-withheld for a load, it says so (`steps.MOVE_LOADED`), never that no
-posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
+where it cannot follow. Loaded as it is asked, it plans as any carry does
+-- an end no posture reaches is refused, nothing moved, as always -- and
+takes where the body is: the posture it holds within `POSTURE_TOL`, else
+where it has got to, as #719 keeps a body -- never a posture still coming
+(re-asked that, a body went on bowing over the loaded hand, and no give-up
+could come). On a straight carry's way a posture refused for a load is
+asked again at the next command that reads light, as a pull's is; a path's
+or a turned carry's posture is chosen once, as it is asked, and one
+refused then is kept for the move. Ended out of reach where another
+posture would reach, its last posture withheld for a load, it says so
+(`steps.MOVE_LOADED`), never that no posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
 own noise): at Rowan's draw with the belief 0.85 m off, on the tree it fell on
 (9914a40c, which flies W1's 24 rows exactly) 2 of 24 fell -- one in the
 carry, one in a `pull` with the cube gripped -- and with this rule 1 of 24,
