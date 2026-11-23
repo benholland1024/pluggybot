@@ -885,6 +885,26 @@ def test_an_arm_its_drivers_read_home_ends_its_way_home_there(monkeypatch):
     "an arm at rest moved by something else was taken for a way home held"
 
 
+def test_a_way_home_held_is_raised_twice_before_it_is_left_held(monkeypatch):
+  """#693's withdraw case: held mid-way by a stall (`STALL_S`), a door's
+  withdraw raised once stalled on the door's top again and was left by it:
+  6 of W1's door_final50 flights at their live draws lost their grade, one
+  falling as the stand came with its arm left held; raised again, 4 of them
+  passed. A way home held is raised and sent home again twice (`LIFTS`), the
+  third time left held."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=rc.LIFTS)
+  for k in (1, 2):
+    r.lifted["left"] = k - 1
+    r.phase["left"], r.homing["left"] = "rest", True
+    r._held_home("left")
+    assert r.phase["left"] == "retreat" and r.lifted["left"] == k, k
+  r.phase["left"], r.homing["left"] = "rest", True
+  r._held_home("left")
+  assert r.held("left") and r.lifted["left"] == 2 and np.allclose(r.q_cmd["left"], held_at)
+
+
 def test_a_way_home_held_with_another_robot_by_is_never_raised(monkeypatch):
   """#678: a verb's way home is refused where every way would meet another
   robot's body; one judged from the top of a raise would take the way that

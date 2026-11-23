@@ -432,7 +432,7 @@ save a filmstrip PNG named after the script.
   BY ITS DRIVERS, NEVER ITS COMMAND (#693's live family; `Reach.HELD_S`,
   `_homed`, `held`; SimNotes, "A way home something holds"): read off its
   rest `HELD_S` (0.5 s) with its rest commanded, it is raised `LIFT_M` (5
-  cm) and sent home again `LIFTS` (1) times -- never with another robot by,
+  cm) and sent home again `LIFTS` (2) times -- never with another robot by,
   nor from a raise its arm did not follow -- then left where it is held,
   pressing on nothing (phase "held": out, saved through as a carry is, never
   rested with) -- left "rest" and pressed on toward it, a jaw on a counter's

@@ -25,7 +25,8 @@ home whose arm stalls"). Any way home in joint space -- a withdraw's, a
 walk's hand-over's, the loop's own -- whose drivers read the arm more than
 0.5 rad behind its command for 0.3 s running is held where they read it, as
 one held at its rest is (#693b): pressing on nothing, raised 5 cm and sent
-home again once, then left held. The stand an arm keeps from the robot is
+home again, now twice for every way home held (`LIFTS`, #693b's and the
+hand-over's too), then left held. The stand an arm keeps from the robot is
 asked as before, at its way home's command end.
 
 **What the period is for.**

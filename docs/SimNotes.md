@@ -10557,7 +10557,8 @@ legs over, and a reach planned its way out from the rest.
   off its rest for `HELD_S` (0.5 s) running with its rest commanded --
   held. Held, its command is set where its drivers read it, so it presses
   on nothing; it is raised `LIFT_M` (5 cm) straight up from there and sent
-  home again, judged afresh, `LIFTS` (1) times a way home, and held again it
+  home again, judged afresh, `LIFTS` (2: once until #693's withdraw case,
+  below, "A way home whose arm stalls") times a way home, and held again it
   is left where it is held (phase "held": out, its command kept across a
   restart, saved through as a carried hand is, never rested with: an aside
   takes no arm home first). With another robot by (`keep_out`) it is left
@@ -11072,8 +11073,8 @@ recorder's samples every 0.05 s, so near, not exact).
 or its rest commanded and not yet read there -- whose own reading tips the
 body away from its hand past `HOME_TIP_NM` (15 N m) for `HOME_TIP_S` (0.2 s)
 running is held where its drivers read it, as a way home held at its rest
-is: pressing on nothing, raised `LIFT_M` and sent home again once a way home
-(never with another robot by), then left where it is held; the walk goes
+is: pressing on nothing, raised `LIFT_M` and sent home again `LIFTS` times a
+way home (never with another robot by), then left where it is held; the walk goes
 with it held, its report saying so (`armHeld`), and the next withdraw or walk
 sends it home again, judged afresh from where it is held. Never a
 `withdraw`'s way home, whose word is the arm's: held so, the bar's door
@@ -11183,7 +11184,7 @@ hand-over's, the loop's own -- but a carry's way to its pose, whose drivers
 read the arm more than `STALL_RAD` (0.5 rad) behind its command for
 `STALL_S` (0.3 s) running is held where they read it, as one held at its rest
 is (above, "A way home something holds"): pressing on nothing, raised
-`LIFT_M` and sent home again once, then left held, a `withdraw` reading
+`LIFT_M` and sent home again twice (`LIFTS`), then left held, a `withdraw` reading
 "held". Its count is each way home's own, and a restart keeps it. It holds
 11 of the 12 way-home falls flown, 0.5-1.8 s before each fell; not
 `door_final50`'s key 0, whose lag peaked at 0.44 rad as the body itself gave

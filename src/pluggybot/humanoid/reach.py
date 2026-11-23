@@ -313,8 +313,10 @@ HELD_S = 0.5
 #: (`keep_out`): a way judged from the top would take the way that comes
 #: least near it rather than be refused, as a verb's must (#678) -- and a
 #: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
-#: after its command arrived, is left held (`_raise_short`).
-LIFT_M, LIFTS = 0.05, 1
+#: after its command arrived, is left held (`_raise_short`). ⚠ TWICE: held
+#: mid-way by a stall (`STALL_S`), a door's withdraw raised once stalled on
+#: the door's top again and was left by it, the door's grade lost.
+LIFT_M, LIFTS = 0.05, 2
 #: ...and a walk's hand-over's is held so at once, on its way, where what its
 #: arm reads tips the body away from the hand (minus `_tipping`) past this, N
 #: m, this long running, s (`_shoved`, `watch_home`; SimNotes, "A way home
