@@ -2793,6 +2793,154 @@ procedures with the height put right (#704), every grip that read so had
 its pads on the board, the mat or the cube (22 of 22): the words would be
 true where they matter most and false elsewhere, so they are not said.
 
+## The step's hand-back once its soles are planted (issue #740)
+
+Every walk ends with the legs going from the walking policy back to the
+standing one (`HumanoidMission.to_stand_routine`): at a `step`'s end, and
+at the first hand verb after a `drive_to`, `face` or `find`. Until #740 the
+walker was held still `SETTLE_S` (0.8 s) and the legs handed over whatever
+the soles were doing. The loop of 11-22's W4 took apart a fall of the
+pass's reference (`set_table_pass`, never offered; draw 3511 from the lab,
+the fork shut at 40 N, on an EPYC 9654): `to_place`'s sidestep of 14.6 cm
+to the right. Through the settle the trunk leant forward from 0.4 to 3.2
+deg, the right sole carried the robot on its toes (its middle 5-8 mm over
+flat), and the walker lifted the left foot and put it down 0.02 s before
+the settle ended; the standing policy took the legs with that sole
+unloading (49 N), it lifted again, and the trunk went from 3.1 to 34.2 deg
+in 0.46 s.
+
+**The count** (the loop of 11-23's X2, on 95f8aefb and one EPYC 7702;
+every hand-over recorded: what the robot's reckoning read of its soles at
+every odometry tick of the settle, and the truth beside it for the record,
+each sole's load, lowest corner and tilt): 2,098 hand-overs over 806
+flights -- the bar's 736 (the hands checks' 191, the tour's 450), the
+pass's 64 from the tour (1,323) and W4's six family flights (134). By the
+truth a sole carried under 50 N at 8 of them, all in the pass and the
+family, and a loaded sole stood tilted more than 3 deg at 97. No fall came
+within 2 s of any hand-over: the base's six falls (the bar's five, in the
+drawer, lid and table checks, and the pass's one, in a reach 2.9 s after
+its last hand-over) came elsewhere. The base flew the bar end state for end
+state as 7c21ea17 did on another Zen 2 pod (736 of 736): 609 passes, 5
+falls.
+
+- *After a sidestep the walker held still steps on in place.* After a step
+  ahead or back a foot lifts early in the settle and never in its last
+  0.3 s (0 of 1,068), and after a turn on the spot almost never (1 of 192);
+  after a sidestep a foot was still lifting in its last 0.3 s in 55 of 838
+  (the pass's, carrying a piece, 48 of 542; the family's 5 of 56; the
+  tour's 2 of 176; the hands checks' none of 64), and up at the hand-over
+  in 4. Stepping in place, the walker lifts one foot and then the other
+  every 0.15-0.3 s (pass draw 4's line-24 sidestep, lab_3511's own line,
+  stepped on for the whole 0.8 s), or lands its last stride and lifts a
+  foot again in the settle's last 0.2 s; so the hand-over lands at
+  whatever phase it is in: a foot in the air (four times), one landing,
+  both down for an instant. The standing policy caught every one of them
+  here: no fall came within 2 s of a hand-over. lab_3511 is such a
+  hand-over on the 9654; W4's family flown on this CPU class are other
+  flights (they part at the first `find`) and none of them fell.
+- *A loaded sole on its edge is no hazard.* At 97 hand-overs a sole
+  carried the robot tilted more than 3 deg (on an edge, its toes or its
+  heel), and nothing followed. The robot's model of itself reads that tilt
+  as the truth has it (a sole not flat, `StanceOdometry.flat`, or its lowest
+  corner 3 mm over the other's: 94 of the 100 the truth had tilted or
+  unloaded, and 64 others), so a rule that wants both soles flat holds such
+  settles to its bound for nothing: on the pass's and the family's 822,
+  with the soles' middles within 3 mm and both flat it acted on 85 settles
+  with no foot lifting late, to catch 28 of the 31 that had one.
+- *What the reckoning reads.* The other sole's lowest corner over the
+  planted one's, off the joints and the IMU through the model of itself,
+  is the truth's to 0.7 mm at the median and 2.2 at the 90th percentile,
+  5.7 at worst; with both soles down it reads them up to 5.6 mm apart (a
+  stance's offset in the model). The soles' MIDDLES -- what the planted-foot
+  swap compares on one floor -- read a lifted foot no higher than the other
+  where the other stood on its toes (lab_3511: both 5-8 mm up), so they
+  caught 11-21 of the 31.
+
+**The rule** (`odometry.PlantedRun`: `DOWN_M` 4 mm, `STILL_M` 3 mm,
+`SPREAD_M` 15 mm; `mission.PLANTED_S` 0.1 s, `SETTLE_MORE_S` 1.2 s): the
+walker is held still `SETTLE_S` as before, and the legs handed over then
+wherever both soles have read planted for `PLANTED_S` -- the other sole's
+lowest corner within `DOWN_M` of the planted one's either way (below it,
+the planted foot is itself lifting, before the swap moves to the other;
+over the mapped ground on a flight), every reading of those `PLANTED_S` within `STILL_M` of the
+others, since a foot landing or lifting moves it, and neither sole's
+corners spread over `SPREAD_M` of height (`StanceOdometry.spread`: one on
+its toes or an edge) -- the flight bit for bit what it was; else the walker
+is held on until they have, `SETTLE_MORE_S` at most, then the legs go over
+all the same and a `step` says so in its report (`feetDown`: false; its
+text unchanged). On the whole base it holds 77 of the 2,098 hand-overs, in
+53 flights -- 5 of the bar's 736, 43 of the pass's 64, 5 of the family's 6
+-- and all 8 where a sole carried under 50 N; 47 of the 56 late lifts, and
+30 settles without one (both soles loaded, mostly a reading still
+settling). Its 9 misses had all landed 0.10-0.28 s before the hand-over,
+both soles loaded there (105-338 N).
+
+- *The heights alone miss #740's own fall.* The pass's falls replay only
+  on an EPYC 9654 (AVX-512: this class's flights part at the first
+  `find`); there, at their own noise, the base fell in all three of W4's
+  (lab_3511, and p12's hall_3637 and kitchen_3662). Through lab_3511's
+  last settle the odometry's planted foot was the LEFT, unloading to 0 N
+  but lifting only 1-2 mm, while the right carried the robot on its toes,
+  tilted 11.5 deg: the corners read level and still (-2.8 to -0.8 mm), and
+  a rule on the heights alone (24f9f5a7) fell in lab_3511 and kitchen_3662
+  as the base did, never acting. Every fatal hand-over read one sole's
+  corners 20-21 mm apart; at the base's 2,098 hand-overs a spread past 15
+  mm through a whole window came 3 times, each a sole on its edge with the
+  other light (56-113 N, where the median is 209).
+- *Flown on the 9654* (the three draws at their own noise and three keys
+  each, base and candidate): the base fell 3 times in 12, the candidate
+  never -- lab_3511's fatal hand-over held to 1.62 s, then handed over
+  planted; kitchen_3662's to 1.34 s. Its places laid: 4 of 12 against the
+  base's 6, two of lab_3511's keys whose fork ended 3.0 cm from its spot
+  against the 2.5 cm line, where the base's ended 2.3-2.4. ⚠ The 15 mm was
+  chosen with these three fatal hand-overs in view: on them it is no
+  held-out test.
+- ⚠ *A window, never the run since it began.* The first candidate
+  (98d0c9ac) judged stillness over the whole run, so a reading drifting a
+  few millimetres as both soles settled started it again late, and it
+  would have held 270 of the 2,098 where the window on the heights alone
+  holds 70 -- found reading its own record of its first flights against
+  this estimate.
+- ⚠ *Within `DOWN_M` either way.* Bounded from above alone (dbf3296d), the
+  planted foot itself lifting read the other sole under it and passed: the
+  pass's draw 36 at 301.4 s had a foot off the floor until 0.02 s before
+  the hand-over, the other sole reading 4.95 mm under it, its corners
+  within 9.3 mm, and dbf3296d handed over there (the standing policy caught
+  it). Either way (4fcd086d, the review's), that settle is held 0.18 s more.
+
+**Flown** (one EPYC 7702 beside 95f8aefb, each flight at its own noise, on
+dbf3296d, bounded from above alone; 4fcd086d, either way, decides every
+settle recorded there as dbf3296d did -- the bar's, the pools' and the
+family's, every window's lowest reading over -3.5 mm, and the pass's but
+draw 36's, flown again on it): Ben's bar, 609 of 736 and 5 falls on both
+trees, every job's numbers the same: it acted on 5 of the 736 flights (a
+hands check's table, three of the tour's tables and a door), holding each
+0.02-0.07 s, and those flew to the grades the base's did; the other 731 are
+the base's end state for end state. The pools sealed by dbf3296d (the hands
+checks at 32 fresh set-outs, the tour's five jobs at 16 fresh draws): 201
+of 240 and 2 falls on both trees, the rule acting on none of them, every
+flight the base's end state. The pass's 64 (never offered): the 21 flights
+it does not act on the base's end state for end state; on the 43 it acts
+on, places laid 21 against the base's 22 (7 gained, 8 lost), falls 2
+against 1 -- the base's (draw 1) gone, two new: draw 21 a walker's fall in
+a `find` carrying the fork, 95 s after its one hold (the trunk leant 7-8
+deg for 4 s, then a corrective step failed; nothing but the fork touched),
+and draw 62 a reach's strike, the empty gripper knocking the cup and its
+jaw striking the table at 172 N in a deepening bow, 18 s after a hold of
+0.06 s -- each downstream of a flight the hold moved, neither at a
+hand-over. Draw 36 on 4fcd086d, held 0.18 s at 301.6 s, laid its place
+where both trees dropped the fork: the pass on it reads laid 30 of 64, as
+the base, and 2 falls against 1. No hold ran out its bound there (the
+longest 1.48 s), nor anywhere else flown: 2,628 hand-overs. W4's family
+flown on this class: 5 of 6 acted on, laid 3 against 5 (lab_3511's plate
+dropped). The station's checks, on 4fcd086d itself (the station's flights
+record no settle): docked and unplugged 39 of 39 round the standoff, 140 of
+140 seats and 20 of 20 lost, no fall, as the base; 196 of its 199 rows the
+base's own, the other three a dock 0.1 s longer and two lost robots'
+let-goes a millimetre elsewhere, one docked 2.8 s sooner. The pair's
+fixture line, flown on 98d0c9ac and again on 4fcd086d, is the base's line
+for line but two wall-clock stamps.
+
 ## The way home (issue #539)
 
 `withdraw` brings a hand out along its way in (the reach's 8 cm line),

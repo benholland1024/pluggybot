@@ -1381,7 +1381,8 @@ def _step(life, args: dict) -> Routine:
   body turns `turn` rad on the spot and walks `ahead` m and `left` m in the
   frame it then stands in, and stands -- its feet where the hands' work is. Where its stance
   went, in the stance frame it stood in before, rides `step.*` whatever
-  stopped it. ok when it stepped."""
+  stopped it. ok when it stepped; `feetDown` false where its legs went back
+  to standing before both its soles read down (#740)."""
   refused = _arm_out(life, "step")
   if refused is not None:
     # ...a hand out that could not come home: nothing moves (#678)
@@ -1393,7 +1394,9 @@ def _step(life, args: dict) -> Routine:
   _reports(life)["step"] = {k: float(rep.get(k, 0.0)) for k in ("dx", "dy", "turn")}
   out = {"why": rep["why"], "seconds": rep.get("seconds"),
          **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")},
-         **_carried(life)}
+         **_carried(life),
+         # ...and its legs gone back to standing before both soles read down (#740)
+         **({"feetDown": False} if rep.get("feetDown") is False else {})}
   if rep["why"] != "stepped":
     kept = rep.get("keptOff")
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept

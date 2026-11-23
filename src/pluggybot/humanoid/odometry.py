@@ -33,6 +33,7 @@ Nothing here reads the simulator's truth: the scan matcher corrects what slips
 """
 
 import math
+from collections import deque
 
 import mujoco
 import numpy as np
@@ -53,6 +54,23 @@ SWAP_M = 0.003
 #: read about 0 in double support, and swapping on the map's centimetre of
 #: noise read a walk 10 % short where the lower-foot rule read it 2.5 %.
 CLEAR_M, STEP_M = 0.01, 0.05
+#: BOTH SOLES PLANTED (#740, `PlantedRun`): the other sole's lowest corner
+#: within `DOWN_M` of the planted one's, either way (`apart`), m, and STILL:
+#: every reading of the window within `STILL_M` of the others, m -- a foot
+#: landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES THE
+#: SWAP COMPARES ON ONE FLOOR: a lifted foot's middle reads no higher than the
+#: other's where the other stands on its toes. ⚠ Two soles truly down read up
+#: to 5.6 mm apart (a stance's offset in the model of itself): such a settle
+#: is held until its reading settles (SimNotes, "The step's hand-back once its
+#: soles are planted").
+DOWN_M, STILL_M = 0.004, 0.003
+#: ...and FLAT ENOUGH: neither sole's four corners spread over more than this
+#: of height, m (`spread`) -- one on its toes or an edge. ⚠ THE HEIGHTS ALONE
+#: MISS #740'S OWN FALL: the left foot hung 1-2 mm up at 0 N while the right
+#: carried the robot on its toes, its corners 16-21 mm apart, and the corners'
+#: heights read level and still. ⚠ A sole a few degrees on an edge, loaded and
+#: still, is no hazard: it reads under this.
+SPREAD_M = 0.015
 #: A sole lies flat when its up is within this of the world's (cos of 3
 #: deg): only then is its footprint the ground's (`felt`).
 FLAT_COS = math.cos(math.radians(3.0))
@@ -61,6 +79,33 @@ FLAT_COS = math.cos(math.radians(3.0))
 #: its middle travels 2-3 cm a step as it rolls heel to toe: read off the
 #: middle, a walk read 20 % short where the planted foot changed late.
 CORNERS = np.array([[a, b, -1.0] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
+
+
+class PlantedRun:
+  """Whether both soles have read PLANTED for its last `steps` readings
+  (#740), a reading at a time -- the odometry's `apart` and `spread` as each
+  physics step finds them (it ticks every `ODO_S`, so 0.1 s is ten of its
+  readings, each read five times): every `apart` within `DOWN_M` either
+  way -- below, the
+  planted foot is the one lifting, before the swap moves to the other --
+  and all within `STILL_M` of each other, since a foot landing or lifting
+  moves it; every `spread` within `SPREAD_M`. ⚠ A WINDOW, NEVER THE RUN
+  SINCE IT BEGAN: a reading drifting a few mm as both soles settle would
+  start a run again late, and hold about four times as many settles. None
+  (no tick yet) reads nothing up."""
+
+  def __init__(self, steps: int):
+    self.window: deque = deque(maxlen=steps)
+
+  def read(self, apart: float | None, spread: float | None = None) -> bool:
+    self.window.append((apart, spread))
+    if len(self.window) < self.window.maxlen:
+      return False
+    known = [a for a, _ in self.window if a is not None]
+    tilts = [t for _, t in self.window if t is not None]
+    return ((not known or (max(known) <= DOWN_M and min(known) >= -DOWN_M
+                           and max(known) - min(known) <= STILL_M))
+            and (not tilts or max(tilts) <= SPREAD_M))
 
 
 class StanceOdometry:
@@ -103,6 +148,11 @@ class StanceOdometry:
     self.corrected = np.zeros(3)
     self.foot: int | None = None
     self.last: np.ndarray | None = None
+    #: The other sole's lowest corner over the planted one's, and the larger
+    #: of the soles' corners' spreads, as its last tick read them, m
+    #: (`PlantedRun`); None before its first tick.
+    self.apart: float | None = None
+    self.spread: float | None = None
     self.soles = self.sm.soles
 
   @property
@@ -170,10 +220,12 @@ class StanceOdometry:
       near = int(np.argmin(clear))
       swap = self.foot is None or (near != self.foot
                                    and clear[self.foot] - clear[near] > CLEAR_M)
+      lows = clear
     else:
       near = int(np.argmin(soles[:, 2]))
       swap = self.foot is None or (near != self.foot
                                    and soles[self.foot, 2] - soles[near, 2] > SWAP_M)
+      lows = self.low
     c, s = math.cos(self.yaw), math.sin(self.yaw)
     if swap:
       self.foot, self.last = near, self.corners[near].copy()
@@ -186,6 +238,11 @@ class StanceOdometry:
       self.x -= c * moved[0] - s * moved[1]
       self.y -= s * moved[0] + c * moved[1]
       self.z -= moved[2]
+    #: ...and the other sole's lowest corner over the planted one's, m: over
+    #: the ground mapped under each where it differs by a riser; and the larger
+    #: of the soles' corners' spreads of height, m, its tilt (`PlantedRun`)
+    self.apart = float(lows[1 - self.foot] - lows[self.foot])
+    self.spread = float(np.ptp(self.corners[:, :, 2], axis=1).max())
     if self.felt is not None and self.flat[self.foot]:
       sole = soles[self.foot]
       self.felt(self.x + c * sole[0] - s * sole[1], self.y + s * sole[0] + c * sole[1],

@@ -1306,7 +1306,9 @@ class HumanoidBody(Body):
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
-    (#581's stage 2)."""
+    (#581's stage 2). ⚠ ITS LEGS GO BACK TO STANDING ONCE BOTH SOLES READ
+    DOWN, AND WHERE THE SETTLE'S BOUND RAN OUT FIRST IT SAYS SO, `feetDown`
+    false (#740; `HumanoidMission.to_stand_routine`)."""
     mi = self.mission
     yield from mi._getup_routine()
     by_legs = self._by_legs()
@@ -1362,7 +1364,8 @@ class HumanoidBody(Body):
         # and its turn's included: standing still, the LIDAR takes none
         why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
     seen = mi.odo.corrected.copy()
-    yield from mi.to_stand_routine()
+    # ...handed over once both soles read planted, or its bound out (#740)
+    settled = yield from mi.to_stand_routine()
     d_ = mi.odo.corrected - seen
     self._jump = max(self._jump, math.hypot(float(d_[0]), float(d_[1])))
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
@@ -1397,7 +1400,10 @@ class HumanoidBody(Body):
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
             "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
-            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
+            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {}),
+            # ...and its legs gone back to standing before both its soles had
+            # read down, its settle's bound out (#740)
+            **({"feetDown": False} if settled is False else {})}
 
   def _by_legs(self):
     """A pose of the belief's, (x, y, heading), as the legs' reckoning alone

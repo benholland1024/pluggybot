@@ -122,8 +122,11 @@ class Walk:
 
   def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
                fall_at=None, settle_m=0.0, shuffle_s=0.0, planted_s=0.0, feet=1.0, others=(),
-               seen=None, over_wall=None):
+               seen=None, over_wall=None, settled=True):
     self.others, self.seen, self.peer_returns = list(others), seen, None
+    #: what its settle says as it hands the legs back (#740): True, both soles
+    #: read down; False, its bound ran out first
+    self.settled = settled
     #: what its LIDAR reads at its head's height and what it saw at its
     #: knees (#717): none, unless a test says -- `over_wall` a wall across
     #: the world at that x, read at every scan
@@ -220,7 +223,7 @@ class Walk:
     self._carry()
     self._over_scan()
     self.legs = "stand"
-    return
+    return self.settled
     yield
 
   def look_scan(self):
@@ -273,6 +276,27 @@ def _step(body, *args, fall_in_settle=False):
         body.mission.falls, fall_in_settle = body.mission.falls + 1, False
   except StopIteration as e:
     return e.value
+
+
+def test_a_step_whose_legs_went_back_before_both_soles_read_down_says_so():
+  """#740: the settle hands the legs to the standing policy once both soles
+  have read planted, and where its bound runs out first hands them over all
+  the same: the step then says so (`feetDown`: false), in the body's report
+  and in the verb's, which the robot reads -- and nothing where they did."""
+  rep = _step(_walker(Walk(settled=False)), 0.2)
+  assert rep["why"] == "stepped" and rep["feetDown"] is False
+  assert "feetDown" not in _step(_walker(Walk()), 0.2)
+  body = StubBody(*_bare())
+  stepped = body.step_routine
+
+  def bound_out(*a, **kw):
+    return {**(yield from stepped(*a, **kw)), "feetDown": False}
+  body.step_routine = bound_out
+  ran = _fly('def a():\n    step(0.2)\n', body)
+  assert ran["ok"] and ran["steps"][0]["feetDown"] is False
+  body.step_routine = stepped
+  ran = _fly('def a():\n    step(0.2)\n', body)
+  assert ran["ok"] and "feetDown" not in ran["steps"][0]
 
 
 def test_the_humanoids_step_stops_where_its_stride_carries_it_to_the_step():

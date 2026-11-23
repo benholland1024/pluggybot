@@ -87,6 +87,35 @@ def test_on_a_stair_the_planted_foot_is_the_one_on_its_ground_not_the_lower():
   assert blind.foot == 1
 
 
+def test_both_soles_down_is_read_off_their_lowest_corners():
+  # #740: `apart`, what `PlantedRun` reads, is the other sole's LOWEST
+  # CORNER over the planted one's -- never their middles, which the swap
+  # test compares on one floor (a sole on its edge lifts its middle and is
+  # down) -- and on a flight each sole's clearance over the ground mapped
+  # under it (a foot on each of two treads is both down; one 2 cm off its
+  # tread is not).
+  from pluggybot.humanoid.odometry import DOWN_M
+  up = DOWN_M + 0.001
+  floor = _tick((0.0, 0.1, -0.73), (0.0, -0.1, -0.73))
+  mids, _ = _tick((0.0, 0.1, -0.73 + up), (0.0, -0.1, -0.73))
+  _, lifted = _tick((0.0, 0.1, -0.73 + up), (0.0, -0.1, -0.73))
+  odo = _Stance([floor, (mids, floor[1]), (floor[0], lifted)])
+  odo.step(None, None)
+  assert abs(odo.apart) < 1e-9
+  odo.step(None, None)
+  assert abs(odo.apart) < 1e-9, "its middle up, its lowest corner down: down"
+  odo.step(None, None)
+  assert odo.apart > DOWN_M, "its corners up: up"
+  ground = lambda x, y, yaw: 0.18 if x > 0.1 else 0.0  # noqa: E731
+  treads = [_tick((0.2, 0.1, -0.55), (0.0, -0.1, -0.73)),
+            _tick((0.2, 0.1, -0.55), (0.0, -0.1, -0.71))]
+  odo = _Stance(treads, z=0.73, terrain=ground)
+  odo.step(None, None)
+  assert abs(odo.apart) < 1e-9, "a foot on each of two treads: both down"
+  odo.step(None, None)
+  assert odo.apart > DOWN_M, "one 2 cm off its tread"
+
+
 def test_the_height_is_never_laid_off_the_map():
   # Landing on a tread, the planted foot changes -- and once the height was
   # laid off the ground the map had under the new sole. A footprint believed
