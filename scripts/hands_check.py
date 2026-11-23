@@ -8,7 +8,9 @@ before it flew. Each flight is one attempt (`evaluation.attempts`): the
 world built afresh, the procedure run inside the job's time, the call, the
 hold, one verdict.
 
-  --job J[,J,..]       lid, drawer, door, place, table (default: all five)
+  --job J[,J,..]       lid, drawer, door, place, table (default: these five),
+                       or shelf (#736: the shop's shelf stocked from its cart,
+                       not offered; flown only by name)
   --set-outs A-B|A,..  the set-outs (default: the check's, 0-7)
   --held-out N         N set-outs nobody has flown instead, by the frozen
                        build's seed (`attempts.seed_of`; a dirty tree is
@@ -129,8 +131,8 @@ def read(into: str) -> None:
 def source(job: str) -> None:
   from pluggybot.procedure.lang import MAX_SOURCE_CHARS
   proc = hc.compiled(job)
-  print(hc.JOBS[job])
-  print(f"{len(hc.JOBS[job])} characters of {MAX_SOURCE_CHARS}; {proc.verbs} verb calls "
+  print(hc.source(job))
+  print(f"{len(hc.source(job))} characters of {MAX_SOURCE_CHARS}; {proc.verbs} verb calls "
         f"written; budget {proc.steps_budget} steps, {proc.budget_s:.0f} s")
 
 
@@ -141,8 +143,14 @@ def source(job: str) -> None:
 #: cube is 26 mm).
 PROPS = {"lid": lambda k: ct.set_out(k).chest, "drawer": lambda k: ct.drawer_set_out(k).cabinet,
          "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube,
-         "table": lambda k: ct.table_set_out(k).card}
-BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9, "table": 1.6}
+         "table": lambda k: ct.table_set_out(k).card,
+         "shelf": lambda k: (*ct.shelf_set_out(k).products["candle"][:2], _store().facing_in())}
+BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9, "table": 1.6, "shelf": 1.2}
+
+
+def _store():
+  from pluggybot.home import store
+  return store
 
 
 def _task(job: str, k: int) -> at.Task:
@@ -155,8 +163,8 @@ def _prop(job: str) -> str:
   return hc.SCENES[job][0] if job in hc.SCENES else job
 
 
-def _skill(job: str, out: dict):
-  return ep.procedure_skill(hc.compiled(job), hc.facts(), out)
+def _skill(job: str, out: dict, k: int = 0):
+  return ep.procedure_skill(hc.compiled(job, k), hc.facts(), out)
 
 
 def view(job: str, k: int, noise: str | None = None) -> None:
@@ -171,7 +179,7 @@ def view(job: str, k: int, noise: str | None = None) -> None:
     world.body.step_hooks.append(_pace(viewer, world.data, world.model))
     try:
       out: dict = {}
-      row = at.attempt_in(world, _skill(job, out))
+      row = at.attempt_in(world, _skill(job, out, k))
       print(show(row | {"ran": {}}))
       for s_ in (out.get("ran") or {}).get("steps", []):
         if s_.get("until"):
@@ -190,11 +198,12 @@ def view(job: str, k: int, noise: str | None = None) -> None:
 #: the procedure runs, the call and the hold's end -- at most this many;
 #: the table's place takes a minute, a tile every 10 s.
 EVERY_S, TILES = 5.0, 8
-EVERY_JOB_S = {"table": 10.0}
+EVERY_JOB_S = {"table": 10.0, "shelf": 20.0}
 #: Where a strip's camera stands round the prop, deg off its facing: beside
 #: it, between the prop and the robot -- the table's from across it, where
 #: the robot does not stand between the camera and the place.
-AZIMUTH = {"lid": 115.0, "drawer": 115.0, "door": 115.0, "place": 115.0, "table": 20.0}
+AZIMUTH = {"lid": 115.0, "drawer": 115.0, "door": 115.0, "place": 115.0, "table": 20.0,
+           "shelf": 35.0}
 
 
 def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = None) -> None:
@@ -248,7 +257,7 @@ def strip(job: str, k: int, out: str = "hands_check.png", noise: str | None = No
 
   def skill(body):
     def routine():
-      got = yield from _skill(job, {})(body)
+      got = yield from _skill(job, {}, k)(body)
       world.body.step_hooks.remove(every)
       shoot(f"the call, {d.time - t0:.0f} s")
       return got
@@ -271,7 +280,7 @@ def main(argv=None) -> None:
   watched()
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--job", default=",".join(hc.JOBS))
+  ap.add_argument("--job", default=",".join(j for j in hc.JOBS if j != "shelf"))
   ap.add_argument("--set-outs", default=f"{hc.SET_OUTS[0]}-{hc.SET_OUTS[-1]}")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)

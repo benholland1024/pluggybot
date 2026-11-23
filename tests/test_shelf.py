@@ -26,6 +26,7 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.activity import dishware as dw
 from pluggybot.activity import stock as st
 from pluggybot.challenge import shelf
 from pluggybot.economy import scoring
@@ -446,6 +447,27 @@ def test_the_stock_is_not_in_the_served_house():
   assert not names & set(st.BODIES)
 
 
+def test_the_served_houses_hold_is_counted_as_before(monkeypatch):
+  """`dishware.set_const` counts the products' hold too, and in the served
+  house -- no stock in it -- an offer's redraw holds the dishware's pieces
+  alone at `mj_setConst`, as it did, and puts them away held."""
+  from pluggybot.home import restaurant
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.robot import world_spec
+  model = world_spec(world_config(HUMANOID_HOME)["model"]).compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  seen, real = [], mujoco.mj_setConst
+
+  def spy(m, d):
+    seen.append({m.body(b).name for b in range(m.nbody) if m.body_gravcomp[b] > 0})
+    return real(m, d)
+  monkeypatch.setattr(mujoco, "mj_setConst", spy)
+  restaurant.set_out(model, data, restaurant.TABLE, 3)
+  assert seen == [set(dw.PIECES)] and model.ngravcomp == len(dw.PIECES)
+  assert all(model.body_gravcomp[model.body(p).id] == 0.0 for p in dw.PIECES)
+
+
 def test_a_cast_meets_the_cart_where_it_stands():
   """The cart moves (a mocap body), so it keeps MuJoCo's own inertia -- set
   unturned at its middle, its ray-cull sphere where its boxes are (#657)."""
@@ -503,3 +525,17 @@ def test_the_shelf_pays_nothing_and_is_shown_to_no_mind():
   assert "shelf" not in scoring.default_table().offered
   # ...its words, the criteria's numbers
   assert "4 cm" in row["detail"] and "10 cm" in row["detail"]
+
+
+def test_our_reference_is_told_each_set_outs_labels_as_an_offer_would():
+  """Our procedure (`hands_check.SHELF`) is one source with the job's labels
+  filled in per set-out (`hands_check.source`), as an offer states them,
+  and compiles in the hands' vocabulary within the source's cap."""
+  from pluggybot.evaluation import hands_check as hc
+  from pluggybot.procedure import lang
+  for k in range(8):
+    so = ct.shelf_set_out(k)
+    src = hc.source("shelf", k)
+    assert f"  c = {so.slots['candle']}\n" in src and f"  f = {so.slots['frame']}\n" in src
+    assert len(src) <= lang.MAX_SOURCE_CHARS
+    assert hc.compiled("shelf", k).name == "stock_shelf"

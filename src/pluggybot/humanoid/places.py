@@ -182,6 +182,11 @@ def place_tags(model) -> tuple[list[int], tuple]:
     ids, fixtures = [*ids, *storeroom.TAGS.values()], (*fixtures, storeroom.fixture())
   if restaurant.present(model):
     ids = [*ids, *PLACE_TAG_IDS]
+  # ...and the shop shelf's slot labels, out while its job is (#736)
+  from pluggybot.home import store
+  if store.present(model):
+    from pluggybot.perception.tags import LABEL_TAG_IDS
+    ids = [*ids, *LABEL_TAG_IDS]
   return ids, fixtures
 
 

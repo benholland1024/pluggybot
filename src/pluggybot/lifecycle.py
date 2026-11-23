@@ -5063,7 +5063,10 @@ class HubLifecycle:
                          "limitS": task.limit_s,
                          "catchN": (storeroom.drawn(task.target, int(draw)).catch_n
                                     if HAND_JOBS[kind.task] == "lid" and draw is not None
-                                    else None)})
+                                    else None),
+                         # ...which label each product goes over: the shelf's
+                         # job's word, its activity's (#736)
+                         "slots": getattr(self._target_activity(task.target), "slots", None)})
 
   def _settle_graded(self, task, verdict, t0: float) -> None:
     """A grade's verdict settled, named by its job's id, as a run-out's is
@@ -7848,9 +7851,11 @@ def home_activities(model, data):
   # stage 3): the chest's catch and the door's latch are physics they apply;
   # and the restaurant's place, its dishware put away until a job sets it
   # out (#560)
-  from pluggybot.home import restaurant, storeroom
+  from pluggybot.home import restaurant, storeroom, store
   acts += storeroom.activities(model, data)
   acts += restaurant.activities(model, data)
+  # ...and the shop's stock, where a world has it (#736: none served yet)
+  acts += store.activities(model, data)
   return ActivitySet(acts)
 
 
@@ -7930,8 +7935,9 @@ def _hand_grader(check: str):
   """A hand job's check (`tasks.HAND_JOBS`'s value): its grader's module.
   The thing it grades is the job's target: a counter's prop, or the table a
   place is laid at."""
-  from pluggybot.challenge import door, drawer, lid, place, table
-  return {"drawer": drawer, "door": door, "place": place, "lid": lid, "table": table}[check]
+  from pluggybot.challenge import door, drawer, lid, place, shelf, table
+  return {"drawer": drawer, "door": door, "place": place, "lid": lid, "table": table,
+          "shelf": shelf}[check]
 
 
 def world_targets(world: str, book=None, procedures: bool = False,

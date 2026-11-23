@@ -515,6 +515,7 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # (#682's stage C, unoffered, unpaid)
   "set_table": table.eval_table,
   "set_table_pass": table.eval_table,
+  "stock_shelf": shelf.eval_shelf,
 }
 
 
@@ -644,6 +645,7 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "open_chest": lid.sample_lid,
   "set_table": table.sample_table,
   "set_table_pass": table.sample_table,
+  "stock_shelf": shelf.sample_shelf,
 }
 
 

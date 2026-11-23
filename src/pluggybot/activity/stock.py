@@ -59,7 +59,12 @@ STRUT = (0.003, 0.012, 0.045)
 STRUT_LEAN, STRUT_SHARE = math.radians(25.0), 0.15
 #: THE CART: its top's half-extents -- across, out of the shelf, and along
 #: it -- m, and its top's height, m: a dining table's height for a 1.4 m body.
-CART_HALF, CART_TOP = (0.25, 0.40), 0.72
+#: ⚠ 0.35 m deep, not #736's 0.5: standing 0.13 m off its front, as at the
+#: table, the robot's soles are 0.50 m off the shelf's -- where both boards'
+#: fronts are reached and their labels read standing (#736's measures) --
+#: so a product is a SIDESTEP from its slot (call 4), never a step back the
+#: walker barely takes.
+CART_HALF, CART_TOP = (0.175, 0.40), 0.72
 #: A tag's film over the face it is printed on, m: a visual geom, no contact.
 FILM = dw.FILM
 
@@ -67,11 +72,14 @@ FILM = dw.FILM
 @dataclass(frozen=True)
 class Load:
   """One job's hidden parameters: what each product weighs (kg) and its
-  sliding friction on what it rests on."""
+  sliding friction on what it rests on -- and, beside them, which label each
+  goes over (`slots`, (product, label) pairs: the job's word, never
+  hidden), so a lifecycle's `renew` over a draw's `Load` knows them."""
 
   candle_kg: float = 0.35
   frame_kg: float = 0.30
   friction: float = 0.7
+  slots: tuple = ()
 
 
 #: The ranges `draw` draws from (#736's table of products).
@@ -231,7 +239,7 @@ class Stock(Activity):
     """Begun again over `load` and `slots`, the stock set out afresh: its
     thresholds clear, and where each product rests read again once out."""
     self.load = load
-    self.slots = dict(slots or {})
+    self.slots = dict(slots if slots is not None else load.slots)
     self.lifted = {p: Threshold(on=LIFT_ON, off=LIFT_ON / 2) for p in PRODUCTS}
     #: The height each product rested at, set out: read at the first sense
     #: that finds it out, off where `place` put it -- never `xpos` (the

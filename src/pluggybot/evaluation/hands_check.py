@@ -534,8 +534,125 @@ TABLE_STANCES = '''def lay_place():
     withdraw("left")
 '''
 
+#: THE SHELF STOCKED (#736) from the cart beside its slots, the left hand,
+#: per #736's plan, from where the check starts (in front of the cart's
+#: middle, 0.50 m off the shelf's front: `counter.shelf_set_out`). What
+#: flying took (SimNotes, "Stocking the shop's shelf"): the frame first, it
+#: waits in front of the left shoulder, then the candle; each read off its
+#: tag (`spot.n*` is INTO the frame's face) and stood 21 cm left of the
+#: robot's middle by a sidestep (`near`); taken level, 2-3 cm short of its
+#: middle -- the frame's fingers into its face, else straight where that is
+#: out of reach -- from 10 cm above it, straight down (in level from the
+#: side, the way out swung wide and pushed the frame 30 N), and where the
+#: descent is held back on its top, lifted and reached level; shut at 40 N,
+#: lifted 3 cm; carried by sidesteps (`side`, at most 0.45 m each: the first
+#: off the start is often blocked) to stand with its label 21 cm left and
+#: 0.50 m ahead, the label's place off the job's layout (three a board, 25 cm
+#: apart, where the cart waits beside them) and read there; then 15 cm in
+#: front of the board at 5 cm over its top (the hand sags 2-3 cm under a
+#: product, and at 3 cm it snagged the board's edge), carried straight in
+#: to put the product's middle 6 cm behind the edge, set down by a pull the
+#: board stops, let go, carried straight back out 13 cm until the fingertips
+#: are clear of the edge, and only then withdrawn (never from over an edge,
+#: #736's item 9). ⚠ On the upper board the hand is aimed 2.5 cm left of
+#: its label: unaimed, its 18 placements there landed 2.7 cm right of their
+#: labels on average (the lower board's 10, -0.04 cm) -- measured, not
+#: understood. The candle is found again off the frame's label as read.
+#: `%(candle)d` and `%(frame)d` are the job's labels (`source`).
+SHELF = '''def stock_shelf():
+  budget(steps=120, seconds=290)
+  c = %(candle)d
+  f = %(frame)d
+  ly = 0
+  k = 0
+  for i in range(2):
+    t = 77 - i
+    if i > 0:
+      side(0.24 + 0.25 * k + ly)
+    lab = f + (c - f) * i
+    k = lab - 79 - 3 * (lab > 81)
+    open_hand("left")
+    near(t, 0.34 * i)
+    a = (1 - i) * atan2(read("spot.ny"), read("spot.nx"))
+    e = cos(a)
+    s = sin(a)
+    mx = read("spot.x") + 0.01 * e * (1 - i)
+    my = read("spot.y") + 0.01 * s * (1 - i)
+    gz = read("spot.z") - 0.05 * i
+    bz = read("spot.z") - 0.0575 - 0.0425 * i
+    h = 0.02 + 0.01 * (1 - i)
+    if not reach("left", mx - h * e, my - h * s, gz + 0.10, e, s, 0, -s, e, 0):
+      e = 1
+      s = 0
+      if not reach("left", mx - h, my, gz + 0.10, 1, 0, 0, 0, 1, 0):
+        reach("left", mx - h, my, gz + 0.07, 1, 0, 0, 0, 1, 0)
+    if not move_hand("left", mx - h * e, my - h * s, gz):
+      pull("left", 0, 0, 1, 20, 0.08, give=0)
+      reach("left", mx - h * e, my - h * s, gz, e, s, 0, -s, e, 0)
+    close_hand("left", 40)
+    u = mx - read("left.x")
+    v = my - read("left.y")
+    q = u * e + v * s
+    r = v * e - u * s
+    oz = read("left.z") - bz
+    pull("left", 0, 0, 1, 20, 0.03, give=0)
+    side(my - 1.02 + 0.36 * i - 0.25 * k)
+    near(lab, 0.5)
+    x = read("spot.x") + 0.06 - q
+    ly = read("spot.y")
+    z = read("spot.z") + 0.025 + oz + 0.05
+    w = ly - r + 0.025 * (lab > 81)
+    reach("left", x - 0.15, w, z, 1, 0, 0, 0, 1, 0)
+    if not move_hand("left", x, w, z):
+      pass
+    pull("left", 0, 0, -1, 6, 0.10, give=0)
+    open_hand("left")
+    wait(0.3)
+    move_hand("left", read("left.x") - 0.13, read("left.y"), read("left.z") + 0.01)
+    withdraw("left")
+
+
+def side(d):
+  for j in range(6):
+    if d * d > 0.0036:
+      g = d
+      if g > 0.45:
+        g = 0.45
+      if g < -0.45:
+        g = -0.45
+      if not step(0, g):
+        pass
+      d = d - read("step.dy")
+
+
+def near(t, w):
+  for j in range(2):
+    d = 0
+    b = 0
+    if spot(t):
+      d = read("spot.y") - 0.21
+      b = (read("spot.x") - w) * (w > 0)
+    if d * d + b * b > 0.0012:
+      if not step(b, d):
+        pass
+  spot(t)
+'''
+
 #: The jobs, each its grader (`attempts.GRADERS`) and its procedure.
-JOBS = {"lid": LID, "drawer": DRAWER, "door": DOOR, "place": PLACE, "table": TABLE}
+JOBS = {"lid": LID, "drawer": DRAWER, "door": DOOR, "place": PLACE, "table": TABLE,
+        "shelf": SHELF}
+
+
+def source(job: str, k: int = 0) -> str:
+  """`job`'s procedure as flown at its set-out `k` -- a scene's
+  (`SCENES`) -- the shelf's with the labels its set-out names (the job's
+  word, as an offer states it)."""
+  if job in SCENES:
+    return SCENES[job][1]
+  if job == "shelf":
+    from pluggybot.evaluation import counter as ct
+    return SHELF % ct.shelf_set_out(k).slots
+  return JOBS[job]
 #: A SCENE to watch, never a job the check grades (#554): the lid's
 #: procedure with its lift STOPPED ON ITS HAND'S HEIGHT 10 cm up -- the lid
 #: held part open for two seconds -- then lifted the rest of the way and set
@@ -596,10 +713,10 @@ def facts() -> st.WorldFacts:
   return st.hand_facts()
 
 
-def compiled(job: str) -> lang.Procedure:
-  """`job`'s procedure -- or a scene's (`SCENES`) -- compiled against
-  `facts()` (raises `Refused` with every reason)."""
-  return lang.compile_procedure(SCENES[job][1] if job in SCENES else JOBS[job], facts())
+def compiled(job: str, k: int = 0) -> lang.Procedure:
+  """`job`'s procedure at its set-out `k` -- or a scene's (`SCENES`) --
+  compiled against `facts()` (raises `Refused` with every reason)."""
+  return lang.compile_procedure(source(job, k), facts())
 
 
 def fly(job: str, k: int, info: dict | None = None, noise: str | None = None) -> dict:
@@ -610,7 +727,7 @@ def fly(job: str, k: int, info: dict | None = None, noise: str | None = None) ->
   f = facts()
   out: dict = {}
   row = at.attempt(at.Task(chest=k, body="humanoid", mount="counter", grader=job),
-                   ep.procedure_skill(compiled(job), f, out), 1,
+                   ep.procedure_skill(compiled(job, k), f, out), 1,
                    info={"process": "hand-written", "skill": job, **(info or {})},
                    build=at.builder(noise))
   ran = out.get("ran") or {}

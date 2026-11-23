@@ -529,10 +529,46 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
 
 PASS_LIBRARY, PASS = _pass_job()
 
+
+#: THE SHOP'S SHELF STOCKED (#736, stage 1; not offered): the walk to the
+#: cart, then the shelf check's procedure from the check's start
+#: (`evaluation.hands_check.SHELF`, its labels filled from the job's,
+#: `job_routine`). The walk finds the lower board's first label (79) round
+#: the shop's address, stands a metre out of the shelf in front of where the
+#: cart stands (0.6 m left of that label, `home.store`), faces the shelf,
+#: and steps in by the frame's tag to where the check starts: the frame 0.32
+#: m ahead and 0.21 m left (`counter.SHELF_SOURCES`, `CART_GAP`), in two.
+SHELF_APPROACH = '''def to_shelf():
+  budget(steps=16, seconds=900)
+  find(79, %(ax)g, %(ay)g, 600)
+  drive_to(read("find.x") - 1.0, read("find.y") + 0.6, 180)
+  face(0)
+  spot(77)
+  if not step(read("spot.x") - 0.62, read("spot.y") - 0.21):
+    pass
+  spot(77)
+  if not step(read("spot.x") - 0.32, read("spot.y") - 0.21):
+    pass
+'''
+
+
+def _shelf_job() -> tuple[str, str]:
+  """The shelf job's reference: the walk to the cart (`SHELF_APPROACH`)
+  from the shop's address, then the shelf check's procedure
+  (`hands_check.SHELF`, a template its job's labels fill)."""
+  from pluggybot.evaluation import hands_check
+  from pluggybot.home import places as addresses
+  address = addresses.area("shop")["address"]
+  return SHELF_APPROACH % {"ax": address["x"], "ay": address["y"]}, hands_check.SHELF
+
+
+SHELF = _shelf_job()
+
 #: The procedures that discharge each job, by kind: each run in turn, a run
 #: that does not end ok the last.
 PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
-              "open_chest": CHEST, "set_table": TABLE, "set_table_pass": PASS}
+              "open_chest": CHEST, "set_table": TABLE, "set_table_pass": PASS,
+              "stock_shelf": SHELF}
 #: ...and the procedures they call, by kind: put in the library first, run
 #: only by a call (#560's defs that call defs).
 LIBRARY: dict = {"set_table_pass": PASS_LIBRARY}
@@ -542,7 +578,17 @@ LIBRARY: dict = {"set_table_pass": PASS_LIBRARY}
 #: (`world_config`'s `jobs`) -- the place laid from the pass is the table's.
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
            "open_chest": "chest", "set_table": "dining_table_0",
-           "set_table_pass": "dining_table_0"}
+           "set_table_pass": "dining_table_0", "stock_shelf": "shop_shelf"}
+
+
+def _words(kind: str, k: int) -> dict:
+  """What a job's offer at draw `k` names of what it sets out, the words its
+  sentence and our procedures for it are written with: the shelf's labels
+  (`{candle}`, `{frame}`, #736), none for any other kind."""
+  if kind == "stock_shelf":
+    from pluggybot.home import store
+    return store.labels(k)
+  return {}
 
 
 def _def_name(source: str) -> str:
@@ -568,6 +614,10 @@ def job_routine(life, kind: str, world: str):
   from pluggybot.procedure import library as lib
   maker = task_producer(life.tasks, world, procedures=True)
   params, secret = maker._build(kind, TARGETS[kind])
+  # ...the words its draw's offer says (the shelf's labels), which its
+  # sentence and our procedures are written with
+  words = _words(kind, int(secret.get("draw", 0)))
+  params.update(words)
   task = life.tasks.offer(kind, TARGETS[kind], params=params, secret=secret, ttl=3000.0,
                           t=float(life.data.time))
   assert task is not None and life._claim_task(task.id), "the claim was refused"
@@ -577,6 +627,8 @@ def job_routine(life, kind: str, world: str):
   for source in LIBRARY.get(kind, ()):
     library.define(_def_name(source), source)
   sources = PROCEDURES[kind] if isinstance(PROCEDURES[kind], tuple) else (PROCEDURES[kind],)
+  if words:
+    sources = tuple(s % words if "%(" in s else s for s in sources)
   runs = []
   for source in sources:
     name = _def_name(source)

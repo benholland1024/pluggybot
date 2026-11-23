@@ -69,7 +69,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.activity import chest as ch
-from pluggybot.challenge import door, drawer, lid, place, table
+from pluggybot.challenge import door, drawer, lid, place, shelf, table
 from pluggybot.economy import scoring
 
 #: The set-outs: which body before which mount, each the world its
@@ -87,10 +87,10 @@ UNSTABLE = (mujoco.mjtWarning.mjWARN_BADQPOS, mujoco.mjtWarning.mjWARN_BADQVEL,
 #: checks' (#525; docs/Hands.md), each watched every step and measured at
 #: the call in its own way (`WATCHED`). A check is the humanoid's at its
 #: counter; its set-out k is `chest` (the lid's name for it).
-GRADERS = ("lid", "drawer", "door", "place", "table")
+GRADERS = ("lid", "drawer", "door", "place", "table", "shelf")
 WATCHED = {"lid": (lid.Watch, lid.measure), "drawer": (drawer.Watch, drawer.measure),
            "door": (door.Watch, door.measure), "place": (place.Watch, place.measure),
-           "table": (table.Watch, table.measure)}
+           "table": (table.Watch, table.measure), "shelf": (shelf.Watch, shelf.measure)}
 CHECKS = tuple(g for g in GRADERS if g != "lid")
 #: Every set-out ends standing still this long, s: the catch pulls only
 #: once a step has run (`activity.chest.Chest.sense`), and the humanoid's
@@ -111,7 +111,7 @@ LIMIT_S = {("humanoid", "counter"): 3 * REFERENCE_S}
 #: s over its 32 public set-outs at 70bf773, 20 passing), set before any
 #: mind flew it, as the lid's was.
 DOOR_REFERENCE_S = 35.81
-JOB_LIMIT_S = {"door": 3 * DOOR_REFERENCE_S, "table": 300.0}
+JOB_LIMIT_S = {"door": 3 * DOOR_REFERENCE_S, "table": 300.0, "shelf": 300.0}
 #: ...a WATCHED tag's pictures are sharp (#554's stage 2). MEASURED: in our
 #: lid procedure the knob's tag crossed the picture at 270-440 px/s in a
 #: reach or a lift (the 90th percentile at three set-outs), 2.7-4.4 px in a
@@ -164,10 +164,26 @@ TABLE_FLATTERS = (
 )
 
 
+#: ...and what a reading of the shelf's stocking flatters (#736).
+SHELF_FLATTERS = (
+  "each product and each slot's label carry a tag: finding them is reading a fiducial",
+  "one shelf and one cart: the set-outs differ only in where the products wait, by a few cm, "
+  "which label each goes over and their hidden weights",
+  "the humanoid is stood at the cart, facing the shelf: walking to the store is not the task",
+  "the humanoid's mind is told each product's size and tag, and which label each goes over: "
+  "what it would see and be told",
+  "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
+  WATCH_FLATTERS,
+  "resets are free and exact, and nothing breaks",
+  "MuJoCo against MuJoCo: an upper bound on hardware",
+)
+
+
 def flatters(grader: str = "lid") -> tuple[str, ...]:
-  """What a reading of `grader`'s job flatters: the door's or the table's
-  own, else the lid's (`FLATTERS`)."""
-  return {"door": DOOR_FLATTERS, "table": TABLE_FLATTERS}.get(grader, FLATTERS)
+  """What a reading of `grader`'s job flatters: the door's, the table's or
+  the shelf's own, else the lid's (`FLATTERS`)."""
+  return {"door": DOOR_FLATTERS, "table": TABLE_FLATTERS,
+          "shelf": SHELF_FLATTERS}.get(grader, FLATTERS)
 
 
 #: The chests flown in public before any held-out draw: #466's batches flew
@@ -352,6 +368,11 @@ def _check_set_out(task: Task, policy=None, noise: str | None = None) -> World:
     so = ct.table_set_out(task.chest)
     model, data, body = ct.world(so, policy, noise=noise)
     act = dw.Dishware(model, data, so.load, ct.TABLE_H)
+  elif task.grader == "shelf":
+    from pluggybot.activity import stock as st
+    so = ct.shelf_set_out(task.chest)
+    model, data, body = ct.world(so, policy, noise=noise)
+    act = st.Stock(model, data, so.load, so.slots)
   body.step_hooks.append(lambda: act.sense(model, data))
   body.run(body.hold_routine(SETTLE_S))
   return World(task=task, model=model, data=data, body=body, chest=None,
@@ -428,7 +449,9 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "started": t0,
                         "catchN": world.chest.lid.catch_n if world.chest is not None else None,
-                        "limitS": budget_s})
+                        "limitS": budget_s,
+                        # ...which label each product goes over: the job's word (#736)
+                        "slots": getattr(world.activity, "slots", None)})
   # A cut attempt that failed says so first (`evaluate(failed=)`): what it
   # left half done follows.
   verdict = scoring.evaluate(task.grader, measured,

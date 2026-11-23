@@ -48,8 +48,9 @@ SRC = Path(__file__).parent.parent / "src" / "pluggybot"
 
 def test_every_checks_procedure_is_the_language_a_mind_is_given():
   facts = st.hand_facts()
-  assert set(hc.JOBS) == {"lid", "drawer", "door", "place", "table"}
-  for job, source in hc.JOBS.items():
+  assert set(hc.JOBS) == {"lid", "drawer", "door", "place", "table", "shelf"}
+  for job in hc.JOBS:
+    source = hc.source(job)
     proc = hc.compiled(job)
     assert len(source) <= lang.MAX_SOURCE_CHARS, job
     tree = ast.parse(source)

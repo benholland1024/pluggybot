@@ -81,7 +81,8 @@ class _Mind:
 HAND_JOBS = {"drawer": ("open_drawer", "drawer"), "door": ("open_door", "door"),
              "cube": ("place_cube", "cube"), "chest": ("open_chest", "chest"),
              "table": ("set_table", "dining_table_0"),
-             "pass": ("set_table_pass", "dining_table_0")}
+             "pass": ("set_table_pass", "dining_table_0"),
+             "shelf": ("stock_shelf", "shop_shelf")}
 
 
 def work_view(target: str) -> tuple[tuple[float, float], list[float], float, float]:
@@ -92,6 +93,12 @@ def work_view(target: str) -> tuple[tuple[float, float], list[float], float, flo
   (`scripts/hands_check.py`'s strip)."""
   from pluggybot.evaluation import counter as ct
   from pluggybot.home import storeroom
+  if target == "shop_shelf":
+    # ...the shop's shelf (#736): the cart's middle from the aisle, behind
+    # the robot's left
+    from pluggybot.home import store
+    cx, cy, _ = store.cart_place()
+    return (cx, cy), [cx - 0.3, cy + 0.2, 0.8], 1.3, 25.0
   if target in storeroom.PROPS:
     hx, hy = storeroom.handle(target)
     return (hx, hy), [hx - 0.25, hy - 0.15, storeroom.COUNTER_H + 0.1], 2.0, -70.0
@@ -132,14 +139,22 @@ def noise_of(kind: str, start: str, draw: int | None) -> str:
   return f"{kind}:{0 if draw is None else int(draw)}:{start}"
 
 
-def hand_life(state_dir: str, start: str, viewer=None, noise: str | None = None):
+def hand_life(state_dir: str, start: str, viewer=None, noise: str | None = None,
+              stock: bool = False):
   """One humanoid in its house, as a served robot is built -- the hosting
   pack, near-field on, the world's activities on its seam, a board and a
   ledger, a mind with a library -- at `start`, a fresh map begun, drawing
-  `noise`'s noise (None: the robot's own)."""
+  `noise`'s noise (None: the robot's own). `stock`: the shop's stock put
+  into the house as its job would bring it (#736: no served house has it
+  yet, `home.store`), put away until the offer sets it out."""
   from pluggybot.body import body_for
   cfg = world_config(HUMANOID_HOME)
-  model = world_spec(cfg["model"]).compile()
+  spec = world_spec(cfg["model"])
+  if stock:
+    from pluggybot.evaluation import counter as ct
+    from pluggybot.home import store
+    store.attach(spec, ct.shelf_set_out(0))
+  model = spec.compile()
   data = mujoco.MjData(model)
   if viewer == "open":
     from mujoco import viewer as mj_viewer
@@ -175,7 +190,8 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
   noise = noise_of(kind, start, draw) if noise is None else noise
   wall = time.time()
   with tempfile.TemporaryDirectory() as state_dir:
-    life, viewer = hand_life(state_dir, start, "open" if view else None, noise)
+    life, viewer = hand_life(state_dir, start, "open" if view else None, noise,
+                             stock=feature == "shelf")
     data, body = life.data, life.body
     if draw is not None:
       life.tasks.seq = int(draw)

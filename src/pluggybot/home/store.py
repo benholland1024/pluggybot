@@ -19,9 +19,10 @@ the floor, `s` along it to the right as one faces it and `d` out of its
 front toward the aisle. Nothing here is the robot's: it finds the slots by
 their labels (79-84) and the products by theirs (76, 77).
 
-The restaurant's members (`home.jobs`), so a lifecycle could set it out,
-put it back after a restart and keep an offer off it while a robot touches
-it: none of that is wired tonight.
+The restaurant's members (`home.jobs`): a lifecycle sets it out for an
+offer, puts it back after a restart and keeps an offer off it while a
+robot touches it -- in a world that has it (`present`), which no served one
+does yet; `stock_shelf` is a kind no cadence names (`economy.tasks`).
 """
 
 from __future__ import annotations
@@ -143,10 +144,18 @@ def _ours(target: str) -> None:
 
 
 def drawn(target: str, k: int) -> st.Load:
-  """The stock's hidden parameters at draw `k` (`stock.draw`): kept as
-  `Task.secret` is, never a flag."""
+  """The stock's hidden parameters at draw `k` (`stock.draw`) -- kept as
+  `Task.secret` is, never a flag -- with the labels set-out k names."""
+  from dataclasses import replace
   _ours(target)
-  return st.draw(k)
+  return replace(st.draw(k), slots=tuple(sorted(labels(k).items())))
+
+
+def labels(k: int) -> dict[str, int]:
+  """Which label each product goes over at draw `k`, as its offer says it
+  (`{candle}`, `{frame}`): set-out k's."""
+  from pluggybot.evaluation import counter as ct
+  return dict(ct.shelf_set_out(k).slots)
 
 
 def redraw(model, data, target: str, k: int) -> None:

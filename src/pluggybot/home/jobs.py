@@ -21,9 +21,9 @@ counter, the table a place is laid at.
 Each area's activity is named by its target (`HubLifecycle._target_activity`).
 """
 
-from pluggybot.home import restaurant, storeroom
+from pluggybot.home import restaurant, storeroom, store
 
-AREAS = (storeroom, restaurant)
+AREAS = (storeroom, restaurant, store)
 
 
 def area_of(target: str):

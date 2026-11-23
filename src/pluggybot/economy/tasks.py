@@ -233,6 +233,10 @@ CUBE_MINUTES = 9
 #: the bar written before they flew (Ben's call to offer it, and then its
 #: minutes by the table's rule, three times its slowest pass).
 PASS_MINUTES = 30
+#: ...and the shop's shelf stocked's (#736, stage 1): NOT OFFERED, so the
+#: pass's generous limit its reference's flights are graded under, the bar
+#: written before they flew (its minutes by the table's rule once offered).
+STOCK_MINUTES = 30
 
 
 KINDS: dict[str, TaskKind] = {
@@ -346,6 +350,23 @@ KINDS: dict[str, TaskKind] = {
              "These were set out at t={offered}, when this job was offered. No errand does this: "
              "write the procedure.",
     estimate_wh=20.59, discharge="procedure", draws=True, minutes=PASS_MINUTES),
+  # STOCKING THE SHOP'S SHELF (#736, #560's first store task, stage 1): the
+  # candle and the desk frame off the cart beside its slots, each over the
+  # label its draw names (`{candle}`, `{frame}`: `home.store.labels`), graded
+  # by the shelf check's evaluator (`challenge/shelf.py`). NOT OFFERED (no
+  # world's cadence names it, and no served world has its stock,
+  # `home.store`) and paid nothing (`challenges.json`); its energy is a
+  # placeholder never measured, and never a row of `energy.json`.
+  "stock_shelf": TaskKind(
+    "stock_shelf", task="stock_shelf", target_kind="shelf",
+    template="Stock the store's shelf from the cart: the candle over label {candle}, the frame "
+             "over label {frame}, each upright on that label's board, its middle within 4 cm of "
+             "the label's, its front within 10 cm of the board's edge and not over it, the frame "
+             "facing the aisle. Set down and let go of, within {minutes} "
+             "minutes of taking this job, without falling; graded when you say you are done and "
+             "5 s later. These were set out at t={offered}, when this job was offered. No "
+             "errand does this: write the procedure.",
+    estimate_wh=10.0, discharge="procedure", draws=True, minutes=STOCK_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --
@@ -353,7 +374,8 @@ KINDS: dict[str, TaskKind] = {
 #: graded by its capability check's evaluator, whose row stays the
 #: practice's, unpaid.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "place",
-             "open_chest": "lid", "set_table": "table", "set_table_pass": "table"}
+             "open_chest": "lid", "set_table": "table", "set_table_pass": "table",
+             "stock_shelf": "shelf"}
 
 
 def kind_names() -> list[str]:
