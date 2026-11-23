@@ -632,6 +632,7 @@ def test_a_step_back_whose_look_sees_nothing_goes_on_by_the_station_it_had(monke
   assert _drive(charge.unplug_routine(body, believed, trace,
                                       back=charge.crept(3000.0))) == "unplugged"
   assert {"looked": False} in trace and len(body.stepped) == 1, trace
+  assert "gaze" not in body.said, "never bowed toward a box its plug may be against"
   into = np.array([math.cos(believed.yaw), math.sin(believed.yaw), 0.0])
   cup = charge.parked_grip(believed) - into * charge.CUP_SHORT_M
   assert any(np.allclose(pos, cup) for pos, _, _ in body.moves)
