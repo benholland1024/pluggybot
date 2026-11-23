@@ -568,6 +568,8 @@ def _carrying(read=(0.0, 0.0, 0.0), grips=False, verb=True, start=(0.0, 0.0, 0.0
   r.grip_now = lambda side: (H.copy(), np.eye(3))
   r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: start
   r._posture_held = lambda: True
+  # ...the body in the posture it holds
+  r.posture_now = lambda: np.array(r.posture, dtype=float)
   r.grippers["left"].holding = grips
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
   assert r.carry("left", H + np.array([0.0, 0.0, 0.05]), verb=verb)
@@ -627,10 +629,12 @@ def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_read
 
 
 def test_a_carry_refused_a_posture_for_a_load_takes_one_as_soon_as_it_reads_light():
-  """None while the hand reads a load, as a pull's: asked again at the
-  next command that reads light, never a replan's whole second later -- and
-  a posture taken since the load is no posture kept for it, so how the
-  carry ends says nothing of a load (round 1 of #699's carry review)."""
+  """On a straight carry's way, none while the hand reads a load, as a
+  pull's: asked again at the next command that reads light, never a
+  replan's whole second later -- and a posture decided since reading
+  light withheld nothing, so how the carry ends says nothing of a load
+  (rounds 1 and 2 of #699's carry review). A path's or a turned carry's
+  posture is chosen once, as it is asked."""
   def hold(height, pitch, waist=0.0):
     r.postures.append((height, pitch, waist))
     r.posture = np.array([height, pitch, waist])
@@ -648,7 +652,7 @@ def test_a_carry_refused_a_posture_for_a_load_takes_one_as_soon_as_it_reads_ligh
   assert r.postures[-1] == (0.0, 0.3, 0.0) and "loaded" not in r.pulls["left"]
   # ...refused at its ask, then taken reading light: out of reach from there
   # says what it always said
-  r = _carrying(1.1 * CARRY_LINE * np.array([0.0, 1.0, 0.0]))
+  r = _carrying(1.1 * CARRY_LINE * np.array([0.0, 1.0, 0.0]), start=(0.0, 0.15, 0.0))
   r.hold_posture = hold
   assert r.pulls["left"]["loaded"]
   r.force["left"] = np.zeros(3)
@@ -684,6 +688,59 @@ def test_a_loaded_carry_the_other_hands_grip_keeps_stays_where_the_body_has_got_
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
   assert r.carry("left", H + np.array([0.0, 0.0, 0.05]), verb=True)
   assert r.kept_by["left"] == "right" and r.postures == [got_to]
+
+
+def test_a_loaded_carry_asks_where_the_body_is_and_refuses_an_end_no_posture_reaches():
+  """Round 2 of #699's carry review. Loaded as it is asked, the other hand
+  holding nothing: a body still coming into the posture it was asked is
+  held where it has got to, the hand waiting on it -- re-asked the posture
+  it was going to, it went on bowing over the loaded hand, and no give-up
+  could come -- and within `POSTURE_TOL` of it, that posture (a trunk that
+  only sways). Its plan is made first, as any carry's: an end no posture
+  reaches is refused, nothing moved, as it always was; and the carry is
+  `loaded` only where it withheld a posture its plan found."""
+  way = np.array([0.0, 1.0, 0.0])
+  got_to = (-0.05, 0.1, 0.0)
+
+  def asking(now, plan, read=1.1):
+    r = _bare_reach()
+    _out_hand(r, H, np.eye(3))
+    r.phase["left"] = "hold"
+    r.posture = np.array([0.0, 0.3, 0.0])
+    r.posture_now = lambda: np.array(now)
+    r._posture_held = lambda: False
+    r.force["left"] = read * CARRY_LINE * way
+    r.grip_now = lambda side: (H.copy(), np.eye(3))
+    r.posture_for = r.path_for = lambda *a, **kw: plan
+    r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+    return r, r.carry("left", H + np.array([0.0, 0.0, 0.05]), verb=True)
+
+  # still coming: held where it has got to, waiting on it, a posture withheld
+  r, ok = asking(got_to, (0.0, 0.3, 0.0))
+  assert ok and r.postures == [got_to] and "postured" in r.pulls["left"] and r.pulls["left"]["loaded"]
+  # ...within POSTURE_TOL of the one it holds: that one, nothing new to wait on
+  near = tuple(float(v) for v in np.array([0.0, 0.3, 0.0]) + 0.5 * np.array(rc.POSTURE_TOL))
+  for plan, withheld in (((0.0, 0.3, 0.0), False), ((0.0, 0.15, 0.0), True)):
+    r, ok = asking(near, plan)
+    assert ok and r.postures == [(0.0, 0.3, 0.0)] and "postured" not in r.pulls["left"]
+    assert r.pulls["left"].get("loaded", False) is withheld, plan
+  # an end no posture reaches: refused, nothing moved, loaded or light
+  for read in (1.1, 0.9):
+    r, ok = asking(near, None, read)
+    assert not ok and r.postures == [] and r.report["left"]["why"] == "out of reach"
+    assert r.report["left"]["moved"] == 0.0 and r.phase["left"] == "hold"
+  # a replan decided reading light, whatever it finds, withheld nothing for a load
+  r = _carrying()
+  r.pulls["left"]["fixed"] = False
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: None
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+    np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
+  r.force["left"] = 1.1 * CARRY_LINE * way
+  r._held("left", DT, H, np.eye(3))
+  assert r.pulls["left"]["loaded"]
+  r.force["left"] = np.zeros(3)
+  r._held("left", DT, H, np.eye(3))
+  assert "loaded" not in r.pulls["left"]
 
 
 def test_a_carrys_posture_is_given_up_where_its_open_hand_reads_a_load_while_it_comes():

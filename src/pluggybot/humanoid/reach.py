@@ -1745,7 +1745,12 @@ class Reach:
     through `path`'s points first, from one posture that follows them all
     (`path_for`), turning to `turns`' at each (one a point of `path` and
     one at `pos`, None keeping the one before), where given. False (nothing moves) for a hand that is
-    not out, or an end no posture reaches. How it ends is its `report`."""
+    not out, or an end no posture reaches. A procedure's carry (`verb`) of a
+    hand that holds nothing takes no other posture while the hand reads a
+    load (`CARRY_PRESSED_SHARE`, #699): as it is asked, the one the body is
+    in (or where it has got to); on its way, none until it reads light; and
+    one coming is given up where it reads a load, the body backing off until
+    it reads none. How it ends is its `report`."""
     kept = self.keep(side, verb)
     if not self.out(side):
       return False
@@ -1768,14 +1773,7 @@ class Reach:
     # ...none but the one it is in while the other hand holds something, a
     # `verb`'s carry (#719)
     only = {} if kept is None else {"postures": (kept,)}
-    # ...nor -- a `verb`'s hand that holds nothing -- while it reads a load
-    # (`CARRY_PRESSED_SHARE`, #699): it goes as far as its arm reaches from
-    # the posture it holds -- or is kept in (#719)
-    open_ = verb and not self.grippers[side].held()
-    loaded = open_ and self._pressed(self.force[side], 0.0, CARRY_PRESSED_SHARE)
-    if loaded:
-      posture = kept if kept is not None else tuple(float(v) for v in self.posture)
-    elif ways or turns is not None:
+    if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
       posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, **only)
     else:
@@ -1784,6 +1782,14 @@ class Reach:
       self.report[side] = {"why": "out of reach", "shortM": float(np.linalg.norm(end - h)),
                            "moved": 0.0, "seconds": 0.0}
       return False
+    # ...nor -- a `verb`'s hand that holds nothing -- another while it reads
+    # a load (`CARRY_PRESSED_SHARE`, #699): it goes as far as its arm reaches
+    # from where the body is, held there where a posture still comes
+    open_ = verb and not self.grippers[side].held()
+    loaded = False
+    if open_ and self._pressed(self.force[side], 0.0, CARRY_PRESSED_SHARE):
+      here = self._in_or_got_to()
+      loaded, posture = tuple(posture) != here, here
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
     moved_posture = tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved_posture and open_ else None
@@ -1885,6 +1891,13 @@ class Reach:
     held = verb and self.out(other) and self.grippers[other].held()
     if not held:
       return None
+    return self._in_or_got_to()
+
+  def _in_or_got_to(self) -> tuple:
+    """The posture the body is in, as a move is asked that may take no other
+    (`keeps`, a loaded carry's): the one it holds where the body is within
+    `POSTURE_TOL` of it, else where it has got to -- never a sensed reading
+    in place of the plan for a trunk that only sways."""
     now = self.posture_now()
     there = (np.abs(now - self.posture) <= POSTURE_TOL).all()
     return tuple(float(v) for v in (self.posture if there else now))
@@ -2738,13 +2751,14 @@ class Reach:
       elif not st.get("given"):
         st["planned"] = st["t"]
         posture = self.posture_for(side, c.pos, rot=c.rot)
+        # ...and one decided reading light, whatever it found, withheld
+        # nothing for a load
+        st.pop("loaded", None)
         if posture is not None and tuple(posture) != tuple(self.posture):
           if st.get("open") and "began" not in st:
             st["began"] = self._standing_in()
           self.hold_posture(*posture)
           st["postured"] = st["t"]
-          # ...and one taken since a load is no posture kept for it
-          st.pop("loaded", None)
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:
