@@ -11181,16 +11181,63 @@ in one fall, and the trunk leant forward in another.
 **What is true now** (`Reach._stalled`, `STALL_RAD`, `STALL_S`, `_held_home`;
 `tests/test_hands.py`): any way home in joint space -- a withdraw's, a walk's
 hand-over's, the loop's own -- but a carry's way to its pose, whose drivers
-read the arm more than `STALL_RAD` (0.5 rad) behind its command for
-`STALL_S` (0.3 s) running is held where they read it, as one held at its rest
-is (above, "A way home something holds"): pressing on nothing, raised
-`LIFT_M` and sent home again twice (`LIFTS`), then left held, a `withdraw` reading
-"held". Its count is each way home's own, and a restart keeps it. It holds
-11 of the 12 way-home falls flown, 0.5-1.8 s before each fell; not
+read the arm more than `STALL_RAD` (0.5 rad) off its command for `STALL_S`
+(0.3 s) running is held where they read it, as one held at its rest is
+(above, "A way home something holds"): pressing on nothing, raised `LIFT_M`
+and sent home again twice (`LIFTS`), then left held, a `withdraw` reading
+"held". Its count is each way home's own, and a restart keeps it. Read off
+the base's flights, it holds 11 of the 12 way-home falls flown there,
+0.5-1.8 s before each fell; not
 `door_final50`'s key 0, whose lag peaked at 0.44 rad as the body itself gave
 way (its tip reading passed U2's line, unwatched on a withdraw).
 
-**Flown** (FLOWN)
+**Raised twice.** As first built (one raise, `LIFTS` 1), the hold took
+the falls but left arms held where the base's came home: at the door's live
+draws the second way home, judged from a raise begun mid-way, stalled on the
+door's top again and was left held, the door's grade lost five times (the
+forearm still on the door, or the door pushed back to 17-19 deg while the
+procedure's own retry waited) and once the stand came with the arm left held
+on the door's top, crouched and turned, and the robot fell. Every way home
+held is now raised twice before it is left held -- #693b's at its rest and
+the hand-over's shove too -- and four of those six came back.
+
+**Flown** (one Vast pod, an AMD EPYC 7B12, Python 3.12.3, osmesa, beside
+9ee9298b; the dev box replays its flights; c5c7d90b, its code the head's
+token for token):
+- V2's back-out, four noise keys: 6 falls of 20 -> 0, every withdraw home.
+- Ben's bar: 609 of 736 with 5 falls, the base's; 2 flights moved at all,
+  door 92 held out (fail, fail: its first way home stalled, raised, home)
+  and the tour's table 6 (fail, fail: #693b's hold raised a second time),
+  the other 734 the base's to the step. The hands checks at 32 set-outs a
+  job held out by its commit's seed: 132 of 160 with 2 falls -> 133 with 2
+  (a door that now passes).
+- Luca's two door runs at their live draws, the live belief, at 48 noise
+  keys nobody tuned on: falls 7 -> 2, every one in the withdraw gone (6 ->
+  0; one fell after it instead, 1.6 s later, the trunk already 2 deg back),
+  passes 11 -> 12. At W1's own 88 (the door runs, the chest's and the
+  cube's, which the rule was chosen on): falls 11 -> 7, passes 27 -> 27; the
+  cube's two withdraws from a deep bow are another fall, untouched.
+- The 11-18 family (U2's 171, above, "A way home that shoves the body
+  back"): falls 7 -> 7, passes 67 -> 66. A door that fell in its step's
+  hand-over now does not; a drawer that did not now falls in its withdraw
+  (the stall held mid-way, raised, its second way home onto the counter's
+  top again, reaching the rest wound up and slipping 0.4 s later: the stall
+  begun before the rest and finished there); and a door whose hand-over's
+  shove hold, raised a second time, pushed the door back from 55 to 49 deg.
+  The drawer's 24 with a withdraw before the step: falls 6 -> 2, the same
+  drawer the one new.
+- The station's checks (39 approaches round the standoff, 140 seats, 20
+  lost near): the base's, every row. The pair's recorded day: the base's, line
+  for line but its wall-clock stamps.
+
+**What it does not take.** A way home whose body gives way before its arm
+falls half a radian behind (`door_final50`'s key 0: 0.44 rad at most, the
+pelvis already going back); a stall held too late, the robot already shoved
+(key 20 fell at the base's instant; the chest's and a door's fell after
+their third way home); and a stall that reaches the rest before `STALL_S`
+has run, which #693b's 0.5 s holds, as it did (the family's new drawer
+fall) -- counted on into the rest, the hold would come 0.2 s sooner on 14 of
+the bar's cube set-outs that pass.
 
 ## A station the other robot is plugged into (issue #731)
 

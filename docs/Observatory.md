@@ -35,7 +35,10 @@ asked as before, at its way home's command end.
   on 11-15), against the period before.
 - **What it costs**: `withdraw`s that read "held" (a procedure's step whose
   why is "held"), and whether the run then ended where it would have gone on;
-  and what the next withdraw or walk does with an arm left held.
+  what the next withdraw or walk does with an arm left held; and what a
+  second raise does (flown: a door's hand-over raised again pushed its door
+  back from 55 to 49 deg, and two door runs' forearms were still on the door
+  after the call; SimNotes, "A way home whose arm stalls").
 - **What it leaves**: a way home whose body gives way before its arm falls
   half a radian behind (`door_final50`'s key 0 in the flights), and a
   withdraw from a deep bow onto the counter (`cube_run3`'s two).
