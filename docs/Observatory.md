@@ -30,9 +30,12 @@ the same words brought nothing back). What a find brought back before is
 still there, first and in the same order. Replayed off the robots' own
 stores as each find saw them, from 11-14 to 11-22 (79 finds, each replay
 matching its narrated count): 52 bring back more, 134 lines in all, none
-fewer, and the 3 that found nothing of their own bring back 7-8; the
-weekend's two words searched five times each, `t_0394` and
-`table_recon2`, found 2-3 and 3-8 lines of their own, now 7-8.
+fewer (82 of them shown, in 31 blocks; the rest past a block's 4,000
+characters, counted as cut), and the 3 that found nothing of their own
+bring back 7-8; the weekend's two words searched five times each,
+`t_0394` and `table_recon2`, found 2-3 and 3-8 lines of their own, now
+7-8. A find loses places the first time its words are searched too: its
+own `chose` line took one in 39 of the 63 first finds.
 
 **What the period is for.**
 - **The acceptance**: the `recall` events' `hits` for one robot's words

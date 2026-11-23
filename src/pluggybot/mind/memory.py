@@ -269,10 +269,10 @@ class RecordStore:
     (a retired row is what `recall` is FOR: the robot took it off the page,
     not out of the world). Best match first; ties to the newest.
 
-    ⚠ A history row whose text holds any of `history_without` is left out
-    INSIDE the query, before its `limit` (#739: left out after it, a
-    recall's own records took the places, and the fifth find of the same
-    words brought nothing back), matched as Python's `in` matches."""
+    ⚠ A history row whose text holds any of `history_without`, as Python's
+    `in` reads it, is left out INSIDE the query, before its `limit` (#739:
+    left out after, a recall's own records took the places, and the fifth
+    find of the same words brought nothing back)."""
     q = fts_query(query)
     if not q:
       return []
