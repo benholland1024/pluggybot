@@ -67,7 +67,7 @@ from pluggybot.mind import changelog
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import text as registry
 from pluggybot.mind.constitution import Constitution
-from pluggybot.mind.memory import RecordStore
+from pluggybot.mind.memory import FIND_LIMIT, RecordStore
 from pluggybot.mind.store import FileStore, MemoryStore, Store
 from pluggybot.mind.text import (
   DEFAULT_MAIN, FINDINGS, GOALS, HISTORY, HUMAN, MAIN, NOTES, ROBOT, SYSTEM,
@@ -785,8 +785,10 @@ class ThoughtFiles:
           seen.add(r.id)
     words = " ".join(str(find or "").split())
     if words:
-      for r in self.records.find(self.robot, words, history_without=RECALL_MARKS):
-        if r.id not in seen:
+      # its eight after what the read brought, which may match too (#739)
+      for r in self.records.find(self.robot, words, history_without=RECALL_MARKS,
+                                 limit=FIND_LIMIT + len(keyed)):
+        if r.id not in seen and len(found) < FIND_LIMIT:
           found.append(r)
           seen.add(r.id)
     cap = CHAT_RECALLED_CHARS if chat else RECALLED_CHARS

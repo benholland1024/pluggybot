@@ -98,6 +98,23 @@ def test_a_find_asked_again_and_again_brings_back_what_it_found_the_first_time()
   assert f.recall(read="#4")["hits"] == 1, "...nor a read"
 
 
+def test_a_find_beside_a_read_brings_back_its_eight_after_what_the_read_brought():
+  """#739's review: the rows a `read` brought were passed over after the
+  store's `FIND_LIMIT`, so where they matched the words too they took the
+  find's places -- and the RECALL rule says a find brings back its eight
+  after anything `read` brings. Shown to fail without the fix: 3 for 8."""
+  f = ThoughtFiles()
+  for i in range(5):
+    f.note({"topic": "tasks/table", "title": f"fork {i}", "text": "fork"}, t=float(i))
+  for i in range(10):
+    f.remember(f"the fork lay {i} cm off the place card", t=10.0 + i)
+  block = f.recall(read="tasks/table", find="fork")
+  assert [ln.split()[0] for ln in block["lines"]] == \
+    [f"#{i}" for i in (*range(1, 6), *range(15, 7, -1))], block
+  assert block["hits"] == 5 + FIND_LIMIT
+  assert f.recall(read="tasks/table", find="card")["hits"] == 5 + FIND_LIMIT, "...and no more"
+
+
 #: Every kind of line a find searches (`RECORD_KINDS`), as the RECALL rule
 #: names it to the robot (#738).
 FOUND_SAID = {"history": ("History",), "think": ("`think`s",),
