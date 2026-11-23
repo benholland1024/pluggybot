@@ -344,13 +344,14 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   clock, packs, deaths and jobs, but not its bodies or maps: the robots
   start from their start poses and are told why. A save of another
   `MAP_EPOCH` is refused the same way: the epoch is bumped by a change that
-  finds the kept maps laid wrong (1, #425: the heading walked while the
-  quadrupeds lay; 2, #476: both maps found askew again; 3, #476's fix, on
-  maps laid askew without it; 5, #681's fourth round, on maps a fall could
-  have laid a room into twice; 6, #681's live maps, drifted off the world
-  where the robots worked) or laid by a rule that is no longer the map's
-  (4, #581's stage 2: laid from one plane over the fences, they held every
-  fence as floor), and the places found in them go with them. And a save
+  finds the kept maps laid wrong or laid by a rule that is no longer the
+  map's (1, #425: the heading walked while the quadrupeds lay; 2, #476: both
+  maps found askew again; 3, #476's fix, on maps laid askew without it; 4,
+  #581's stage 2, a rule no longer the map's: laid from one plane over the
+  fences, they held every fence as floor; 5, #681's fourth round, on maps a
+  fall could have laid a room into twice; 6, #681's live maps, drifted off
+  the world where the robots worked), and the places found in them go with
+  them. And a save
   restored `MAX_RESUMES` (3) times with no new save in between is not
   trusted again: the next start is a start-over (next bullet), and History
   says why. A file that cannot be read at all (empty, torn) is a fresh

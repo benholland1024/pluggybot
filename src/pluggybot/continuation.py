@@ -95,11 +95,9 @@ MAX_START_OVERS = MAX_RESUMES
 #: have laid a copy of the room into, about 0.55 m east of it: the rule
 #: stops a new copy, never one already laid (Rowan stood 0.75 m east of the
 #: truth from its 20:33 fall on 2026-11-14 to the pause; Ben's call, 11-15).
-#: 6: #681's live maps (X7, loop of 11-23): kept since 11-21, both had
-#: drifted off the world where the robots worked -- the scan alone, fitted
-#: from the truth, put Rowan 33-36 cm west at the lobby and the counter and
-#: Luca 4-6 cm north, its storeroom laid a second time 35-40 cm west -- and
-#: no rule takes a copy back once laid.
+#: 6: #681's live maps, drifted off the world where the robots worked (up
+#: to 36 cm): no rule takes a copy back once laid (docs/Observatory.md, the
+#: period of `MAP_EPOCH` 6).
 MAP_EPOCH = 6
 #: ...said for the newest epoch's reason: a save crosses only the bump the
 #: deploy that reads it brings.
