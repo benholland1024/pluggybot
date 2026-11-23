@@ -21,28 +21,32 @@ block's caps are unchanged (4,000 characters, a chat read's 8,000). It
 rides the release cut from `loop-staging` on 11-24.
 
 **The change** (`RecordStore.find`'s `history_without`,
-`thoughts.RECALL_MARKS`). A recall's own History lines -- its `chose
-recall (...)` line, written before it runs, and its `recalled N lines --
-...` -- are left out of a find inside the store's query, before its eight
-(`FIND_LIMIT`). Left out after, as since #221, they took places among the
-eight (found in #738's review: in #739's made-up case the fifth find of
-the same words brought nothing back). What a find brought back before is
-still there, first and in the same order. Replayed off the robots' own
-stores as each find saw them, from 11-14 to 11-22 (79 finds, each replay
-matching its narrated count): 52 bring back more, 134 lines in all, none
-fewer (82 of them shown, in 31 blocks; the rest past a block's 4,000
-characters, counted as cut), and the 3 that found nothing of their own
-bring back 7-8; the weekend's two words searched five times each,
-`t_0394` and `table_recon2`, found 2-3 and 3-8 lines of their own, now
-7-8. A find loses places the first time its words are searched too: its
-own `chose` line took one in 39 of the 63 first finds.
+`thoughts.RECALL_MARKS`, `ThoughtFiles.recall`). A find brings back eight
+lines of its own. A recall's own History lines -- its `chose recall (...)`
+line, written before it runs, and its `recalled N lines -- ...` -- are left
+out inside the store's query, before its eight (`FIND_LIMIT`): left out
+after, as since #221, they took places among the eight (found in #738's
+review: in #739's made-up case the fifth find of the same words brought
+nothing back, and its own `chose` line took a place in 39 of the 63 first
+finds since 11-14). Beside a `read`, it asks for as many more as the read
+brought: the read's rows, which may match too, took its places as well
+(the RECALL rule says its eight come after anything `read` brings). What a
+find brought back before is still there, first and in the same order.
+Replayed off the robots' own stores as each find saw them, from 11-14 to
+11-22 (79 finds, each replay matching its narrated count): 57 bring back
+more, 171 lines in all, none fewer -- 92 of them shown, in 33 blocks, the
+rest past a block's 4,000 characters and counted as cut -- and 73 now
+bring back the full eight of their own, against 17; the 3 that found
+nothing of their own bring back 8, and the weekend's two words searched
+five times each, `t_0394` and `table_recon2`, found 2-3 and 3-8 lines of
+their own and now 8 each time.
 
 **What the period is for.**
 - **The acceptance**: the `recall` events' `hits` for one robot's words
   found again, against the weekend's `t_0394` (35, 6, 5, 2, 8, with what
   was read beside it).
 - **What it costs**: the turn after a find carries more recalled text (on
-  those 79, 253 characters more a block on average, at most 2,334), so
+  those 79, 285 characters more a block on average, at most 2,505), so
   more input tokens; and whether the robots, told by #738 what a find
   searches, lean on it more.
 

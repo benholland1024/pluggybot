@@ -2556,7 +2556,10 @@ gate every document write passes (the files' `append`, the library's
   recall` and `recalled N lines` History lines, `RECALL_MARKS`). ⚠ A find
   leaves them out inside the store's query, before its `FIND_LIMIT` (#739):
   left out after, they took its places, and the fifth find of the same
-  words brought nothing back. ⚠ A standing order
+  words brought nothing back. ⚠ Beside a `read` it asks for as many more as
+  the read brought and keeps the first eight the read did not: the read's
+  rows took its places too, where the RECALL rule puts its eight after
+  them. ⚠ A standing order
   or a map row cannot name `recall` (`Menu.orderable`): an order is left
   before what to look up is known. Every recall is a `recall` event and a
   History line, so phase 2 (#222) can read how memory was USED and not only
