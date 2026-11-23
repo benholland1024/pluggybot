@@ -11130,6 +11130,67 @@ raise, which the rule does not watch; and the line out into the torso
 that pushes nothing over but is no way to treat a gripper: a line out judged
 against the trunk, as #722 judges a way out, is not built.
 
+## A way home whose arm stalls (issue #693's withdraw case)
+
+The loop of 11-20 (V2; `~/pluggybot-training/loop-1120/v2-stock/`) flew a
+`withdraw` straight after a `move_hand` backing the hand out 12 cm over a
+top's edge, through the served runner: a cart (a top on legs at 0.72 m)
+against the shop's back shelf, the robot 0.13 m from its near edge, a 0.25
+kg product set down and let go. It fell every time (4 of 4; 6 of 8 at four
+noise keys on 9ee9298b), never with a 0.45 kg product (its set-down bowed
+deeper) nor without the back-out. Two of the three falls of the weekend of
+11-21/22 were Luca's `withdraw`s after the cupboard door's pulls
+(`door_final50`, `door_fix54`); flown at their live draws on 9ee9298b (the
+loop of 11-22, W1's specs), 7 of their 64 flights fell in the withdraw, and
+`chest_open3` at t_0589's draw 1 of 8.
+
+**Why.** After the back-out none of the arm is ahead of the robot's front,
+so its way home is judged straight, unchecked (above, "The way home flown in
+the posture it was judged in"), and the straight way brought a jaw down on
+the cart's near edge -- a top the robot's model of itself does not hold,
+standing over its toes. The way home's command walked on toward the rest at
+`JOINT_RATE` while the arm stood still: its drivers read it 0.04 -> 0.71
+rad behind over 1.3 s, the jaw pressing 16 -> 57 N, the pelvis pushed 12-13
+cm back and the trunk 5 deg out of its bow. At the command's end, or just
+after, the jaw slipped off the edge and the wound-up arm snapped home (the
+grip 11 cm down and 18 cm back in 0.15 s): the trunk went from upright to 30
+deg back in 0.25 s. The door's and the chest's falls are the same stall --
+past 0.3 rad behind for 0.5-1.25 s, a jaw on the counter's top or the door's
+panel -- recorded on every way home (`tiprec.py`'s lag, U2's; `standrec.py`,
+W2's: `~/pluggybot-training/loop-1122/w2-693d/pod/`).
+
+**The stand's timing is not it.** Off the stand, an arm with none of it
+ahead keeps the stand (`stand_home`) until its way home's COMMAND reaches the
+rest, its drivers not yet read -- what the code has always done, where the
+words said "once it is home". Flown with the stand never asked, V2's four
+fell at nearly the same instants; asked only once the drivers read the arm
+home, all four; with `HELD_S` cut to 0.2 or 0.1 s, all four. U2's tip guard
+moved onto the `withdraw` (the hand-over's, `watch_home`) took two of them.
+
+**What tells a stall from a catch.** Over Ben's bar on 9ee9298b (736
+flights, 1,234 ways home, the lag at 0.05 s samples) the door check's first
+ways home catch a jaw on the door's top as the arm swings home and slip free,
+up to 0.97 rad behind: past 0.3 rad for up to 0.6 s (32 ways home for 0.3 s
+or more), past 0.5 rad for 0.25 s at most (door 31, 40, 74, 92), the trunk
+leaning forward. The falls' stalls are past 0.5 rad for 0.45-1.3 s.
+Neither the arm's own tip reading (U2's) nor the trunk's lean tells them
+apart everywhere: a jaw on a counter's top read as a pull toward the hand
+in one fall, and the trunk leant forward in another.
+
+**What is true now** (`Reach._stalled`, `STALL_RAD`, `STALL_S`, `_held_home`;
+`tests/test_hands.py`): any way home in joint space -- a withdraw's, a walk's
+hand-over's, the loop's own -- but a carry's way to its pose, whose drivers
+read the arm more than `STALL_RAD` (0.5 rad) behind its command for
+`STALL_S` (0.3 s) running is held where they read it, as one held at its rest
+is (above, "A way home something holds"): pressing on nothing, raised
+`LIFT_M` and sent home again once, then left held, a `withdraw` reading
+"held". Its count is each way home's own, and a restart keeps it. It holds
+11 of the 12 way-home falls flown, 0.5-1.8 s before each fell; not
+`door_final50`'s key 0, whose lag peaked at 0.44 rad as the body itself gave
+way (its tip reading passed U2's line, unwatched on a withdraw).
+
+**Flown** (FLOWN)
+
 ## A station the other robot is plugged into (issue #731)
 
 From 14:52 to 16:39 UTC on 11-18 Rowan was plugged in at the research center

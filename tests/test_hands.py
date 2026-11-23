@@ -1989,12 +1989,14 @@ def test_a_way_home_its_arm_follows_or_catches_on_briefly_walks_on(monkeypatch):
 
 def test_each_way_home_begins_its_stall_count_afresh():
   """A way home's count of its arm stalled (`STALL_S`) is its own: one a
-  way before it left running holds no new way home early."""
+  way before it left running holds no new way home early -- and a restart
+  keeps a count running (`Reach.KEPT`)."""
   from pluggybot.humanoid import reach as rc
   r = _stepped(_standing_reach())
   r._stall["left"] = rc.STALL_S - 0.01
   _sent_home(r, "left", RAISED)
   assert r.phase["left"] == "home" and r._stall["left"] == 0.0
+  assert "_stall" in rc.Reach.KEPT
 
 
 @pytest.mark.parametrize("phase", ["joints", "home", "rest"])

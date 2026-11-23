@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A way home whose arm stalls is held, a withdraw's too (#693's withdraw case, W2, `loop-693d`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte. No
+word is new: a `withdraw` reads false more often, "your left arm did not get
+home: something holds it there" (its text already says an arm something holds
+on its way home is raised and sent home again, pressing on nothing, and
+reads false), and a walk's report says `armHeld` where a hand-over's way home
+stalled.
+
+**The change** (`Reach._stalled`, `STALL_RAD`, `STALL_S`; SimNotes, "A way
+home whose arm stalls"). Any way home in joint space -- a withdraw's, a
+walk's hand-over's, the loop's own -- whose drivers read the arm more than
+0.5 rad behind its command for 0.3 s running is held where they read it, as
+one held at its rest is (#693b): pressing on nothing, raised 5 cm and sent
+home again once, then left held. The stand an arm keeps from the robot is
+asked as before, at its way home's command end.
+
+**What the period is for.**
+- **The acceptance**: falls within 5 s of a `withdraw` at the counter (W1's
+  read: 2 on the weekend's two wakes, both Luca's after the door's pulls; 1
+  on 11-15), against the period before.
+- **What it costs**: `withdraw`s that read "held" (a procedure's step whose
+  why is "held"), and whether the run then ended where it would have gone on;
+  and what the next withdraw or walk does with an arm left held.
+- **What it leaves**: a way home whose body gives way before its arm falls
+  half a radian behind (`door_final50`'s key 0 in the flights), and a
+  withdraw from a deep bow onto the counter (`cube_run3`'s two).
+
 ### What a find searches, said; a grade's reading told from its line (#738, #737; W5, `loop-words2`) — opens when this PR is deployed
 
 **What the robots read.** The prompt moves, `6ec0fc48…` (70,256

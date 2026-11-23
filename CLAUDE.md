@@ -443,7 +443,14 @@ save a filmstrip PNG named after the script.
   BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
   s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
   SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
-  whose word is the arm's. ⚠ BOTH WAYS KEEP OFF
+  whose word is the arm's. ⚠ BUT ANY WAY HOME, A WITHDRAW'S TOO, IS HELD SO
+  WHERE ITS DRIVERS READ THE ARM MORE THAN `STALL_RAD` (0.5 rad) BEHIND ITS
+  COMMAND FOR `STALL_S` (0.3 s) RUNNING (#693's withdraw case;
+  `Reach._stalled`; SimNotes, "A way home whose arm stalls"): walked on, a
+  jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm
+  back, then slipped off and the arm snapped home -- over backward; ⚠ held,
+  never at once: the door check's first ways home catch a jaw on the door's
+  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
