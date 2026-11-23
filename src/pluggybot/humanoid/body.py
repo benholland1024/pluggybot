@@ -1965,9 +1965,10 @@ class HumanoidBody(Body):
   def plugged_s(self) -> float | None:
     """How long its plug has been in, s by its own clock since its dock put
     it in (#703's option 2), or None where it does not know: a save from
-    before the clock. Read only while it is plugged in."""
-    t = self.mission.plugged_t
-    return None if t is None else float(self._d.time) - t
+    before the clock, or a clock ahead of the world's. Read only while it is
+    plugged in."""
+    t, now = self.mission.plugged_t, float(self._d.time)
+    return None if t is None or t > now else now - t
 
   def undock_routine(self):
     """Unplugged from its seat -- stepped back to it first where a charge

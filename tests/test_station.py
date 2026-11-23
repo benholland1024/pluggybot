@@ -737,11 +737,15 @@ def test_the_undock_steps_back_by_its_own_clock_kept_from_its_dock(monkeypatch):
   out[0] = True
   _drive(body.undock_routine())
   assert body.mission.plugged_t is None, "forgotten once the plug is out"
-  # ...and a charge whose length it does not know: as far as a creep goes
+  # ...and a charge whose length it does not know -- a save from before the
+  # clock, or a clock ahead of the world's -- as far as a creep goes
   body.plugged, out[0] = True, False
   _drive(body.undock_routine())
   assert asked.pop() == charge.crept(None) == pytest.approx(
     charge.CREEP_MOST_M + charge.CREPT_PAST_M)
+  body.mission.plugged_t = body._d.time + 50.0
+  _drive(body.undock_routine())
+  assert asked.pop() == charge.crept(None)
 
 
 def _done(value):
