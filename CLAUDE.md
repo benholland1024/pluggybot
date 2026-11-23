@@ -1299,8 +1299,11 @@ save a filmstrip PNG named after the script.
   PLANTED `PLANTED_S` (0.1 s) RUNNING (#740; `HumanoidMission.
   to_stand_routine`, `odometry.PlantedRun`; SimNotes, "The step's hand-back
   once its soles are planted"): the other sole's LOWEST CORNER within
-  `DOWN_M` (4 mm) of the planted one's and STILL, every reading of the run
-  within `STILL_M` (3 mm) -- the walker held still `SETTLE_S` (0.8 s) as
+  `DOWN_M` (4 mm) of the planted one's and STILL, every reading of that
+  0.1 s within `STILL_M` (3 mm) of the others -- ⚠ A WINDOW, never the run
+  since it began (a reading drifting as both soles settle started it again
+  late: 270 holds of 2,098 hand-overs where the window makes 70) -- the
+  walker held still `SETTLE_S` (0.8 s) as
   before, and handed over then where they have, else on, `SETTLE_MORE_S`
   (1.2 s) at most, then all the same, the step's report saying so
   (`feetDown`: false): after a sidestep the walker held still steps on in

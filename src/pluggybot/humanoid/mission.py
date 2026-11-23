@@ -18,7 +18,8 @@ rule, `LOW_MAX_Z`).
 Its legs are one of two policies': the WALKING one's while it moves, the
 STANDING one's while it stands to reach (`humanoid.policy`, `humanoid.
 reach`). The legs change hands only at a standstill, the arms home
-(`to_walk_routine`, `to_stand_routine`).
+(`to_walk_routine`, `to_stand_routine`), and back to the standing one only
+once both soles read planted (#740).
 
 A FALL is its get-up policy's (stage 5, `humanoid.getup`): once its senses
 say it is falling -- tipped 35 deg past the posture its legs hold (a bow
@@ -75,7 +76,7 @@ VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.4), 0.4, 1.0
 #: PLANTED FOR `PLANTED_S` RUNNING (#740; `odometry.PlantedRun`), at most
 #: `SETTLE_MORE_S` longer, the hand-over then saying so (`to_stand_routine`):
 #: after a sidestep the walker held still stepped on in place in the last
-#: 0.3 s of 30 settles of 338 (none after a step ahead or back, of 376).
+#: 0.3 s of 55 settles of 838 (none after a step ahead or back, of 1,068).
 SETTLE_S = 0.8
 PLANTED_S, SETTLE_MORE_S = 0.1, 1.2
 #: A posture back at the stand -- a withdraw's (`HumanoidBody.release_routine`)
@@ -901,10 +902,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       return None
     dt = self.model.opt.timestep
     least, most = int(round(SETTLE_S / dt)), int(round((SETTLE_S + SETTLE_MORE_S) / dt))
-    run, need = PlantedRun(), int(round(PLANTED_S / dt))
-    planted = 0
+    run, planted = PlantedRun(int(round(PLANTED_S / dt))), False
     for k in range(most):
-      if self.legs != "walk" or (k >= least and planted >= need):
+      if self.legs != "walk" or (k >= least and planted):
         break
       if self._aside is not None:
         self._end_aside("its own move", STILL)
@@ -918,7 +918,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
     self.legs = "stand"
-    return planted >= need
+    return planted
 
   # ---- the drive -------------------------------------------------------------
 

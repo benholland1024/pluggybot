@@ -33,6 +33,7 @@ Nothing here reads the simulator's truth: the scan matcher corrects what slips
 """
 
 import math
+from collections import deque
 
 import mujoco
 import numpy as np
@@ -55,14 +56,14 @@ SWAP_M = 0.003
 CLEAR_M, STEP_M = 0.01, 0.05
 #: BOTH SOLES PLANTED (#740, `PlantedRun`): the other sole's lowest corner
 #: over the planted one's (`apart`) no more than `DOWN_M`, m, and STILL: every
-#: such reading since the run began within `STILL_M` of the others, m -- a
-#: foot landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES
+#: such reading of the window within `STILL_M` of the others, m -- a foot
+#: landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES
 #: THE SWAP COMPARES ON ONE FLOOR: over the pass's and the family's 822
 #: hand-overs (X2, base 95f8aefb) this read 27 of the 31 whose walker still
 #: had a foot off the floor in its last 0.3 s, acting on 12 others; the
 #: middles read 11-21, and with both soles flat besides it acted on 63-85
 #: others -- a loaded sole on its edge reads not flat and is no hazard. ⚠ Two
-#: soles truly down read up to 5.5 mm apart at their corners (a stance's
+#: soles truly down read up to 5.6 mm apart at their corners (a stance's
 #: offset in the model of itself), so a few settles are held for nothing
 #: (SimNotes, "The step's hand-back once its soles are planted").
 DOWN_M, STILL_M = 0.004, 0.003
@@ -77,26 +78,24 @@ CORNERS = np.array([[a, b, -1.0] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
 
 
 class PlantedRun:
-  """How long both soles have read PLANTED, running (#740), a reading at a
-  time -- the odometry's `apart` each physics step: within `DOWN_M`, and
-  every reading since the run began within `STILL_M` of the others. None
-  (no tick yet) reads nothing up. `steps` is the run's length in readings."""
+  """Whether both soles have read PLANTED for its last `steps` readings
+  (#740), a reading at a time -- the odometry's `apart` each physics step:
+  every one within `DOWN_M`, and all within `STILL_M` of each other, since a
+  foot landing or lifting moves it. ⚠ A WINDOW, NEVER THE RUN SINCE IT
+  BEGAN: kept so, a reading drifting a few mm over a settle as both soles
+  settle started the run again late, and over the base's 2,098 hand-overs
+  held 270 where the window holds 70. None (no tick yet) reads nothing
+  up."""
 
-  def __init__(self):
-    self.steps, self.lo, self.hi = 0, None, None
+  def __init__(self, steps: int):
+    self.window: deque = deque(maxlen=steps)
 
-  def read(self, apart: float | None) -> int:
-    if apart is None:
-      self.steps += 1
-    elif apart > DOWN_M:
-      self.steps, self.lo, self.hi = 0, None, None
-    elif self.lo is None:
-      self.steps, self.lo, self.hi = self.steps + 1, apart, apart
-    elif max(self.hi, apart) - min(self.lo, apart) <= STILL_M:
-      self.steps, self.lo, self.hi = self.steps + 1, min(self.lo, apart), max(self.hi, apart)
-    else:
-      self.steps, self.lo, self.hi = 1, apart, apart
-    return self.steps
+  def read(self, apart: float | None) -> bool:
+    self.window.append(apart)
+    if len(self.window) < self.window.maxlen:
+      return False
+    known = [a for a in self.window if a is not None]
+    return not known or (max(known) <= DOWN_M and max(known) - min(known) <= STILL_M)
 
 
 class StanceOdometry:

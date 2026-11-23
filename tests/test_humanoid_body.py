@@ -694,7 +694,7 @@ def test_a_release_asked_aside_as_its_arm_comes_home_takes_the_legs_back():
   and the walk's trim (`Reach._trim`) had moved the standing goal off the
   posture the walker left standing still."""
   from pluggybot.humanoid import body as hb
-  from pluggybot.humanoid.mission import SETTLE_S
+  from pluggybot.humanoid.mission import SETTLE_MORE_S, SETTLE_S
   from pluggybot.humanoid.way import REST_S
   from test_humanoid_served import _open_floor
   body = body_for(*_floor())
@@ -717,7 +717,8 @@ def test_a_release_asked_aside_as_its_arm_comes_home_takes_the_legs_back():
     assert seen["asked"] and seen["walked"], "the premise: a step aside took its legs"
     assert done, "the release never returned"
     assert said == "home" and m.legs == "stand" and m._aside is None, (said, m.legs)
-    assert float(body.data.time) <= free_t + SETTLE_S + hb.STAND_BACK_S
+    # ...its legs handed back once both soles read planted, or the hold's bound (#740)
+    assert float(body.data.time) <= free_t + SETTLE_S + SETTLE_MORE_S + hb.STAND_BACK_S
   finally:
     body.close()
 
@@ -853,13 +854,13 @@ def test_an_aside_asked_as_the_legs_come_back_is_ended_and_the_settle_stays_stil
     body.close()
 
 
-def _settled(planted, fall_at=None):
+def _settled(planted, fall_at=None, apart=None):
   """`to_stand_routine` on a fake mission (#740), a command a physics step:
   the walker held still, its odometry reading both soles down and level
   (`apart` 0) from its step `planted` on (None: never; or a test of the steps
-  held so far) and a sole 1 cm up before, the get-up taking the legs after
-  step `fall_at`. Returns (the STILL steps held, what it returned, whose the
-  legs are)."""
+  held so far) and a sole 1 cm up before -- or `apart(steps)` itself, m --
+  the get-up taking the legs after step `fall_at`. Returns (the STILL steps
+  held, what it returned, whose the legs are)."""
   from pluggybot.humanoid import mission as hmi
   held = []
   reads = (planted if callable(planted)
@@ -868,6 +869,8 @@ def _settled(planted, fall_at=None):
   class Odo:
     @property
     def apart(self):
+      if apart is not None:
+        return apart(len(held))
       return 0.0 if reads(len(held)) else 0.01
   fake = NS(legs="walk", _aside=None, model=NS(opt=NS(timestep=0.002)), odo=Odo(),
             stand=NS(last_action=np.ones(12), posture=np.ones(2)),
@@ -912,6 +915,12 @@ def test_the_legs_go_back_to_the_stand_only_once_both_soles_have_read_planted():
     again + need - 1, True, "stand"), "come down, lifted again: its run starts over"
   assert _settled(None) == (most, False, "stand"), "never planted: the bound, said"
   assert _settled(0) == (least, True, "stand"), "planted all along: at the settle's end"
+  # ...a reading that drifts as the soles settle, 3.9 mm over the settle's
+  # last 0.2 s and under 2 mm in any 0.1 s of it, is still: at the settle's
+  # end -- ⚠ judged since the run began, the drift started it again late and
+  # held 270 of the base's 2,098 hand-overs where the window holds 70
+  drift = lambda n: 0.000039 * min(max(n - (least - 100), 0), 100)  # noqa: E731
+  assert _settled(None, apart=drift) == (least, True, "stand"), "a drift is still"
   # ...and a fall while it holds on is the get-up's, nothing handed over
   assert _settled(None, fall_at=least + 50) == (least + 50, None, "getup")
 
@@ -920,11 +929,12 @@ def test_both_soles_read_planted_off_the_legs_reckoning():
   """#740: the odometry's own reading (`StanceOdometry.apart`), off the
   joints its drivers report and the IMU's gravity through the robot's model
   of itself -- the other sole's lowest corner over the planted one's --
-  and how long both soles have read PLANTED running (`PlantedRun`): within
-  `DOWN_M`, and still, every reading of the run within `STILL_M` of the
-  others. Standing, down; a foot drawn up by its hip and knee, up; a foot
-  coming down onto the floor moves the reading, and its run starts again.
-  Before its first tick it reads nothing up."""
+  and whether both soles have read PLANTED (`PlantedRun`): within
+  `DOWN_M`, and still, every reading of the window within `STILL_M` of the
+  others, over its last readings (a window). Standing, down; a foot drawn
+  up by its hip and knee, up; a reading that moves past `STILL_M` inside
+  the window is not still, and a slow drift is. Before its first tick it
+  reads nothing up."""
   from pluggybot.humanoid.arms import SelfModel
   from pluggybot.humanoid.odometry import DOWN_M, STILL_M, PlantedRun, StanceOdometry
   odo = StanceOdometry(SelfModel(), NS(yaw=lambda: 0.0))
@@ -939,11 +949,17 @@ def test_both_soles_read_planted_off_the_legs_reckoning():
     lifted[names.index(j)] += d
   odo.step(lifted, down)
   assert odo.foot == 1 and odo.apart > DOWN_M, odo.apart
-  run = PlantedRun()
-  assert [run.read(a) for a in (None, 0.0, 0.001, DOWN_M + 0.001)] == [1, 2, 3, 0]
-  assert [run.read(a) for a in (0.0, 0.002, 0.0, STILL_M + 0.0005)] == [1, 2, 3, 1], \
-    "a reading moved past STILL_M starts the run again from it"
-  assert [run.read(a) for a in (STILL_M + 0.0005, -0.0005)] == [2, 1]
+  run = PlantedRun(3)
+  assert [run.read(a) for a in (None, 0.0, 0.001)] == [False, False, True]
+  assert [run.read(a) for a in (DOWN_M + 0.001, 0.0, 0.0, 0.0)] == [False, False, False, True], \
+    "a reading past DOWN_M is up until it leaves the window"
+  assert [run.read(a) for a in (0.002, STILL_M + 0.0005, STILL_M + 0.0005, STILL_M)] == \
+    [True, False, True, True], "the window's readings within STILL_M of each other"
+  run = PlantedRun(3)
+  assert [run.read(a) for a in (0.0, 0.0015, 0.003, 0.0035)] == [False, False, True, True], \
+    "a drift under STILL_M a window is still"
+  run = PlantedRun(2)
+  assert [run.read(None), run.read(None)] == [False, True], "no tick yet: nothing read up"
 
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():
