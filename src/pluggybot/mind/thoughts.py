@@ -67,7 +67,7 @@ from pluggybot.mind import changelog
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import text as registry
 from pluggybot.mind.constitution import Constitution
-from pluggybot.mind.memory import RecordStore
+from pluggybot.mind.memory import FIND_LIMIT, RecordStore
 from pluggybot.mind.store import FileStore, MemoryStore, Store
 from pluggybot.mind.text import (
   DEFAULT_MAIN, FINDINGS, GOALS, HISTORY, HUMAN, MAIN, NOTES, ROBOT, SYSTEM,
@@ -123,6 +123,10 @@ RECALLED_CHAIN_CHARS = 8000
 #: How many History lines `read history` returns: the tail beyond the
 #: dozen the prompt always carries.
 HISTORY_RECALLED = 40
+#: What makes a History line the record of a recall, which no recall
+#: brings back (`_about_recall`): the decision's `chose recall (...)` line
+#: and its `recalled N lines -- ...`, as the lifecycle writes them.
+RECALL_MARKS = ("] chose recall", "] recalled ")
 #: THE CHAT IN HISTORY (issue #485): every line said in the robot's chat --
 #: somebody's message (`CHAT_HEARD`), the robot's answer (`CHAT_ANSWERED`),
 #: what it said unasked (`CHAT_SAID`) -- is a History row under this topic,
@@ -781,8 +785,10 @@ class ThoughtFiles:
           seen.add(r.id)
     words = " ".join(str(find or "").split())
     if words:
-      for r in self.records.find(self.robot, words):
-        if r.id not in seen and not _about_recall(r):
+      # its eight after what the read brought, which may match too (#739)
+      for r in self.records.find(self.robot, words, history_without=RECALL_MARKS,
+                                 limit=FIND_LIMIT + len(keyed)):
+        if r.id not in seen and len(found) < FIND_LIMIT:
           found.append(r)
           seen.add(r.id)
     cap = CHAT_RECALLED_CHARS if chat else RECALLED_CHARS
@@ -1031,9 +1037,9 @@ def _about_recall(r) -> bool:
   """A recall never finds the record of a recall: the decision's own
   `chose recall (find ...)` line matches its own words every time, and a
   `read history` full of `recalled 3 lines` would be a robot reading
-  about reading."""
-  return r.kind == "history" and ("] chose recall" in r.text
-                                  or "] recalled " in r.text)
+  about reading. A read leaves them out here, a find inside the store's
+  query (`RecordStore.find`'s `history_without`)."""
+  return r.kind == "history" and any(mark in r.text for mark in RECALL_MARKS)
 
 
 def _cites(cites) -> tuple[int, ...]:
