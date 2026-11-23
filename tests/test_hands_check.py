@@ -86,7 +86,7 @@ def _drawer(**kw):
 def test_the_drawer_passes_out_15_cm_let_go_in_time_and_on_nothing_less():
   assert drawer.eval_drawer(_drawer())[0]
   ok, _, why = drawer.eval_drawer(_drawer(mostM=0.149, outAtCallM=0.149, outM=0.149))
-  assert not ok and "came out 15 cm, short of the 15" in why
+  assert not ok and "came out 14.9 cm, short of the 15" in why, why  # "15 cm" before #737
   ok, _, why = drawer.eval_drawer(_drawer(outAtCallM=0.10, outM=0.10))
   assert not ok and "when you finished" in why
   ok, _, why = drawer.eval_drawer(_drawer(touchedDuringHold=["left_jaw_a_pad"]))

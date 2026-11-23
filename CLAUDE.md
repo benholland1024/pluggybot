@@ -210,21 +210,26 @@ Before doing anything, read the doc that owns what you are about to touch:
   by the frozen commit's first seven hex digits (`seed_of`; a pod's
   `COMMIT` file, a dirty tree refused), and a reading says what it
   flatters (`FLATTERS`) and that it is weaker than a sealed pool.
-- **`CALL_TIMEOUT_S` is 300 s, STREAMED, and is a patience budget**
-  (issues #117, #604 and its follow-up; Overseer.md §6 "Streamed" and "The
-  deadline"): a decision lost to a clock is the one failure that is purely
-  ours. The robots' calls stream (`llm.deadline_fetch`, held to the
-  deadline in all): not streamed, none outlived the router's gateway (a 504
-  at 120 s of silence; #604's 115), and novita held its answers to the end.
-  ⚠ A LONG THINK IS SPENT STANDING STILL (~93 W, the world going on; 300 s
-  is 40 % of the reserve) and comes out of the 1800 s between asks
-  (`UNMINDED_AFTER_S`, stamped at the ask). ⚠ A stream silent for
-  `llm.STREAM_SILENCE_S` (115) ends there, and no read waits past the
-  deadline (a worker still reading makes the next decision `busy`).
-  `INTERRUPT_TIMEOUT_S` (115) is the interrupt's own, never the decision's;
-  `ESCALATE_TIMEOUT_S` (360) is an ordering above it; `llm.LOCAL_TIMEOUT_S`
-  is a FLOOR (a 27.3 s cold load).
-  ⚠ The token budget is sized to it: one moves with the other. ⚠
+- **`CALL_TIMEOUT_S` is 600 s, STREAMED, and is a patience budget**
+  (issues #117, #604 and its follow-up; 600 since 11-22, Ben's call:
+  quality before speed; Overseer.md §6 "Streamed" and "The deadline"): a
+  decision lost to a clock is the one failure that is purely ours. The
+  robots' calls stream (`llm.deadline_fetch`, held to the deadline in all):
+  not streamed, none outlived the router's gateway (a 504 at 120 s of
+  silence; #604's 115), and novita held its answers to the end.
+  ⚠ A LONG THINK IS SPENT STANDING STILL (~93 W, the world going on; 600 s
+  is 15.5 Wh, 80 % of the reserve) and comes out of the 1800 s between asks
+  (`UNMINDED_AFTER_S`, stamped at the ask) and out of a held job's minutes
+  (the cube's 9 and the table's 14 were not moved with it).
+  ⚠ A stream silent for `llm.STREAM_SILENCE_S` (115) ends there, and no read
+  waits past the deadline (a worker still reading makes the next decision
+  `busy`). `INTERRUPT_TIMEOUT_S` (115) is the interrupt's own, never the
+  decision's; `ESCALATE_TIMEOUT_S` (720) is an ordering above it;
+  `llm.LOCAL_TIMEOUT_S` is a FLOOR (a 27.3 s cold load).
+  ⚠ The token budget is sized to it: one moves with the other
+  (`MAX_TOKENS_AUTONOMOUS`, below: at 112 tokens a second it comes back
+  inside the deadline and fills more than half of it; why, Overseer.md §6
+  "The deadline doubled"). ⚠
   `scripts/overseer_probe.py --calls 50` under-measures a mission by about
   half: choose from the live robots' own turns, confirm with a flight.
 - **A fallback's reason is FAILURE or POLICY, and the partition is ONE**
@@ -1628,6 +1633,8 @@ save a filmstrip PNG named after the script.
   never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
   chain ends at any other action but a fallback's, which keeps it ONCE, a
   second running dropping it (#604: the post-recall turn is the heaviest);
+  its rule says what a find searches, every one of `RECORD_KINDS` in the
+  robot's words, and `FIND_LIMIT` formatted in (#738);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER
@@ -1853,8 +1860,9 @@ save a filmstrip PNG named after the script.
   `response_format`; refused once → prose, and `constrained` goes False and
   SAYS so); no bare `{"type": "object"}` in the schema; every request carries
   `llm.USER_AGENT`. ⚠ A reasoning model needs its budget
-  (`MAX_TOKENS_AUTONOMOUS` 32,768 since #604's follow-up, the escalation's
-  with it; the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a
+  (`MAX_TOKENS_AUTONOMOUS` 64,000 since 11-22, with the deadline -- 32,768
+  from #604's follow-up -- and no higher than the default
+  `claude-haiku-4-5` writes; the escalation's with it; the interrupt's `MAX_TOKENS` 4,096, twice its longest think, so a
   robot asked as its pack runs low is not held still for minutes; an answer
   its tokens ran out on is `fallback:cutoff`, billed). ⚠ THE BUDGET IS SIZED
   TO `CALL_TIMEOUT_S`: past the deadline a think that ran out is a timeout,
@@ -2987,7 +2995,10 @@ save a filmstrip PNG named after the script.
   after a hold (`lid.HOLD_S` = 5 s). ⚠ Its reward row is
   `economy/challenges.json`, NOT `rewards.json` (a row there is shown to the
   overseer and moves the header's `dataHashes`). ⚠ The house's blocks carry
-  `GRIP_SOLIMP` (`home/props.py`), or a grade on them is the solver's.
+  `GRIP_SOLIMP` (`home/props.py`), or a grade on them is the solver's. ⚠ A
+  REASON PRINTS A READING AGAINST ITS LINE THROUGH `lid.against` (#737;
+  `tests/test_grade_words.py`): rounded alone, a drawer short of its line
+  read "came out 15 cm, short of the 15".
 - **A procedure job has no errand behind it** (issues #207, #559;
   Challenges.md): `TaskKind.discharge` is `procedure` or `act`
   (`DISCHARGES`; the quadruped's `errand`s went with it, #559);

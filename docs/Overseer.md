@@ -1645,7 +1645,7 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 | `llm` | — | a real answer |
 | `llm:<model>` | — | …from the escalation model (issue #37) |
 | `event:<type>` | — | a row of the agent's own event map (issue #127) |
-| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (300 s, §6): nothing came back, or a stream was still being written (it names who) |
+| `fallback:timeout` | failure | the call outlived `CALL_TIMEOUT_S` (600 s, §6): nothing came back, or a stream was still being written (it names who) |
 | `fallback:offline` | failure | nobody answered — transport, HTTP, auth, rate limit, 5xx, a stream closed mid-answer |
 | `fallback:garbled` | failure | somebody answered, and it was not a decision |
 | `fallback:cutoff` | failure | somebody answered, and its tokens ran out before the answer was written (issue #604; §6) |
@@ -2163,29 +2163,30 @@ has a mission: this branch, the pair from the same backup on the real mind
 for 21 minutes. Both robots held a hand job and spent the flight writing
 and mending its procedure, which the replayed turns (recalls and idles)
 never reached: 12 of 13 calls answered and the 13th cut off at 24,576
-tokens after 208 s (the budget is 32,768 since); a median of 11.3k tokens
+tokens after 208 s (the budget was raised since); a median of 11.3k tokens
 and 64 s, 3 of 13 past 20k, 208 s the longest. ⚠ Luca stood still thinking
 53 % of the flight and Rowan 40 % (`rows/flight1/calls.jsonl`).
 
 What a long think costs. The robot STANDS STILL while it thinks (`_decide`,
 `hold_routine`), at the ~93 W a humanoid draws standing, while its world
 goes on: the other robot works, offers come and go, a held job's minutes
-run. 300 s of it is 7.8 Wh, 40 % of the reserve (19.5 Wh); and the call's
-wall comes out of the 1800 s the robot's map has to ask again in
-(`lifecycle.UNMINDED_AFTER_S`, stamped at the ASK: #317 chose 1800 with a
-1.31x margin over the worst healthy gap, which a 300 s call can take). At
+run. 600 s of it (the deadline since 11-22, below) is 15.5 Wh, 80 % of the
+reserve (19.5 Wh); and the call's wall comes out of the 1800 s the robot's
+map has to ask again in (`lifecycle.UNMINDED_AFTER_S`, stamped at the ASK:
+#317 chose 1800 with a 1.31x margin over the worst healthy gap, which a
+long call can take). At
 the live pair's ~48 calls an hour (Luca ~31, Rowan ~17; 11-01 to 11-03), the
 MEDIAN replayed think stands each robot still ~5 minutes of its hour on
 deepinfra and ~16 on baseten, and flown on procedure work, at baseten's
 default, half of it -- today's regime, mostly baseten's under `:cheapest`.
-⚠ A decision that escalates stands it still for the escalation's 360 s on
+⚠ A decision that escalates stands it still for the escalation's 720 s on
 top (off on the deployed world).
 
 The numbers, and why:
-- **`CALL_TIMEOUT_S` is 300 s** (115 s since #604): every flowing think
-  measured fits but novita's slowest. A stream still writing at it is
-  `fallback:timeout` (`StillWriting`), naming who was answering, and the
-  robot is told "your answer was still being written when its 300 s ran
+- **`CALL_TIMEOUT_S` is 600 s** since 11-22 (115 s at #604, 300 s from
+  its follow-up; below, "The deadline doubled"). A stream still writing at
+  it is `fallback:timeout` (`StillWriting`), naming who was answering, and
+  the robot is told "your answer was still being written when its 600 s ran
   out", as a cut-off is told its tokens ran out (streamed and pinned, a
   timeout is mostly its own think, not nobody's); one the far side closed
   is `offline` (`StreamClosed`); a whole JSON before either is an answer. ⚠ No read waits past the deadline (`stream_fetch` holds the
@@ -2205,16 +2206,17 @@ The numbers, and why:
   streamed waited for its first byte, so a provider that never answers
   costs that, not the deadline; the slowest first byte measured was 13 s
   (novita), and one cold DeepSeek call took 244 s, its bytes flowing.
-- **`MAX_TOKENS_AUTONOMOUS` is 32,768** (16,384 since #604): flown, the
-  robots writing and mending procedures thought past what the replays
-  caught (below), one cut off at 24,576; 32,768 comes back inside 300 s at
-  112 tokens a second, its wall in -- the flight's thinks over 10k wrote at
-  114-246. Slower (2 of the replays' 17 long answers wrote at 100-106), a
-  think that runs out is a timeout, not a cut-off.
+- **`MAX_TOKENS_AUTONOMOUS` is 64,000** since 11-22, with the deadline
+  (16,384 at #604, 32,768 from its follow-up): it comes back inside 600 s
+  at 112 tokens a second, its wall in, and fills more than half of it there
+  -- one moves with the other (`test_the_budget_is_sized_to_the_deadline`).
+  Slower, a think that runs out is a timeout, not a cut-off. ⚠ Not 65,536:
+  the default model on the Anthropic path, `claude-haiku-4-5`, writes at
+  most 64,000.
 - **`INTERRUPT_TIMEOUT_S` is 115 s**, its own: the interrupt holds a
   low-pack robot still mid-errand, and its 4,096 tokens come back in ~70 s
   at the slowest writer measured (Qwen on deepinfra, 60 a second).
-- **`ESCALATE_TIMEOUT_S` is 360 s**, an ordering above the decision's.
+- **`ESCALATE_TIMEOUT_S` is 720 s**, an ordering above the decision's.
 
 Which mind, then -- the deployment's to set (`$PLUGGY_MODEL`,
 `$PLUGGY_REASONING_EFFORT`), recommended 11-05 at the pair's ~48 calls an
@@ -2278,8 +2280,56 @@ Practice's mind reads no catalogue (`scripts/practice.py`): its rows name
 the provider as the answer does.
 
 How fast each provider writes on this route, and how often a think runs
-out its 300 s, is a reading, never a design fact here: the Observatory's
+out its deadline, is a reading, never a design fact here: the Observatory's
 period for this change.
+
+### The deadline doubled (11-22)
+
+Ben's call of 11-22: quality before speed. The mind and its effort stay as
+they were (V3's `low` was not taken), and the deadline doubles, 300 -> 600
+s. On the wakes of 11-21/22 (the release of 11-20, 48b52ebe;
+`zai-org/GLM-5.3-Flash:baseten` at its provider's default effort) the
+robots' calls failed 170 of 564 times:
+- **140 cut-offs**, every one at 32,768 tokens out, a median of 212 s
+  (132-299 s), written at a median of 154 tokens a second (110-248). Of the
+  96 that the run-end summaries list, 85 had written nothing of the answer.
+- **26 timeouts** at 300 s, and 4 lost streams.
+
+The 385 answers wrote a median of 13.3k tokens in a median of 88 s, and
+each robot stood still thinking about two thirds of its wake. A recall's
+next turn failed 45 % of the time (the loop of 11-22's W1). With the budget
+kept, a doubled deadline would have answered none of the 140, so the budget
+doubles too (64,000, above).
+
+Measured before it was deployed, through the code's own client and the
+deployed pin (`~/pluggybot-training/loop-1122/w0-deadline/`):
+- **The provider takes the budget.** The router's catalogue lists baseten
+  at a 1,048,576-token context and no output cap. A call asking 65,536
+  with the decision's JSON schema was answered, and so was one asking
+  64,000 through GLM-5.3-Flash's other pins (deepinfra, together,
+  fireworks-ai, novita, `:cheapest`), DeepSeek-V4.1-Flash on deepinfra and
+  baseten, and the escalation's Qwen3-235B.
+- **The route carries a stream past 300 s.** Two made-up asks streamed 466
+  s and 516 s through the router, OpenRouter and baseten, at 127-141
+  tokens a second. Each ended at its 65,536 tokens, all of them thinking, with no
+  cut and no silence. (The router closes a stream at 20 minutes.)
+- **The weekend's own failed turns finish.** 15 of the 11-21 wake's failed
+  turns were rebuilt from the robots' own stores and asked once at 64,000
+  tokens and 600 s: 12 cut-offs (5 of them a recall's next turn) and 3
+  timeouts, their tokens in within -3.8 to +0.9 % of the live count. All 12
+  cut-offs answered, and 2 of the 3 timeouts. The other ran out of its
+  64,000 at 538 s, all of it thinking. 8 of the 14 answers needed the new
+  room: they wrote more than 32,768 tokens (33.9k-63.3k) or came after 300
+  s (up to 505 s). The answers took a median of 244 s, at a median of 119
+  tokens a second that evening. Asked again at the old pair (32,768 and
+  300 s), straight after and at a slower hour, the same 15 turns answered 7
+  times: 6 timed out and 2 were cut off. Every turn that answered at the
+  old pair answered at the new one too, and 7 answered only at the new.
+
+What it may cost -- 600 s standing still is 15.5 Wh, 80 % of the reserve;
+a held job's minutes run on through a think; the purse; the death clock --
+and what the wakes after it read against the weekend's, are its
+Observatory period's ("The minds' deadline doubled, the budget with it").
 
 ### The local backend
 
@@ -2301,8 +2351,9 @@ wants the machine a served world already assumes: the sim's own container.
 
 ### The deadline
 
-`CALL_TIMEOUT_S` = 300 s, streamed (90 s from #117 to #604, 115 s to its
-follow-up; above, "Streamed"). The probe (`scripts/overseer_probe.py --calls 50`,
+`CALL_TIMEOUT_S` = 600 s, streamed, since 11-22 (90 s from #117 to #604,
+115 s to its follow-up, 300 s from it; above, "Streamed" and "The deadline
+doubled"). The probe (`scripts/overseer_probe.py --calls 50`,
 quiet, the deployed pick) reports the latency **distribution** and the timeout
 share each candidate deadline would cost: median 4.88 s, p95 6.59, max
 **7.38 against the old 8** — 0 % timeouts and no margin, which is why any
@@ -2323,10 +2374,11 @@ a slow call is spent standing still (above, "What a long think costs"). By
 call not streamed could use no more than 115: the router's gateway answers
 a request silent for 120 s with a 504 (measured four times, at 120.2-120.3
 s). Streamed, **300**: every flowing think measured on the live turns but
-novita's slowest. A stream silent for `llm.STREAM_SILENCE_S` (115 s) ends
-there, so a provider that never answers stands the robot still that long,
-not the deadline. The token budget is sized to it (above). The interrupt
-keeps its own `INTERRUPT_TIMEOUT_S` (115 s), `ESCALATE_TIMEOUT_S` (360)
+novita's slowest; and **600** once the weekend of 11-21/22 had cut off 140
+thinks at the budget the 300 s was sized to (above). A stream silent for
+`llm.STREAM_SILENCE_S` (115 s) ends there, so a provider that never answers
+stands the robot still that long, not the deadline. The token budget is sized to it (above). The interrupt
+keeps its own `INTERRUPT_TIMEOUT_S` (115 s), `ESCALATE_TIMEOUT_S` (720)
 follows as an ordering, not a number, and the probe holds its calls to 2×
 the deadline (`PROBE_TIMEOUT_S`), never to the deadline under test.
 
@@ -2481,7 +2533,11 @@ gate every document write passes (the files' `append`, the library's
   §10), `changelog` for the world's changelog a page at a time (#617, §7b),
   a line's `#123`) and/or `find` words (FTS5 over
   everything this generation, retired rows included, OR-joined and bm25
-  ranked; `FIND_LIMIT` 8). The robot stands still `RECALL_S` (10 s — thinking
+  ranked; `FIND_LIMIT` 8). ⚠ The RECALL rule says what a find searches,
+  each kind of record in the robot's words, and `FIND_LIMIT` formatted in
+  (#738): told only "a few words to search for", Rowan read a topic's notes
+  as History lines and concluded a find searches History alone. The robot
+  stands still `RECALL_S` (10 s — thinking
   takes real seconds) and the block (`{read, find, hits, lines}`, each line
   `#id [where] text`, ≤ `RECALLED_CHARS` 4000) rides the NEXT turn as
   `recalled`. **The chain**: blocks accumulate (≤ `RECALLED_CHAIN_CHARS`

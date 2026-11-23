@@ -272,16 +272,20 @@ def _laid(raw: dict, metrics: dict) -> tuple[bool, str]:
   line but in rare mixes (#687; Challenges.md §12 has the numbers). What
   still touched the place is said of one otherwise laid, as before."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                   f"not the {HOLD_S:.0f} s the job asks for")
+    held, asked = lid.against(float(raw["holdS"]), HOLD_S, 1, 0)
+    return False, f"measured {held} s after the call, not the {asked} s the job asks for"
   said = []
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    said.append(f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                f"the {limit:.0f} s the job allows")
+    took, allows = lid.against(float(raw["elapsedS"]), limit)
+    said.append(f"called {took} s after the start, past the {allows} s the job allows")
+  # ⚠ The lines said once over several pieces, the drop's and the place's,
+  # are exact at the places they are said at (a test), so every piece's
+  # reading is told from them as `lid.against` prints them.
   dropped = [p for p in PIECES if float(raw[p]["fastestFreeMS"]) > DROP_M_S]
   if dropped:
-    said.append(_listed([f"the {p} came down at {float(raw[p]['fastestFreeMS']):.1f} m/s"
+    said.append(_listed([f"the {p} came down at "
+                         f"{lid.against(float(raw[p]['fastestFreeMS']), DROP_M_S, 1)[0]} m/s"
                          for p in dropped])
                 + (" with" if len(dropped) == 1 else ", each with")
                 + " nothing holding it -- dropped or knocked over, not set down (no faster "
@@ -291,14 +295,16 @@ def _laid(raw: dict, metrics: dict) -> tuple[bool, str]:
   for p in (p for p in PIECES if p not in dropped):
     off, above, tilt = 100 * float(raw[p]["offM"]), 100 * float(raw[p]["aboveM"]), float(raw[p]["tiltDeg"])
     if off > 100 * PLACE_M or abs(above) > 100 * RESTING_M:
-      away.append(f"the {p} ended {off:.0f} cm from its place"
+      away.append(f"the {p} ended {lid.against(off, 100 * PLACE_M, 0, 1)[0]} cm from its place"
                   + (f", {above:.0f} cm over the table" if above > 1 else ""))
     elif tilt > math.degrees(UPRIGHT_RAD):
       lies = "upright" if p == "cup" else "flat"
-      askew.append(f"the {p} rests at its place tipped {tilt:.0f} deg: it must stand {lies}")
+      tipped = lid.against(tilt, math.degrees(UPRIGHT_RAD))[0]
+      askew.append(f"the {p} rests at its place tipped {tipped} deg: it must stand {lies}")
     elif p == "fork" and turn > math.degrees(FORK_RAD):
-      askew.append(f"the fork lies {turn:.0f} deg off the place's line: it must lie along it, "
-                   f"its head toward the card, within {math.degrees(FORK_RAD):.0f} deg")
+      lies, within = lid.against(turn, math.degrees(FORK_RAD))
+      askew.append(f"the fork lies {lies} deg off the place's line: it must lie along it, "
+                   f"its head toward the card, within {within} deg")
   if away:
     said.append(_listed(away) + (": it" if len(away) == 1 else ": each")
                 + f" must rest on the table within {100 * PLACE_M:.1f} cm of where it goes")

@@ -10,6 +10,177 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### What a find searches, said; a grade's reading told from its line (#738, #737; W5, `loop-words2`) — opens when this PR is deployed
+
+**What the robots read.** The prompt moves, `6ec0fc48…` (70,256
+characters, 17 sections) -> `bb1e3d07…` (70,506, 17 sections), by one
+sentence in the RECALL bullet (#738), its number formatted in off
+`FIND_LIMIT`:
+- BEFORE "… -- and/or `find` to a few words to search for. You stand still
+  for ten seconds …"
+- AFTER "… -- and/or `find` to a few words to search for. A find searches
+  all you keep from this life -- your History, `think`s, notes and
+  findings (their topics and titles too), goals, pinned lines and the lines
+  you took out -- and brings back at most 8, the best match first, after
+  anything `read` brings. You stand still for ten seconds …"
+
+The grades' reasons move where a reading sits within half a printed unit
+of its line (#737; History and the site, never the prompt). Each is printed
+at the fewest places that tell it from its line (`lid.against`):
+- the drawer: BEFORE "the drawer came out 15 cm, short of the 15 it must"
+  (Luca's t_0735, 11-22 13:07, a little under 15); AFTER "came out 14.7 cm"
+  (or 14.97: as many places as it takes), and so "but was 14.97 cm out when
+  you finished" and "but 14.96 cm 5 s later";
+- the door: BEFORE "the door opened 50 deg, short of the 50 it must"
+  (Rowan's, 11-15); AFTER "opened 49.6 deg", and so its other two;
+- the lid: BEFORE "the lid rose to 57 deg, short of the 57 it must open
+  past" (never seen live); AFTER "rose to 57.1 deg, short of the 57.3 it
+  must open past" -- its line is 1 rad, 57.30 deg, and its job says "past 57
+  degrees" (Ben's call, below);
+- the three speed limits: "came down at 1.04 rad/s … (no faster than 1.0)"
+  where it read "1.0 rad/s", the cube's and the table's "came down at 0.53
+  m/s … (no faster than 0.5)" where they read "0.5 m/s";
+- the fork: "lies 15.3 deg off the place's line … within 15 deg" where it
+  read "lies 15 deg";
+- a tilt: the cube's "rests on the mat tipped 10.3 deg" and the table's "the
+  cup rests at its place tipped 10.3 deg" where they read "10 deg" (the
+  practice's table job says "upright within 10 degrees");
+- a lid past its line: "opened to 57.4 deg, but …" where every lid from
+  57.30 to 57.49 deg read "opened to 57 deg", beside one short of it at
+  "57.1 deg, short of the 57.3";
+- a lid not shut: "but the lid was 5.3 deg open 5 s after the call" where
+  it read "5 deg open" (the practice's job: open is "more than 5
+  degrees");
+- the time limit, all five jobs: BEFORE "called 960 s after the start, past
+  the 960 s the job allows" (Rowan's t_0758, 11-22 15:03, 960.3 s); AFTER
+  "called 960.3 s …", and a limit that is not whole is said as it is
+  ("past the 0.6 s", where it read "past the 1 s");
+- the hold, all five: "measured 4.97 s after the call, not the 5 s" where
+  it read "5.0 s".
+
+Unmoved: every reading far from its line ("came out 0 cm, short of the
+15", "rose to 50 deg, short of the 57", "called 1038 s …, past the 960
+s"), the cube's and the table's distances (a reading past 2.5 cm already
+rounds to 3), every line said with no reading ("it must open past 57
+deg"), every pass but a lid's from 57.30 to 57.49 deg. A reason grows 1-4
+characters a number near its line: over 767 mixes of the table's faults with every reading a hair past its
+line, the worst it can be, the longest History line 467 -> 480 characters
+and those past 400 60 -> 69. The session host's hello (sha1 `a61b6376`) and
+every recording are unmoved (the counter's carries a pass).
+
+**Why.** #738: Rowan asked on 11-21 whether a find searches notes as well
+as History (tk_0062), and on 11-22 answered itself wrongly from a `read`
+whose six notes it took for History lines. #737: Luca read its drawer's
+grade as the grader failing it at the line itself (tk_0066: "claim bars
+need to sit above the grade line by that margin"), and Rowan took "past
+the 960 s" for a law of the job's clock.
+
+**Ben's call, the lid's line.** Left as it is: the line 1 rad and the job's
+"past 57 degrees" (`economy/tasks.py`), so a lid at 57.1 deg fails and now
+reads "the lid rose to 57.1 deg, short of the 57.3 it must open past" beside
+a job that says 57. The other ways: the job says "past 57.3 degrees" (a
+job's words), or the line moves to 57 deg (a grader changed, Challenges.md
+§3). No lid grade of 11-14 to 11-22 read 57.
+
+**What the period is for.**
+- **Finds**: the share of `recall`s with a `find`, and whether a robot's
+  notes or tickets still say a find searches History alone. Baseline: 23 of
+  91 recalls on 11-21/22 carried a find (7 alone, 16 beside a `read`).
+- **Grades near their line**: none prints its reading as the line it
+  failed now (each sentence pinned, `tests/test_grade_words.py`); what the
+  robots write of a near miss. Baseline: 2 of 104 grades on
+  11-21/22 printed their reading as the line (t_0735, t_0758).
+
+### The minds' deadline doubled, the budget with it (W0, `loop-deadline`) — opens when this PR is deployed
+
+**What the robots read.** The prompt (`6ec0fc48…`, 70,256 characters, 17
+sections) and the session host's hello are unmoved: neither says the
+deadline nor the budget. Two of History's fallback reasons say the new
+numbers, each at the length it had (History's `chose …` line, 136 and
+155 characters on 11-21/22):
+- BEFORE `… -- your answer was still being written when its 300 s ran out`;
+  AFTER `… its 600 s ran out`.
+- BEFORE `… -- your answer was cut off: it ran out of its 32,768 tokens
+  before it was written`; AFTER `… its 64,000 tokens …` (the provider's
+  count, where it gives one).
+
+The header's `build.deadlineS` says 600, which the site files per run, so a
+reading by run splits here by itself.
+
+**The change** (Overseer.md §6, "The deadline doubled"). `CALL_TIMEOUT_S`
+300 -> 600 s; `MAX_TOKENS_AUTONOMOUS` 32,768 -> 64,000, the escalation's
+with it; `ESCALATE_TIMEOUT_S` 360 -> 720. Unchanged: the mind and its
+effort (`zai-org/GLM-5.3-Flash:baseten`, none named), the interrupt's 115 s
+and 4,096 tokens, `STREAM_SILENCE_S` (115), `UNMINDED_AFTER_S` (1800), the
+cooloff, the purse ($20 a week), every job's minutes.
+
+**Why.** Ben's call of 11-22, quality before speed, the effort kept. On the
+wakes of 11-21/22 the calls failed 170 of 564 times, and 140 of the 170
+were thinks cut off at 32,768 tokens inside the 300 s (a median 212 s, at
+110-248 tokens a second). Doubling the deadline over that budget would have
+answered none of them, so the budget doubles too.
+
+**Measured before deploying** (`~/pluggybot-training/loop-1122/w0-deadline/`,
+the deployed pin through the code's own client):
+- the provider takes the budget (65,536 asked, a 200; and 64,000 through
+  every other GLM-5.3-Flash pin, `:cheapest`, two DeepSeek-V4.1-Flash pins
+  and the escalation's model);
+- the route carries a stream past 300 s (two made-up asks streamed 466 s and
+  516 s, at 127-141 tokens a second, and ended at their 65,536 tokens);
+- the weekend's own failed turns finish. Of 15 rebuilt from the 11-21 wake
+  (12 cut-offs, 3 timeouts), 14 answered at the new pair, 8 of them with
+  more than 32,768 tokens or after 300 s; one ran out of its 64,000 at
+  538 s. At the old pair the same turns answered 7 times of 15 (asked
+  straight after, at a slower hour), and no turn answered there that did
+  not at the new pair.
+
+**What it can cost.**
+- A think is spent standing still at about 93 W: 600 s is 15.5 Wh, 80 % of
+  the 19.5 Wh reserve. No decision of 11-21/22 or of 11-18 began within
+  20 Wh of the reserve; the lowest packs at a decision were 9 % of 777.6 Wh
+  (70 Wh, Rowan, 11-21/22) and 7 % (54 Wh, Luca, 11-18).
+- A held job's minutes run while the robot thinks, and none was moved. The
+  cube's 9 left a claim at the mall about 300 s to write in, and the
+  table's 14 left its lay about 560 s; one think may now take 600.
+- The death clock: both robots' maps carried an `every` ask through the
+  weekend (Luca every 900 s, Rowan every 1500 s), which stamps the clock
+  whatever the robot is doing, and the longest logged gap between asks was
+  901 s and 1501 s. And for a map that asks when it has nothing to do, no
+  chain of failed thinks and cooloffs can outlast the clock: one think to
+  its deadline, the idle a failed call leaves and the moment between two
+  decisions come to about 666 s, and 1,388 s with an escalation's second
+  leg (off on the deployed world; pinned).
+- The purse. At the catalogue's rates the weekend's wakes cost about $4.4
+  and $4.0. A rolling week holds three wakes (Wednesday's and the
+  weekend's), about $13 of the $20. On the 12 cut-off turns, the new pair's
+  answers averaged 33.1k tokens out, about the 32,768 each cut-off was
+  billed for, and an answer brings no re-ask after it. So a wake should
+  cost about what it did. A call at the cap costs $0.037 against $0.021
+  before, and the week runs out only at about 1.5 times the weekend's spend
+  a wake ($6.7). Past that, `fallback:allowance` refuses every call until
+  the week's end.
+
+**What the period is for** (Wednesday 11-25's test wake, then the weekend's;
+the baseline is the wakes of 11-21/22, on the release of 11-20, and the
+release that carries this carries the loop of 11-22's other changes too):
+- **Failed calls by kind, per decision**: cut-off, timeout, offline,
+  garbled. Baseline: 140, 26 and 4 of 564 (the 170 above, 30 %), and 1
+  garbled answer.
+- **The decision's seconds**: the median and p90 `wallS`, and the share of
+  each robot's day spent standing still thinking. Baseline: a median of
+  124 s and 142 s, about two thirds of each day.
+- **How much of the new room is used**: answers past 32,768 tokens or past
+  300 s. Baseline: none could be.
+- **Passes**: jobs passed of those tried, and offers expired. Baseline: 25
+  of 104, and 50 table offers expired.
+- **The purse**: dollars a wake, and any `fallback:allowance`. Baseline:
+  about $4.4 and $4.0.
+- **The pack**: decisions begun near the reserve, and any `flat` death.
+
+⚠ A wake's provider speed moves every one of these: 68 tokens a second on
+11-18 against about 155 on 11-21/22, the same pin. So read tokens per wall
+second beside each number. One test wake is a count, not a verdict.
+
 ### Who answered is the provider the router's answer names, its header kept beside it as `route` (V3, `loop-provider`) — opens when this PR is deployed
 
 **What the robots read.** Nothing moves: the prompt (`6ec0fc48…`, 70,256
