@@ -3307,7 +3307,7 @@ class HubLifecycle:
     if self.body.charging():
       # ...said as the run's own unplug says it: unsaid, a charge's end that
       # left the plug in read as one that took it out (#703)
-      self._say(UNPLUG_FAILED, doing=True)
+      self._say(UNPLUG_FAILED, detail=self.body.charge_trace(), doing=True)
 
   # ---- answering while it charges (#730; Overseer.md §10) ------------------
 
@@ -3415,7 +3415,9 @@ class HubLifecycle:
               doing="CHARGE: unplugging")
     yield from self.body.undock_routine()
     if self.body.charging():
-      self._say(UNPLUG_FAILED, doing=True)
+      # ...its tries' trace the log's alone, as a failed dock's (#703: live, the
+      # log said nothing between "unplugging" and this)
+      self._say(UNPLUG_FAILED, detail=self.body.charge_trace(), doing=True)
     else:
       self._close_open_charge()             # ...a charge a message left open (#730)
 

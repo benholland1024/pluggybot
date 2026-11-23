@@ -1924,6 +1924,9 @@ class HumanoidBody(Body):
       return "not lined up"
     self._station_seen = seen
     why = yield from charge.plug_in_routine(self, seen, self._charge_trace)
+    if why == "plugged in":
+      # ...its own clock from here, which its unplug judges the creep by (#703)
+      self.mission.plugged_t = float(self._d.time)
     return "docked" if why == "plugged in" else why
 
   def charging(self) -> bool:
@@ -1958,16 +1961,29 @@ class HumanoidBody(Body):
       return
     yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
+  @property
+  def plugged_s(self) -> float | None:
+    """How long its plug has been in, s by its own clock since its dock put
+    it in (#703's option 2), or None where it does not know: a save from
+    before the clock. Read only while it is plugged in."""
+    t = self.mission.plugged_t
+    return None if t is None else float(self._d.time) - t
+
   def undock_routine(self):
     """Unplugged from its seat -- stepped back to it first where a charge
-    crept it in (`charge.unplug_routine`, #703) -- the plug left to its
-    balancer at the cup, and turned away from the station: its walker barely
-    backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
+    crept it in (`charge.unplug_routine`, #703), and after a charge its own
+    clock says was long enough to creep, first straight back and a look of
+    its own (`charge.crept`, whatever its belief says) -- the plug left to
+    its balancer at the cup, and turned away from the station: its walker
+    barely backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
     from pluggybot.humanoid import charge
     seen = self._station_seen or charge.look(self) or self._station
     if self.charging():
-      why = yield from charge.unplug_routine(self, seen, self._charge_trace)
+      why = yield from charge.unplug_routine(self, seen, self._charge_trace,
+                                             back=charge.crept(self.plugged_s))
       self._charge_trace.append({"undock": why})
+    if not self.charging():
+      self.mission.plugged_t = None
     yield from self.step_routine(0.0, 0.0, math.pi)
 
   def charge_trace(self) -> str:

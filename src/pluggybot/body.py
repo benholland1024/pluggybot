@@ -448,7 +448,8 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def charge_trace(self) -> str:
-    """One line of what the last dock approach saw, for a failed one's log."""
+    """One line of what the last dock approach saw, for a failed one's log
+    -- and its unplug's tries, for a failed unplug's."""
 
   # ---- senses --------------------------------------------------------------
 
