@@ -943,8 +943,8 @@ class HumanoidBody(Body):
     for the walker, under which the standing posture never moves. ⚠ ITS
     TRUNK IS WAITED ON STILL THERE (`Reach._posture_held`), never the posture
     the policy is shown alone (#693): off the stand, an arm with none of it
-    ahead comes home before the stand is asked (`Reach._go_home`), and the
-    next verb began as the trunk still rose. The arm's word is its own as it
+    ahead has its command home before the stand is asked (`Reach._go_home`),
+    and the next verb began as the trunk still rose. The arm's word is its own as it
     came home: a waist turning home after swung the hanging arm into a
     counter's face, and read off its rest then it said "held". ⚠ ITS
     WAY HOME KEEPS OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;

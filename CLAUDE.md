@@ -421,16 +421,18 @@ save a filmstrip PNG named after the script.
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
-  straight, unchecked -- has the stand once it is home (asked as it set
-  off, the stand swung Luca's hand 3.4 cm past the toes onto the counter's
-  top: 5 of 33 fell), one with some ahead as it sets off (held, the check
+  straight, unchecked -- has the stand once its COMMAND is home, its
+  drivers not yet read (asked as it set off, the stand swung Luca's hand
+  3.4 cm past the toes onto the counter's top: 5 of 33 fell; and #693's
+  withdraw case fell the same with it never asked: below, the stall), one
+  with some ahead as it sets off (held, the check
   lost 3 doors and 23 tables of 32); a withdraw and a walk's hand-over wait
   for the trunk still in the stand (`_posture_held`, `STAND_BACK_S` at
   most), a withdraw's word the arm's as it came home. ⚠ A WAY HOME IS OVER
   BY ITS DRIVERS, NEVER ITS COMMAND (#693's live family; `Reach.HELD_S`,
   `_homed`, `held`; SimNotes, "A way home something holds"): read off its
   rest `HELD_S` (0.5 s) with its rest commanded, it is raised `LIFT_M` (5
-  cm) and sent home again `LIFTS` (1) times -- never with another robot by,
+  cm) and sent home again `LIFTS` (2) times -- never with another robot by,
   nor from a raise its arm did not follow -- then left where it is held,
   pressing on nothing (phase "held": out, saved through as a carry is, never
   rested with) -- left "rest" and pressed on toward it, a jaw on a counter's
@@ -441,7 +443,14 @@ save a filmstrip PNG named after the script.
   BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
   s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
   SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
-  whose word is the arm's. ⚠ BOTH WAYS KEEP OFF
+  whose word is the arm's. ⚠ BUT ANY WAY HOME, A WITHDRAW'S TOO, IS HELD SO
+  WHERE ITS DRIVERS READ THE ARM MORE THAN `STALL_RAD` (0.5 rad) OFF ITS
+  COMMAND FOR `STALL_S` (0.3 s) RUNNING (#693's withdraw case;
+  `Reach._stalled`; SimNotes, "A way home whose arm stalls"): walked on, a
+  jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm
+  back, then slipped off and the arm snapped home -- over backward; ⚠ held,
+  never at once: the door check's first ways home catch a jaw on the door's
+  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
