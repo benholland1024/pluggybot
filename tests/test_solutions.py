@@ -389,3 +389,21 @@ def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
   assert [m[0] for m in back] == ["go", "go"], f"the fork is brought back by {back}"
   first, last = (float(m[1][1]) for m in back)
   assert first == solutions.PASS_FORK_MID and first - last >= 0.1, (first, last)
+
+
+def test_the_pass_fork_is_shut_hard_enough_not_to_slip_in_the_hand_over():
+  """#682's stage C, rounds 7 and 8: shut at 25 N at the pass, the fork was
+  lost in the jaws for a moment as the walk's hand-over swung the arm to its
+  carry pose -- it dropped about a centimetre toward the fingertips and was
+  caught again tilted 12-33 deg (14 of 61 trips) -- and tilted 20 deg or
+  more at its put-down, half came down or lay off their spots. At 40 N 1
+  trip of 61 slipped (SimNotes, "The place laid from the pass"). Off the
+  reference's own source: every shut on the fork at the pass asks
+  `PASS_FORK_SQUEEZE`, 40 N at least."""
+  from pluggybot.challenge import solutions
+  calls = _calls(solutions.PROCEDURES["set_table_pass"][2])
+  walk = _index(calls, lambda c: c[0] == "to_place", "walk to the place")
+  shuts = [a for n, a in calls[:walk] if n == "close_hand" and a[:1] == ["left"]]
+  assert shuts, "the fork is never shut on at the pass"
+  assert solutions.PASS_FORK_SQUEEZE >= 40, solutions.PASS_FORK_SQUEEZE
+  assert all(a[1] == solutions.PASS_FORK_SQUEEZE for a in shuts), f"the fork is shut at {shuts}"

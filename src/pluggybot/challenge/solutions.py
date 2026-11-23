@@ -347,6 +347,11 @@ PASS_CUP_AT = (0.066, 0.209)
 #: (SimNotes, "The place laid from the pass"); each half asks a posture that
 #: reaches both its ends standing.
 PASS_FORK_MID = 0.33
+#: The fork's squeeze at the pass, N: at 25 the walk's hand-over lost it in
+#: the jaws for a moment in 14 of 61 trips (caught again 12-33 deg tilted),
+#: and tilted 20 deg or more at its put-down half came down or lay off their
+#: spots (SimNotes, "The place laid from the pass", rounds 7 and 8).
+PASS_FORK_SQUEEZE = 40
 #: Where the plate's pull-back off the pass ends, m ahead: from 0.50 m (the
 #: pass's face 0.39 ahead) to here by `move_hand` (nearer the pass the
 #: hand-over struck it; by `pull` that far it bowed and fell).
@@ -484,9 +489,9 @@ PASS_FORK = '''def lay_fork():
   if spot(92):
     go("left", read("spot.x"), read("spot.y"), gz + 0.06, 20, 0)
   pull("left", 0, 0, -1, 12, read("left.z") - gz, give=0)
-  if not close_hand("left", 25):
+  if not close_hand("left", %(fork_squeeze)g):
     open_hand("left")
-    close_hand("left", 25)
+    close_hand("left", %(fork_squeeze)g)
   oz = read("left.z") - gz + 0.0484
   pull("left", 0, 0, 1, 20, 0.05, give=0)
   go("left", %(fork_mid)g, read("left.y"), read("left.z"), 20, 0)
@@ -520,7 +525,7 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
   terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
-           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
+           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID, "fork_squeeze": PASS_FORK_SQUEEZE,
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
            "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
