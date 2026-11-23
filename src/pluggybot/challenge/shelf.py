@@ -256,8 +256,9 @@ def _stocked(raw: dict, metrics: dict) -> tuple[bool, str]:
     along, above, back = float(q["alongM"]), float(q["aboveM"]), float(q["backM"])
     tilt, label = float(q["tiltDeg"]), int(q["slot"])
     if abs(along) > ALONG_M or abs(above) > RESTING_M:
-      cm = (lid.against(100 * abs(along), 100 * ALONG_M)[0] if abs(along) > ALONG_M
-            else f"{100 * abs(along):.0f}")
+      # ...a passing distance beside a failing height too: never "4 cm" for
+      # 3.96 beside "within 4 cm" (review round 2, #737's class)
+      cm = lid.against(100 * abs(along), 100 * ALONG_M)[0]
       words = f"the {p} ended {cm} cm {'right' if along > 0 else 'left'} of label {label}"
       if abs(above) > RESTING_M:
         words += (f", {lid.against(100 * abs(above), 100 * RESTING_M, 1)[0]} cm "

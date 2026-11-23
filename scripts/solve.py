@@ -3,12 +3,14 @@ offered job flown the way the robot's own attempt runs and graded by the
 job's own grader -- so a passing verdict here is the verdict a robot would
 be paid for, and a robot that never earns it is a finding about the robot.
 
-  --feature drawer | door | cube | chest | table | pass
+  --feature drawer | door | cube | chest | table | pass | shelf
                     a hand job: `open_drawer`, `open_door`, `place_cube` or
                     `open_chest` offered on the storeroom's counter, or
                     `set_table` at the restaurant's table (#560) -- or
                     `set_table_pass`, its place laid from the pass (#682's
-                    stage C, never offered) -- as the cadence offers it -- the area's address and directions,
+                    stage C, never offered), or `stock_shelf`, the shop's
+                    shelf stocked from its cart (#736, never offered: its
+                    stock put into the house by this script) -- as the cadence offers it -- the area's address and directions,
                     the prop's hidden dynamics drawn afresh (`--draw K`, the
                     board's own sequence where none is given) and the prop
                     set out -- claimed, the hand-written reference's two
@@ -364,7 +366,7 @@ def _hand_job_row(spec) -> dict:
 
 
 def hands_main(args) -> None:
-  """`--feature drawer|door|cube|chest`: one flight, or `--n` draws from
+  """`--feature drawer|door|cube|chest|table|pass|shelf`: one flight, or `--n` draws from
   `--draw` (0 where none is given), a process each, a row each."""
   import json
   import multiprocessing as mp
@@ -397,7 +399,8 @@ def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--feature", choices=tuple(HAND_JOBS), default="drawer",
-                      help="the hand job: the drawer, the door, the cube, the chest or the table")
+                      help="the hand job: the drawer, the door, the cube, the chest, the table, "
+                           "the place laid from the pass or the shop's shelf (never offered)")
   parser.add_argument("--view", action="store_true", help="watch one flight in the viewer")
   parser.add_argument("--n", type=int, default=1,
                       help="how many draws, from --draw, a process each")

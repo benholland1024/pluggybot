@@ -145,6 +145,9 @@ def test_a_reading_past_its_line_never_reads_as_the_line():
   assert not ok and "tipped 10.2 deg" in why, why
   ok, _, why = shelf.eval_shelf(_stocked(candle={"backM": -0.0003}))
   assert not ok and "juts 0.03 cm out over" in why, why
+  # ...and a passing distance said beside a failing height (review round 2)
+  ok, _, why = shelf.eval_shelf(_stocked(candle={"alongM": 0.0396, "aboveM": 0.006}))
+  assert not ok and why.startswith("the candle ended 3.96 cm right of label 80, 0.6 cm over"), why
   # ...through the five graders' one helper, #737's `lid.against`
   assert lid.against(4.6, 4.0) == ("5", "4")
 
