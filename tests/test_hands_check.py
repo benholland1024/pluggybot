@@ -1246,7 +1246,8 @@ def test_a_pick_held_back_backs_out_and_looks_again():
 def test_the_candle_is_gripped_above_its_middle():
   """⚠ HELD ACROSS ITS MIDDLE THE CANDLE TURNED OVER IN THE HAND (#736 stage 2): at its centre of
   mass it hangs free to spin about the jaws' line, and the swing to the carry pose spun it upside
-  down; gripped 1.5 cm above, it hangs."""
+  down (3 of 64 dev flights); gripped 1.5 cm above, it hangs below the jaws' line (none of the same
+  64 turned it over, 2 of the bar's 64 draws and none of the sealed pool's 64 did)."""
   body, ran, log, so, tags = _shelf_flown()
   assert ran["ok"], ran
   descent = [a for v, a, _ in _after(log, "spot", 76) if v == "move_hand"][0]

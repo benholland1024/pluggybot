@@ -57,8 +57,8 @@ CANDLE_R, CANDLE_H = 0.035, 0.100
 PANEL = (0.010, 0.0375, 0.0575)
 STRUT = (0.003, 0.012, 0.045)
 STRUT_LEAN, STRUT_SHARE = math.radians(25.0), 0.15
-#: THE CART: its top's half-extents -- across, out of the shelf, and along
-#: it -- m, and its top's height, m: a dining table's height for a 1.4 m body.
+#: THE CART: its top's half-extents -- out of the shelf and along it -- m,
+#: and its top's height, m: a dining table's height for a 1.4 m body.
 #: ⚠ 0.35 m deep, not #736's 0.5: standing 0.13 m off its front, as at the
 #: table, the robot's soles are 0.50 m off the shelf's -- where both boards'
 #: fronts are reached and their labels read standing (#736's measures) --

@@ -11502,7 +11502,9 @@ true place and the true stance after each verb. What flying took:
   begins again from a fresh look.
 - **The candle is gripped 1.5 cm above its middle.** Held across its centre
   of mass it hangs free to spin about the jaws' line, and the walk's swing to
-  the carry pose turned it upside down (set down tipped 180 deg in 3 of 64).
+  the carry pose turned it upside down (set down tipped 180 deg in 3 of 64);
+  gripped 1.5 cm above, in none of 64 on the same set-outs, and in 2 of the
+  bar's 64 draws and none of the sealed pool's 64.
 - **The hand sags under a product.** Its own reading of its height is 2-3 cm
   over where it truly is with 0.25-0.45 kg in the jaws. Brought in 3 cm over
   the board, the products snagged its front edge; at 5 cm they clear it.
@@ -11569,13 +11571,16 @@ true place and the true stance after each verb. What flying took:
   the tour's 32. Stage 2's, frozen at c64b2fd2: at the check's set-outs 0-31
   16 of 32 (stage 1's 10; one fall each), over the tour's draws 0-31 18 of 32
   (0; three falls each) -- short of the bar's 24 -- and held out, on 32 draws
-  sealed by c64b2fd2, 14 of 32 at the check (7; four falls each). Of the 16
-  falls on the bar's draws and the check's sealed pool, 12 came in corrective
-  steps carrying with the robot 0.36-0.46 m from the shelf (all 8 of stage
-  2's, 4 of stage 1's), 10 of them after a carried trip run 3-7 deg off
-  square: the candle's carried trip is the one nothing squares. It was
-  chosen, by a rule written before its rows, as the best of twelve variants
-  flown on the check's set-outs 200-263 (38 of 64; stage 1's 14).
+  sealed by c64b2fd2, 14 of 32 at the check (7; four falls each) and 16 of
+  32 over the tour (3; four falls and none). Of the 20 falls on the bar's
+  draws and the sealed pool (12 of stage 2's, 8 of stage 1's), 15 came in
+  corrective steps carrying with the robot 0.36-0.48 m from the shelf (11 of
+  stage 2's, 4 of stage 1's), 12 of them after a carried trip run 3-7 deg
+  off square: the candle's carried trip is the one nothing squares. Stage
+  2's twelfth came in a withdraw from the upper board whose back-out swung
+  the stance 21 deg, as one of stage 1's did. It was chosen, by a rule
+  written before its rows, as the best of twelve variants flown on the
+  check's set-outs 200-263 (38 of 64; stage 1's 14).
 
 ## Debugging workflow that worked
 

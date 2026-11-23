@@ -19,7 +19,7 @@ the floor, `s` along it to the right as one faces it and `d` out of its
 front toward the aisle. Nothing here is the robot's: it finds the slots by
 their labels (79-84) and the products by theirs (76, 77).
 
-The restaurant's members (`home.jobs`): a lifecycle sets it out for an
+The store's members (`home.jobs`): a lifecycle sets it out for an
 offer, puts it back after a restart and keeps an offer off it while a
 robot touches it -- in a world that has it (`present`), which no served one
 does yet; `stock_shelf` is a kind no cadence names (`economy.tasks`).

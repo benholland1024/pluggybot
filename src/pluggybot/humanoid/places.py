@@ -172,8 +172,9 @@ def world_places(model) -> tuple[list[int], tuple]:
 
 def place_tags(model) -> tuple[list[int], tuple]:
   """The place tags this world puts up, and their fixtures: the house's
-  (`world_places`), the storeroom's counter's row (#559) and the restaurant's
-  place card, one tag and no fixture, out while its job is (#560)."""
+  (`world_places`), the storeroom's counter's row (#559), the restaurant's
+  place card, one tag and no fixture, out while its job is (#560), and the
+  shop shelf's slot labels, out while its job is (#736)."""
   from pluggybot.home import restaurant, storeroom
   from pluggybot.perception.tags import PLACE_TAG_IDS
   ids, fixtures = world_places(model)
