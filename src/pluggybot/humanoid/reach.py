@@ -326,7 +326,7 @@ LIFT_M, LIFTS = 0.05, 2
 #: under 0.2 s; held 0.2 s, a way home that touches nothing read 9 at most.
 HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: ...and any way home is held so where its drivers read the arm more than
-#: this behind its command, rad, this long running, s (`_stalled`; SimNotes,
+#: this off its command, rad, this long running, s (`_stalled`; SimNotes,
 #: "A way home whose arm stalls"): something holds it while its command walks
 #: on. ⚠ Walked on, a jaw on a top's edge wound the arm up 0.7 rad over 1.3 s,
 #: pressing 16-57 N and shoving the robot 13 cm back, and slipped off at the
@@ -2453,9 +2453,10 @@ class Reach:
 
   def _stalled(self, side: str, dt: float) -> bool:
     """Whether an arm on its way home in joint space (`way_home`) reads its
-    drivers more than `STALL_RAD` behind its command for `STALL_S` running:
-    held by something as its command walks on; `dt` its tick. A carry's way
-    to its pose never is (#682)."""
+    drivers more than `STALL_RAD` off its command, any joint either way, for
+    `STALL_S` running -- behind it, as an arm something holds while its
+    command walks on; `dt` its tick. A carry's way to its pose never is
+    (#682)."""
     arm = self.self_model.arm[side]
     over = (self.phase[side] == "home" and self.carry_q[side] is None
             and float(np.abs(self.sensed[arm] - self.q_cmd[side]).max()) > STALL_RAD)
@@ -2463,11 +2464,12 @@ class Reach:
     return self._stall[side] >= STALL_S - 1e-9
 
   def _held_home(self, side: str) -> None:
-    """A way home held (`_homed`, `_shoved`): eased where its drivers read
-    it, pressing on nothing, then raised `LIFT_M` and sent home again `LIFTS`
-    times a way home, else left there ("held"). Its count begun again: a
-    raise's line never reads it, and the next way home has its whole hold;
-    its way still to walk forgotten, and left there, watched no longer."""
+    """A way home held (`_homed`, `_shoved`, `_stalled`): eased where its
+    drivers read it, pressing on nothing, then raised `LIFT_M` and sent home
+    again `LIFTS` times a way home, else left there ("held"). Its counts begun
+    again: a raise's line never reads them, and the next way home has its
+    whole hold; its way still to walk forgotten, and left there, watched no
+    longer."""
     self._shove[side] = self._stall[side] = 0.0
     self.homes[side] = []
     q = self._ease(side)
@@ -2942,9 +2944,10 @@ class Reach:
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness
       elif phase in ("rest", "move", "joints", "home", "carried", "held"):
         if self._shoved(s, dt) or self._stalled(s, dt):
-          # ...a way home that would tip the body away from its hand is held
-          # where its drivers read it, as one its rest is held from (#693's
-          # live family): eased, or raised, never on toward its rest
+          # ...a way home that would tip the body away from its hand, or whose
+          # arm stalls as its command walks on, is held where its drivers read
+          # it, as one its rest is held from (#693's live family, its withdraw
+          # case): eased, or raised, never on toward its rest
           self._held_home(s)
           phase = self.phase[s]
         elif phase == "rest" and self.homing[s]:

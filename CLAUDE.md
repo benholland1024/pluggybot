@@ -444,7 +444,7 @@ save a filmstrip PNG named after the script.
   s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
   SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
   whose word is the arm's. ⚠ BUT ANY WAY HOME, A WITHDRAW'S TOO, IS HELD SO
-  WHERE ITS DRIVERS READ THE ARM MORE THAN `STALL_RAD` (0.5 rad) BEHIND ITS
+  WHERE ITS DRIVERS READ THE ARM MORE THAN `STALL_RAD` (0.5 rad) OFF ITS
   COMMAND FOR `STALL_S` (0.3 s) RUNNING (#693's withdraw case;
   `Reach._stalled`; SimNotes, "A way home whose arm stalls"): walked on, a
   jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm

@@ -1654,9 +1654,10 @@ def _walking_home(phase="home", watch=True):
   if phase == "rest":
     r.q_cmd["left"] = r.rest["left"].copy()
   else:
-    # ...its drivers just behind its command, as an arm that follows: no
-    # stall (`STALL_RAD`) inside any test's wait here (`_stalling_home`'s)
-    r.sensed[r.self_model.arm["left"]] = r.q_cmd["left"] - 0.1
+    # ...its drivers just behind its command (further from the rest), as an
+    # arm that follows: no stall (`STALL_RAD`) inside any test's wait here
+    # (`_stalling_home`'s)
+    r.sensed[r.self_model.arm["left"]] = r.q_cmd["left"] + 0.1
     assert 3 * rc.HOME_TIP_S < (rc.STALL_RAD - 0.1) / rc.JOINT_RATE + rc.STALL_S, "the premise"
   return r, rc
 
