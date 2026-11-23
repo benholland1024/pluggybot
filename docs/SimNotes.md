@@ -8504,43 +8504,46 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   64 fresh dev draws (3600-3663), beside the reference on the same draws (32
   laid, no fall); the fork at 40 N frozen, read and taken back out (its
   reading, above); the reference is round 5's.
-  - **Round 7's extra fall at 40 N was not the squeeze's.** Flown again with
-    every contact recorded, its flight round 7's, it came in a place already
-    lost -- its plate let go carried and lying on the floor -- as a step to
-    the side ended at the table's approach. The walker held still through
-    its 0.8 s settle while the left foot came up, the legs went to the
-    standing policy with that sole still off the floor, and the trunk went
-    from 3 to 34 deg in 0.46 s. Nothing else touched: the soles only the
-    floor, the jaws only the fork, no pair of the robot's own parts at 1 N,
-    the plate 0.22-0.27 m from both soles. A step handing back its legs with
-    a foot up is served behaviour, not the pass's.
-  - **The fork at 40 N.** On the dev draws it laid 38 places where the reference
-    laid 32 (+9 -3), with no fall: the hand-over's slips 12 to 2, forks tilted
-    20 deg or more at the put-down 9 to 5, strikes on the pass 13 to 16. Round
-    8's screen, written first, asked a sign test of 0.10 on its own 64 draws
-    and read 0.15. With round 7's draws, +17 -5 over 128 (0.017), and round
-    7's extra fall not the squeeze's, it was frozen on the two waves together:
-    the deviation was said before the bar's rows landed, and the merge rule
-    was unchanged. Read (above), it laid fewer places on the bar's draws and
-    fell once held out, in the fork's second pull-back off the pass. That pull
-    took a 20 cm crouch and a 0.55 rad bow with the waist turned 15 deg, and
-    the hand read 43-77 N. Then, its posture taken again with the waist at 30
-    and 45 deg, the pelvis went 0.42 m forward over feet that stayed where
-    they were (their soles' middles rising 5 cm, still on the floor: on their
-    toes), and the torso and pelvis came down on the pass's edge (up to 676 N;
-    what the fork itself touched was not recorded). On the bar's draws fewer
-    slips did not lay more places: every place the two parted on turned on the
-    fork, both ways -- its put-down, its carry, the hand-over (4 gained, 6
-    lost) -- as round 7's flips did. Over the 64, 40 N laid 49 forks where the
-    reference laid 45, and a place is three pieces.
+  - **Round 7's extra fall at 40 N: no contact of the squeeze's, but a step's
+    hand-back.** Flown again with every contact recorded, its flight round
+    7's, it came in a place already lost -- its plate let go carried and lying
+    on the floor, which the right sole pushed 23 cm along the floor 2-4 s
+    before (25 N's flight touched it for 0.1 s) -- as a step to the side ended
+    at the table's approach. The walker held still through its 0.8 s settle
+    while the left foot came up, the legs went to the standing policy with
+    that sole still off the floor, and the trunk went from 3 to 34 deg in 0.46
+    s. Through the step nothing else touched: the soles only the floor, the
+    jaws only the fork, no pair of the robot's own parts at 1 N, the plate
+    (its middle 0.21-0.28 m from both soles' middles) touching neither. 40 N
+    brought the robot there by a trajectory of its own, parted from 25 N's at
+    the fork's shut; a step handing back its legs with a foot up is served
+    behaviour, not the pass's.
+  - **The fork at 40 N.** On the dev draws it laid 38 places where the
+    reference laid 32 (+9 -3), with no fall: the hand-over's slips 12 to 2,
+    forks tilted 20 deg or more at the put-down 9 to 5, strikes on the pass 13
+    to 16. Frozen on round 7's and round 8's dev draws together (+17 -5 over
+    128; the screen written first, on round 8's 64 alone, read 0.15 and asked
+    0.10), it laid fewer places on the bar's draws and fell once held out
+    (above), in the fork's second pull-back off the pass. That pull's posture
+    swung the waist from 15 deg one way to 15 deg the other with a 20 cm
+    crouch and a 0.55 rad bow, and the hand read 43-77 N; the posture went
+    back to the stand, under which the pelvis came 0.27 m forward over feet
+    that stayed where they were (their soles' middles rising 5 cm, still on
+    the floor: on their toes), and the postures taken again with the waist at
+    30 and 45 deg carried it 0.15 m further, the torso and pelvis coming down
+    on the pass's edge (up to 676 N; what the fork itself touched was not
+    recorded). On the bar's draws fewer slips did not lay more places: every
+    place the two parted on turned on the fork, both ways -- its put-down, its
+    carry, the hand-over (4 gained, 6 lost) -- as round 7's flips did. Over
+    the 64, 40 N laid 49 forks where the reference laid 45, and a place is
+    three pieces.
   - **A step straight back with the plate**, before its walk to the place
-    (0.12 m asked; it walked 6.4-10.5 cm): the plate's strikes on the pass stayed
-    13 of 62, it was let go carried 3 times where 4 -- none of the reference's
-    four, so the step moved which plates came down, not how many -- and the
-    robot fell 4 times where it never did: twice at the fork's step at the
-    table's approach, once in the fork's find off the pass, and once at the
-    plate's own put-down. It laid 32 places (+11 -11); with 40 N, 39 (+13 -6)
-    and 2 falls.
+    (0.12 m asked; it walked 6.4-10.5 cm): the plate's strikes on the pass
+    stayed 13 of 62, it was let go carried 3 times where 4 -- none of the
+    reference's four -- and the robot fell 4 times where it never did: twice
+    at the fork's step at the table's approach, once in the fork's find off
+    the pass, and once at the plate's own put-down. It laid 32 places (+11
+    -11); with 40 N, 39 (+13 -6) and 2 falls.
   - **Where the reference loses now** (its first piece not laid, over the
     dev draws and the bar's 64: 63 misses of 128):
     - the cup, 28: set down off its spot or dropped 19, let go carried or
