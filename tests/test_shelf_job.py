@@ -167,8 +167,11 @@ def test_the_kind_is_offered_nowhere_and_its_sentence_fits_every_draw():
 
 
 def test_the_labels_are_places_only_where_the_stock_is():
-  """`find` takes a label where a house has the stock, and the served
-  house's places are as they were."""
+  """The body's place memory takes the labels where a house has the stock
+  (`place_tags`), and the served house's places are as they were. ⚠ A
+  procedure's `find` still takes none of them: the library checks a source
+  against its world's facts (`world_facts`, the served house's places), so
+  the shelf job's walk finds the shop's wall tag (`solutions.SHELF`)."""
   from pluggybot.humanoid.places import place_tags
   from pluggybot.perception.tags import LABEL_TAG_IDS
   from pluggybot.robot import world_spec
