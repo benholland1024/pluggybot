@@ -10179,15 +10179,26 @@ own noise): at Rowan's draw with the belief 0.85 m off, on the tree it fell on
 carry, one in a `pull` with the cube gripped -- and with this rule 1 of 24,
 the gripped one, bit for bit; on the tree of 11-23 (3619f4eb) neither fell
 (0 of 24 both ways), the base taking 18 postures deeper while an open carry
-read past 20 N, in 10 flights (to (-0.20 m, 0.55 rad)), the rule none but
-its give-ups' way back. Where it gave up, the true push on the hand was 21-33
-N; the reading can also fall short of it (14 N read, 29 N true). Ben's bar
-(the hands checks at set-outs 0-31 and 32-127, the tour's five jobs: 736
-flights) passed 609 and fell 5 on both trees; of its 421 open carries
-(median 1.9 N, 95th percentile 13 N) 8 read past 20 N, all our door's hand
-drawn back off its lever after letting go, 7 of them for 0.01-0.04 s as it
-was asked with no posture coming; the rule changed one flight, a door that
-failed either way.
+read past 20 N, in 10 flights (to (-0.20 m, 0.55 rad), the hand pushing 72
+N true), the rule none: only its give-ups' way back and, asked loaded as
+the body still came, a hold where it had got to. Where it gave up, the true
+push on the hand was 21-33 N; the reading can also fall short of it (14 N
+read, 29 N true). Ben's bar (the hands checks at set-outs 0-31 and 32-127,
+the tour's five jobs: 736 flights), flown on the rule's first form, passed
+609 and fell 5 on both trees; of its 421 open carries (median 1.9 N, 95th
+percentile 13 N) 8 read past 20 N, all our door's hand drawn back off its
+lever after letting go, 7 of them for 0.01-0.04 s as it was asked with no
+posture coming; the rule changed one flight, a door that failed either way
+(101.7 N read, 189 N true), and pools sealed by that form (240 flights)
+passed 197 and fell 6 on both. Every flight where it can act was flown
+again on each later form, deciding the same. ⚠ Open (review round 3 of
+11-23): asked loaded as the body still comes, the carry gives that posture
+up on its first command and latches it, so it takes none later reading
+light; whether a load withholds the posture at the ask rests on one
+reading, which for a path or a turned carry holds for the whole move; and
+the give-up reads the body's still-body estimate while the trunk moves (no
+flight here read a phantom past 20 N; a free-air carry bowing deep on
+purpose was not flown).
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,
