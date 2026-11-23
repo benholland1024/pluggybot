@@ -263,10 +263,16 @@ class RecordStore:
 
   def find(self, robot: str, query: str, kind: str | None = None,
            since: float | None = None, writer: str | None = None,
-           limit: int = FIND_LIMIT) -> list[Record]:
+           limit: int = FIND_LIMIT,
+           history_without: tuple[str, ...] = ()) -> list[Record]:
     """Full-text search over the living generation, retired rows included
     (a retired row is what `recall` is FOR: the robot took it off the page,
-    not out of the world). Best match first; ties to the newest."""
+    not out of the world). Best match first; ties to the newest.
+
+    ⚠ A history row whose text holds any of `history_without` is left out
+    INSIDE the query, before its `limit` (#739: left out after it, a
+    recall's own records took the places, and the fifth find of the same
+    words brought nothing back), matched as Python's `in` matches."""
     q = fts_query(query)
     if not q:
       return []
@@ -282,6 +288,9 @@ class RecordStore:
     if writer is not None:
       sql += " AND r.writer = ?"
       args.append(writer)
+    for mark in history_without:
+      sql += " AND NOT (r.kind = 'history' AND instr(r.text, ?) > 0)"
+      args.append(mark)
     sql += " ORDER BY bm25(records_fts), r.id DESC LIMIT ?"
     args.append(int(limit))
     return [_row(r) for r in self.db.execute(sql, args)]
