@@ -227,14 +227,20 @@ def park_spec(spec, names, at: dict) -> None:
   AWAY: each `at[name]` (x, y) at `PARK_Z`, its geoms' contacts off and in
   the parked group, a piece's weight held (`gravcomp`). Its live masks are
   its kind's (`_film`), so nothing of them need be kept."""
-  from pluggybot.perception.cull import PARKED_GROUP
   for name in names:
-    body = spec.body(name)
-    body.pos = [float(at[name][0]), float(at[name][1]), PARK_Z]
-    if not body.mocap:
-      body.gravcomp = 1.0
-    for geom in body.geoms:
-      geom.contype, geom.conaffinity, geom.group = 0, 0, PARKED_GROUP
+    park_body(spec.body(name), at[name])
+
+
+def park_body(body, xy) -> None:
+  """One body of a spec compiled put away (`park_spec`'s), at `xy` (x, y) at
+  `PARK_Z` -- the body itself, as `add_body` returned it: a spec with a
+  robot attached finds no body added after it by its name (#736)."""
+  from pluggybot.perception.cull import PARKED_GROUP
+  body.pos = [float(xy[0]), float(xy[1]), PARK_Z]
+  if not body.mocap:
+    body.gravcomp = 1.0
+  for geom in body.geoms:
+    geom.contype, geom.conaffinity, geom.group = 0, 0, PARKED_GROUP
 
 
 def _switch(model, body: int, live: bool) -> None:

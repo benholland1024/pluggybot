@@ -111,14 +111,17 @@ def attach(spec, so, parked: bool = True) -> None:
   weights and friction -- PUT AWAY (`dishware.park_spec`) unless `parked`
   is False, as an offline set-out's own world has it out."""
   cx, cy, cyaw = cart_place()
-  st.attach_cart(spec, (cx, cy), cyaw)
   lx, ly, lyaw = labels_place()
-  st.attach_labels(spec, (lx, ly), lyaw, label_places())
+  bodies = {st.CART: st.attach_cart(spec, (cx, cy), cyaw),
+            st.LABELS: st.attach_labels(spec, (lx, ly), lyaw, label_places())}
   for name, (x, y, yaw) in so.products.items():
-    st.ATTACH[name](spec, (x, y), yaw, st.CART_TOP, getattr(so.load, f"{name}_kg"),
-                    so.load.friction)
+    bodies[name] = st.ATTACH[name](spec, (x, y), yaw, st.CART_TOP,
+                                   getattr(so.load, f"{name}_kg"), so.load.friction)
   if parked:
-    dw.park_spec(spec, st.BODIES, PARK_AT)
+    # ...by the bodies themselves: a house with a robot in it finds none of
+    # them by name until it is compiled (`dishware.park_body`)
+    for name, body in bodies.items():
+      dw.park_body(body, PARK_AT[name])
 
 
 def _middles() -> dict:

@@ -175,3 +175,17 @@ def test_the_labels_are_places_only_where_the_stock_is():
   assert not set(LABEL_TAG_IDS) & set(place_tags(served)[0])
   model, _ = _shelf_world()
   assert set(LABEL_TAG_IDS) <= set(place_tags(model)[0])
+
+
+def test_the_stock_put_into_a_house_with_robots_is_compiled_put_away():
+  """`solve.py --feature shelf`'s house: home_spec's with its robot in it,
+  the stock put in by its own call. Such a spec finds no body added after
+  the robot by its name, and parked by name the first flight raised
+  (`dishware.park_body`, by the bodies themselves)."""
+  from pluggybot.robot import world_spec
+  spec = world_spec(world_config(HUMANOID_HOME)["model"])
+  store.attach(spec, ct.shelf_set_out(0))
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  assert store.present(model) and store.away(model, data, store.SHELF)

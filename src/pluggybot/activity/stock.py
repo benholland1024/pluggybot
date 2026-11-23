@@ -106,7 +106,7 @@ def _free(spec, name: str, at, yaw: float, z: float):
 
 
 def attach_candle(spec, at, yaw: float, z: float, kg: float, friction: float,
-                  tags: bool = True, name: str = "candle") -> None:
+                  tags: bool = True, name: str = "candle"):
   """The candle standing at `at` (x, y) on the surface `z` up, its tag on its
   top."""
   import mujoco
@@ -116,6 +116,7 @@ def attach_candle(spec, at, yaw: float, z: float, kg: float, friction: float,
                 friction=[float(friction), 0.005, 0.0001], rgba=[0.95, 0.92, 0.80, 1])
   dw._film(body, f"{name}_tag", TAG_OF["candle"], STOCK_TAG_SIZES[TAG_OF["candle"]], CANDLE_H,
            spec, tags)
+  return body
 
 
 def strut_pose() -> tuple[list[float], list[float]]:
@@ -131,7 +132,7 @@ def strut_pose() -> tuple[list[float], list[float]]:
 
 
 def attach_frame(spec, at, yaw: float, z: float, kg: float, friction: float,
-                 tags: bool = True, name: str = "frame") -> None:
+                 tags: bool = True, name: str = "frame"):
   """The desk frame standing at `at` (x, y) -- its panel's bottom middle --
   on the surface `z` up, its face toward `yaw` + pi (its body's -x), its tag
   on its face."""
@@ -149,6 +150,7 @@ def attach_frame(spec, at, yaw: float, z: float, kg: float, friction: float,
     body.add_geom(name=f"{name}_tag", type=mujoco.mjtGeom.mjGEOM_BOX,
                   size=[FILM / 2, half, half], pos=[-PANEL[0] - FILM / 2, 0.0, PANEL[2]],
                   contype=0, conaffinity=0, mass=0.0, material=_material(spec, TAG_OF["frame"]))
+  return body
 
 
 ATTACH = {"candle": attach_candle, "frame": attach_frame}
