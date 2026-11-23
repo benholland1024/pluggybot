@@ -313,9 +313,12 @@ HELD_S = 0.5
 #: (`keep_out`): a way judged from the top would take the way that comes
 #: least near it rather than be refused, as a verb's must (#678) -- and a
 #: raise its arm did not follow, `BLOCKED_M` short of it for `BLOCKED_S`
-#: after its command arrived, is left held (`_raise_short`). ⚠ TWICE: held
-#: mid-way by a stall (`STALL_S`), a door's withdraw raised once stalled on
-#: the door's top again and was left by it, the door's grade lost.
+#: after its command arrived, is left held (`_raise_short`). ⚠ TWICE, every
+#: way home held: held mid-way by a stall (`STALL_S`), a door's withdraw
+#: raised once stalled on the door's top again and was left by it, the
+#: door's grade lost 5 times in 32; raised twice, 4 of those passed -- but a
+#: hand-over's shove hold raised again pushed its door 55 -> 49 deg (SimNotes,
+#: "A way home whose arm stalls").
 LIFT_M, LIFTS = 0.05, 2
 #: ...and a walk's hand-over's is held so at once, on its way, where what its
 #: arm reads tips the body away from the hand (minus `_tipping`) past this, N
@@ -2411,8 +2414,9 @@ class Reach:
       self.hold_posture(0.0, 0.0)
 
   def _raise_short(self, side: str) -> bool:
-    """Whether a raise (`_homed`) whose command has arrived has its arm
-    short of it: its grip, by its senses, more than `BLOCKED_M` from it."""
+    """Whether a raise (`_held_home`'s: `_homed`, `_shoved`, `_stalled`)
+    whose command has arrived has its arm short of it: its grip, by its
+    senses, more than `BLOCKED_M` from it."""
     c, at = self.cmd[side], self.sensed_grip[side]
     return (self.lifted[side] > 0 and not self.homing[side] and c is not None
             and at is not None and float(np.linalg.norm(at - c.pos)) > BLOCKED_M)
