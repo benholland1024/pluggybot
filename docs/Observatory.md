@@ -27,8 +27,8 @@ planted"). Every walk's end -- a `step`'s, and the first hand verb after a
 `drive_to`, `face` or `find` -- held the walker still 0.8 s and gave the
 legs to the standing policy whatever its soles did. Now, where both soles
 have not read planted for 0.1 s by then (the other's lowest corner within
-4 mm of the planted one's, still, and neither sole on its toes or an edge
-past 15 mm of its corners), the walker is held on until they have, 1.2 s
+4 mm of the planted one's either way, still, and neither sole on its toes or
+an edge past 15 mm of its corners), the walker is held on until they have, 1.2 s
 at most, then the legs go over all the same. Where they have, nothing
 moves.
 
@@ -38,9 +38,10 @@ moves.
   verb's end -- where the weekend's wakes had none either: the mechanism is
   known from the pass's flights (never offered) on an EPYC 9654.
 - **What it costs**: the walker held on a little longer at about one
-  hand-over in 130 in the bar's flights (5 of 641, 0.04-0.07 s more) and
-  one in twenty where the robot sidesteps carrying a piece (the pass's 67
-  of 1,433, 0.16 s more at the median, 0.68 s at most), 1.2 s at most; a
+  hand-over in 130 in the bar's flights (5 of 641, 0.02-0.07 s more), at
+  none of the sealed pools' 284, and at one in twenty where the robot
+  sidesteps carrying a piece (the pass's 68 of 1,433, 0.16 s more at the
+  median, 0.68 s at most), 1.2 s at most; a
   hand-over whose bound ran out goes over at whatever phase the walker's
   stepping is in, as before -- none did in those flights.
 - **What it leaves**: the walker's own stepping in place after a sidestep

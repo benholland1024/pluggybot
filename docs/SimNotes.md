@@ -2860,21 +2860,20 @@ falls.
 `SPREAD_M` 15 mm; `mission.PLANTED_S` 0.1 s, `SETTLE_MORE_S` 1.2 s): the
 walker is held still `SETTLE_S` as before, and the legs handed over then
 wherever both soles have read planted for `PLANTED_S` -- the other sole's
-lowest corner within `DOWN_M` of the planted one's (over the mapped ground
-on a flight), every reading of those `PLANTED_S` within `STILL_M` of the
+lowest corner within `DOWN_M` of the planted one's either way (below it,
+the planted foot is itself lifting, before the swap moves to the other;
+over the mapped ground on a flight), every reading of those `PLANTED_S` within `STILL_M` of the
 others, since a foot landing or lifting moves it, and neither sole's
 corners spread over `SPREAD_M` of height (`StanceOdometry.spread`: one on
 its toes or an edge) -- the flight bit for bit what it was; else the walker
 is held on until they have, `SETTLE_MORE_S` at most, then the legs go over
 all the same and a `step` says so in its report (`feetDown`: false; its
-text unchanged). On the whole base it holds 75 of the 2,098 hand-overs, in
-52 flights -- 5 of the bar's 736, 42 of the pass's 64, 5 of the family's 6
--- and all 8 where a sole carried under 50 N; 46 of the 56 late lifts, and
-29 settles without one (both soles loaded, mostly a reading still
-settling). Of its 10 misses, 9 had landed 0.10-0.28 s before the
-hand-over, both soles loaded there (105-338 N); one (the pass's draw 36 at
-301.4 s) had a foot off the floor until 0.02 s before it, its corners
-within 9.3 mm and level, and the standing policy caught it.
+text unchanged). On the whole base it holds 77 of the 2,098 hand-overs, in
+53 flights -- 5 of the bar's 736, 43 of the pass's 64, 5 of the family's 6
+-- and all 8 where a sole carried under 50 N; 47 of the 56 late lifts, and
+30 settles without one (both soles loaded, mostly a reading still
+settling). Its 9 misses had all landed 0.10-0.28 s before the hand-over,
+both soles loaded there (105-338 N).
 
 - *The heights alone miss #740's own fall.* The pass's falls replay only
   on an EPYC 9654 (AVX-512: this class's flights part at the first
@@ -2899,28 +2898,43 @@ within 9.3 mm and level, and the standing policy caught it.
 - ⚠ *A window, never the run since it began.* The first candidate
   (98d0c9ac) judged stillness over the whole run, so a reading drifting a
   few millimetres as both soles settled started it again late, and it
-  would have held 270 of the 2,098 where the window holds 70 -- found
-  reading its own record of its first flights against this estimate.
+  would have held 270 of the 2,098 where the window on the heights alone
+  holds 70 -- found reading its own record of its first flights against
+  this estimate.
+- ⚠ *Within `DOWN_M` either way.* Bounded from above alone (dbf3296d), the
+  planted foot itself lifting read the other sole under it and passed: the
+  pass's draw 36 at 301.4 s had a foot off the floor until 0.02 s before
+  the hand-over, the other sole reading 4.95 mm under it, its corners
+  within 9.3 mm, and dbf3296d handed over there (the standing policy caught
+  it). Either way (4fcd086d, the review's), that settle is held 0.18 s more.
 
-**Flown** (one EPYC 7702 beside 95f8aefb, each flight at its own noise):
-Ben's bar, 609 of 736 and 5 falls on both trees, every job's numbers the
-same: it acted on 5 of the 736 flights (a hands check's table, three of the
-tour's tables and a door), holding each 0.04-0.07 s, and those flew to the
-grades the base's did; the other 731 are the base's end state for end
-state. The pass's 64 (never offered): the 21 flights it does not act on
-the base's end state for end state; on the 43 it acts on, places laid 21
-against the base's 22 (7 gained, 8 lost), falls 2 against 1 --
-the base's (draw 1) gone, two new: draw 21 a walker's fall in a `find`
-carrying the fork, 95 s after its one hold (the trunk leant 7-8 deg for 4
-s, then a corrective step failed; nothing but the fork touched), and draw
-62 a reach's strike, the empty gripper knocking the cup and its jaw
-striking the table at 172 N in a deepening bow, 18 s after a hold of
+**Flown** (one EPYC 7702 beside 95f8aefb, each flight at its own noise, on
+dbf3296d, bounded from above alone; 4fcd086d, either way, decides every
+settle recorded there as dbf3296d did -- the bar's, the pools' and the
+family's, every window's lowest reading over -3.5 mm, and the pass's but
+draw 36's, flown again on it): Ben's bar, 609 of 736 and 5 falls on both
+trees, every job's numbers the same: it acted on 5 of the 736 flights (a
+hands check's table, three of the tour's tables and a door), holding each
+0.02-0.07 s, and those flew to the grades the base's did; the other 731 are
+the base's end state for end state. The pools sealed by dbf3296d (the hands
+checks at 32 fresh set-outs, the tour's five jobs at 16 fresh draws): 201
+of 240 and 2 falls on both trees, the rule acting on none of them, every
+flight the base's end state. The pass's 64 (never offered): the 21 flights
+it does not act on the base's end state for end state; on the 43 it acts
+on, places laid 21 against the base's 22 (7 gained, 8 lost), falls 2
+against 1 -- the base's (draw 1) gone, two new: draw 21 a walker's fall in
+a `find` carrying the fork, 95 s after its one hold (the trunk leant 7-8
+deg for 4 s, then a corrective step failed; nothing but the fork touched),
+and draw 62 a reach's strike, the empty gripper knocking the cup and its
+jaw striking the table at 172 N in a deepening bow, 18 s after a hold of
 0.06 s -- each downstream of a flight the hold moved, neither at a
-hand-over. No
-hold ran out its bound there (the longest 1.48 s). W4's family flown on
-this class: 5 of 6 acted on, laid 3 against 5 (lab_3511's plate dropped).
-The pair's fixture line is the base's line for line but two wall-clock
-stamps.
+hand-over. Draw 36 on 4fcd086d, held 0.18 s at 301.6 s, laid its place
+where both trees dropped the fork: the pass on it reads laid 30 of 64, as
+the base, and 2 falls against 1. No hold ran out its bound there (the
+longest 1.48 s), nor anywhere else flown: 2,628 hand-overs. W4's family
+flown on this class: 5 of 6 acted on, laid 3 against 5 (lab_3511's plate
+dropped). The pair's fixture line is the base's line for line but two
+wall-clock stamps.
 
 ## The way home (issue #539)
 

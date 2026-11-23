@@ -83,8 +83,10 @@ CORNERS = np.array([[a, b, -1.0] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
 
 class PlantedRun:
   """Whether both soles have read PLANTED for its last `steps` readings
-  (#740), a reading at a time -- the odometry's `apart` and `spread` each
-  physics step: every `apart` within `DOWN_M` either way -- below, the
+  (#740), a reading at a time -- the odometry's `apart` and `spread` as each
+  physics step finds them (it ticks every `ODO_S`, so 0.1 s is ten of its
+  readings, each read five times): every `apart` within `DOWN_M` either
+  way -- below, the
   planted foot is the one lifting, before the swap moves to the other --
   and all within `STILL_M` of each other, since a foot landing or lifting
   moves it; every `spread` within `SPREAD_M`. ⚠ A WINDOW, NEVER THE RUN
