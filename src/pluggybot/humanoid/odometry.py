@@ -55,27 +55,21 @@ SWAP_M = 0.003
 #: noise read a walk 10 % short where the lower-foot rule read it 2.5 %.
 CLEAR_M, STEP_M = 0.01, 0.05
 #: BOTH SOLES PLANTED (#740, `PlantedRun`): the other sole's lowest corner
-#: over the planted one's (`apart`) no more than `DOWN_M`, m, and STILL: every
-#: such reading of the window within `STILL_M` of the others, m -- a foot
-#: landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES
-#: THE SWAP COMPARES ON ONE FLOOR: over the pass's and the family's 822
-#: hand-overs (X2, base 95f8aefb) these heights alone held 26 of the 31 whose
-#: walker still had a foot off the floor in its last 0.3 s, and 12 others; the
-#: middles read 11-21, and with both soles flat besides it acted on 63-85
-#: others -- a loaded sole on its edge reads not flat and is no hazard. ⚠ Two
-#: soles truly down read up to 5.6 mm apart at their corners (a stance's
-#: offset in the model of itself), so a few settles are held for nothing
-#: (SimNotes, "The step's hand-back once its soles are planted").
+#: within `DOWN_M` of the planted one's, either way (`apart`), m, and STILL:
+#: every reading of the window within `STILL_M` of the others, m -- a foot
+#: landing or lifting moves it. ⚠ THE LOWEST CORNERS, NEVER THE MIDDLES THE
+#: SWAP COMPARES ON ONE FLOOR: a lifted foot's middle reads no higher than the
+#: other's where the other stands on its toes. ⚠ Two soles truly down read up
+#: to 5.6 mm apart (a stance's offset in the model of itself): such a settle
+#: is held until its reading settles (SimNotes, "The step's hand-back once its
+#: soles are planted").
 DOWN_M, STILL_M = 0.004, 0.003
 #: ...and FLAT ENOUGH: neither sole's four corners spread over more than this
 #: of height, m (`spread`) -- one on its toes or an edge. ⚠ THE HEIGHTS ALONE
-#: MISS THE FALL #740 WAS FILED FOR: on an EPYC 9654, where it replays,
-#: lab_3511's walker held its left foot 1-2 mm up, unloading to 0 N, while
-#: the right carried the robot on its toes, tilted 11.5 deg (its corners 16-21
-#: mm apart), and its corners read level and still -- so did the falls of W4's
-#: two others (20-21 mm). Over the base's 2,098 hand-overs this holds 5 more
-#: (75), and all 8 where a sole carried under 50 N; a loaded sole tilted a few
-#: degrees on an edge, still, is no hazard (97 such, nothing followed).
+#: MISS #740'S OWN FALL: the left foot hung 1-2 mm up at 0 N while the right
+#: carried the robot on its toes, its corners 16-21 mm apart, and the corners'
+#: heights read level and still. ⚠ A sole a few degrees on an edge, loaded and
+#: still, is no hazard: it reads under this.
 SPREAD_M = 0.015
 #: A sole lies flat when its up is within this of the world's (cos of 3
 #: deg): only then is its footprint the ground's (`felt`).
@@ -90,12 +84,13 @@ CORNERS = np.array([[a, b, -1.0] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
 class PlantedRun:
   """Whether both soles have read PLANTED for its last `steps` readings
   (#740), a reading at a time -- the odometry's `apart` and `spread` each
-  physics step: every `apart` within `DOWN_M`, and all within `STILL_M` of
-  each other, since a foot landing or lifting moves it; every `spread`
-  within `SPREAD_M`. ⚠ A WINDOW, NEVER THE RUN SINCE IT BEGAN: kept so, a
-  reading drifting a few mm over a settle as both soles settle started the
-  run again late, and over the base's 2,098 hand-overs held 270 where the
-  window holds 70. None (no tick yet) reads nothing up."""
+  physics step: every `apart` within `DOWN_M` either way -- below, the
+  planted foot is the one lifting, before the swap moves to the other --
+  and all within `STILL_M` of each other, since a foot landing or lifting
+  moves it; every `spread` within `SPREAD_M`. ⚠ A WINDOW, NEVER THE RUN
+  SINCE IT BEGAN: a reading drifting a few mm as both soles settle would
+  start a run again late, and hold about four times as many settles. None
+  (no tick yet) reads nothing up."""
 
   def __init__(self, steps: int):
     self.window: deque = deque(maxlen=steps)
@@ -106,7 +101,8 @@ class PlantedRun:
       return False
     known = [a for a, _ in self.window if a is not None]
     tilts = [t for _, t in self.window if t is not None]
-    return ((not known or (max(known) <= DOWN_M and max(known) - min(known) <= STILL_M))
+    return ((not known or (max(known) <= DOWN_M and min(known) >= -DOWN_M
+                           and max(known) - min(known) <= STILL_M))
             and (not tilts or max(tilts) <= SPREAD_M))
 
 

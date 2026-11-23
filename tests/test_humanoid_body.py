@@ -926,6 +926,11 @@ def test_the_legs_go_back_to_the_stand_only_once_both_soles_have_read_planted():
   # held 270 of the base's 2,098 hand-overs where the window holds 70
   drift = lambda n: 0.000039 * min(max(n - (least - 100), 0), 100)  # noqa: E731
   assert _settled(None, apart=drift) == (least, True, "stand"), "a drift is still"
+  # ...and the planted foot itself lifting, before the swap moves to the
+  # other (the other sole read 5 mm under it): not planted, either way
+  lifting = lambda n: -0.005 if n < least + 50 else 0.0  # noqa: E731
+  assert _settled(None, apart=lifting) == (least + 50 + need - 1, True, "stand"), \
+    "the planted foot lifting"
   # ...and a sole on its toes, its corners 2 cm apart, is not planted
   # (lab_3511 on the 9654: its heights read level and still): held to the
   # bound, or until it has lain flat a window long
@@ -974,6 +979,10 @@ def test_both_soles_read_planted_off_the_legs_reckoning():
     "a drift under STILL_M a window is still"
   run = PlantedRun(2)
   assert [run.read(None), run.read(None)] == [False, True], "no tick yet: nothing read up"
+  run = PlantedRun(2)
+  assert [run.read(-DOWN_M + 0.0005), run.read(-DOWN_M + 0.0005), run.read(-DOWN_M - 0.001),
+          run.read(-DOWN_M - 0.001)] == [False, True, False, False], \
+    "the other sole below the planted one past DOWN_M: the planted foot is lifting"
   from pluggybot.humanoid.odometry import SPREAD_M
   run = PlantedRun(2)
   assert [run.read(0.0, 0.0), run.read(0.0, SPREAD_M + 0.001), run.read(0.0, 0.0),
