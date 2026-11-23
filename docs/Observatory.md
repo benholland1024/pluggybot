@@ -10,6 +10,43 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Both maps dropped at the next wake: `MAP_EPOCH` 6 (#681's live maps, X7, `loop-681e`) — opens when this PR is deployed, only if Ben says yes before the release
+
+**What changed is what the next wake carries over.** The save the deployed
+world restores is of epoch 5, so it comes back as a changed world does: the
+clock, the packs, the deaths and the jobs, never the bodies, the beliefs,
+the maps or the places found in them. Both robots begin the wake at their
+starts, off their stations, with no map and no place found, and History
+says why (`MAPS_DROPPED`: "the map I had held the rooms I worked in as much
+as 40 cm from where they are, and it is gone"; 93 characters, the restart's
+whole line 215-290 with what can follow it, none cut). Nothing else moved:
+the geometry, the prompt (`bb1e3d07…`) and the hello are unmoved.
+
+**Why** (#681; X7's read of the backups of 11-22 and 11-23, the `world.npz`
+alone, numbers only). Every Luca fix of the weekend kept its map, and
+Rowan's was kept from its 11-22 09:17 fix. On those maps the robot's own
+scan, fitted with the matcher's field and no odometry from the truth, put
+Rowan 33-36 cm west at the lobby and the storeroom's counter (6 places) and
+Luca 3.5-5.7 cm north at 9 places, with the storeroom laid a second time
+35-40 cm west. A belief put at the truth on them was taken to the offset
+within a second to minutes, every scan `ok`; on a map laid fresh the same
+flights held 0.2-2.6 cm. A station's fix keeps a map unless the belief is
+0.6 m or 6 deg off, and no rule takes a copy back: the docked belief of
+11-21's save, 10.0 cm west and 8.3 cm north, was the map's lobby offset to
+the millimetre (#703's failure of 11-22 09:08 began from it).
+
+**It is a reset, not a fix.** Rowan's map dropped at 11-22 09:17 held its
+belief within 6 cm for about six hours of work and was 35 cm off by 17:45:
+the mechanisms that lay a copy (a walk where a direction is barely fixed, a
+fall, standing still while every fifth second's scan is laid) are all still
+there.
+
+**What the period is for.** The wake's first hour (both robots explore and
+lay their maps again, the time against 11-15's start with no map); then the
+`drift` rows by robot and place against the 11-21/22 numbers above: how soon
+each map leaves the world, and where; and Rowan's procedures that walk to
+fixed coordinates, tried while its map is new.
+
 ### A find asked again brings back what it finds (#739, X4, `loop-739`) — opens when this PR is deployed
 
 **What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506

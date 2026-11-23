@@ -614,7 +614,7 @@ def test_another_houses_save_is_never_carried_on(tmp_path):
   assert loaded.snapshot is None and "room_hub" in loaded.why
 
 
-@pytest.mark.parametrize("old", [None, 1, 2])
+@pytest.mark.parametrize("old", [None, 1, 2, 5])
 def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path, old):
   """#425: hours of heading walked while the quadrupeds lay, and every map
   kept since was laid askew -- and a place found in one is wrong too. The
@@ -623,7 +623,9 @@ def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path, old
   and the clock and puts back no body, belief or map, and says why. #476:
   the deployed volume's saves are of epoch 1, and their maps were found
   askew again, so a save of epoch 1 is dropped too -- and then of epoch 2,
-  laid askew again before a fixture could drop a map that was."""
+  laid askew again before a fixture could drop a map that was. #681: the
+  saves of 11-21 and 11-22 are of epoch 5, and both maps had drifted off
+  the world where the robots worked (Rowan's 33-36 cm), so epoch 5 goes."""
   life = _humanoid(tmp_path)
   life.body.start_at(*world_config(HUMANOID_HOME)["start"])
   _walk(life, 1.0, 0.3, 0.0)

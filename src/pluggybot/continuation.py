@@ -95,11 +95,16 @@ MAX_START_OVERS = MAX_RESUMES
 #: have laid a copy of the room into, about 0.55 m east of it: the rule
 #: stops a new copy, never one already laid (Rowan stood 0.75 m east of the
 #: truth from its 20:33 fall on 2026-11-14 to the pause; Ben's call, 11-15).
-MAP_EPOCH = 5
+#: 6: #681's live maps (X7, loop of 11-23): kept since 11-21, both had
+#: drifted off the world where the robots worked -- the scan alone, fitted
+#: from the truth, put Rowan 33-36 cm west at the lobby and the counter and
+#: Luca 4-6 cm north, its storeroom laid a second time 35-40 cm west -- and
+#: no rule takes a copy back once laid.
+MAP_EPOCH = 6
 #: ...said for the newest epoch's reason: a save crosses only the bump the
 #: deploy that reads it brings.
-MAPS_DROPPED = ("the map I had could hold a room laid a second time, half a metre off, "
-                "after a fall, and it is gone")
+MAPS_DROPPED = ("the map I had held the rooms I worked in as much as 40 cm from where "
+                "they are, and it is gone")
 #: ...and History's words where the save is of the same house with another
 #: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
 #: the clock, its pack, its deaths and its jobs with it.
