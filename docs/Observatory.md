@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A find asked again brings back what it finds (#739, X4, `loop-739`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections), the session host's hello and every sentence a
+recall leaves in History, byte for byte. What moves is what a find brings
+back: a `recall` block's lines, and the N of its `recalled N lines`
+History line and of the `recall` event's `hits`, which can be larger. A
+block's caps are unchanged (4,000 characters, a chat read's 8,000). It
+rides the release cut from `loop-staging` on 11-24.
+
+**The change** (`RecordStore.find`'s `history_without`,
+`thoughts.RECALL_MARKS`). A recall's own History lines -- its `chose
+recall (...)` line, written before it runs, and its `recalled N lines --
+...` -- are left out of a find inside the store's query, before its eight
+(`FIND_LIMIT`). Left out after, as since #221, they took places among the
+eight (found in #738's review: in #739's made-up case the fifth find of
+the same words brought nothing back). What a find brought back before is
+still there, first and in the same order. Replayed off the robots' own
+stores as each find saw them, from 11-14 to 11-22 (79 finds, each replay
+matching its narrated count): 52 bring back more, 134 lines in all, none
+fewer, and the 3 that found nothing of their own bring back 7-8; the
+weekend's two words searched five times each, `t_0394` and
+`table_recon2`, found 2-3 and 3-8 lines of their own, now 7-8.
+
+**What the period is for.**
+- **The acceptance**: the `recall` events' `hits` for one robot's words
+  found again, against the weekend's `t_0394` (35, 6, 5, 2, 8, with what
+  was read beside it).
+- **What it costs**: the turn after a find carries more recalled text (on
+  those 79, 253 characters more a block on average, at most 2,334), so
+  more input tokens; and whether the robots, told by #738 what a find
+  searches, lean on it more.
+
 ### A way home whose arm stalls is held, a withdraw's too (#693's withdraw case, W2, `loop-693d`) — opens when this PR is deployed
 
 **What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506

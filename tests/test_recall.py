@@ -95,6 +95,7 @@ def test_a_find_asked_again_and_again_brings_back_what_it_found_the_first_time()
     first = first or block
     assert block == first and block["hits"] == 4, (i, block)
     f.remember(f"recalled {block['hits']} lines -- find 'table_recon2'", t=11.0 + 2 * i)
+  assert f.recall(read="#4")["hits"] == 1, "...nor a read"
 
 
 #: Every kind of line a find searches (`RECORD_KINDS`), as the RECALL rule
