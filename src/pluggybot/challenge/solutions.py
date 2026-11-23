@@ -533,16 +533,18 @@ PASS_LIBRARY, PASS = _pass_job()
 #: THE SHOP'S SHELF STOCKED (#736, stage 1; not offered): the walk to the
 #: cart, then the shelf check's procedure from the check's start
 #: (`evaluation.hands_check.SHELF`, its labels filled from the job's,
-#: `job_routine`). The walk finds the lower board's first label (79) round
-#: the shop's address, stands a metre out of the shelf in front of where the
-#: cart stands (0.6 m left of that label, `home.store`), faces the shelf,
-#: and steps in by the frame's tag to where the check starts: the frame 0.32
-#: m ahead and 0.21 m left (`counter.SHELF_SOURCES`, `CART_GAP`), in two.
+#: `job_routine`). The walk finds the shop's left wall tag (70) round the
+#: shop's address -- the labels are no place of the served house's
+#: (`world_facts`), so `find` takes none of them -- walks to `SHELF_OUT` m
+#: out of the shelf in front of where the cart stands (off that tag by the
+#: store's layout, `home.store`), faces the shelf, and steps in by the
+#: frame's tag to where the check starts, the frame 0.32 m ahead and 0.21 m
+#: left (`counter.SHELF_SOURCES`, `CART_GAP`), in two.
 SHELF_APPROACH = '''def to_shelf():
   budget(steps=16, seconds=900)
-  find(79, %(ax)g, %(ay)g, 600)
-  drive_to(read("find.x") - 1.0, read("find.y") + 0.6, 180)
-  face(0)
+  find(70, %(ax)g, %(ay)g, 600)
+  drive_to(read("find.x") + %(dx)g, read("find.y") + %(dy)g, 180)
+  face(%(facing)g)
   spot(77)
   if not step(read("spot.x") - 0.62, read("spot.y") - 0.21):
     pass
@@ -550,6 +552,9 @@ SHELF_APPROACH = '''def to_shelf():
   if not step(read("spot.x") - 0.32, read("spot.y") - 0.21):
     pass
 '''
+#: How far out of the shelf's front the walk stops, m: half a metre further
+#: out than the check's start, in the aisle (1.68 m wide) clear of the cart.
+SHELF_OUT = 1.0
 
 
 def _shelf_job() -> tuple[str, str]:
@@ -557,9 +562,14 @@ def _shelf_job() -> tuple[str, str]:
   from the shop's address, then the shelf check's procedure
   (`hands_check.SHELF`, a template its job's labels fill)."""
   from pluggybot.evaluation import hands_check
+  from pluggybot.home import areas, store
   from pluggybot.home import places as addresses
   address = addresses.area("shop")["address"]
-  return SHELF_APPROACH % {"ax": address["x"], "ay": address["y"]}, hands_check.SHELF
+  _, tx, ty, _ = next(t for t in areas.area_tags()["shop"] if t[0] == 70)
+  x, y = store.to_world(store.CART_AT, SHELF_OUT)
+  return (SHELF_APPROACH % {"ax": address["x"], "ay": address["y"], "dx": round(x - tx, 4),
+                            "dy": round(y - ty, 4), "facing": round(store.facing_in(), 4) + 0.0},
+          hands_check.SHELF)
 
 
 SHELF = _shelf_job()
