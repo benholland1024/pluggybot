@@ -4141,65 +4141,97 @@ catch broken and no fall: what a `spot` looking lower does.
 **What is true now.** Plugged in, a standing robot creeps in toward its
 station. The balancer's steady 2 N on the port (`BALANCER_N`), right of the
 robot's middle, slides its soles across the floor -- they never lift: MuJoCo's
-soft friction under a sustained shear -- at 7.5 mm a minute, turning it left
-about a degree a minute at first, until its plug meets the station's box 18
-cm past its seat and 11 deg turned, after about 22 minutes, and there it
-stays. From there the unplug's arm, on its way out to 3 cm behind the plug's
-back -- now at the station's face, 0.17 m ahead of the stance -- drives its jaw
-into the wall beside the station (up to 304 N) and then into the station's box
-(93 N), and stops short (every contact of 5 N or more recorded: the same
-unplug backed off first touched nothing but the plug): "my hand could not get the plug out",
-twice of twice on 11-14 after the lobby's charges of 1,944 and 1,504 s, each
-13.1 s after "unplugging" -- a restart only made it heard, and a charge's own
-end failed the same way unheard (it says so now). The unplug now begins at its seat: further in
-than `UNPLUG_IN_M` (6 cm) it backs off to it first, by the station as it last
-saw it -- from 18 cm in no look sees the tags, plain or bowed -- in a step or two
-and never turned on the spot first (pinned, a turn would swing its plug across
-the box's face, which the port lets go to); and a failed try is tried once more
-from a look of its own, taken standing still (`UNPLUG_TRIES`). Its looks
-while it backs off are plain ones, never bowed toward the box.
+soft friction under a sustained shear -- at 7.5 mm a minute from where it
+docked, every noise alike, turning it left (11 deg in the flights, up to 17
+live), until its plug meets the station's box 18.3 cm past its seat, after
+20-25 minutes, and there it stays. It docks up to 3.6 cm past its seat
+already. From about 10 cm past it, the unplug's arm, on its way out to 3 cm
+behind the plug's back, drives its jaw into the wall beside the station (up
+to 329 N) and the station's box, and stops short: "my hand could not get the
+plug out". So the unplug begins at its seat: further in than `UNPLUG_IN_M` (6
+cm) it backs off to it first, never turned on the spot first (pinned: a turn
+would swing its plug across the box's face, which the port lets go to), and a
+failed try is tried once more from a look of its own, taken standing still
+(`UNPLUG_TRIES`). Its looks while it backs off are plain ones, never bowed
+toward the box.
 
-**What tells it that it crept: its scan matcher.** Its legs see no slide with
-their feet planted, the gyro's 0.02 deg/s is under the heading hold's gate,
-and the station's anchor is taken once, as the charge begins. The band's fits,
-ten a second while it stands docked, keep its belief on its body:
+**And after a charge its own clock says was long enough to creep, its first
+try steps straight back first and looks** (#703's option 2, Ben's call of
+2026-11-23; `charge.crept`). Its dock starts the clock as the plug goes in
+(`HumanoidMission.plugged_t`, kept across a restart, forgotten once the plug
+is out). Plugged in longer than `CREPT_AFTER_S` (300 s), it steps straight
+back along its own facing -- never turned -- the creep its clock gives (at
+most `CREEP_MOST_M`, 18.3 cm) and `CREPT_PAST_M` (5 cm) more, whatever its
+belief says; holds still `LOOK_SETTLE_S`; and a plain look places the
+station, which its back-off and its hand go by. A look is relative: whatever
+the belief's error, the station it places is where the station truly is from
+where the robot stands. A charge whose length it does not know (a save from
+before the clock) steps back as far as a creep goes; a shorter charge's
+unplug is as it was. A look that sees nothing leaves it the station it had,
+and whatever the step's word -- kept off the other robot behind (`blocked`),
+out of its time partway, fallen and up again with its plug in -- it looks and
+its back-off and its try go on as before. It takes this step only facing its
+station as it docked (`CREPT_FACING_RAD`, 35 deg): after a failed unplug the
+undock's turn leaves it facing away, its plug in, and a step back would walk
+its back into the station. A dock starts the clock afresh, as the port takes its plug;
+a redock keeps it.
 
-| plugged in (lobby, the loop's charge path) | its body crept in, turned | its belief off its body |
+**Why its own clock, not its belief.** Its legs see no slide with their feet
+planted, the gyro's 0.02 deg/s is under the heading hold's gate, and the
+station's anchor is taken once, as the charge begins: only its scan matcher
+could tell it crept. On a fresh map it does, within a centimetre through the
+whole creep. On the live maps of 11-21/22 it did not: docked at the lobby's
+station, the belief walked 3-21 cm off the body with every fit `ok`, and the
+unplug failed 3 times of 8, each where it hid the creep (#703's comment of
+11-22; why the belief drifts there is an issue of its own).
+
+**Why 300 s, and 5 cm past the creep.** In the base's flights below, its
+belief drifted, the robot docked 1.6-3.6 cm past its seat, and its hand got
+behind the plug from 5.4-9.1 cm in and never from 10.4-14.1: 300 s of creep
+leaves it within 7.4 cm. A plain look fits both tags only from 2 cm in front
+of its seat or further back, and turned the creep's 11 deg only from its seat
+or further back (from 4 cm in, never; a probe at the lobby's station): docked
+up to 3.6 cm in, the step goes 5 cm past the creep to end at its seat or
+behind it.
+
+**Measured** (#703's option 2; the lobby's station, osmesa, the base `loop-staging` 7c21ea17 and the
+branch on one EPYC 7532 pod; K11's reproduction -- docked, charged S s, the run's end with the plug in,
+then a fresh process restoring the save and unplugging as a decided `explore` begins; "drifted", its
+scan matcher off through the charge, the belief 0.10-0.22 m and 7-10 deg off at the restore, as the
+live rows; out / failed -- "my hand could not get the plug out" after both tries -- / fell):
+
+| charged, its belief | before | after |
 |---|---|---|
-| 300 s | 3.8 cm, 5 deg | 5.3 mm, 0.13 deg |
-| 900 s | 11.2 cm, 10 deg | 3.0 mm, 0.11 deg |
-| 1500 s | 16.1 cm, 11 deg | 2.3 mm, 0.01 deg |
-| 600 s, its matcher off | 8 cm, 9 deg | 110 mm, 7.0 deg |
+| 300 s, drifted (3 noises) | 3 / 0 / 0 | 3 / 0 / 0 |
+| 450 s, drifted (3) | 3 / 0 / 1 | 3 / 0 / 0 |
+| 600 s, drifted (3) | 1 / 2 / 0 | 3 / 0 / 0 |
+| 900 s, drifted (3) | 0 / 3 / 0 | 3 / 0 / 0 |
+| 1,500 s, drifted (6) | 1 / 5 / 1 | 6 / 0 / 0 |
+| 2,200 s, drifted (6) | 3 / 3 / 2 | 6 / 0 / 0 |
+| 2,700 s, drifted (6) | 5 / 1 / 1 | 6 / 0 / 0 |
+| 3,200 s, drifted (6) | 5 / 1 / 0 | 6 / 0 / 0 |
+| 1,500-3,200 s, right (12) | 12 / 0 / 0 | 12 / 0 / 0 |
 
-At the house's station, in one process, its belief was 2.7, 3.0, 9.7 and 12.2
-mm off at 300, 600, 900 and 1,500 s. On a map laid from its seat alone, the robot never having walked
-(`station_spike.py --hold`), its belief did not follow: 15.5 mm off after 15
-mm of creep, the fits laying each scan where the belief already was.
+Every fall before was the drifted belief acting after the plug came out: the carry to a cup the belief
+placed went out of reach pressing the station's boss (up to 36 N) and the trunk twisted 25-27 deg, or
+the belief's back-off stepped only 5-7 cm and the jaw struck the wall beside the station (up to 329 N).
+After, every step back's look saw the station, and the unplug came out at its first try 26.5-28.3 s
+after it began (before, 21-42 s). The same saves with the clock forgotten (a step of 23.3 cm from a
+creep of 4-19 cm): 12 of 12 out, parked, none fell, ending 4-17 cm behind the seat; steps forced to 30
+and 35 cm, 24-30 cm behind it, 6 of 6. A charge of 250 s unplugs as before, bit for bit (both trees'
+rows identical). A save from before the clock -- Wednesday's first wake's -- restored on the branch, at the house's station after 510 s and the lobby's after 300, 600 and 2,060 s,
+its belief right or drifted (18): every clock read unknown, the step of 23.3 cm, its look saw the
+station, and 18 of 18 came out at the first try, parked, none fell -- the same saves on the base, 14
+out, 4 failed, 2 fell.
 
-**Measured** (the lobby's station, one humanoid, osmesa; each a fresh process
-from a save of one charge, the unplug a decided `explore` begins with):
-
-| saved after | before | backed off to its seat first |
-|---|---|---|
-| 300 s | unplugged, 21.3 s | not asked to (3.2 cm in): the same flight |
-| 900 s | unplugged | from 10.3 cm in to 0.9, one step: unplugged, 25.8 s |
-| 1500 s | its hand did not get behind the plug, in 13.2 s | from 14.9 cm in to 1.7 cm out, one step: unplugged, 26.9 s |
-
-In one process, charged 1,500 s and the unplug at once (one pod), the same:
-at the lobby's station, at the house's (14 cm in, 12 deg), and at the lobby's
-on the live build `2a1fbaff`, each "its hand did not get behind the plug", in
-13.2-13.7 s; its matcher off, the belief stayed where the robot docked, 197 mm
-and 9 deg off its body at 1,500 s. The station's own trials (`--approach`,
-`--seats`, `--lost`) fly as they did, row for row: none charges long enough
-to creep 6 cm.
 
 **A walk after an unplug that failed is tethered.** After the undock's turn
 the rope runs from the plug's back, now in front of the robot, back through
 its body to the station: walked off, the rope's stop pulls the plug straight
 into the port's face (16.5 N read), which the catch holds -- it lets go only to
 a pull off the face or across it -- and the walk stalled 2.7 m short, as
-Luca's did 5.1 m short. What the loop does where a hand cannot take the plug
-out is #703's question for Ben.
+Luca's did 5.1 m short. Where its hand cannot take the plug out, the loop
+goes on, the plug in, and says so (`UNPLUG_FAILED`).
 
 ## The humanoids' first jobs (issue #559, stage 3)
 

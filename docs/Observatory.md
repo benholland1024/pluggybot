@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### After a long charge the unplug steps back and looks first (#703's option 2, X1, `loop-703b`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte. No
+line a robot reads is new or reworded: "CHARGE: unplugging at …" and "CHARGE:
+my hand could not get the plug out -- going on anyway" are as they were. That
+last line in the sim's log now carries its tries' trace, the log's alone.
+
+**The change** (`charge.crept`, `_step_back_routine`, `CREPT_AFTER_S`,
+`CREEP_M_S`, `CREEP_MOST_M`, `CREPT_PAST_M`, `HumanoidMission.plugged_t`;
+SimNotes, "The unplug after a long charge"). A robot's dock starts a clock as
+its plug goes in, kept across a restart. Plugged in more than 300 s, its
+unplug's first try steps straight back first -- the creep the clock gives, 7.5
+mm a minute up to 18.3 cm, and 5 cm more, never turned -- then takes a plain
+look standing still and goes by the station that look places, never by its
+belief. A shorter charge unplugs as before. A save from before the clock
+steps back as far as a creep goes: **the first wake's** (both robots were
+plugged in at the weekend's pause, Luca for 2,059 s at the lobby's station,
+Rowan 514 s at the house's).
+
+**What the period is for.**
+- **The acceptance**: an unplug after a charge carried over a run's end
+  takes its plug out -- "my hand could not get the plug out" against the
+  weekend's 3 of 8 -- and no robot falls in an unplug. A failed one's log
+  line says whether the step back ran (`crept`, `step`) and whether its look
+  saw the station (`looked`).
+- **What it costs**: one step back and a look (5-7 s) on every unplug after
+  a charge of more than 300 s, and a plug let go short of its cup from a
+  robot standing further back than its seat (the balancer reels it home).
+- **What it leaves**: the belief's drift while docked (its own issue), which
+  anything else at a station still reads, and a charge of 300 s or less with
+  a drifted belief, which unplugs as before.
+
 ### A find asked again brings back what it finds (#739, X4, `loop-739`) — opens when this PR is deployed
 
 **What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506

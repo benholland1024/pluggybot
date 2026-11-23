@@ -776,15 +776,25 @@ save a filmstrip PNG named after the script.
   and the robot fell. ⚠ THE UNPLUG BEGINS AT ITS SEAT TOO (#703;
   `charge.unplug_routine`'s back-off, `UNPLUG_IN_M`; SimNotes, "The unplug
   after a long charge"): plugged in, the balancer's 2 N creeps the standing
-  robot in, 7.5 mm a minute and turning it, until its plug meets the box
-  18 cm past its seat (about 22 minutes), where the arm's way out behind
-  the plug drove its jaw into the wall beside the station and the box -- so
-  further in than 6 cm it backs off to
+  robot in, 7.5 mm a minute from where it docked and turning it, until its
+  plug meets the box 18.3 cm past its seat (20-25 minutes); from 10 cm in
+  the arm's way out behind the plug drove its jaw into the wall beside the
+  station and the box -- so further in than 6 cm it backs off to
   its seat first, never turned on the spot first (pinned, a turn swings
-  the plug across the box's face), by the station as it last saw it (its
-  scan matcher keeps its belief on its body, within about a centimetre),
+  the plug across the box's face), by the station as it last saw it,
   and a failed try goes again off a look of its own; a charge's end that
-  left the plug in says so (`UNPLUG_FAILED`). ⚠ One that fails twice
+  left the plug in says so (`UNPLUG_FAILED`, its tries' trace the log's
+  alone). ⚠ AFTER A CHARGE ITS OWN CLOCK SAYS WAS LONG ENOUGH TO CREEP, THE
+  FIRST TRY STEPS STRAIGHT BACK FIRST AND LOOKS (#703's option 2, Ben's
+  call of 11-23; `charge.crept`, `CREPT_AFTER_S` 300 s,
+  `HumanoidMission.plugged_t`, set by its dock and kept across a restart):
+  the creep its clock gives and `CREPT_PAST_M` (5 cm) more, whatever its
+  belief says -- live, docked, the belief walked 0.13-0.21 m off the body
+  with every fit `ok` and hid the creep, and the hand failed 3 times of 8 --
+  then the station as a plain look of its own places it, which sees the
+  pair only from about its seat or further back; a charge whose length it
+  does not know (a save from before the clock) steps back as far as a creep
+  goes. ⚠ One that fails twice
   leaves the plug in, and after the undock's turn the rope pulls it into
   the port's face, which the catch holds: the walk stalls. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
   STANDING STILL, THE STATION CARRIED AS THE FEET CARRY IT (#596;

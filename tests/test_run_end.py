@@ -330,7 +330,9 @@ def test_a_full_pack_ends_the_stay_the_plug_out_by_hand_and_the_station_cleared(
 def test_a_hand_that_could_not_take_the_plug_out_says_so():
   """It goes on, the plug in (#703: walked off after the undock's turn, the
   rope pulls it into the port's face, which the catch holds); only the log
-  can say the hand failed."""
+  can say the hand failed -- and how its tries went, their trace the log's
+  alone, as a failed dock's: live, the log said nothing between
+  "unplugging" and this, 24-29 s of tries."""
   life = _life()
   _plugged_in(life)
 
@@ -338,8 +340,12 @@ def test_a_hand_that_could_not_take_the_plug_out_says_so():
     return "arrived"
     yield
   life.body.undock_routine = undock
+  life.body.charge_trace = lambda: "{'unplugTry': 0, 'why': 'its hand did not get behind the plug'}"
   life.body.run(life.unplug_routine())
-  assert any("could not get the plug out" in ln for ln in life.log), life.log[-3:]
+  line = next((ln for ln in life.log if "could not get the plug out" in ln), None)
+  assert line is not None, life.log[-3:]
+  assert line.endswith(f"{lc.UNPLUG_FAILED}  [{life.body.charge_trace()}]"), line
+  assert life.status == lc.UNPLUG_FAILED, "what it says is the line alone"
 
 
 def test_a_charges_end_that_left_the_plug_in_says_so_too():
@@ -355,7 +361,7 @@ def test_a_charges_end_that_left_the_plug_in_says_so_too():
     yield
   life.body.undock_routine = undock
   life.body.run(life.charge_routine())
-  assert life.log[-1].endswith(lc.UNPLUG_FAILED), life.log[-3:]
+  assert life.log[-1].endswith(f"{lc.UNPLUG_FAILED}  [{life.body.charge_trace()}]"), life.log[-3:]
   # ...and one that took it out says nothing of the kind
   life = _life()
   _plugged_in(life, frac=lc.CHARGED)

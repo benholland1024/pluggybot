@@ -414,6 +414,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.legs = "stand"
     #: Falls the get-up policy has taken over.
     self.falls = 0
+    #: When its dock last put its plug in, sim s by its own clock (#703's
+    #: option 2, `HumanoidBody.plugged_s`), or None where it does not know.
+    self.plugged_t: float | None = None
     #: When something but a walk command last moved it, sim s, and the
     #: falls it had counted then: the heading's hold waits from it too
     #: (`_settled`).
@@ -1072,7 +1075,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
              "placeLook": self._place_look_kept(),
              # ...and the station its charge went to (#560): restarted plugged
              # in at the mall, an unplug would reach for the house's plug
-             "station": self.station},
+             "station": self.station,
+             # ...and when its plug went in, its unplug's clock (#703;
+             # SimNotes, "The unplug after a long charge")
+             "pluggedT": self.plugged_t},
             arrays)
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
@@ -1159,6 +1165,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.depth.peer_rng.bit_generator.state = state["depthRng"][1]
     if state.get("station") in self.stations:
       self.station = state["station"]
+    # ...a save from before the clock: how long it has been plugged in unknown
+    plugged = state.get("pluggedT")
+    self.plugged_t = None if plugged is None else float(plugged)
     if self.head is not None:
       self.head.forget()
     grid = arrays.get("grid")
