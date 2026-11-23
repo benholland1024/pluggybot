@@ -1642,7 +1642,9 @@ save a filmstrip PNG named after the script.
   chain ends at any other action but a fallback's, which keeps it ONCE, a
   second running dropping it (#604: the post-recall turn is the heaviest);
   its rule says what a find searches, every one of `RECORD_KINDS` in the
-  robot's words, and `FIND_LIMIT` formatted in (#738);
+  robot's words, and `FIND_LIMIT` formatted in (#738), and a find brings
+  back eight of its own, a recall's History lines left out before that
+  limit and as many more asked as a `read` beside it brought (#739);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER
