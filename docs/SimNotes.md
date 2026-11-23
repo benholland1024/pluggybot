@@ -8514,15 +8514,16 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     on the floor, which the right sole pushed 25 cm along it 2-4 s before the
     step began (25 N's flight pushed it 55 cm over 10 s and did not fall) --
     as a step to the side ended at the table's approach. The walker held still
-    through its 0.8 s settle while the left foot came up, the legs went to the
-    standing policy with that sole lightly loaded and rising (under 50 N as
-    they did, off the floor 0.06 s later), and the trunk went from 3 to 34 deg
-    in 0.46 s. Through the step nothing else touched: the soles only the
-    floor, the jaws only the fork, no pair of the robot's own parts at 1 N,
-    the plate (its middle 0.21-0.28 m from both soles' middles) touching
-    neither. 40 N brought the robot there by a trajectory of its own, parted
-    from 25 N's at the fork's shut; a step handing back its legs with a foot
-    coming up is served behaviour, not the pass's.
+    through its 0.8 s settle while the left foot came up and came back down
+    (about 100 N, 0.02 s before the hand-back), the legs went to the standing
+    policy with that sole unloading (49 N) and lifting again (off the floor
+    0.06 s later), and the trunk went from 3 to 34 deg in 0.46 s. Through the
+    step nothing else touched: the soles only the floor, the jaws only the
+    fork, no pair of the robot's own parts at 1 N, the plate (its middle
+    0.21-0.28 m from both soles' middles) touching neither. 40 N brought the
+    robot there by a trajectory of its own, parted from 25 N's at the fork's
+    shut; a step handing back its legs with a foot coming up is served
+    behaviour, not the pass's.
   - **The fork at 40 N.** On the dev draws it laid 38 places where the
     reference laid 32 (+9 -3), with no fall: the hand-over's slips 12 to 2,
     forks tilted 20 deg or more at the put-down 9 to 5, strikes on the pass 13
@@ -8535,14 +8536,14 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     crouch and a 0.55 rad bow, and the hand read 43-77 N; at its peak the jaw
     that held the fork was pressing on the pass's top edge (25-42 N). The
     posture went back to the stand, under which the pelvis came 0.27 m forward
-    over feet that stayed where they were (their soles' middles rising 5 cm,
-    still on the floor: on their toes), and the postures taken again with the
-    waist at 30 and 45 deg carried it 0.15 m further; the torso, the pelvis, a
-    thigh and the other gripper came down on the pass (up to 676 N; what the
-    fork itself touched was not recorded). On the bar's draws fewer slips did
-    not lay more places: every place the two parted on turned on the fork,
-    both ways -- its put-down, its carry, the hand-over (4 gained, 6 lost) --
-    as round 7's flips did.
+    over feet that stayed where they were, and the postures taken again with
+    the waist at 30 and 45 deg carried it 0.15 m further (the soles' middles
+    rising 2-3 cm under the stand and 5 cm by the end, still on the floor: on
+    their toes); the torso, the pelvis, a thigh and the other gripper came
+    down on the pass (up to 676 N; what the fork itself touched was not
+    recorded). On the bar's draws fewer slips did not lay more places: every
+    place the two parted on turned on the fork, both ways -- its put-down, its
+    carry, the hand-over (4 gained, 6 lost) -- as round 7's flips did.
   - **A step straight back with the plate**, before its walk to the place
     (0.12 m asked; it walked 6.4-10.5 cm): the plate's strikes on the pass
     stayed 13 of 62, it was let go carried 3 times where 4 -- none of the
