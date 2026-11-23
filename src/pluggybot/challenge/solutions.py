@@ -624,10 +624,9 @@ def job_routine(life, kind: str, world: str):
   from pluggybot.procedure import library as lib
   maker = task_producer(life.tasks, world, procedures=True)
   params, secret = maker._build(kind, TARGETS[kind])
-  # ...the words its draw's offer says (the shelf's labels), which its
-  # sentence and our procedures are written with
+  # ...the words its draw's offer says (the shelf's labels, filled by the
+  # producer), which our procedures are written with too
   words = _words(kind, int(secret.get("draw", 0)))
-  params.update(words)
   task = life.tasks.offer(kind, TARGETS[kind], params=params, secret=secret, ttl=3000.0,
                           t=float(life.data.time))
   assert task is not None and life._claim_task(task.id), "the claim was refused"

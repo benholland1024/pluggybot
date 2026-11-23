@@ -960,8 +960,9 @@ save a filmstrip PNG named after the script.
   §2; a test reads it as offered, past `MAX_DESCRIPTION`'s silent cut), its
   activity renewed in place (`renew`), put back after a
   restart (`restore_jobs`, in `begin`, before the activities' kept
-  state; the counter and the restaurant's table are `home.jobs`' two areas,
-  one interface), and an offer made between the world's last save and a crash has
+  state; the counter, the restaurant's table and the shop's shelf are
+  `home.jobs`' three areas, one interface -- the shelf's in no served house
+  yet, `store.SERVED`, #736), and an offer made between the world's last save and a crash has
   its prop set out again once the world is back (`set_out_unseen`, off the
   board's count the save keeps, `boardSeq`, never a stamp; #610); ⚠ NO
   OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's

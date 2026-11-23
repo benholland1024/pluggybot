@@ -413,13 +413,13 @@ def pass_set_out(k: int) -> TableSetOut:
 #: each over a label the draw names. Where each product waits on the cart,
 #: in the shelf's frame S (`home.store.to_world`: s along to the right as
 #: one faces it, d out of its front, from the cart's middle and its front
-#: edge), m -- 19-21 cm in: at 16 the colour camera looks down on each too
-#: steeply to read it (the frame's tag stands on its face), and past 22 a
-#: level grip is out of reach; the frame 21 cm left of the robot's middle
-#: where it starts, in front of the left shoulder whose hand takes it (at 15
-#: its grip planned nothing) -- how far either way it is drawn off it, m,
-#: and how far its turn is, rad (the frame's face looking out of the shelf,
-#: the candle's any).
+#: edge), m -- the frame 19 cm in and the candle 21, each drawn 1.5 cm
+#: either way: 16 cm in, where the table's pieces lie, the colour camera
+#: looked down on the frame's face too steeply to read its tag, and 26 cm in
+#: no level grip of the frame planned; the frame 21 cm left of the robot's
+#: middle where it starts, in front of the left shoulder whose hand takes it
+#: (15 cm left, its grip planned nothing) -- how far its turn is, rad (the
+#: frame's face looking out of the shelf, the candle's any).
 SHELF_SOURCES = {"candle": ((0.15, -0.21), (0.015, 0.015), math.pi),
                  "frame": ((-0.21, -0.19), (0.015, 0.015), math.radians(10.0))}
 #: Where an offline flight starts (`world`; the served job's begins wherever

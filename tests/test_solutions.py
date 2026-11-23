@@ -57,8 +57,11 @@ def test_the_offers_say_where_by_their_areas_terms_and_never_a_position(tmp_path
   bare = board.offer(offered[0], KINDS[offered[0]].target_kind, t=2.0).description
   assert "{" not in bare and "  " not in bare and "None" not in bare
   # ...and the props' LIVE poses stay out of the context (issue #227's
-  # rule): the producer is handed the places and nothing else
-  assert set(producer.facts) == {"places"}
+  # rule): the producer is handed the places and what a draw's sentence
+  # names (#736: the shelf's labels, off the draw alone), and nothing else
+  assert set(producer.facts) == {"places", "words"}
+  from pluggybot.lifecycle import world_config
+  assert all(producer.facts["words"](t, 3) == {} for t in world_config(HUMANOID_HOME)["jobs"])
 
 
 def test_the_prompt_says_what_a_bare_return_does():

@@ -395,7 +395,12 @@ class TaskProducer:
     if KINDS[kind].draws:
       # A hand job (#559): its prop's hidden dynamics drawn afresh, off the
       # same counter, set into the world as the offer lands -- the draw's
-      # number the secret, so a restart puts the same prop back
+      # number the secret, so a restart puts the same prop back -- and what
+      # that draw sets out that its sentence names (the shelf's labels,
+      # #736), the world's to say (`facts["words"]`, `home.jobs.words`)
+      words = self.facts.get("words")
+      if words is not None:
+        params.update(words(target, int(self.board.seq)))
       return params, {"draw": int(self.board.seq)}
     return params, {}
 

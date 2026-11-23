@@ -7989,8 +7989,11 @@ def task_producer(board, world: str, book=None, cadence=None,
   it is called.
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
+  from pluggybot.home import jobs
   cfg = world_config(world)
-  facts = {}
+  # ...what a job's draw sets out that its sentence names (#736: the
+  # shelf's labels; every other kind none)
+  facts = {"words": jobs.words}
   if cfg.get("places"):
     # WHERE A JOB IS (issue #419): each task area's address and directions,
     # what an offer naming it carries -- never a finer position

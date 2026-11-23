@@ -43,6 +43,9 @@ _ENTRY = next(s for s in home.SHELVES if s[0] == SHELF)
 SHELF_XY, SHELF_LEN, SHELF_DEPTH, SHELF_YAW = (_ENTRY[1], _ENTRY[2]), _ENTRY[3], _ENTRY[4], _ENTRY[5]
 #: The job's target: the shelf's own body, and a `shelf`.
 TARGETS = {SHELF: "shelf"}
+#: ...and whether a served house has it (`home.jobs.targets`): not until the
+#: release that puts `attach` into `home_spec` (this module's docstring).
+SERVED = False
 #: The slots, along the shelf: the middle one this far to the right of the
 #: shelf's middle, m, and the others this far either side of it -- three a
 #: board, each label at its slot's middle (#736's call 3), the products 7-8
@@ -152,6 +155,12 @@ def drawn(target: str, k: int) -> st.Load:
   from dataclasses import replace
   _ours(target)
   return replace(st.draw(k), slots=tuple(sorted(labels(k).items())))
+
+
+def words(target: str, k: int) -> dict[str, int]:
+  """What an offer at draw `k` names (`home.jobs.words`): its labels."""
+  _ours(target)
+  return labels(k)
 
 
 def labels(k: int) -> dict[str, int]:

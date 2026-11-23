@@ -535,30 +535,22 @@ TABLE_STANCES = '''def lay_place():
 '''
 
 #: THE SHELF STOCKED (#736) from the cart beside its slots, the left hand,
-#: per #736's plan, from where the check starts (in front of the cart's
-#: middle, 0.50 m off the shelf's front: `counter.shelf_set_out`). What
-#: flying took (SimNotes, "Stocking the shop's shelf"): the frame first, it
-#: waits in front of the left shoulder, then the candle; each read off its
-#: tag (`spot.n*` is INTO the frame's face) and stood 21 cm left of the
-#: robot's middle by a sidestep (`near`); taken level, 2-3 cm short of its
-#: middle -- the frame's fingers into its face, else straight where that is
-#: out of reach -- from 10 cm above it, straight down (in level from the
-#: side, the way out swung wide and pushed the frame 30 N), and where the
-#: descent is held back on its top, lifted and reached level; shut at 40 N,
-#: lifted 3 cm; carried by sidesteps (`side`, at most 0.45 m each: the first
-#: off the start is often blocked) to stand with its label 21 cm left and
-#: 0.50 m ahead, the label's place off the job's layout (three a board, 25 cm
-#: apart, where the cart waits beside them) and read there; then 15 cm in
-#: front of the board at 5 cm over its top (the hand sags 2-3 cm under a
-#: product, and at 3 cm it snagged the board's edge), carried straight in
-#: to put the product's middle 6 cm behind the edge, set down by a pull the
-#: board stops, let go, carried straight back out 13 cm until the fingertips
-#: are clear of the edge, and only then withdrawn (never from over an edge,
-#: #736's item 9). ⚠ On the upper board the hand is aimed 2.5 cm left of
-#: its label: unaimed, its 18 placements there landed 2.7 cm right of their
-#: labels on average (the lower board's 10, -0.04 cm) -- measured, not
-#: understood. The candle is found again off the frame's label as read.
-#: `%(candle)d` and `%(frame)d` are the job's labels (`source`).
+#: from where the check starts (`counter.shelf_set_out`): the frame, then
+#: the candle, each read off its tag and taken level 2-3 cm short of its
+#: middle from 10 cm above it, carried by sidesteps to its label, set down 8
+#: cm behind the board's edge from 17 cm in front of it at 5 cm over the
+#: board, let go, backed out 15 cm and only then withdrawn (never from over
+#: an edge, #736's item 9). What flying took is SimNotes', "Stocking the
+#: shop's shelf". Its numbers' reasons, each measured: ⚠ the label is READ
+#: 12 cm left of the robot's middle (`near`'s 0.12) -- nearer the left
+#: shoulder a carried product hides it -- and stepped to 21 cm, where the
+#: hand sets down (at 12 it is out of reach), by the step's own count where
+#: the label no longer reads; ⚠ the hand sags 2-3 cm under a product, so
+#: the 5 cm over the board; ⚠ on the upper board the hand is aimed 2.5 cm
+#: left of its label: unaimed, its placements there landed 2.7 cm right on
+#: average (the lower board's, -0.04 cm) -- measured, not understood. The
+#: candle is found again off the frame's label as read. `%(candle)d` and
+#: `%(frame)d` are the job's labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=120, seconds=290)
   c = %(candle)d
@@ -572,7 +564,7 @@ SHELF = '''def stock_shelf():
     lab = f + (c - f) * i
     k = lab - 79 - 3 * (lab > 81)
     open_hand("left")
-    near(t, 0.34 * i)
+    near(t, 0.34 * i, 0.21)
     a = (1 - i) * atan2(read("spot.ny"), read("spot.nx"))
     e = cos(a)
     s = sin(a)
@@ -596,19 +588,34 @@ SHELF = '''def stock_shelf():
     r = v * e - u * s
     oz = read("left.z") - bz
     pull("left", 0, 0, 1, 20, 0.03, give=0)
-    side(my - 1.02 + 0.36 * i - 0.25 * k)
-    near(lab, 0.5)
-    x = read("spot.x") + 0.06 - q
+    side(my - 0.93 + 0.36 * i - 0.25 * k)
+    near(lab, 0.5, 0.12)
+    x = read("spot.x")
     ly = read("spot.y")
-    z = read("spot.z") + 0.025 + oz + 0.05
-    w = ly - r + 0.025 * (lab > 81)
-    reach("left", x - 0.15, w, z, 1, 0, 0, 0, 1, 0)
-    if not move_hand("left", x, w, z):
+    z = read("spot.z")
+    if not step(0, ly - 0.21):
       pass
+    cs = cos(read("step.turn"))
+    sn = sin(read("step.turn"))
+    u = x - read("step.dx")
+    v = ly - read("step.dy")
+    x = cs * u + sn * v
+    ly = cs * v - sn * u
+    if spot(lab):
+      x = read("spot.x")
+      ly = read("spot.y")
+    x = x + 0.08 - q
+    z = z + 0.025 + oz + 0.05
+    w = ly - r + 0.025 * (lab > 81)
+    reach("left", x - 0.17, w, z, 1, 0, 0, 0, 1, 0)
+    if not move_hand("left", x, w, z):
+      if x - read("left.x") > 0.01:
+        pull("left", 1, 0, 0, 10, x - read("left.x"), give=0)
     pull("left", 0, 0, -1, 6, 0.10, give=0)
     open_hand("left")
     wait(0.3)
-    move_hand("left", read("left.x") - 0.13, read("left.y"), read("left.z") + 0.01)
+    if not move_hand("left", read("left.x") - 0.15, read("left.y"), read("left.z") + 0.01):
+      pull("left", -1, 0, 0, 10, 0.15, give=0)
     withdraw("left")
 
 
@@ -625,12 +632,12 @@ def side(d):
       d = d - read("step.dy")
 
 
-def near(t, w):
+def near(t, w, yt):
   for j in range(2):
     d = 0
     b = 0
     if spot(t):
-      d = read("spot.y") - 0.21
+      d = read("spot.y") - yt
       b = (read("spot.x") - w) * (w > 0)
     if d * d + b * b > 0.0012:
       if not step(b, d):

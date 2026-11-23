@@ -11249,6 +11249,64 @@ its seat, is a robot lost, searched at once, as before. ⚠ The report is the ot
 own word, read as its reported pose is: a robot whose port says nothing
 holds nothing by this rule.
 
+## Stocking the shop's shelf (issue #736's stage 1)
+
+Our reference for `shelf` (`hands_check.SHELF`; Challenges.md §13), flown
+on the dev box one set-out at a time and on one Vast pod (an EPYC 7C13
+share) 29 at once, the loop of 2026-11-22 (task W3). What flying took:
+
+- **The cart is 0.35 m deep, not #736's 0.5.** At 0.5 the robot standing
+  0.13 m off its front stands 0.63 m off the shelf's, where neither board's
+  front is reached; the walker barely backs up, so a product would be a step
+  forward and back each. At 0.35 the robot stands 0.50 m off the shelf in
+  front of the cart and at its slots alike, and a product is a sidestep.
+- **Where the products wait.** 16 cm in from the cart's front (the table's
+  pieces' distance) the colour camera looks down on the frame's face too
+  steeply to read its tag (`spot` failed every time); 26 cm in, no level
+  grip planned. The frame waits 19 cm in, the candle 21. The frame 15 cm
+  left of the robot's middle planned no grip either: it waits 21 cm left,
+  in front of the left shoulder.
+- **`spot.n*` points INTO the frame's face**, as the cube's procedure uses
+  it: the fingers go along it. Turned up to 10 deg, a frame's turned grip is
+  out of reach in some draws; the straight one is tried next.
+- **The grip from above.** Sent level straight to its grip, the arm's way
+  out swung the hand wide to the left and brought it in from the side, and it
+  pushed the frame 30 N; from 10 cm above, straight down, it closes round
+  either product. Where the descent is held back on a product's top, it is
+  lifted and reached level (that pick usually closes on nothing: 3-4 draws of
+  32).
+- **The hand sags under a product.** Its own reading of its height is 2-3
+  cm over where it truly is with 0.25-0.45 kg in the jaws (#736's grips: a
+  candle asked up 5 cm rose 2.3). Brought in 3 cm over the board, the
+  products snagged its front edge; at 5 cm they clear it.
+- **A sidestep carrying a product under-travels its own count.** Over 0.8-1.3
+  m of sidesteps the label came out 10-15 cm further left than the steps'
+  `step.dy` put it (fly.py's spot log, 15 draws). The label is read where it
+  is, never placed by the count alone.
+- **The carried product hides a label in front of the left shoulder.** With
+  the product carried at the left hip, a label 0.2-0.35 m left of the
+  robot's middle often did not read; 12 cm left it reads (v15: every draw
+  read it). But a set-down 12 cm left is out of the left hand's reach (18 of
+  32 reaches there, #736's item 6: the body's middle is not reached). So the
+  label is read at 12 cm, the robot sidesteps to put it at 21, and the set-
+  down goes where the step's own count carries the reading -- read again
+  where it reads.
+- **The upper board lands right.** Of 18 placements on the upper board the
+  mean was 2.7 cm right of the label (frames up to 6.5); the lower board's
+  10, -0.04 cm. The hand is aimed 2.5 cm left there. Measured, not
+  understood: the label read near the picture's top, the arm at 1.07 m under
+  load, or both.
+- **Reaches held back going in.** Carried straight in from a reach 12-17 cm
+  out, the hand was often held back short (the posture of the reach out
+  does not reach in); the product set down there jutted over the edge. The
+  set-down aims 8 cm in (the candle's front 4.5 cm in, the frame's face 7)
+  and a pull carries the hand the rest of the way at 10 N.
+- **The numbers so far** (the check's 32 set-outs, 0-31, one pod, each draw
+  its own noise): 4 of 32 at the first shape (6435ecae), 10 of 32 with the
+  label read 12 cm left and stepped in (v16b), one fall. A procedure's
+  local variable named `c` overwritten by a cosine made one round's candles
+  look for tag 1: names in a procedure are one namespace.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

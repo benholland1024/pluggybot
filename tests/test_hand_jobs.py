@@ -1291,10 +1291,12 @@ def test_a_restore_names_only_the_props_it_set_out(tmp_path):
 
 
 def test_the_hand_jobs_are_offered_only_where_a_mind_writes_procedures():
-  """Each prop is a target of its own kind, on the challenges' gate."""
+  """Each prop is a target of its own kind, on the challenges' gate -- but
+  the shop's shelf's, which no served house has yet (#736, `store.SERVED`)."""
   here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in HAND_JOBS:
-    assert KINDS[kind].target_kind in here and KINDS[kind].discharge == "procedure"
+    assert KINDS[kind].discharge == "procedure"
+    assert (KINDS[kind].target_kind in here) == (kind != "stock_shelf"), kind
   assert not set(storeroom.PROPS) & set(world_targets(HUMANOID_HOME))
 
 

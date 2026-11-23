@@ -17,7 +17,6 @@ from pluggybot.activity import dishware as dw
 from pluggybot.activity import stock as st
 from pluggybot.activity.base import ActivitySet
 from pluggybot.body import STUB_WORLD, StubBody
-from pluggybot.challenge import solutions
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import default_table
 from pluggybot.economy.tasks import KINDS, MAX_DESCRIPTION, Task, TaskBoard
@@ -74,12 +73,11 @@ def _life(tmp_path):
 
 
 def _offer(life):
-  """The shelf's job offered as `solutions.job_routine` offers it: the
-  cadence's build, its draw's labels its words."""
+  """The shelf's job offered as the cadence offers it (`TaskProducer._build`:
+  its draw's labels filled in by the producer, `home.jobs.words`)."""
   maker = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
   made, secret = maker._build("stock_shelf", store.SHELF)
-  words = solutions._words("stock_shelf", int(secret["draw"]))
-  return life.tasks.offer("stock_shelf", store.SHELF, params={**made, **words}, secret=secret,
+  return life.tasks.offer("stock_shelf", store.SHELF, params=made, secret=secret,
                           ttl=3000.0, t=float(life.data.time))
 
 
@@ -105,6 +103,9 @@ def _stock(life, slots: dict) -> None:
 
 
 def test_an_offer_sets_the_stock_out_at_its_draw_and_a_settled_job_puts_it_away(tmp_path):
+  """Its sentence names its draw's labels as the producer builds the offer
+  (round 1 of the review: filled by `job_routine` alone, a cadence's offer
+  would have read "over label , the frame over label ,")."""
   life = _life(tmp_path)
   assert store.away(life.model, life.data, store.SHELF), "compiled put away"
   task = _offer(life)
@@ -189,3 +190,13 @@ def test_the_stock_put_into_a_house_with_robots_is_compiled_put_away():
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   assert store.present(model) and store.away(model, data, store.SHELF)
+
+
+def test_the_served_house_offers_no_shelf_job():
+  """Review round 1: with the store an area of `home.jobs`, the served
+  house's config named `shop_shelf` a target it has no stock for. Not
+  served (`store.SERVED`), it is no world's target until the release that
+  puts the stock in."""
+  from pluggybot.lifecycle import world_targets
+  assert "shelf" not in world_targets(HUMANOID_HOME, procedures=True)
+  assert store.SHELF not in world_config(HUMANOID_HOME)["jobs"]
