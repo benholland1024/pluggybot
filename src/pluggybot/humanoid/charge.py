@@ -125,7 +125,7 @@ SEAT_STEPS = 6
 #: off to it first: plugged in, the balancer's 2 N on the port creeps a
 #: standing robot in toward the station, 7.5 mm a minute and turning it left
 #: (SimNotes, "The unplug after a long charge"), until its plug meets the
-#: station 18 cm past its seat after about 22 minutes, where the arm's way out
+#: station `CREEP_MOST_M` past its seat after 20-25 minutes, where the arm's way out
 #: behind the plug drove its jaw into the wall beside the station (304 N) and
 #: the station's box (#703). Its hand got behind the plug from 9 cm in, never
 #: from 10.4 (`CREPT_AFTER_S`); nearer than
@@ -166,8 +166,9 @@ CREPT_PAST_M = 0.05
 #: ...and only standing as it docked, facing its station within this, rad
 #: (the creep turns it up to 17 deg, its belief's heading 10 more): after a
 #: failed unplug the undock's turn leaves it facing away, its plug in, and a
-#: step back by its clock would walk its back into the station.
-CREPT_FACING_RAD = math.radians(60.0)
+#: step back by its clock would walk its back into the station -- or, the
+#: turn ended short, diagonally across its line.
+CREPT_FACING_RAD = math.radians(35.0)
 #: A LOST robot looks for its station by its head's camera (#572), which
 #: reads the station's 60 mm tags much further than the colour imager's
 #: 1.07 m. MEASURED (`station_spike.py --reach`): both square-on to 4.5 m,

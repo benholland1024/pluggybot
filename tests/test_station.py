@@ -764,7 +764,9 @@ def test_the_undock_steps_back_by_its_own_clock_kept_from_its_dock(monkeypatch):
   monkeypatch.setattr(charge, "unplug_routine", unplug)
   monkeypatch.setattr(charge, "look", lambda body: None)
   monkeypatch.setattr(charge, "look_routine", lambda body: _done(RackPose(0.35, -0.075, 0.0)))
-  monkeypatch.setattr(charge, "plug_in_routine", lambda body, seen, trace: _done("plugged in"))
+  # ...a plug-in says "plugged in" only with the plug in (`plug_in_routine`)
+  monkeypatch.setattr(charge, "plug_in_routine",
+                      lambda body, seen, trace: (setattr(body, "plugged", True), _done("plugged in"))[1])
 
   class Body:
     plugged_s = HumanoidBody.plugged_s
@@ -819,7 +821,11 @@ def test_the_undock_steps_back_by_its_own_clock_kept_from_its_dock(monkeypatch):
   assert body.mission.plugged_t == 7.0
   monkeypatch.setattr(charge, "plug_in_routine",
                       lambda body, seen, trace: _done("it pushed the plug in and the port never took it"))
+  body.plugged = False
   assert _drive(body.dock_routine()) != "docked" and body.mission.plugged_t is None
+  # ...but one whose plug the port seated just after its last try's word starts it
+  body.plugged, body._d.time = True, 5000.0
+  assert _drive(body.dock_routine()) != "docked" and body.mission.plugged_t == 5000.0
 
 
 def _done(value):
