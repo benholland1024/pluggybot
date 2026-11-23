@@ -10137,10 +10137,34 @@ with its price.
   on its way back to where the pull began; nothing of the pull's own ends
   it then (held fast, pinned and out of reach wait while a posture comes),
   only its caller's patience or an `until`. A hand still loaded when the
-  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
-  `move_hand` takes its postures as it did.
+  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. A
+  `move_hand` of a hand that holds nothing is the next paragraph's.
 - *A reach's joint-space way out* is not this rule's: it stops on a push
   of its own (#708, next).
+
+**A carry (`move_hand`) of a hand that holds nothing (the loop of 11-23,
+`~/pluggybot-training/loop-1123/x3-699c/`).** On 11-21 Rowan's own
+`cube_run2` reached short of the cube, shut its gripper on nothing, let go,
+reached again and then carried the open hand 4.5 cm further at the same
+height (`move_hand`, t_0574): its belief 0.85 m off, the hand met the
+cube's board, and the robot went down from a crouch. Flown at the live draw
+(the loop of 11-22's W1), 2 of 24 fell: one in the carry, the open gripper
+on the board at 20-35 N while the carry took (0, 0.3 rad), (-0.16 m, 0.3)
+and (-0.20 m, 0.55) on its way; one in a later `pull` with the cube
+gripped (a gripped hand, the case above left to Ben). A carry had no line
+at all -- the pull's rule is the pull's -- and asks no force to take twice
+of: at the draw on the tree of 11-23 the robot's own reading over a carry
+was 25-35 N (its `MEAN_S` mean) while one carry took four postures, the
+deepest (-0.16, 0.3), the pull's 40 N refusing none. **What is true now**
+(`Reach.carry`, `_held`; `reach.CARRY_PRESSED_SHARE`): a procedure's carry
+(a `verb`'s, never the loop's own) of a hand whose gripper does not read
+held as it is asked takes no posture while the hand reads past 20 N
+(`PRESSED_ASK_N`, once) -- as it reads at the ask, then over `MEAN_S` --
+and gives a coming one up there as a pull does, backing off toward where
+the carry began until it reads no more, held there, that carry taking no
+other; it goes as far as its arm reaches from there, out of reach at once
+where it cannot follow. Ended out of reach where another posture would
+reach, it says so (`steps.MOVE_LOADED`), never that no posture would.
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,
