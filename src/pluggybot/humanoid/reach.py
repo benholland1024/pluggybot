@@ -264,6 +264,15 @@ LEAD_MAX_M, ACROSS_SPEED = 0.08, 2.0
 #: 72 held-out passes opened only by the body leaning on its lever (45-155 N
 #: read), though a gripped fork or knob falls the same way (SimNotes).
 PRESSED_SHARE, PRESSED_ASK_N = 2.0, 20.0
+#: ...AND A PROCEDURE'S CARRY (`move_hand`) OF A HAND THAT HOLDS NOTHING,
+#: WHICH ASKS NO FORCE, READS A LOAD PAST THIS SHARE OF `PRESSED_ASK_N` --
+#: 20 N -- at its start and on its way alike, and gives a posture up so too,
+#: backing off until it reads no more (#699 on a carry; SimNotes, "A pull's
+#: posture and the hand it rests on"): an open hand at a cube's board read
+#: 25-35 N while a carry took four postures, and at Rowan's live draw the
+#: body went down from a crouch of 0.16-0.22 m (2 of 24 flown); at the
+#: pull's 40 N none was refused. Never the loop's own (a charge's).
+CARRY_PRESSED_SHARE = 1.0
 #: ...giving, its turn gives to what it holds this share a command (100 a
 #: second: a tenth of a second's lag) -- held, a wrist twisted by a drop
 #: handle's swing put 20-30 N across the pull at the grip and turned the
@@ -1759,7 +1768,13 @@ class Reach:
     # ...none but the one it is in while the other hand holds something, a
     # `verb`'s carry (#719)
     only = {} if kept is None else {"postures": (kept,)}
-    if ways or turns is not None:
+    # ...nor -- a `verb`'s hand that holds nothing -- while it reads a load
+    # (`CARRY_PRESSED_SHARE`, #699): it goes as far as its arm reaches
+    open_ = verb and not self.grippers[side].held()
+    loaded = open_ and self._pressed(self.force[side], 0.0, CARRY_PRESSED_SHARE)
+    if loaded:
+      posture = tuple(float(v) for v in self.posture)
+    elif ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
       posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, **only)
     else:
@@ -1770,16 +1785,20 @@ class Reach:
       return False
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
     moved_posture = tuple(posture) != tuple(float(v) for v in self.posture)
+    began = self._standing_in() if moved_posture and open_ else None
     self.hold_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     self.goal[side] = HandGoal(ways[0] if ways else end, rots[0].copy(), k)
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
-                        "fixed": bool(ways) or turns is not None}
+                        "fixed": bool(ways) or turns is not None,
+                        "open": open_, **({"loaded": True} if loaded else {})}
     if moved_posture:
       # the hand holds still while the body takes the posture (`_held`)
       self.pulls[side]["postured"] = 0.0
+    if began is not None:
+      self.pulls[side]["began"] = began
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -2658,6 +2677,9 @@ class Reach:
     rep = {"why": why, "seconds": round(st["t"], 3), "moved": round(float(np.linalg.norm(disp)), 4),
            "shortM": round(short, 4), "dx": round(float(disp[0]), 4),
            "dy": round(float(disp[1]), 4), "dz": round(float(disp[2]), 4)}
+    if st.get("loaded"):
+      # ...a procedure's carry whose hand, holding nothing, read a load (#699)
+      rep["loaded"] = True
     if st.get("pull") is not None:
       pv = st["pull"]
       rep["force"] = round(st["peak"], 2)
@@ -2685,24 +2707,46 @@ class Reach:
     # meanwhile, a lid was jerked down at 1.7-2.3 rad/s and up to 81 deg
     settling = (st.get("postured") is not None and not self._posture_held()
                 and st["t"] - st["postured"] < POSTURE_WAIT_S)
+    # ...a procedure's hand that holds nothing, read over `MEAN_S` as a pull's
+    # (#699): a posture coming is GIVEN UP where it reads a load, the body
+    # backing off toward the posture the carry began in -- the hand waiting
+    # on it -- until it reads no more, held there; that carry takes no other
+    loaded = False
+    if st.get("open"):
+      km = min(1.0, dt / MEAN_S)
+      fm = st["fm"] = (1.0 - km) * st.get("fm", self.force[side]) + km * self.force[side]
+      loaded = self._pressed(fm, 0.0, CARRY_PRESSED_SHARE)
+    if settling and loaded and not st.get("given"):
+      self.hold_posture(*st["began"])
+      st["postured"], st["given"], st["backing"], st["loaded"] = st["t"], True, True, True
+    elif st.get("backing") and not (settling and loaded):
+      if settling:
+        self.hold_posture(*self.posture_now())
+      st["backing"] = False
     there = False if settling else self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
     q, ep, er = sm.solve(side, c.pos, c.rot)
     if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed") and not self.kept_by[side]
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
-      # reaches the command now, while there is one (`posture_for`).
+      # reaches the command now, while there is one (`posture_for`) -- none
+      # while that hand reads a load, nor once one was given up
       st["planned"] = st["t"]
-      posture = self.posture_for(side, c.pos, rot=c.rot)
+      posture = None if loaded or st.get("given") else self.posture_for(side, c.pos, rot=c.rot)
+      if loaded:
+        st["loaded"] = True
       if posture is not None and tuple(posture) != tuple(self.posture):
+        if st.get("open") and "began" not in st:
+          st["began"] = self._standing_in()
         self.hold_posture(*posture)
         st["postured"] = st["t"]
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:
       # ...given a posture it took the time to come before it is out of reach
-      coming = (st["t"] < SETTLE_S
-                or st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S)
+      # -- none once it was given up and the body is held (#699)
+      coming = (st["t"] < SETTLE_S or ((not st.get("given") or st.get("backing"))
+                and st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S))
       self._off[side] = 0.0 if coming else self._off[side] + dt
       if self._off[side] >= BLOCKED_S:
         self._end(side, "out of reach", h, r)

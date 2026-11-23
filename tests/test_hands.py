@@ -502,6 +502,8 @@ def _bare_reach():
   r.waist_sent = []
   r.waist = NS(command=lambda target, feed: r.waist_sent.append(np.array(target)))
   r.grippers = {s: _Grip() for s in hm.SIDES}
+  # ...and no load read at either hand (#699)
+  r.force = {s: np.zeros(3) for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
   # ...and no other robot's body for its ways to keep off (#678)

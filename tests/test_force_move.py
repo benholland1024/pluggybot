@@ -553,6 +553,170 @@ def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
   assert r.postures == [(0.0, 0.15, 0.0)] and st_ is not None and not st_.get("given")
 
 
+#: A carry's load line: `CARRY_PRESSED_SHARE` of `PRESSED_ASK_N`, any way.
+CARRY_LINE = rc.CARRY_PRESSED_SHARE * rc.PRESSED_ASK_N
+
+
+def _carrying(read=(0.0, 0.0, 0.0), grips=False, verb=True, start=(0.0, 0.0, 0.0)):
+  """A bare reach's left hand out at `H`, carried 5 cm up (`carry`), as a
+  procedure's verb where `verb`, reading `read` as it is asked, holding
+  something where `grips`; `start` the posture its plan finds for the end."""
+  r = _bare_reach()
+  _out_hand(r, H, np.eye(3))
+  r.phase["left"] = "hold"
+  r.force["left"] = np.asarray(read, dtype=float)
+  r.grip_now = lambda side: (H.copy(), np.eye(3))
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: start
+  r._posture_held = lambda: True
+  r.grippers["left"].holding = grips
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  assert r.carry("left", H + np.array([0.0, 0.0, 0.05]), verb=verb)
+  return r
+
+
+def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_reads_light():
+  """#699 on a carry: Rowan's open hand at a cube's board read 25-35 N while
+  a `move_hand` took four postures, crouching 0.16-0.22 m and bowing 0.55-0.80
+  rad, and the body went over backward (2 of 24 flown at the live draw); the
+  pull's 40 N line refused none of them. A procedure's carry of a hand that
+  holds nothing takes none while the hand reads past `PRESSED_ASK_N` -- at its
+  start and on its way -- a hand that grips what it carries, and the loop's
+  own carry (a charge's), as they did."""
+  assert CARRY_LINE == rc.PRESSED_ASK_N == st.PULL_MOST_N
+  way = np.array([0.0, 1.0, 0.0])
+  # its first posture: across its way, along it -- the one it holds, re-asked
+  for share, grips, verb, takes in ((0.9, False, True, True), (1.1, False, True, False),
+                                    (1.1, True, True, True), (1.1, False, False, True)):
+    r = _carrying(share * CARRY_LINE * way, grips, verb, start=(0.0, 0.15, 0.0))
+    assert r.postures[-1] == ((0.0, 0.15, 0.0) if takes else (0.0, 0.0, 0.0)), (share, grips, verb)
+    assert ("postured" in r.pulls["left"]) is takes
+    assert r.pulls["left"].get("loaded", False) is not takes
+  # on its way: an arm that misses from where the body stands takes another
+  # posture reading light, none reading a load
+  for share, grips, verb, takes in ((0.9, False, True, True), (1.1, False, True, False),
+                                    (1.1, True, True, True), (1.1, False, False, True)):
+    r = _carrying(grips=grips, verb=verb)
+    r.pulls["left"]["fixed"] = False
+    r.force["left"] = share * CARRY_LINE * np.array([0.0, 0.0, -1.0])
+    r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+    r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+      np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
+    for _ in range(int(rc.REPLAN_S / DT) + 2):
+      if r.pulls["left"] is None or (0.0, 0.3, 0.0) in r.postures:
+        break
+      r._held("left", DT, H, np.eye(3))
+    assert ((0.0, 0.3, 0.0) in r.postures) is takes, (share, grips, verb)
+  # ...and how it ends says it read a load: its words, where another posture
+  # would have reached (`steps.MOVE_LOADED`)
+  r = _carrying(1.1 * CARRY_LINE * way)
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+    np.zeros(len(hm.ARM)), 2.0 * rc.BLOCKED_M, 0.0)
+  for _ in range(int((rc.SETTLE_S + rc.BLOCKED_S) / DT) + 3):
+    if r.pulls["left"] is None:
+      break
+    r._held("left", DT, H, np.eye(3))
+  assert r.report["left"]["why"] == "out of reach" and r.report["left"]["loaded"]
+  r = _carrying(0.9 * CARRY_LINE * way)
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+    np.zeros(len(hm.ARM)), 2.0 * rc.BLOCKED_M, 0.0)
+  for _ in range(int((rc.SETTLE_S + rc.BLOCKED_S) / DT) + 3):
+    if r.pulls["left"] is None:
+      break
+    r._held("left", DT, H, np.eye(3))
+  assert r.report["left"]["why"] == "out of reach" and "loaded" not in r.report["left"]
+
+
+def test_a_carrys_posture_is_given_up_where_its_open_hand_reads_a_load_while_it_comes():
+  """As a pull's (#699): the body backs off toward the posture the carry
+  began in only until the hand reads no more than the line, and is held
+  there, the hand waiting on it; that carry takes no other -- and once it
+  is held, an arm that cannot follow is out of reach. A hand that grips
+  what it carries, and the loop's own carry, wait their postures out."""
+  way, got_to = np.array([0.0, 0.0, -1.0]), (-0.05, 0.1, 0.0)
+
+  def carrying(grips=False, verb=True):
+    r = _carrying(grips=grips, verb=verb, start=(0.0, 0.15, 0.0))
+    assert r.postures == [(0.0, 0.15, 0.0)]
+    assert r.pulls["left"].get("began") == ((0.0, 0.0, 0.0) if verb and not grips else None)
+    r.posture_now = lambda: np.array(got_to)
+    r._posture_held = lambda: False             # ...its posture coming
+    return r
+
+  def read(r, force, commands=2):
+    r.force["left"] = np.asarray(force, dtype=float)
+    for _ in range(commands):
+      r._held("left", DT, H, np.eye(3))
+    return r.pulls["left"]
+
+  # a light hand waits its posture out, the hand still
+  r = carrying()
+  st_ = read(r, 0.9 * CARRY_LINE * way, 5)
+  assert r.postures == [(0.0, 0.15, 0.0)] and not st_.get("given")
+  assert np.allclose(r.cmd["left"].pos, H)
+  # loaded while it comes: back toward where the carry began, once
+  st_ = read(r, 1.1 * CARRY_LINE * way, 5)
+  assert r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)] and st_["given"] and st_["backing"]
+  assert np.allclose(r.cmd["left"].pos, H)
+  # ...whichever way it reads it, and held where it has got to once it reads no more
+  st_ = read(r, 1.1 * CARRY_LINE * np.array([1.0, 0.0, 0.0]), 3)
+  assert r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)] and st_["backing"]
+  st_ = read(r, 0.9 * CARRY_LINE * way)
+  assert r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0), got_to] and not st_["backing"]
+  # ...and takes no other, its arm missing and its hand light again
+  r.pulls["left"]["fixed"] = False
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+    np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
+  read(r, np.zeros(3), int(2 * rc.REPLAN_S / DT))
+  assert r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0), got_to]
+  # ...nor the time a posture is given to come: held, an arm that cannot
+  # follow is out of reach now, where one still backing off is waited on
+  for backing, ends in ((False, True), (True, False)):
+    r = carrying()
+    read(r, 1.1 * CARRY_LINE * way)
+    read(r, (1.1 if backing else 0.9) * CARRY_LINE * way)
+    assert r.pulls["left"]["given"] and r.pulls["left"]["backing"] is backing
+    r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+      np.zeros(len(hm.ARM)), 1.5 * rc.BLOCKED_M, 0.0)
+    for _ in range(int((rc.SETTLE_S + rc.BLOCKED_S) / DT) + 3):
+      if r.pulls["left"] is None:
+        break
+      r._held("left", DT, H, np.eye(3))
+    assert (r.pulls["left"] is None) is ends, backing
+    assert not ends or r.report["left"]["why"] == "out of reach"
+  # a hand that grips what it carries, and the loop's own carry, wait it out
+  for grips, verb in ((True, True), (False, False)):
+    r = carrying(grips, verb)
+    st_ = read(r, 3.0 * CARRY_LINE * way, 5)
+    assert r.postures == [(0.0, 0.15, 0.0)] and not st_.get("given"), (grips, verb)
+
+
+def test_a_move_out_of_reach_whose_open_hand_read_a_load_says_so():
+  """Out of reach where another posture would reach, its hand -- holding
+  nothing -- having read a load (#699), a `move_hand` says why it kept
+  the posture, never that no posture reaches there."""
+  class Loaded(StubBody):
+    reaches = True
+
+    def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                          path=None, turns=None, verb=True):
+      return {"why": "out of reach", "seconds": 0.5, "moved": 0.0, "dx": 0.0, "dy": 0.0,
+              "dz": 0.0, "loaded": True}
+      yield
+
+    def hand_reaches(self, side, pos, rot=None, verb=False):
+      return self.reaches
+  src = 'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    move_hand("left", 0.35, 0.2, 0.9)\n'
+  step = _fly(src, Loaded(*_bare()))["steps"][-1]
+  assert not step["ok"] and step["reason"] == st.MOVE_LOADED.format(hand="left") == (
+    "your left hand could reach no further that way from the posture you are in: it holds "
+    "nothing and read a push of more than 20 N, so your body keeps it")
+  body = Loaded(*_bare())
+  body.reaches = False
+  step = _fly(src, body)["steps"][-1]
+  assert step["reason"] == st.MOVE_WHY["out of reach"].format(hand="left")
+
+
 def test_a_pinned_pull_is_held_fast_by_how_far_it_goes_along_its_way():
   """Pinned on a locked bar, the hand's sensed place moved 4 mm in a tenth
   of a second and its grip slid 3-7 mm a second: held fast by its place

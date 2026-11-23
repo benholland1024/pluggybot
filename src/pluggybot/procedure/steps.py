@@ -1256,6 +1256,12 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
 #: option 2).
 MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture you are in: "
              "your {other} hand is out holding something, so your body keeps it")
+#: ...and one out of reach whose hand, holding nothing, read a load as a
+#: posture would have come (#699 on a carry: `reach.CARRY_PRESSED_SHARE` of
+#: `PULL_MOST_N`, which a test reads).
+MOVE_LOADED = ("your {hand} hand could reach no further that way from the posture you are in: "
+               f"it holds nothing and read a push of more than {PULL_MOST_N:.0f} N, so your "
+               "body keeps it")
 
 
 def _hand_report(life, hand: str, rep: dict) -> dict:
@@ -1304,6 +1310,9 @@ def _move_hand(life, args: dict) -> Routine:
   if kept_by and life.body.hand_reaches(hand, end, rot):
     # ...where another posture would reach its end (#719)
     return {"ok": False, **out, **said, "reason": MOVE_KEPT.format(hand=hand, other=kept_by)}
+  if rep.get("why") == "out of reach" and rep.get("loaded") and life.body.hand_reaches(hand, end, rot):
+    # ...or its hand, holding nothing, read a load (#699)
+    return {"ok": False, **out, **said, "reason": MOVE_LOADED.format(hand=hand)}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 
