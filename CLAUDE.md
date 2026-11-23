@@ -1632,6 +1632,8 @@ save a filmstrip PNG named after the script.
   never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`; its
   chain ends at any other action but a fallback's, which keeps it ONCE, a
   second running dropping it (#604: the post-recall turn is the heaviest);
+  its rule says what a find searches, every one of `RECORD_KINDS` in the
+  robot's words, and `FIND_LIMIT` formatted in (#738);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER
@@ -2992,7 +2994,10 @@ save a filmstrip PNG named after the script.
   after a hold (`lid.HOLD_S` = 5 s). ⚠ Its reward row is
   `economy/challenges.json`, NOT `rewards.json` (a row there is shown to the
   overseer and moves the header's `dataHashes`). ⚠ The house's blocks carry
-  `GRIP_SOLIMP` (`home/props.py`), or a grade on them is the solver's.
+  `GRIP_SOLIMP` (`home/props.py`), or a grade on them is the solver's. ⚠ A
+  REASON PRINTS A READING AGAINST ITS LINE THROUGH `lid.against` (#737;
+  `tests/test_grade_words.py`): rounded alone, a drawer short of its line
+  read "came out 15 cm, short of the 15".
 - **A procedure job has no errand behind it** (issues #207, #559;
   Challenges.md): `TaskKind.discharge` is `procedure` or `act`
   (`DISCHARGES`; the quadruped's `errand`s went with it, #559);

@@ -15,10 +15,12 @@ from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.inbox import MAX_EARLIER
+from pluggybot.mind.memory import FIND_LIMIT
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_RECALLED_CHARS, CHAT_SAID, HISTORY_RECALLED,
   RECALLED_CHAIN_CHARS, RECALLED_CHARS, ThoughtFiles,
 )
+from pluggybot.telemetry.protocol import RECORD_KINDS
 
 from test_body import stub_life
 from test_overseer import CutResponse, FakeClient, full
@@ -68,6 +70,50 @@ def test_find_searches_everything_this_life_and_never_the_record_of_a_recall(fil
   assert files.recall(find="whiteboard")["hits"] == 1, "a recall found itself"
   assert files.recall(read="history")["hits"] == 1, "...or the record of one"
   assert files.recall(find="") == {"read": "", "find": "", "hits": 0, "lines": []}
+
+
+#: Every kind of line a find searches (`RECORD_KINDS`), as the RECALL rule
+#: names it to the robot (#738).
+FOUND_SAID = {"history": ("History",), "think": ("`think`s",),
+              "note": ("notes", "findings"), "core": ("goals", "pinned lines")}
+
+
+def test_the_rule_says_what_a_find_searches_and_the_most_it_brings_back():
+  """Issue #738: told only "a few words to search for", Rowan read a
+  topic's notes as History lines and concluded a find searches History
+  alone. The RECALL rule, as served, names every kind of line a find
+  searches as the robot reads them, their topics and titles, this life's,
+  the lines it took out too, and the most it brings back off `FIND_LIMIT`
+  -- and so it is. Shown to fail without the clause."""
+  assert set(FOUND_SAID) == set(RECORD_KINDS), "a kind no rule names"
+  system = Overseer(Menu(boards=("whiteboard_a",)), client=FakeClient()).system[0]["text"]
+  bullet = system[system.index("- RECALL is how"):]
+  bullet = bullet[:bullet.index("\n- ")]
+  assert "A find searches" in bullet, bullet
+  clause = bullet[bullet.index("A find searches"):]
+  clause = clause[:clause.index(". ")]
+  for kind, words in FOUND_SAID.items():
+    for word in words:
+      assert word in clause, (kind, word, clause)
+  for said in ("this life", "topics and titles", "took out", f"at most {FIND_LIMIT},",
+               "best match first"):
+    assert said in clause, (said, clause)
+  # ...and so it is: a line of every kind, one taken out, and notes found
+  # by a topic and by a title alone
+  f = ThoughtFiles()
+  f.remember("the zebra crossing", t=1.0)
+  f.think("a zebra to think about", t=2.0)
+  f.note({"topic": "zebra", "title": "stripes", "text": "black and white"}, t=3.0)
+  f.note({"topic": "animals", "title": "zebra", "text": "fast"}, t=4.0)
+  f.intend("paint a zebra", t=5.0)
+  f.pin("a zebra pinned", t=6.0)
+  f.unpin("a zebra pinned", t=7.0)
+  found = f.records.find(f.robot, "zebra")
+  assert {r.kind for r in found} == set(RECORD_KINDS), found
+  assert sum(r.kind == "note" for r in found) == 2 and any(not r.active for r in found)
+  for i in range(FIND_LIMIT):
+    f.remember(f"zebra number {i}", t=10.0 + i)
+  assert f.recall(find="zebra")["hits"] == FIND_LIMIT
 
 
 def test_read_chat_is_the_chat_in_history_and_nothing_else():

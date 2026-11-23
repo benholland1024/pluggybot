@@ -217,7 +217,13 @@ trunk 35 deg past the posture its legs hold, by its IMU, or its pelvis sunk
 -- so a bow its reach asks is no fall (#520). The
 numbers are judged as measured and only shown
 rounded; the call is wherever the attempt ended (Evaluation.md §4); the
-reason never carries the catch, whose number is secret on the row.
+reason never carries the catch, whose number is secret on the row. ⚠ A
+reason prints a reading against its line at the places that tell the two
+apart (`lid.against`, #737), every hands check's too: rounded alone, a
+reading up to half a unit short read as the line it failed ("the drawer
+came out 15 cm, short of the 15", Luca's on 11-22; "called 960 s after the
+start, past the 960 s", Rowan's), and the lid's line, 1 rad, prints "57.3"
+beside a lid at 57.1 deg, where the job says "past 57 degrees".
 
 **What the lines were read off** (`scripts/attempts.py --drops`, the 128
 drawn lids on a bare floor): let go from rest 1 deg over the shut line,

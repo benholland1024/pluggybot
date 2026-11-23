@@ -69,6 +69,7 @@ from pluggybot.mind.text import PUNCTUATION, placeholder
 from pluggybot.mind import tickets as desk
 from pluggybot.mind import wiki as reading
 from pluggybot.mind.inbox import MAX_EARLIER, MAX_ID, clean
+from pluggybot.mind.memory import FIND_LIMIT
 from pluggybot.mind import spend as spend_mod
 from pluggybot.mind.spend import SpendBook
 from pluggybot.economy.scoring import RewardTable, default_table
@@ -2108,8 +2109,9 @@ your own words that a person watching you would find honest.
 #: its sha rides the `prompt` message.
 #:
 #: ⚠ The reply's length is `MAX_REPLY` and its aim `AIM_REPLY`, formatted
-#: in (issue #474): a cap typed twice is how the prompt tells the robot one
-#: number and the door enforces another. So a literal percent sign in it is
+#: in (issue #474), and so is the most a find brings back, `FIND_LIMIT`
+#: (#738): a cap typed twice is how the prompt tells the robot one number
+#: and the door enforces another. So a literal percent sign in it is
 #: written `%%`.
 RULES = """\
 HOW YOUR LIFE WORKS
@@ -2211,7 +2213,11 @@ old History line, what somebody said last week, a line you unpinned. Choose \
 `recall` and set `read` to a key -- a note's `topic/title`, a whole topic, \
 `history` for more of your history, `chat` for more of your chats, \
 `changelog` for the changelog, or a line's number like `#123` -- and/or \
-`find` to a few words to search for. You stand still for ten seconds and the \
+`find` to a few words to search for. A find searches all you keep from this \
+life -- your History, `think`s, notes and findings (their topics and titles \
+too), goals, pinned lines and the lines you took out -- and brings back at \
+most %(found)d, the best match first, after anything `read` brings. You stand \
+still for ten seconds and the \
 lines arrive on your next turn as `recalled`, each with its number. They \
 stay while you keep recalling and go when you do anything else, so `pin` or \
 `note` what you want to keep. You may recall at most three times in a row \
@@ -2275,7 +2281,7 @@ one such thing every %(minutes)d minutes: while you may not, `sayAgainInS` \
 says how many seconds are left, and a `say` sent anyway is not said, and you \
 are told.
 """ % {"chars": MAX_REPLY, "aim": AIM_REPLY, "lines": MAX_EARLIER,
-       "minutes": round(SAY_EVERY_S / 60)}
+       "minutes": round(SAY_EVERY_S / 60), "found": FIND_LIMIT}
 
 
 
