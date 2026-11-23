@@ -706,7 +706,7 @@ def test_a_step_back_that_freed_the_plug_reaches_for_none(monkeypatch):
     return stepped(*a, **kw)
   body.step_routine = step
   why = _drive(charge.unplug_routine(body, believed, [], back=charge.crept(3000.0)))
-  assert "reach" not in body.said and not body.plugged, body.said
+  assert body.said == ["step"] and not body.plugged, "no look, no hand: " + str(body.said)
   assert why == "it came off its port as it stepped back to its seat (stepped)", why
 
 
