@@ -103,8 +103,8 @@ MAX_START_OVERS = MAX_RESUMES
 MAP_EPOCH = 6
 #: ...said for the newest epoch's reason: a save crosses only the bump the
 #: deploy that reads it brings.
-MAPS_DROPPED = ("the map I had held the rooms I worked in as much as 40 cm from where "
-                "they are, and it is gone")
+MAPS_DROPPED = ("my map held the rooms I worked in as much as 40 cm from where they "
+                "are, and it is gone")
 #: ...and History's words where the save is of the same house with another
 #: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
 #: the clock, its pack, its deaths and its jobs with it.

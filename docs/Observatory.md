@@ -17,10 +17,11 @@ world restores is of epoch 5, so it comes back as a changed world does: the
 clock, the packs, the deaths and the jobs, never the bodies, the beliefs,
 the maps or the places found in them. Both robots begin the wake at their
 starts, off their stations, with no map and no place found, and History
-says why (`MAPS_DROPPED`: "the map I had held the rooms I worked in as much
-as 40 cm from where they are, and it is gone"; 93 characters, the restart's
-whole line 215-290 with what can follow it, none cut). Nothing else moved:
-the geometry, the prompt (`bb1e3d07…`) and the hello are unmoved.
+says why (`MAPS_DROPPED`: "my map held the rooms I worked in as much as 40
+cm from where they are, and it is gone"; 86 characters; the restart's whole
+line 208-283 with its `[t=…s]` stamp and what can follow it, 232 with "it
+cut my charge short" as both robots' will read, none cut). Nothing else
+moved: the geometry, the prompt (`bb1e3d07…`) and the hello are unmoved.
 
 **Why** (#681; X7's read of the backups of 11-22 and 11-23, the `world.npz`
 alone, numbers only). Every Luca fix of the weekend kept its map, and
