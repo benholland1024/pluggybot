@@ -2933,8 +2933,12 @@ where both trees dropped the fork: the pass on it reads laid 30 of 64, as
 the base, and 2 falls against 1. No hold ran out its bound there (the
 longest 1.48 s), nor anywhere else flown: 2,628 hand-overs. W4's family
 flown on this class: 5 of 6 acted on, laid 3 against 5 (lab_3511's plate
-dropped). The pair's fixture line is the base's line for line but two
-wall-clock stamps.
+dropped). The station's checks, on 4fcd086d itself (the station's flights
+record no settle): docked and unplugged 39 of 39 round the standoff, 140 of
+140 seats and 20 of 20 lost, no fall, as the base; 196 of its 199 rows the
+base's own, the other three a dock 0.1 s longer and two lost robots'
+let-goes a millimetre elsewhere, one docked 2.8 s sooner. The pair's
+fixture line is the base's line for line but two wall-clock stamps.
 
 ## The way home (issue #539)
 
