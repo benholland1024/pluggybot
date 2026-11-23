@@ -707,7 +707,24 @@ def test_a_step_back_that_freed_the_plug_reaches_for_none(monkeypatch):
   body.step_routine = step
   why = _drive(charge.unplug_routine(body, believed, [], back=charge.crept(3000.0)))
   assert body.said == ["step"] and not body.plugged, "no look, no hand: " + str(body.said)
-  assert why == "it came off its port as it stepped back to its seat (stepped)", why
+  assert why == "it came off its port as it stepped straight back (stepped)", why
+
+
+def test_turned_away_after_a_failed_unplug_it_steps_back_by_no_clock(monkeypatch):
+  """After a failed unplug the undock's turn leaves it facing away from the
+  station, its plug in and its clock running: a step straight back then
+  walks its back into the station (review round 2). The clock's step is
+  taken only facing its station as it docked (`CREPT_FACING_RAD`); turned
+  away, its unplug is as before."""
+  monkeypatch.setattr(charge, "port", _port)
+  for turned, steps_back in ((math.pi, False), (charge.CREPT_FACING_RAD + 0.05, False),
+                             (charge.CREPT_FACING_RAD - 0.05, True)):
+    body = _unplugs(_Says())
+    body.stance = (0.0, 0.0, turned)
+    trace = []
+    assert _drive(charge.unplug_routine(body, _station_at((0.0, 0.0), 0.0), trace,
+                                        back=charge.crept(3000.0))) == "unplugged"
+    assert any("crept" in t for t in trace) == steps_back, (turned, trace)
 
 
 def test_the_step_back_is_the_creep_its_clock_gives_and_lands_it_behind_its_seat():

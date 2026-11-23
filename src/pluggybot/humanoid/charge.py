@@ -127,7 +127,8 @@ SEAT_STEPS = 6
 #: (SimNotes, "The unplug after a long charge"), until its plug meets the
 #: station 18 cm past its seat after about 22 minutes, where the arm's way out
 #: behind the plug drove its jaw into the wall beside the station (304 N) and
-#: the station's box (#703). It unplugged 13 cm in and not 18; nearer than
+#: the station's box (#703). Its hand got behind the plug from 9 cm in, never
+#: from 10.4 (`CREPT_AFTER_S`); nearer than
 #: this its walker's step back would not move it
 #: (`humanoid.body.STEP_SHORT_M`). It backs off without turning, in this many
 #: steps at most: turned on the spot first, as the dock's line-up turns, a
@@ -162,6 +163,11 @@ CREPT_AFTER_S = 300.0
 #: and turned the creep's 11 deg only from its seat or further back (from 4 cm
 #: in, never) -- and it docks up to 3.6 cm past its seat.
 CREPT_PAST_M = 0.05
+#: ...and only standing as it docked, facing its station within this, rad
+#: (the creep turns it up to 17 deg, its belief's heading 10 more): after a
+#: failed unplug the undock's turn leaves it facing away, its plug in, and a
+#: step back by its clock would walk its back into the station.
+CREPT_FACING_RAD = math.radians(60.0)
 #: A LOST robot looks for its station by its head's camera (#572), which
 #: reads the station's 60 mm tags much further than the colour imager's
 #: 1.07 m. MEASURED (`station_spike.py --reach`): both square-on to 4.5 m,
@@ -528,24 +534,25 @@ def unplug_routine(body, station: RackPose, trace: list, back: float | None = No
   `UNPLUG_IN_M` (`_back_off_routine`) by the station as it last saw it, and
   a later try's off a plain look of its own taken standing still,
   `UNPLUG_TRIES` in all -- the first, where a charge long by its clock may
-  have crept it in (`crept`), after a step `back` m straight back and a look
-  of its own (`_step_back_routine`, #703's option 2), then as before."""
+  have crept it in (`crept`) and it faces its station as it docked
+  (`CREPT_FACING_RAD`), after a step `back` m straight back and a look of
+  its own (`_step_back_routine`, #703's option 2), then as before."""
   why = ""
   for k in range(UNPLUG_TRIES):
     stepped = ""
     if k:
       yield from body.hold_routine(LOOK_SETTLE_S)
       station = look(body) or station
-    elif back is not None:
+    elif back is not None and abs(to_seat(body, station)[2]) <= CREPT_FACING_RAD:
       station, stepped = yield from _step_back_routine(body, station, back, trace)
+    how = "stepped straight back" if stepped else "stepped back to its seat"
     # ...from wherever its steps left it: from partway in it unplugged too
     # (9 cm in), and a step the other robot keeps it from goes nowhere
     if body.charging():
       station, more = yield from _back_off_routine(body, station, trace)
-      stepped = more or stepped
+      stepped, how = (more, "stepped back to its seat") if more else (stepped, how)
     if not body.charging():
-      why = ("it came off its port as it stepped back to its seat" + (f" ({stepped})" if stepped
-                                                                     else ""))
+      why = f"it came off its port as it {how}" + (f" ({stepped})" if stepped else "")
     else:
       why = yield from _unplug_try_routine(body, station, trace)
       if why != "unplugged" and not body.charging():
