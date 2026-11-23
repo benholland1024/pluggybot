@@ -635,6 +635,32 @@ def test_a_step_back_whose_look_sees_nothing_goes_on_by_the_station_it_had(monke
   into = np.array([math.cos(believed.yaw), math.sin(believed.yaw), 0.0])
   cup = charge.parked_grip(believed) - into * charge.CUP_SHORT_M
   assert any(np.allclose(pos, cup) for pos, _, _ in body.moves)
+  # ...its back-off by that station as before: one it still believes itself
+  # further in than `UNPLUG_IN_M` from steps on to its seat
+  body, _, _ = _crept_body(0.18, sees=False)
+  deep = _station_at((-0.30, 0.0), 0.0)        # believed 30 cm past its seat
+  trace = []
+  assert _drive(charge.unplug_routine(body, deep, trace,
+                                      back=charge.crept(3000.0))) == "unplugged"
+  assert len(body.stepped) == 2 and body.stepped[1][2] == 0.0, body.stepped
+  assert body.stance[0] == pytest.approx(-0.30, abs=1e-9), "on to its seat as it believes it"
+
+
+def test_a_later_try_steps_back_by_no_clock_again(monkeypatch):
+  """The step back by its clock is the first try's alone: a try that failed
+  is tried again from where the first left it, after a look of its own and
+  its back-off by that look, as before."""
+  monkeypatch.setattr(charge, "port", _port)
+  went = iter((False, True))
+  body, believed, _ = _crept_body(0.18)
+  body.reaches = lambda rot: next(went)
+  trace = []
+  assert _drive(charge.unplug_routine(body, believed, trace,
+                                      back=charge.crept(3000.0))) == "unplugged"
+  assert len(body.stepped) == 1 and sum("crept" in t for t in trace) == 1, trace
+  first, again = (i for i, w in enumerate(body.said) if w == "reach")
+  between = body.said[first:again]
+  assert between.index(("hold", charge.LOOK_SETTLE_S)) < between.index("spot"), between
 
 
 def test_a_step_back_the_other_robot_keeps_it_from_looks_and_steps_no_more(monkeypatch):
