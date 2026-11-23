@@ -11473,63 +11473,109 @@ its seat, is a robot lost, searched at once, as before. ⚠ The report is the ot
 own word, read as its reported pose is: a robot whose port says nothing
 holds nothing by this rule.
 
-## Stocking the shop's shelf (issue #736's stage 1)
+## Stocking the shop's shelf (issue #736)
 
-Our reference for `shelf` (`hands_check.SHELF`; Challenges.md §13), flown
-on the dev box one set-out at a time and on one Vast pod (an EPYC 7C13
-share) 29 at once, the loop of 2026-11-22 (task W3). What flying took:
+Our reference for `shelf` (`hands_check.SHELF`, the walk there
+`solutions.SHELF_APPROACH`; Challenges.md §13), flown on Vast pods -- stage 1
+(the loop of 2026-11-22, task W3) on an EPYC 7C13 share, stage 2 (the loop of
+2026-11-23, task X6) on a Xeon E5-2697A v4 share for its dev draws and an EPYC
+7532 share for the bar -- each stage-2 flight with a trail of every product's
+true place and the true stance after each verb. What flying took:
 
 - **The cart is 0.35 m deep, not #736's 0.5.** At 0.5 the robot standing
   0.13 m off its front stands 0.63 m off the shelf's, where neither board's
   front is reached; the walker barely backs up, so a product would be a step
   forward and back each. At 0.35 the robot stands 0.50 m off the shelf in
   front of the cart and at its slots alike, and a product is a sidestep.
-- **Where the products wait.** 16 cm in from the cart's front (the table's
-  pieces' distance) the colour camera looks down on the frame's face too
-  steeply to read its tag (`spot` failed every time); 26 cm in, no level
-  grip planned. The frame waits 19 cm in, the candle 21. The frame 15 cm
-  left of the robot's middle planned no grip either: it waits 21 cm left,
-  in front of the left shoulder.
+- **Where the products wait.** 16 cm in from the cart's front the colour
+  camera looks down on the frame's face too steeply to read its tag; 26 cm
+  in, no level grip planned. The frame waits 19 cm in, 21 cm left of the
+  robot's middle (in front of the left shoulder), the candle 21 in.
 - **`spot.n*` points INTO the frame's face**, as the cube's procedure uses
-  it: the fingers go along it. Turned up to 10 deg, a frame's turned grip is
-  out of reach in some draws; the straight one is tried next.
-- **The grip from above.** Sent level straight to its grip, the arm's way
-  out swung the hand wide to the left and brought it in from the side, and it
-  pushed the frame 30 N; from 10 cm above, straight down, it closes round
-  either product. Where the descent is held back on a product's top, it is
-  lifted and reached level (that pick usually closes on nothing: 3-4 draws of
-  32).
-- **The hand sags under a product.** Its own reading of its height is 2-3
-  cm over where it truly is with 0.25-0.45 kg in the jaws (#736's grips: a
-  candle asked up 5 cm rose 2.3). Brought in 3 cm over the board, the
-  products snagged its front edge; at 5 cm they clear it.
-- **A sidestep carrying a product under-travels its own count.** Over 0.8-1.3
-  m of sidesteps the label came out 10-15 cm further left than the steps'
-  `step.dy` put it (fly.py's spot log, 15 draws). The label is read where it
-  is, never placed by the count alone.
-- **The carried product hides a label in front of the left shoulder.** With
-  the product carried at the left hip, a label 0.2-0.35 m left of the
-  robot's middle often did not read; 12 cm left it reads (v15: every draw
-  read it). But a set-down 12 cm left is out of the left hand's reach (18 of
-  32 reaches there, #736's item 6: the body's middle is not reached). So the
-  label is read at 12 cm, the robot sidesteps to put it at 21, and the set-
-  down goes where the step's own count carries the reading -- read again
-  where it reads.
-- **The upper board lands right.** Of 18 placements on the upper board the
-  mean was 2.7 cm right of the label (frames up to 6.5); the lower board's
-  10, -0.04 cm. The hand is aimed 2.5 cm left there. Measured, not
-  understood: the label read near the picture's top, the arm at 1.07 m under
-  load, or both.
-- **Reaches held back going in.** Carried straight in from a reach 12-17 cm
-  out, the hand was often held back short (the posture of the reach out
-  does not reach in); the product set down there jutted over the edge. The
-  set-down aims 8 cm in (the candle's front 4.5 cm in, the frame's face 7)
-  and a pull carries the hand the rest of the way at 10 N.
-- **The numbers so far** (the check's 32 set-outs, 0-31, one pod, each draw
-  its own noise): 4 of 32 at the first shape (6435ecae), 10 of 32 with the
-  label read 12 cm left and stepped in (v16b), one fall. A procedure's
-  local variable named `c` overwritten by a cosine made one round's candles
-  look for tag 1: names in a procedure are one namespace.
+  it: the fingers go along it; a turned grip out of reach tries the straight.
+- **The grip from above, and again.** Sent level straight to its grip, the
+  arm swung the hand in from the side and pushed the frame 30 N; from 10 cm
+  above, straight down, it closes round either product. The frame is 75 mm
+  in the Dex1-1's 90, and a descent a few mm off lands a jaw on its top (8
+  of 64 dev flights); reached level from there, the pick closed on nothing.
+  A pick held back, or shut on nothing, opens, backs off, goes home and
+  begins again from a fresh look.
+- **The candle is gripped 1.5 cm above its middle.** Held across its centre
+  of mass it hangs free to spin about the jaws' line, and the walk's swing to
+  the carry pose turned it upside down (set down tipped 180 deg in 3 of 64).
+- **The hand sags under a product.** Its own reading of its height is 2-3 cm
+  over where it truly is with 0.25-0.45 kg in the jaws. Brought in 3 cm over
+  the board, the products snagged its front edge; at 5 cm they clear it.
+- **A sidestep's count reads short of the feet, so a trip over-travels.**
+  Each step's `step.dy` reads 1-4 cm short (true over count 1.14-1.17 on
+  the corrective steps), so a trip in steps until its count is done goes
+  about 3 cm a step too far: labels aimed 0.12 m left after a carried trip of
+  three or four steps first read at a median 0.215. A single carried
+  sidestep went 0.68 of what it asked (quartiles 0.42-0.92), and one asked
+  under ~5 cm mostly read `too short`; an uncarried one asked 8 cm went 14.
+- **A carried product hides a label to its left.** With the product at the
+  left hip, labels read reliably from 0.12 to 0.25 m left of the robot's
+  middle; past 0.25 the upper board's missed 6 of 28 and 3 of 6 at 0.30, and a
+  step left carrying the frame read `blocked` twice running. So the carried
+  trip is aimed to bring its label in 0.06 m left and the label is brought to
+  0.23 by steps right.
+- **A look that misses steps the way its tag most likely went** -- a label
+  after the carried trip to its left, the candle after the trip back to its
+  right. Standing still, a missed tag was never found again.
+- **The stance turns, and is squared off a label's face.** Corrective steps
+  and the set-down turned the stance 5-9 deg off square; a metre's sidestep 9
+  deg off moved the robot 16 cm off the shelf going back and 9 cm in going
+  out, to 0.37-0.43 m, where no low label was in view -- most of the falls and
+  lost looks. Each label's normal gives its board's facing: the stance is
+  turned square past 2 deg before each set-down and before the trip back.
+- **A press that never landed.** Set down by a press of 6 N down, a product
+  that reached its board read held fast at about 6 N (or out of reach above
+  3.5); on the upper board at full stretch some presses ended out of reach
+  under 2.5 N, 5-7 cm up or not over the board at all, and the product let go
+  there fell. Under 3 N the hand goes 5 cm lower before it lets go.
+- **The upper board's set-down reach can stop short**: the frame carried at
+  the hip came forward but not up, 13-28 cm short of a goal 1.07 m up; it is
+  tried again 8 cm further back and 3 cm higher.
+- **Where each board's placements land.** Aimed at the label read, the upper
+  board's landed 2.7 cm right on average and the lower board's about 1 cm
+  left: the hand is aimed 2.5 cm left of its label on the upper board and 1 cm
+  right on the lower. Measured, not understood.
+- **The walk there squares itself.** Walked from across the house and faced
+  by its belief, the robot stood a median 9.3 deg off square (12 of 15 tour
+  flights past 4); the frame and the candle stand on the cart along a line
+  4.8 deg off the robot's side when square (to 2 either way over the
+  set-outs' spread), so the walk squares off it at 0.62 m and again at the
+  cart, past 3 deg -- once only, the oblique step in turned it 2-4 deg again
+  -- and ends with the frame 0.35 m ahead, not the check's 0.32: its looks
+  creep the stance in, and nearer than 0.29 the frame's tag no longer reads.
+  Landed a median 1.3 deg off square (1 of 15 past 4).
+- **Tried on the dev draws and not kept** (each mended the failure it was
+  aimed at; none read better overall on the same 64 set-outs, 34-36 against
+  the kept one's 38): the trip back aimed 4 cm short of where it should end
+  (the candle had arrived 0.10-0.15 m left, a forward step had overshot a
+  stride, and its top tag stops reading nearer than 0.31 m or further than
+  0.24 m left); the carried trip aimed by board (0.15 m left on the lower
+  board, 0.06 on the upper); a look lost by a step undoing half of it; a
+  press that never landed going back to the set-down point itself 4 cm lower
+  (going on from full stretch, the pull took another posture that carried
+  the hand 25 cm up and 17 cm out in front of the board, and the kept rule's
+  5 cm from there let two frames fall to the floor in its own dev rows); and
+  no step back carrying
+  between 0.40 m and the label's place (an oblique step back carrying fell;
+  aiming the label 3 cm further out, three flights of three fell).
+- **The numbers** (each draw its own noise; each reading beside stage 1's on
+  one pod). Stage 1's reference read 10 of 32 at the check's set-outs 0-31 and
+  0 of 16 over the tour; on 3b16a76b it passes the same ten set-outs and 0 of
+  the tour's 32. Stage 2's, frozen at c64b2fd2: at the check's set-outs 0-31
+  16 of 32 (stage 1's 10; one fall each), over the tour's draws 0-31 18 of 32
+  (0; three falls each) -- short of the bar's 24 -- and held out, on 32 draws
+  sealed by c64b2fd2, 14 of 32 at the check (7; four falls each). Of the 16
+  falls on the bar's draws and the check's sealed pool, 12 came in corrective
+  steps carrying with the robot 0.36-0.46 m from the shelf (all 8 of stage
+  2's, 4 of stage 1's), 10 of them after a carried trip run 3-7 deg off
+  square: the candle's carried trip is the one nothing squares. It was
+  chosen, by a rule written before its rows, as the best of twelve variants
+  flown on the check's set-outs 200-263 (38 of 64; stage 1's 14).
 
 ## Debugging workflow that worked
 

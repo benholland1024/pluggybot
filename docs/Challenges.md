@@ -569,6 +569,21 @@ frame's turn -- each rule said once over the products it names, and each
 reading against its line as the five graders say theirs (`lid.against`,
 #737): "4.01 cm" against "within 4 cm", never the line's own number.
 
+**Our reference** (`hands_check.SHELF`, the check's procedure from the
+check's start, and `solutions.SHELF_APPROACH`, the walk there from the
+shop's address; Evaluation.md §7): the frame, then the candle, each read off
+its tag, taken from above, carried by sidesteps to its label, squared off
+the label's face, set down from in front of the board and let go of, then
+backed out before the arm goes home (never from over an edge, #736's item
+9). Its bar, written before it flew: 24 of 32 draws over the tour, a fall
+failing its try, each draw its own noise, on one pod, then 32 held out
+sealed by the frozen commit. **It is not met.** Stage 2's reference (the
+loop of 2026-11-23), frozen at c64b2fd2, each reading beside stage 1's (the
+loop of 2026-11-22) on one pod: over the tour 18 of 32 (stage 1's 0), at
+the check's set-outs 16 of 32 (10), and held out, on 32 draws sealed by
+c64b2fd2, 14 of 32 at the check (7). SimNotes, "Stocking the shop's shelf",
+has what flying took.
+
 **The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,
 as the checks' rows are. No world offers it: the stock is not in the served
 house (`home.store`'s docstring has why, and what bringing it in moves).

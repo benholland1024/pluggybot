@@ -544,7 +544,7 @@ TABLE_STANCES = '''def lay_place():
 #: cm short of the feet, so a trip in steps over-travels: the carried one is
 #: aimed to bring its label in 0.06 m left of the robot's middle (a carried
 #: product hides a label 0.25 m or more to its left, and a step left carrying
-#: often reads blocked), and the label is brought to 0.23 by steps right; ⚠ a
+#: often reads blocked), so `near` brings it to 0.23 mostly by steps right; ⚠ a
 #: look that misses steps the way its tag most likely went; ⚠ squared off the
 #: label's face past 2 deg before each set-down and the trip back (a metre's
 #: sidestep 9 deg off square took the robot out of the labels' view); ⚠ the
