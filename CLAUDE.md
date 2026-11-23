@@ -421,16 +421,18 @@ save a filmstrip PNG named after the script.
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
-  straight, unchecked -- has the stand once it is home (asked as it set
-  off, the stand swung Luca's hand 3.4 cm past the toes onto the counter's
-  top: 5 of 33 fell), one with some ahead as it sets off (held, the check
+  straight, unchecked -- has the stand once its COMMAND is home, its
+  drivers not yet read (asked as it set off, the stand swung Luca's hand
+  3.4 cm past the toes onto the counter's top: 5 of 33 fell; and #693's
+  withdraw case fell the same with it never asked: below, the stall), one
+  with some ahead as it sets off (held, the check
   lost 3 doors and 23 tables of 32); a withdraw and a walk's hand-over wait
   for the trunk still in the stand (`_posture_held`, `STAND_BACK_S` at
   most), a withdraw's word the arm's as it came home. ⚠ A WAY HOME IS OVER
   BY ITS DRIVERS, NEVER ITS COMMAND (#693's live family; `Reach.HELD_S`,
   `_homed`, `held`; SimNotes, "A way home something holds"): read off its
   rest `HELD_S` (0.5 s) with its rest commanded, it is raised `LIFT_M` (5
-  cm) and sent home again `LIFTS` (1) times -- never with another robot by,
+  cm) and sent home again `LIFTS` (2) times -- never with another robot by,
   nor from a raise its arm did not follow -- then left where it is held,
   pressing on nothing (phase "held": out, saved through as a carry is, never
   rested with) -- left "rest" and pressed on toward it, a jaw on a counter's
@@ -441,7 +443,14 @@ save a filmstrip PNG named after the script.
   BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
   s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
   SimNotes, "A way home that shoves the body back"), NEVER A WITHDRAW'S,
-  whose word is the arm's. ⚠ BOTH WAYS KEEP OFF
+  whose word is the arm's. ⚠ BUT ANY WAY HOME, A WITHDRAW'S TOO, IS HELD SO
+  WHERE ITS DRIVERS READ THE ARM MORE THAN `STALL_RAD` (0.5 rad) OFF ITS
+  COMMAND FOR `STALL_S` (0.3 s) RUNNING (#693's withdraw case;
+  `Reach._stalled`; SimNotes, "A way home whose arm stalls"): walked on, a
+  jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm
+  back, then slipped off and the arm snapped home -- over backward; ⚠ held,
+  never at once: the door check's first ways home catch a jaw on the door's
+  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
@@ -767,15 +776,25 @@ save a filmstrip PNG named after the script.
   and the robot fell. ⚠ THE UNPLUG BEGINS AT ITS SEAT TOO (#703;
   `charge.unplug_routine`'s back-off, `UNPLUG_IN_M`; SimNotes, "The unplug
   after a long charge"): plugged in, the balancer's 2 N creeps the standing
-  robot in, 7.5 mm a minute and turning it, until its plug meets the box
-  18 cm past its seat (about 22 minutes), where the arm's way out behind
-  the plug drove its jaw into the wall beside the station and the box -- so
-  further in than 6 cm it backs off to
+  robot in, 7.5 mm a minute from where it docked and turning it, until its
+  plug meets the box 18.3 cm past its seat (20-25 minutes); from 10 cm in
+  the arm's way out behind the plug drove its jaw into the wall beside the
+  station and the box -- so further in than 6 cm it backs off to
   its seat first, never turned on the spot first (pinned, a turn swings
-  the plug across the box's face), by the station as it last saw it (its
-  scan matcher keeps its belief on its body, within about a centimetre),
+  the plug across the box's face), by the station as it last saw it,
   and a failed try goes again off a look of its own; a charge's end that
-  left the plug in says so (`UNPLUG_FAILED`). ⚠ One that fails twice
+  left the plug in says so (`UNPLUG_FAILED`, its tries' trace the log's
+  alone). ⚠ AFTER A CHARGE ITS OWN CLOCK SAYS WAS LONG ENOUGH TO CREEP, THE
+  FIRST TRY STEPS STRAIGHT BACK FIRST AND LOOKS (#703's option 2, Ben's
+  call of 11-23; `charge.crept`, `CREPT_AFTER_S` 300 s,
+  `HumanoidMission.plugged_t`, set by its dock and kept across a restart):
+  the creep its clock gives and `CREPT_PAST_M` (5 cm) more, whatever its
+  belief says -- live, docked, the belief walked 0.13-0.21 m off the body
+  with every fit `ok` and hid the creep, and the hand failed 3 times of 8 --
+  then the station as a plain look of its own places it, which sees the
+  pair only from about its seat or further back; a charge whose length it
+  does not know (a save from before the clock) steps back as far as a creep
+  goes. ⚠ One that fails twice
   leaves the plug in, and after the undock's turn the rope pulls it into
   the port's face, which the catch holds: the walk stalls. ⚠ A TRY'S HAND IS PLACED OFF A LOOK OF ITS OWN, TAKEN
   STANDING STILL, THE STATION CARRIED AS THE FEET CARRY IT (#596;
@@ -1634,7 +1653,9 @@ save a filmstrip PNG named after the script.
   chain ends at any other action but a fallback's, which keeps it ONCE, a
   second running dropping it (#604: the post-recall turn is the heaviest);
   its rule says what a find searches, every one of `RECORD_KINDS` in the
-  robot's words, and `FIND_LIMIT` formatted in (#738);
+  robot's words, and `FIND_LIMIT` formatted in (#738), and a find brings
+  back eight of its own, a recall's History lines left out before that
+  limit and as many more asked as a `read` beside it brought (#739);
   `tests/test_recall.py` pins each rule. ⚠ **The ownership split is the
   instrument** for quality five: nothing in `economy/` may read the goals. ⚠
   The prompt-cache split is by WRITER

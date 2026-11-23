@@ -448,7 +448,8 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def charge_trace(self) -> str:
-    """One line of what the last dock approach saw, for a failed one's log."""
+    """One line of what the last dock approach saw, for a failed one's log
+    -- and its unplug's tries, for a failed unplug's."""
 
   # ---- senses --------------------------------------------------------------
 
@@ -823,11 +824,12 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def arm_held(self, side: str) -> bool:
     """Whether an arm's way home stopped where something holds it (#693's
-    live family; `humanoid.reach.HELD_S`): its drivers read it off its rest
-    with its rest commanded, and -- raised and sent home again where it
-    could be, held again, or with another robot by, or its raise held too --
-    it was left there, pressing on nothing: out, until a withdraw or a walk
-    sends it home again. A walk goes with it as it is held and says so
+    live family; `humanoid.reach.HELD_S`, `STALL_S`): its drivers read it off
+    its rest with its rest commanded, or off its command part-way there (a
+    stall), and -- raised and sent home again `LIFTS` times where it could
+    be, held again, or with another robot by, or its raise held too -- it
+    was left there, pressing on nothing, part-way out it may be: out, until
+    a withdraw or a walk sends it home again. A walk goes with it as it is held and says so
     (`steps._carried`'s `armHeld`)."""
 
   @abc.abstractmethod

@@ -10,6 +10,112 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### After a long charge the unplug steps back and looks first (#703's option 2, X1, `loop-703b`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte. No
+line a robot reads is new or reworded: "CHARGE: unplugging at …" and "CHARGE:
+my hand could not get the plug out -- going on anyway" are as they were. That
+last line in the sim's log now carries its tries' trace, the log's alone.
+
+**The change** (`charge.crept`, `_step_back_routine`, `CREPT_AFTER_S`,
+`CREEP_M_S`, `CREEP_MOST_M`, `CREPT_PAST_M`, `HumanoidMission.plugged_t`;
+SimNotes, "The unplug after a long charge"). A robot's dock starts a clock as
+its plug goes in, kept across a restart. Plugged in more than 300 s, its
+unplug's first try steps straight back first -- the creep the clock gives, 7.5
+mm a minute up to 18.3 cm, and 5 cm more, never turned -- then takes a plain
+look standing still and goes by the station that look places, never by its
+belief. A shorter charge unplugs as before. A save from before the clock
+steps back as far as a creep goes: **the first wake's** (both robots were
+plugged in at the weekend's pause, Luca for 2,059 s at the lobby's station,
+Rowan 514 s at the house's).
+
+**What the period is for.**
+- **The acceptance**: an unplug after a charge carried over a run's end
+  takes its plug out -- "my hand could not get the plug out" against the
+  weekend's 3 of 8 -- and no robot falls in an unplug. A failed one's log
+  line says whether the step back ran (`crept`, `step`) and whether its look
+  saw the station (`looked`).
+- **What it costs**: one step back and a look (5-7 s) on every unplug after
+  a charge of more than 300 s, and a plug let go short of its cup from a
+  robot standing further back than its seat (the balancer reels it home).
+- **What it leaves**: the belief's drift while docked (its own issue), which
+  anything else at a station still reads, and a charge of 300 s or less with
+  a drifted belief, which unplugs as before.
+
+### A find asked again brings back what it finds (#739, X4, `loop-739`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections), the session host's hello and every sentence a
+recall leaves in History, byte for byte. What moves is what a find brings
+back: a `recall` block's lines, and the N of its `recalled N lines`
+History line and of the `recall` event's `hits`, which can be larger. A
+block's caps are unchanged (4,000 characters, a chat read's 8,000). It
+rides the release cut from `loop-staging` on 11-24.
+
+**The change** (`RecordStore.find`'s `history_without`,
+`thoughts.RECALL_MARKS`, `ThoughtFiles.recall`). A find brings back eight
+lines of its own. A recall's own History lines -- its `chose recall (...)`
+line, written before it runs, and its `recalled N lines -- ...` -- are left
+out inside the store's query, before its eight (`FIND_LIMIT`): left out
+after, as since #221, they took places among the eight (found in #738's
+review: in #739's made-up case the fifth find of the same words brought
+nothing back, and its own `chose` line took a place in 39 of the 63 first
+finds since 11-14). Beside a `read`, it asks for as many more as the read
+brought: the read's rows, which may match too, took its places as well
+(the RECALL rule says its eight come after anything `read` brings). What a
+find brought back before is still there, first and in the same order.
+Replayed off the robots' own stores as each find saw them, from 11-14 to
+11-22 (79 finds, each replay matching its narrated count): 57 bring back
+more, 171 lines in all, none fewer -- 92 of them shown, in 33 blocks, the
+rest past a block's 4,000 characters and counted as cut -- and 73 now
+bring back the full eight of their own, against 17; the 3 that found
+nothing of their own bring back 8, and the weekend's two words searched
+five times each, `t_0394` and `table_recon2`, found 2-3 and 3-8 lines of
+their own and now 8 each time.
+
+**What the period is for.**
+- **The acceptance**: the `recall` events' `hits` for one robot's words
+  found again, against the weekend's `t_0394` (35, 6, 5, 2, 8, with what
+  was read beside it).
+- **What it costs**: the turn after a find carries more recalled text (on
+  those 79, 285 characters more a block on average, at most 2,505), so
+  more input tokens; and whether the robots, told by #738 what a find
+  searches, lean on it more.
+
+### A way home whose arm stalls is held, a withdraw's too (#693's withdraw case, W2, `loop-693d`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte. No
+word is new: a `withdraw` reads false more often, "your left arm did not get
+home: something holds it there" (its text already says an arm something holds
+on its way home is raised and sent home again, pressing on nothing, and
+reads false), and a walk's report says `armHeld` where a hand-over's way home
+stalled.
+
+**The change** (`Reach._stalled`, `STALL_RAD`, `STALL_S`; SimNotes, "A way
+home whose arm stalls"). Any way home in joint space -- a withdraw's, a
+walk's hand-over's, the loop's own -- whose drivers read the arm more than
+0.5 rad behind its command for 0.3 s running is held where they read it, as
+one held at its rest is (#693b): pressing on nothing, raised 5 cm and sent
+home again, now twice for every way home held (`LIFTS`, #693b's and the
+hand-over's too), then left held. The stand an arm keeps from the robot is
+asked as before, at its way home's command end.
+
+**What the period is for.**
+- **The acceptance**: falls within 5 s of a `withdraw` at the counter (W1's
+  read: 2 on the weekend's two wakes, both Luca's after the door's pulls; 1
+  on 11-15), against the period before.
+- **What it costs**: `withdraw`s that read "held" (a procedure's step whose
+  why is "held"), and whether the run then ended where it would have gone on;
+  what the next withdraw or walk does with an arm left held; and what a
+  second raise does (flown: a door's hand-over raised again pushed its door
+  back from 55 to 49 deg, and two door runs' forearms were still on the door
+  after the call; SimNotes, "A way home whose arm stalls").
+- **What it leaves**: a way home whose body gives way before its arm falls
+  half a radian behind (`door_final50`'s key 0 in the flights), and a
+  withdraw from a deep bow onto the counter (`cube_run3`'s two).
+
 ### What a find searches, said; a grade's reading told from its line (#738, #737; W5, `loop-words2`) — opens when this PR is deployed
 
 **What the robots read.** The prompt moves, `6ec0fc48…` (70,256
