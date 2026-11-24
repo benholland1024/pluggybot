@@ -1382,7 +1382,9 @@ save a filmstrip PNG named after the script.
   FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.joint_end` (#744;
   `Reach._on_stops`, `JOINT_END_RAD` off `Reach.sensed`, never read afresh;
   `tests/test_readings.py`): held at its own wrist's end, Luca read a lid's
-  open stop; and out of reach is `pull.reach`. ⚠ `spot` AND `watch` SAY WHICH CAMERA
+  open stop; and out of reach is `pull.reach`. ⚠ A KEPT PROCEDURE THAT READS
+  `pull.held` GOES ANOTHER WAY THERE (Luca's `chest_open3` lifts on past its
+  wrist's end; Observatory.md, the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
   them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):

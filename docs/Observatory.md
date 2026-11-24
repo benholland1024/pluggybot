@@ -10,6 +10,119 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A pull says out of reach and its own arm's stop apart from held fast, and a reach and a withdraw say where the feet went (#744, #746, Y2, `loop-readings`) — opens when this PR is deployed
+
+**What the robots read** moves on purpose: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) becomes `790b89b6…` (71,972 characters, 17
+sections), one section moved, PROCEDURES YOU MAY WRITE; the session host's
+hello `a61b6376` becomes `4e057ff0` (three verbs' texts, eight sensors
+more, `pull.held`'s words). No History line is new or reworded. The
+sentences, each a draft for Ben:
+- `pull`'s text, BEFORE: "How far it went, the hardest it pushed, whether
+  it ended held fast and the way it was going at its end ride `pull.*`,
+  unless it reads false"; AFTER: "How far it went, the hardest it pushed,
+  whether it ended held fast by what it pulls or could reach no further,
+  whether one of your arm's joints was at the end of its range as it stopped
+  and the way it was going at its end ride `pull.*`, unless it reads false".
+- `pull.held`, BEFORE: "1 if the last `pull` ended held fast, as your hand
+  felt it, 0 if something else stopped it"; AFTER: "1 if the last `pull`
+  ended held fast by what it pulls, as your hand felt it -- none of your
+  arm's joints at the end of its range -- 0 if something else stopped it".
+- New, `pull.reach`: "1 if the last `pull` stopped because your hand could
+  reach no further that way, 0 if something else stopped it"; and
+  `pull.joint_end`: "1 if one of your arm's joints read at the end of its
+  range as the last `pull` stopped -- that joint turns no further that way,
+  so your own arm can hold your hand there as fast as what it pulls -- 0 if
+  none did".
+- `reach`'s text gains, at its end: "The posture you take can move and turn
+  your feet: where they went while it ran rides `reach.*` (`reach.dx` ahead,
+  `reach.dy` left, m, and `reach.turn`, rad), in the stance frame you stood
+  in before it, however it ended"; `withdraw`'s: "Where your feet went while
+  it ran rides `withdraw.*`, as a reach's rides `reach.*`". New: `reach.dx`,
+  "how far ahead your feet went while your last `reach` ran, m, in the stance
+  frame you stood in before it"; `reach.dy`, "how far to your left your feet
+  went while your last `reach` ran, m, in that frame"; `reach.turn`, "how far
+  your feet turned while your last `reach` ran, rad (left, +)"; and
+  `withdraw.dx`, `withdraw.dy`, `withdraw.turn` alike.
+- YOUR BODY's "taking a posture to reach can move them a little" is
+  unchanged: #746's option 1 was not taken.
+
+**What a deployed robot does.** Its body, nothing new: no reading feeds a
+decision of the body's, and our references fly as before. But a robot's OWN
+procedure that reads `pull.held` reads 0 where it read 1, at a pull held
+fast with one of its arm's joints at an end, and goes another way there
+(below).
+
+**The change** (`Reach._on_stops`, the pull's report's `stops` through
+`Body.pull_routine`, `steps._pull`; `Body.reckoned`, `steps._feet` and
+`_feet_went`; `axes.PULL_SENSORS`, `STANCE_SENSORS`). A pull's end names the
+joints of its arm its drivers last read within `reach.JOINT_END_RAD` (5
+mrad) of an end of the range its model of itself gives, or past it -- the
+arm's solve keeps every commanded joint 0.05 rad inside its range, so a
+joint read there was pushed onto its stop -- off `Reach.sensed`, never read
+afresh. `pull.held` is held fast with none of them, `pull.joint_end` any of
+them whatever ended the pull, `pull.reach` out of reach. A reach's and a withdraw's feet are the stance
+under the believed pelvis less every correction from outside the legs'
+reckoning (`Body.reckoned`), from the verb's start to its end, in the stance
+frame it stood in before, however it ended; a reach refused before it ran
+leaves none.
+
+**Why** (the loop of 11-23's X5: the weekend's own chest flights at their
+live draws). 144 of 159 lifts that ended held fast had one of the robot's
+own arm joints on its limit (the left wrist's roll in 118), none with the
+lid at its open stop, and in 90 the lid later rose further; Luca read two
+held-fast pulls as the lid's open stop, and its `chest_open3` ends its lift
+on them. Rowan's lifts ran out of reach 516 times, nothing it read said so,
+and it asked which. Of 497 reaches, 82 turned the soles past 5 deg and 16
+past 15 (26.2 at most), the belief turning with them, while the words said
+"a little".
+
+**Measured** (one Vast pod, an Intel Xeon E7-8890 v4, each flight its own
+process, fa842927 beside the branch).
+- **Our references fly as before**: the hands checks at set-outs 0-31 and
+  the tour's five jobs at draws 0-31, 320 pairs, identical by end state (the
+  sim time and a hash of every qpos and qvel) and by path (every verb's
+  verdict whole, words included): 122 passed and 4 fell, and 150 and 0, on
+  both. Their 399 pulls that ended held fast had no arm joint at an end, so
+  `pull.held` read as before; `pull.joint_end` read 1 at 30 pulls, none held
+  fast.
+- **The robots' own procedures that read `pull.held`**, at their live draws
+  (X5's 120 chest flights, W1's 64 door flights), beside the branch's final
+  code: 184 flights, 172 identical by end state and path. The 12 that part
+  each part at the verb right after the
+  second pull in a row that ended held fast at its own arm's end (the base
+  reads `pull.held` 1 there and ends its lift; the branch reads 0, with
+  `pull.joint_end` 1, and pulls again): Luca's `chest_open3` (64 flights)
+  4 passed, 1 fell, 59 failed on the base, 1, 0 and 63 on the branch, 10
+  parting; its `chest_open4` (8) 0, 0, 8 on both, 1 parting; Rowan's
+  `chest_run13` (8) 0, 1, 7 on both, 1 parting late; Rowan's `chest_run10`,
+  `11`, `12`, `14` and the two door procedures (`door_final50` 22, 3, 7;
+  `door_fix54` 4, 1, 27) part nowhere. After the parting point Luca's lid
+  rose higher on the branch (69-110 deg, the base's 54-104) and in 10 of the
+  11 came down fast while open (1.4-7.6 rad/s; on the base 6 of them did),
+  the other left 109 deg open: the base's three passes there (it set the lid
+  down from 59-86 deg at 0.34-0.44 rad/s) are lost, and its one fall is a
+  failure without a fall. In all, 27
+  passed and 6 fell on the base, 24 and 5 on the branch.
+- **The readings against the truth** (X5's chest flights flown again with
+  every arm joint's true and read distance to its end and its limit's force,
+  and the soles' own place and heading): every one of 640 joints pressing
+  its limit as 1,096 pulls ended read at most 2 mrad inside its end (MuJoCo's
+  limit is soft: pressed, up to 47 mrad past it), and 118 pressing nothing
+  read within 5 mrad, each truly within 7 mrad of its end. The feet over 246
+  reaches and 220 withdraws: the turn within 0.42 deg of the soles' own (0.11
+  at the median), the move within 2 cm at the 90th percentile; a sole that
+  slides is a move the legs' reckoning never sees (one withdraw read 0.3 cm
+  of a true 11.4, as the belief did).
+
+**What to read on the live rows.**
+- A procedure that reads `pull.joint_end` or `pull.reach`, and whether a
+  robot told so turns its grip or reaches from elsewhere.
+- Luca's kept chest procedure, whose lift reads `pull.held`: it no longer
+  ends at its wrist's stop.
+- A procedure that reads `reach.*` or `withdraw.*` and turns a place read
+  before by it, as `step`'s text shows.
+
 ### A hand's verbs say what their body knows when they fail: a carry whose grip let go, a reach's stop, a lid that came down fast (#742, #743, #745, Y1, `loop-words3`) — opens when this PR is deployed
 
 **What the robots read** moves in History alone: the prompt (`bb1e3d07…`,

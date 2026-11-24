@@ -189,11 +189,12 @@ REPLAN_M, REPLAN_ROT, REPLAN_S = 0.015, 0.12, 1.0
 HOLD_ROT_TOL = 0.2
 #: A pull's arm joint its driver reads within this of an end of its range,
 #: or past it, rad, is AT ITS END (`_on_stops`, #744's `pull.joint_end`). X5's
-#: chest flights flown again with the truth beside the reading: every joint
-#: pressing its limit as a pull ended (MuJoCo's limit is soft: pressed, up to
-#: 45 mrad past it) read at most 1 mrad inside its end; at `arms.STOP_RAD`'s 20
-#: mrad, a shoulder's yaw up to 19 mrad short of its end, pressing nothing,
-#: read as on it too (SimNotes, "What a pull and a reach read of the body").
+#: chest flights flown again with the truth beside the reading: all 640 joints
+#: pressing their limit as 1,096 pulls ended (MuJoCo's limit is soft: pressed,
+#: up to 47 mrad past it) read at most 2 mrad inside their end; at
+#: `arms.STOP_RAD`'s 20 mrad, 476 joints pressing nothing read as at their end
+#: too, a shoulder's yaw up to 21 mrad short among them, and at this, 118, each
+#: within 7 mrad of it (SimNotes, "What a pull and a reach read of the body").
 JOINT_END_RAD = 0.005
 #: A carried hand has arrived once within this of its goal, m; one whose
 #: command arrived and which is still short of it this long after, s, is
