@@ -942,6 +942,8 @@ def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
           return found
         if "met" not in swing:
           swing.update(met=met, plan=found)
+        if not SWING_SEARCH:
+          return None
         continue
       if first is None:
         first = (found, got[2])
@@ -1295,17 +1297,24 @@ SWING_SLACK_M = 0.005
 SWING_WORK_M, SWING_WORK_UNDER_M = 0.15, 0.10
 #: ...and no longer than this, s: a posture and a way out are done in a few.
 SWING_MOST_S = 10.0
+#: The arm's command is judged this far behind the waist's and the posture's,
+#: s: walking out it lags its command (Y6: 0.41 rad out where its command was
+#: 0.64 at 0.64 s), the waist's drive its own by a few hundredths.
+SWING_ARM_LAG_S = 0.2
+#: Whether a plan whose swing meets what it saw is passed over for the next
+#: (True) or the reach refused there (False): the experiment's two arms.
+SWING_SEARCH = True
 
 
 def swing_clock(shown, posture, waist, waist_speed, q0, ways, tick: float,
-                every: float = SWING_DT) -> list[tuple]:
+                every: float = SWING_DT, lag: float = 0.0) -> list[tuple]:
   """A reach's commands as its arm sets off (#747), every `every` s until each
   has arrived, its own loop's `tick` apart: the posture the standing policy
   is shown walked from `shown` (height, pitch) to `posture`'s at
   `HEIGHT_RATE` and `PITCH_RATE` (`StandDriver.step`), the waist's command
   from `waist` at `waist_speed` on `turned`, and the arm's from `q0` through
-  `ways` at `JOINT_RATE` (`Reach._joints`: a tick each target it reaches).
-  [(t, height, pitch, waist, arm)]."""
+  `ways` at `JOINT_RATE` (`Reach._joints`: a tick each target it reaches),
+  `lag` s behind the others. [(t, height, pitch, waist, arm)]."""
   from pluggybot.humanoid.policy import HEIGHT_RATE, PITCH_RATE
   h, p = (float(v) for v in shown)
   h1, p1, w1 = (float(v) for v in posture)
@@ -1318,7 +1327,7 @@ def swing_clock(shown, posture, waist, waist_speed, q0, ways, tick: float,
     h = h1 if abs(h1 - h) <= HEIGHT_RATE * tick else h + math.copysign(HEIGHT_RATE * tick, h1 - h)
     p = p1 if abs(p1 - p) <= PITCH_RATE * tick else p + math.copysign(PITCH_RATE * tick, p1 - p)
     w, ws = _turned1(w, ws, w1, tick)
-    if todo:
+    if todo and k * tick > lag + 1e-9:
       gap = todo[0] - q
       worst = float(np.abs(gap).max())
       if worst <= JOINT_RATE * tick:
@@ -1648,8 +1657,9 @@ class Reach:
     self.goal[side] = goal
     self.q_to[side] = self.outs[side].pop(0)
     self.allowed[side] = [tuple(float(v) for v in p_) for p_ in postures]
-    # ...a posture its plan passed over for its swing (#747) none its look takes
-    self.left[side], self.looks[side], self.looking[side] = passed, 0, False
+    # ...a plan that passed over a posture for its swing (#747) is the one its
+    # hand goes in from: its look takes none
+    self.left[side], self.looks[side], self.looking[side] = [], LOOKS if passed else 0, False
     self.seen_at[side] = self.seen if verb else None
     self.phase[side] = "move"
     # ...a way home it cut short is over: no later rest reads it held
@@ -1780,7 +1790,8 @@ class Reach:
     shown = self.stand.posture - self.trim
     w0 = float(self.waist_cmd[0])
     clock = swing_clock(shown, posture, w0, float(self.waist_speed[0]), self.q_cmd[side], ways,
-                        self.every * self.m.opt.timestep)
+                        self.every * self.m.opt.timestep,
+                        lag=SWING_ARM_LAG_S if hold is None else 0.0)
     waist = sm.qadr[sm.waist]
     arm = {s: sm.qadr[sm.arm[s]] for s in hm.SIDES}
     parts, held = [], None

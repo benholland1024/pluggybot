@@ -182,23 +182,28 @@ def test_a_posture_whose_swing_meets_a_face_it_saw_is_passed_over(floor):
     floor.seen = None
 
 
-def test_a_look_takes_no_posture_its_plan_passed_over():
-  """The plan's passed-over postures are ones its look has left (`left`):
-  taken back by the look with the hand held at its pre-grasp, the 0.55 bow
-  the plan passed over went down in the approach (#747's census, d225 w0
-  y15). The loop's own reach passes over nothing."""
+def test_a_reach_whose_plan_passed_over_a_posture_takes_no_look():
+  """A plan that passed over a posture for its swing is the one its hand
+  goes in from: its look takes none (`looks` spent) -- taken back by the
+  look, the 0.55 bow the plan passed over went down in the approach, and
+  kept off those, the look went on to the deepest bows, whose trunk and head
+  met the counter (#747's census). Where nothing was passed over the look
+  is as it was; the loop's own reach passes over nothing."""
   reach = _floor()
   goal = HandGoal(np.array([0.30, -0.07, 0.80]), None, 0.5)
   postures = rc.REACH_POSTURES[:12]
   reach.seen = _face(0.15, 20)
   assert reach.reach("left", goal, postures=postures, verb=True)
-  passed = list(reach.left["left"])
-  assert passed and tuple(reach.posture) not in passed
-  assert reach.seen_at["left"] is reach.seen
+  assert reach.looks["left"] == rc.LOOKS and reach.seen_at["left"] is reach.seen
+  reach.seen = None
   floor = _floor()
   floor.seen = _face(0.15, 20)
   assert floor.reach("left", goal, postures=postures, verb=False)
-  assert floor.left["left"] == [] and floor.seen_at["left"] is None
+  assert floor.looks["left"] == 0 and floor.seen_at["left"] is None
+  far = _floor()
+  far.seen = _face(0.40, 20)
+  assert far.reach("left", goal, postures=postures, verb=True)
+  assert far.looks["left"] == 0
 
 
 def test_a_look_passes_over_a_posture_whose_swing_meets_what_it_saw():
@@ -277,7 +282,7 @@ def test_a_part_begun_further_in_than_the_clearance_goes_no_further(floor, monke
   inside = _around(gripper, -0.012, -0.007)
   assert len(inside) > 20 and rc.SWING_CLEAR_M > -0.007, "the premise: begun further in"
 
-  def still(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT):
+  def still(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT, **kw):
     return [(k * every, float(shown[0]), float(shown[1]), float(w), np.asarray(q0, dtype=float))
             for k in range(3)]
   monkeypatch.setattr(rc, "swing_clock", still)
@@ -290,7 +295,7 @@ def test_a_part_begun_further_in_than_the_clearance_goes_no_further(floor, monke
   under = _around(gripper, 0.03, 0.06)
   under = under[under[:, 2] < gripper[3][2] - 0.03]
 
-  def crouch(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT):
+  def crouch(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT, **kw):
     return [(k * every, float(shown[0]) - 0.1 * k / 4, float(shown[1]), float(w),
              np.asarray(q0, dtype=float)) for k in range(5)]
   monkeypatch.setattr(rc, "swing_clock", crouch)
