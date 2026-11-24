@@ -828,14 +828,16 @@ def test_a_carrys_posture_is_given_up_only_for_a_load_held_past_mean_s():
     r._posture_held = lambda: False             # ...its posture coming
     return r
 
-  # a knock: past the line for 0.04 s, its mean 3 commands more
+  # a knock: past the line for 0.04 s, its mean 3 commands more -- and again:
+  # two knocks are not one load held
   r = carrying()
-  r.force["left"] = 1.5 * CARRY_LINE * way
-  for _ in range(4):
-    r._held("left", dt, H, np.eye(3))
-  r.force["left"] = np.zeros(3)
-  for _ in range(20):
-    r._held("left", dt, H, np.eye(3))
+  for share in (1.5, 3.0):
+    r.force["left"] = share * CARRY_LINE * way
+    for _ in range(4):
+      r._held("left", dt, H, np.eye(3))
+    r.force["left"] = np.zeros(3)
+    for _ in range(10):
+      r._held("left", dt, H, np.eye(3))
   assert not r.pulls["left"].get("given") and r.postures == [(0.0, 0.15, 0.0)]
   # a load held: given up once it has read past the line for MEAN_S
   r = carrying()
