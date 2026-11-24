@@ -1121,14 +1121,13 @@ def _shelf_tags(k: int = 0):
   return so, tags
 
 
-def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, slip=0.0,
-                 undercount=0.0, reach_turn=0.0, label_far=0.0):
+def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, undercount=0.0,
+                 label_far=0.0):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
-  turning `drift` rad more than it asked, going `slip` more sideways than it asked and counting
-  `undercount` short of where it went (a sidestep's count reads short of the feet); a reach of an
-  empty hand turning the stance `reach_turn` rad (a pick's reach turns the feet); each label
-  `label_far` m further from the shelf's front than the start stands; its first
+  turning `drift` rad more than it asked and counting `undercount` short of where it went (a
+  sidestep's count reads short of the feet); each label `label_far` m further from the shelf's
+  front than the start stands; its first
   `held_back` descents onto a product held back and its first `short` set-down reaches stopped
   short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
   stub's pose then)."""
@@ -1152,12 +1151,10 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, s
       return {"x": x, "y": y, "z": z, "normal": list(n), "edge": [0.0, 1.0, 0.0], "range": 0.5}
 
     def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
-      rep = yield from super().step_routine(ahead, left * (1.0 + slip), turn + drift, patience)
+      rep = yield from super().step_routine(ahead, left, turn + drift, patience)
       return {**rep, "dx": rep["dx"] * (1.0 - undercount), "dy": rep["dy"] * (1.0 - undercount)}
 
     def reach_routine(self, side, pos, rot=None, **kw):
-      if not self.grips.get(side):
-        self.theta += reach_turn
       if self.grips.get(side) and self.shorts < short:
         self.shorts += 1
         self._why[side] = "stopped short"
