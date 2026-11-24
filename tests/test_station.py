@@ -993,7 +993,7 @@ def test_a_look_at_the_station_fixes_the_belief_and_past_the_matchers_reach_drop
     fix = body._fix_at(far)
     assert fix["dropped"] and not m.grid.grid.any()
     # ...and a map dropped lays nothing afresh: there is none (#741)
-    assert "relayM" not in fix and m.matcher.relay_m == 0.0
+    assert not m.matcher.relaying
   finally:
     body.close()
 

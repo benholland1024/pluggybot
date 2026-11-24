@@ -11775,23 +11775,25 @@ held 0.4 (1.0) without them.*
   leaves"): alone, its fixes keep the map and the region takes the belief
   back as the base's did.
 
-**The rule as built** (`HumanoidBody._fix_at`, `RELAY_PAST_M`,
-`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by`
-/ `forget_seen`, `Navigator._scan_step`). A station fix that moves the belief
-and keeps the map -- the only call in the code that opens an anchor's window
--- arms a relay with a reach: what it moved the belief, its turn at the
+**The rule as built** (`HumanoidBody._fix_at`, `ScanMatcher.relay`,
+`RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by` / `forget_seen`,
+`Navigator._scan_step`). A station fix that moves the belief and keeps the
+map -- the only call in the code that opens an anchor's window -- arms a
+relay. The next scan laid goes in over what it looks across forgotten first:
+every cell whose nearest bearing of that scan's lies within a degree of it,
+from the sensor out to that bearing's end (`max_range` where nothing came
+back) and no more than 0.15 m past it. The first form grew the cells the
+rays crossed by a reach -- what the fix moved the belief, its turn at the
 LIDAR's 8 m, and the fit's own reach (0.30 m) more, where a copy of what the
-robot sees may lie. The next scan laid goes in over what it looks across
-forgotten first: every cell from the sensor out to each bearing's end
-(`max_range` where nothing came back), and every cell within the reach of
-one, but none more than 0.15 m past the end of its bearing (uncapped, the
-lobby's relay forgot 7,294 cells more, 928 of them walls, all behind what its
-scan met: what lies behind a wall the scan met is never laid again from
-there, and a copy behind a fresh wall pulls nothing). Under that bound the
-reach widens nothing: every reach is 0.40 m or more, and the lobby's regions
-were 27.4-27.7 m² for reaches of 0.46-1.01 m (uncapped, 45.8-65.4), so what
-goes is what the scan looks across, filled between its rays, and up to 0.15
-m past each end. It keeps a wall nearer than both its
+robot sees may lie -- and uncapped, the lobby's relay forgot 7,294 cells
+more, 928 of them walls, all behind what its scan met: what lies behind a
+wall the scan met is never laid again from there, and a copy behind a fresh
+wall pulls nothing. Under the 0.15 m bound every reach from 0.30 m on forgot
+the same cells (every reach was 0.40 m or more; the lobby's regions were
+27.4-27.7 m² for reaches of 0.46-1.01 m, uncapped 45.8-65.4), so the reach
+is gone (#741's open points, the loop of 11-24b: on 40 random scans with
+bearings missing and on every relay scan of the census below, the region
+the reach made and the cone are the same cells). It keeps a wall nearer than both its
 bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
 rays pass over what is lower and `update` clears no wall, so a low thing
 mapped from afar stays, and the fit takes no return there anyway. On a
@@ -11799,9 +11801,9 @@ bearing that clears none (the scan bowed past 30 deg, or behind another
 robot) it keeps every wall: forgotten, `update` laid it floor. The anchor's
 30 scans then lay the region from the belief put right, each as it comes. A
 bearing the scan does not carry (another robot's, the robot's own body) is
-looked across by none of it. The relay is kept state (`relayM`); a warp or a
-map forgotten cancels it and closes the window; of two fixes before its scan,
-the larger reach; a fix past the matcher's search drops the map as before
+looked across by none of it. The relay is kept state (`relay`); a warp or a
+map forgotten cancels it and closes the window; a fix past the matcher's
+search drops the map as before
 and arms none. It reaches both fixes that keep the map: the dock's look at a
 charge's start (`anchor_at_dock`) and the lost search's
 (`_near_station_routine`).
@@ -11819,7 +11821,7 @@ its relay's scan: nothing is laid again, and the closed window hands the
 right belief back to the copy, as #681 measured (0.2-0.45 m).
 
 **What it forgets, and what of the copy it removes** (the lobby, a fix of
-0.15 m, a reach of 0.46 m). The region is 11,016 cells (27.5 m²), 969 of
+0.15 m). The region is 11,016 cells (27.5 m²), 969 of
 them walls; the 161 walls nearer than 1 m are kept and the other 10,853 cells
 that held evidence forgotten. The copy, read by its own offset (an old wall
 that lies where a wall the window laid again would lie moved 10.0 cm west

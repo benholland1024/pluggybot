@@ -2775,16 +2775,16 @@ save a filmstrip PNG named after the script.
   (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
   robot 0.6 m back into it; `start_at` closes the window. ⚠ ONLY A FIX
   THAT KEEPS THE MAP OPENS ONE, AND IT LAYS AGAIN WHAT ITS NEXT SCAN SEES
-  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`, `RELAY_PAST_M`;
-  SimNotes, "A station's fix that keeps the map lays again what it sees"):
-  every cell from the sensor to each bearing's end, filled between the rays,
-  forgotten before that scan is laid -- kept, the region round the station held the
+  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`; SimNotes, "A
+  station's fix that keeps the map lays again what it sees"): every cell
+  whose nearest bearing of that scan's lies within a degree of it, out to
+  that bearing's end, forgotten before the scan is laid -- kept, the region round the station held the
   offset of the belief that laid it and took the belief back as the window
   closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
   `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (as far round as the
   fix's reach, the lobby's relay forgot 928 walls behind what it saw, never
-  laid again from there; under the bound the reach, `relayM`, 0.40 m at
-  least, widens nothing), ⚠ AND NO WALL
+  laid again from there; under the bound every reach forgot the same cells,
+  and none is armed), ⚠ AND NO WALL
   NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
   CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
   `update` lays it floor (the house's couch behind a robot the lost search

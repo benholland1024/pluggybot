@@ -287,8 +287,8 @@ FALLEN_LOOKS = 6
 ANCHORED_SCANS = 30
 #: ...and the relay forgets no further than this past the end of each
 #: bearing, m: what lies behind a wall the scan saw is never laid again from
-#: there, and a copy behind a fresh wall pulls nothing (#741's review: the
-#: reach, up to 1.7 m, cleared the rooms beyond).
+#: there, and a copy behind a fresh wall pulls nothing (#741's review: as far
+#: round as the fix's reach, up to 1.7 m, it cleared the rooms beyond).
 RELAY_BEHIND_M = 0.15
 
 
@@ -480,9 +480,8 @@ class ScanMatcher:
     self.pending: tuple[float, float, float] | None = None
     #: Scans still to be laid at an anchor's belief, unmatched (`anchored`).
     self.anchoring = 0
-    #: The next scan laid goes in over what it sees, and the cells within
-    #: this of it, forgotten first (`relay`), m; 0: as ever.
-    self.relay_m = 0.0
+    #: The next scan laid goes in over what it sees forgotten first (`relay`).
+    self.relaying = False
     #: Scans before a doubted or slid fit may be searched again (DOUBT_EVERY).
     self.doubt_wait = 0
     #: Wide searches left at every heading since a fall (`fell`), and what
@@ -577,24 +576,24 @@ class ScanMatcher:
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
     else:
-      self.relay_m = 0.0
+      self.relaying = False
 
-  def relay(self, round_m: float) -> None:
+  def relay(self) -> None:
     """A fix put the belief right and kept the map (issue #741): the region
     round it holds the offset of the belief that laid it, and once the
     anchor's window closes its fits take the belief back there. So the next
-    scan laid goes in over the cells it looks across, and those within
-    `round_m` of them -- where a copy of what it sees lies -- forgotten
-    first (`OccupancyGrid.forget_seen`), and the window lays them afresh --
-    none further than `RELAY_BEHIND_M` past a bearing's end, a bound every
-    fix's reach (0.40 m at least) runs past, so the reach widens nothing.
-    Two fixes before that scan: the larger reach."""
-    self.relay_m = max(self.relay_m, float(round_m))
+    scan laid goes in over the cells it looks across forgotten first -- out
+    to each bearing's end and `RELAY_BEHIND_M` past it, where a copy of what
+    it sees lies (`OccupancyGrid.forget_seen`) -- and the window lays them
+    afresh. MEASURED: kept, the lobby's copy took a re-docked belief back to
+    10-11 cm within 3 minutes of the fix (SimNotes, "A station's fix that
+    keeps the map lays again what it sees")."""
+    self.relaying = True
 
   def relaid(self) -> None:
     """The scan `relay` asked for was laid: the field goes with the cells
     it was computed from."""
-    self.relay_m = 0.0
+    self.relaying = False
     self.at = None
 
   def fell(self) -> None:
@@ -612,7 +611,7 @@ class ScanMatcher:
     # ...and an anchor's window and its relay are over: laid unmatched at a
     # belief the get-up moved, they lay the room again where it is not
     # (#741's review)
-    self.anchoring, self.relay_m = 0, 0.0
+    self.anchoring, self.relaying = 0, False
 
   @property
   def fallen(self) -> bool:
@@ -1180,7 +1179,7 @@ class ScanMatcher:
     self.fused_pose, self.fused_t = None, -math.inf
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
-    self.relay_m = 0.0
+    self.relaying = False
     self.doubt_wait = 0
     self.turned_left, self.turned_seen, self.turned_from = 0, None, None
     self._settled()
@@ -1195,7 +1194,7 @@ class ScanMatcher:
              "fusedT": None if self.fused_pose is None else self.fused_t,
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring, "relayM": self.relay_m,
+             "anchoring": self.anchoring, "relay": self.relaying,
              "doubtWait": self.doubt_wait, "turnedLeft": self.turned_left,
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
              "turnedFrom": None if self.turned_from is None else list(self.turned_from),
@@ -1216,7 +1215,9 @@ class ScanMatcher:
     pending = state.get("pending")
     self.pending = None if pending is None else tuple(float(v) for v in pending)
     self.anchoring = int(state.get("anchoring", 0))
-    self.relay_m = float(state.get("relayM", 0.0))
+    # ...a save from the relay's first form kept its reach (`relayM`, m), > 0
+    # while one was pending
+    self.relaying = bool(state.get("relay", float(state.get("relayM", 0.0)) > 0.0))
     self.doubt_wait = int(state.get("doubtWait", 0))
     self.turned_left = int(state.get("turnedLeft", 0))
     seen = state.get("turnedSeen")

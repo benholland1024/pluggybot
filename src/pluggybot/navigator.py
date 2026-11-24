@@ -623,11 +623,11 @@ class Navigator:
       if self.maps():
         m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
-          if m is not None and self.matcher.relay_m:
+          if m is not None and self.matcher.relaying:
             # ...laid over what it sees forgotten (#741, `ScanMatcher.relay`)
             self.grid.forget_seen(self.pose, angles, ranges, self.lidar.max_range,
-                                  origin=origin, round_m=self.matcher.relay_m,
-                                  behind_m=RELAY_BEHIND_M, keep_near=relay_keeps(free_from))
+                                  origin=origin, behind_m=RELAY_BEHIND_M,
+                                  keep_near=relay_keeps(free_from))
             self.matcher.relaid()
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                            origin=origin, free_from=free_from, graze_m=GRAZE_M)
