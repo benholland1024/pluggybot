@@ -243,6 +243,39 @@ def test_a_reach_and_a_withdraw_report_where_the_feet_went_as_a_step_does():
           by + math.sin(byaw) * x + math.cos(byaw) * y) == pytest.approx((wx, wy), abs=1e-9)
 
 
+class _Corrected(_Swivels):
+  """A `_Swivels` whose belief a scan or a station corrected before the verb
+  (`corrected`: x, y, heading), and whose heading reads, as the humanoid's
+  does, in (-pi, pi]."""
+
+  corrected = (0.0, 0.0, 0.0)
+
+  def _swivel(self, verb):
+    super()._swivel(verb)
+    self.theta = math.remainder(self.theta, 2 * math.pi)
+
+  @property
+  def reckoned(self):
+    x, y, yaw = self.stance
+    cx, cy, cyaw = self.corrected
+    return x - cx, y - cy, yaw - cyaw
+
+
+def test_the_feet_are_read_in_the_frame_the_robot_stood_in_whatever_corrected_it():
+  """A correction before the verb offsets the legs' reckoning from the
+  belief (`Body.reckoned`), never the frame a reading is said in: the stance
+  frame the robot stood in as the verb began, its believed heading -- and a
+  turn across the heading's wrap reads as the turn it was."""
+  body = _Corrected(*_bare())
+  body.moves = {"reach": (0.05, 0.02, 0.35), "withdraw": (0.0, 0.0, 0.0)}
+  body.corrected = (0.3, -0.2, 0.8)
+  body.start_at(2.0, 1.0, math.pi - 0.1)
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n' + READ_REACH, body)
+  got = ran["locals"]
+  assert (got["rdx"], got["rdy"], got["rturn"]) == pytest.approx((0.05, 0.02, 0.35), abs=1e-9)
+  assert body.theta == pytest.approx(math.pi - 0.1 + 0.35 - 2 * math.pi)
+
+
 def test_a_reach_that_read_false_still_says_where_the_feet_went():
   """A reach stopped short moved the feet most (X5: Luca's chest, a median
   13 cm of the work's place across one): what it reads is the feet's,
