@@ -280,11 +280,14 @@ PRESSED_SHARE, PRESSED_ASK_N = 2.0, 20.0
 #: posture and the hand it rests on"): an open hand at a cube's board read
 #: 25-35 N while a carry took four postures, and at Rowan's live draw the
 #: body went down from a crouch of 0.16-0.22 m (2 of 24 flown); at the
-#: pull's 40 N none was refused. Never the loop's own (a charge's). ⚠ A
-#: POSTURE IS GIVEN UP ONLY FOR A LOAD READ PAST IT FOR `MEAN_S` RUNNING: the
-#: reading is the body's taken as still, and flown in free air on purpose --
-#: bowed 0.95 rad, crouched 0.25 m, turned 30 deg -- its mean read 16.4 N (its
-#: raw reading 81 N) while the trunk moved.
+#: pull's 40 N none was refused. Never the loop's own (a charge's). ⚠ ITS
+#: LOAD IS READ OFF THE WHOLE BODY'S BALANCE ALONE, WHERE IT CLOSES
+#: (`Reach.closed`), AND A POSTURE IS GIVEN UP ONLY FOR ONE READ PAST IT FOR
+#: `MEAN_S` RUNNING: carried on purpose in free air from the stand into a
+#: crouch, a bow and a turn at once, nothing touching the robot but its soles,
+#: the arm's own estimate -- which stands where the balance does not close --
+#: read 430 N (its mean past the line for 0.21 s, and the posture was given
+#: up); where it closed, at most 60 N, its mean 15 N, bowed to 0.95 rad.
 CARRY_PRESSED_SHARE = 1.0
 #: ...giving, its turn gives to what it holds this share a command (100 a
 #: second: a tenth of a second's lag) -- held, a wrist twisted by a drop
@@ -1352,6 +1355,10 @@ class Reach:
     #: -- and its arm's alone, whichever is read.
     self.force = {s: np.zeros(3) for s in hm.SIDES}
     self.arm_force = {s: np.zeros(3) for s in hm.SIDES}
+    #: ...whether each hand's `force` this command is the whole body's balance,
+    #: closed: where it is not, the arm's alone, which takes the body as still,
+    #: stands -- and a carry's rule reads no load there (#699; `carry`, `_held`).
+    self.closed = {s: False for s in hm.SIDES}
     #: ...and what the robot reads of it (`HELD_PHASES`, #631).
     self.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
     #: Where each grip was by its senses at the last command, stance frame
@@ -1815,7 +1822,7 @@ class Reach:
     # from where the body is, held there where a posture still comes
     open_ = verb and not self.grippers[side].held()
     loaded = False
-    if open_ and self._pressed(self.force[side], 0.0, CARRY_PRESSED_SHARE):
+    if open_ and self.closed[side] and self._pressed(self.force[side], 0.0, CARRY_PRESSED_SHARE):
       here = self._in_or_got_to()
       loaded, posture = tuple(posture) != here, here
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
@@ -2785,12 +2792,15 @@ class Reach:
     # on it -- until it reads no more, held there; that carry takes no other
     loaded = False
     if st.get("open"):
-      km = min(1.0, dt / MEAN_S)
-      fm = st["fm"] = (1.0 - km) * st.get("fm", self.force[side]) + km * self.force[side]
-      loaded = self._pressed(fm, 0.0, CARRY_PRESSED_SHARE)
-      # ...a posture given up only for a load read past the line for `MEAN_S`
-      # running (`CARRY_PRESSED_SHARE`): the reading is the body's taken as still
-      st["over"] = st.get("over", 0.0) + dt if loaded else 0.0
+      # ...off the whole body's balance alone, where it closes (`closed`): one
+      # that does not reads nothing, the mean and its run held as they were
+      if self.closed[side]:
+        km = min(1.0, dt / MEAN_S)
+        fm = st["fm"] = (1.0 - km) * st.get("fm", self.force[side]) + km * self.force[side]
+        # ...a posture given up only for a load read past the line for
+        # `MEAN_S` running (`CARRY_PRESSED_SHARE`)
+        st["over"] = st.get("over", 0.0) + dt if self._pressed(fm, 0.0, CARRY_PRESSED_SHARE) else 0.0
+      loaded = st.get("fm") is not None and self._pressed(st["fm"], 0.0, CARRY_PRESSED_SHARE)
     # ...never the body held where it stood at a loaded ask (`held_here`): no
     # posture came, and given up there, the carry took none once light
     if (settling and st.get("over", 0.0) >= MEAN_S - 1e-9 and not st.get("given")
@@ -3056,8 +3066,9 @@ class Reach:
     self.force = dict(self.arm_force)
     working = [s for s in hm.SIDES if self.phase[s] in FELT_PHASES]
     whole = self.standing and bool(working)
-    if whole:
-      self.force.update(sm.felt(working, tau, self.still))
+    felt = sm.felt(working, tau, self.still) if whole else {}
+    self.force.update(felt)
+    self.closed = {s: s in felt for s in hm.SIDES}
     self.sensed_force = dict(self.force)
     going = [s for s in hm.SIDES if self.phase[s] not in HELD_PHASES + ("rest",)]
     if motion is None or not going:

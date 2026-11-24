@@ -850,14 +850,60 @@ def test_a_carrys_posture_is_given_up_only_for_a_load_held_past_mean_s():
   assert n == 10 and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)]
 
 
-def _asked_loaded(now, turns=None, read=1.1):
+
+def test_a_carry_reads_a_load_only_where_the_whole_bodys_balance_closes():
+  """Review round 3's third finding, flown: a turned carry from the stand into (-0.2 m, 0.55 rad, waist
+  -15 deg) in free air -- nothing touching the robot anywhere but its soles -- read 430 N on 25 commands
+  whose whole-body balance did not close (`arms.SelfModel.felt` reads nothing there, and the arm's own
+  estimate, which takes the body as still, stands), its mean past the line for 0.21 s, and the posture
+  was given up; on the commands that closed it read at most 25 N, its mean at most 10. A carry's load is
+  read only off the whole body's balance where it closes (`Reach.closed`): a command whose balance does
+  not close reads nothing -- the mean and its run past the line held as they were -- at its ask too."""
+  dt = rc.MEAN_S / 10
+  way = np.array([0.0, 0.0, -1.0])
+  # at its ask: a reading past the line that did not close withholds nothing
+  for closes, withheld in ((True, True), (False, False)):
+    r = _bare_reach()
+    r.closed = {s: closes for s in hm.SIDES}
+    r = _asked_loaded((0.0, 0.3, 0.0), reach=r)
+    assert bool(r.pulls["left"].get("loaded")) is withheld, closes
+    assert r.postures == ([(0.0, 0.3, 0.0)] if withheld else [(-0.2, 0.55, 0.0)])
+
+  def carrying():
+    r = _carrying_open(start=(0.0, 0.15, 0.0))
+    r.posture_now = lambda: np.array((-0.05, 0.1, 0.0))
+    r._posture_held = lambda: False             # ...its posture coming
+    return r
+
+  def read(r, force, closes, n):
+    r.force["left"], r.closed["left"] = np.asarray(force, dtype=float), closes
+    for _ in range(n):
+      r._held("left", dt, H, np.eye(3))
+
+  # on its way: a load read only where the balance does not close gives nothing up
+  r = carrying()
+  read(r, 20.0 * CARRY_LINE * way, False, 30)
+  assert not r.pulls["left"].get("given") and r.postures == [(0.0, 0.15, 0.0)]
+  # ...and holds the mean and its run as they were: past the line for half of MEAN_S, then not
+  # closing, then past it again, it is given up as the run reaches MEAN_S
+  r = carrying()
+  read(r, 1.5 * CARRY_LINE * way, True, 5)
+  read(r, np.zeros(3), False, 20)
+  assert not r.pulls["left"].get("given")
+  read(r, 1.5 * CARRY_LINE * way, True, 4)
+  assert not r.pulls["left"].get("given")
+  read(r, 1.5 * CARRY_LINE * way, True, 1)
+  assert r.pulls["left"]["given"] and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)]
+
+
+def _asked_loaded(now, turns=None, read=1.1, reach=None):
   """A bare reach's left hand out at `H`, an open hand reading `read` times
   the carry's line as a carry 5 cm up is asked (a procedure's), the body
   `now` -- standing where it holds (0, 0.3, 0) or, elsewhere, still coming
   into it -- its plan (-0.2, 0.55, 0), any plan after it (-0.1, 0.5, 0);
   every posture held recorded and held as a `Reach` holds it. Turned where
-  `turns` (a path's or a turned carry's)."""
-  r = _bare_reach()
+  `turns` (a path's or a turned carry's); on `reach` where given."""
+  r = _bare_reach() if reach is None else reach
   _out_hand(r, H, np.eye(3))
   r.phase["left"] = "hold"
   r.posture = np.array([0.0, 0.3, 0.0])
