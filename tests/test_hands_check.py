@@ -1121,12 +1121,17 @@ def _shelf_tags(k: int = 0):
   return so, tags
 
 
-def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0):
+def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, slip=0.0,
+                 undercount=0.0, reach_turn=0.0, label_far=0.0):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
-  turning `drift` rad more than it asked; its first `held_back` descents onto a product held back
-  and its first `short` set-down reaches stopped short; its presses landing at `press_n` N. The
-  stub, the run and each verb as it began (with the stub's pose then)."""
+  turning `drift` rad more than it asked, going `slip` more sideways than it asked and counting
+  `undercount` short of where it went (a sidestep's count reads short of the feet); a reach of an
+  empty hand turning the stance `reach_turn` rad (a pick's reach turns the feet); each label
+  `label_far` m further from the shelf's front than the start stands; its first
+  `held_back` descents onto a product held back and its first `short` set-down reaches stopped
+  short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
+  stub's pose then)."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   so, tags = _shelf_tags(k)
@@ -1143,12 +1148,16 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0):
       if int(tag) not in tags or (hide is not None and hide(int(tag), self, looks)):
         return None
       x, y, z, n = tags[int(tag)]
+      x += label_far if int(tag) >= 79 else 0.0
       return {"x": x, "y": y, "z": z, "normal": list(n), "edge": [0.0, 1.0, 0.0], "range": 0.5}
 
     def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
-      return (yield from super().step_routine(ahead, left, turn + drift, patience))
+      rep = yield from super().step_routine(ahead, left * (1.0 + slip), turn + drift, patience)
+      return {**rep, "dx": rep["dx"] * (1.0 - undercount), "dy": rep["dy"] * (1.0 - undercount)}
 
     def reach_routine(self, side, pos, rot=None, **kw):
+      if not self.grips.get(side):
+        self.theta += reach_turn
       if self.grips.get(side) and self.shorts < short:
         self.shorts += 1
         self._why[side] = "stopped short"
@@ -1297,3 +1306,92 @@ def test_the_walk_to_the_shelf_squares_itself_off_the_frame_to_candle_line():
       assert body.theta == pytest.approx(line, abs=1e-6), (turned, body.theta)
     else:
       assert body.stepped == [], body.stepped
+
+
+def test_the_frame_unseen_at_the_cart_is_looked_for_to_the_left():
+  """⚠ THE FRAME UNSEEN AT THE CART IS LOOKED FOR TO THE LEFT (#736 stage 2 round 2): every frame the walk's end
+  lost stood 0.25-0.26 m left, past the colour camera's side edge, and standing still it was never found."""
+  body, ran, log, so, _ = _shelf_flown(hide=lambda tag, b, n: tag == 77 and n == 1)
+  assert ran["ok"], ran
+  nxt = next(a for v, a, _ in _after(log, "spot", 77) if v in ("step", "spot"))
+  assert nxt.get("left", 0) > 0.03, nxt
+
+
+
+
+def test_a_tag_still_unseen_at_the_end_of_its_looks_is_looked_for_once_more():
+  """⚠ A LOOK THAT STILL MISSES IS TRIED ONCE MORE (#736 stage 2 round 2): a run ended at its last look in 11 of
+  the tour's 19 failures. A label: from 8 cm back and 5 cm left (lost nearer than its board's picture reaches,
+  or behind the carried product)."""
+  so, _ = _shelf_tags(0)
+  label = so.slots["frame"]
+  body, ran, log, _, _ = _shelf_flown(hide=lambda tag, b, n: tag == label and n < 5)
+  assert ran["ok"], ran
+  looks = [i for i, (v, a, _) in enumerate(log) if v == "spot" and int(a["tag"]) == label]
+  before = [a for v, a, _ in log[looks[3]:looks[4]] if v == "step"]
+  assert before and before[-1]["ahead"] < -0.05 and before[-1]["left"] > 0.03, before
+
+
+
+
+def test_a_look_that_misses_after_a_step_steps_back_half_of_it():
+  """⚠ A LOOK THAT MISSES AFTER A STEP STEPS BACK HALF OF IT (#736 stage 2 round 2): the candle was lost at the
+  cart's left edge after a step's over-travel, and the told way, right, took it further each step. Here the
+  trip back over-travels (its count short of the feet), near steps right to the candle, the look after misses,
+  and the next step is back half that step's ask."""
+  body, ran, log, _, _ = _shelf_flown(undercount=0.2, hide=lambda tag, b, n: tag == 76 and n == 2)
+  assert ran["ok"], ran
+  looks = [i for i, (v, a, _) in enumerate(log) if v == "spot" and int(a["tag"]) == 76]
+  first = [a for v, a, _ in log[looks[0]:looks[1]] if v == "step"]
+  after = [a for v, a, _ in log[looks[1]:looks[2]] if v == "step"]
+  assert first and first[-1]["left"] < -0.05, first
+  assert after and after[-1]["left"] == pytest.approx(-first[-1]["left"] / 2, abs=1e-6), (first, after)
+
+
+
+
+def test_at_a_label_no_step_back_and_no_small_step_ahead():
+  """⚠ AT A LABEL NO STEP BACK, AND AHEAD ONLY PAST 5 CM (#736 stage 2 round 2): carried, a label read 0.45-0.47
+  ahead asked back steps of 3-5 cm that read 'too short', then fell; an ask ahead of 4 cm went 8. A stub that
+  reads every label 4 cm nearer or 4 cm further than near's 0.50 steps neither back nor ahead."""
+  for far in (-0.04, 0.04):
+    body, ran, log, so, tags = _shelf_flown(label_far=far)
+    assert ran["ok"], (far, ran)
+    i = next(i for i, (v, a, p) in enumerate(log) if v == "spot" and int(a["tag"]) >= 79)
+    steps = [a for v, a, p in log[i:] if v == "step" and p[3]]
+    assert all(abs(a.get("ahead", 0)) < 1e-9 for a in steps), (far, steps)
+
+
+
+
+def test_the_walk_to_the_shelf_never_ends_at_a_look_that_misses():
+  """⚠ THE WALK'S LOOKS AT THE CART ARE TESTED (#736 stage 2 round 2; `solutions.SHELF_APPROACH`): a walk whose
+  look missed failed, and the job's runner stopped there, the check never begun (2 of the tour's 32 draws). With
+  the frame unseen, `square` turns nothing and the walk ends ok."""
+  from pluggybot.body import StubBody
+  from pluggybot.challenge import solutions as so
+  from test_hands import _bare, _Life
+  source = so.SHELF[0]
+  square = source[source.index("def square():"):]
+  body = StubBody(*_bare())
+  body.spot = lambda tag, at_height=None: None
+  facts = st.hand_facts()
+  ran = body.run(lang.run_procedure_routine(
+    _Life(body), lang.compile_procedure("def go():\n  square()\n\n\n" + square, facts), facts))
+  assert ran["ok"], ran
+  assert body.stepped == [], body.stepped
+
+
+
+
+def test_a_press_that_never_landed_lands_at_the_set_down_point_itself():
+  """⚠ A PRESS THAT NEVER LANDED LOWERS THE HAND TO THE SET-DOWN POINT ITSELF, 4 CM UNDER IT (#736 stage 2
+  round 2): at full stretch over an upper-board slot the press went up, and 5 cm under where it left the hand,
+  four products of 96 flights were let go 15-25 cm over the board and fell."""
+  body, ran, log, _, _ = _shelf_flown(press_n=0.0)
+  assert ran["ok"], ran
+  i = next(i for i, (v, a, _) in enumerate(log) if v == "pull" and a["dz"] < -0.5)
+  into = [a for v, a, _ in log[:i] if v == "move_hand"][-1]
+  landing = next(a for v, a, _ in log[i + 1:] if v == "move_hand")
+  assert (landing["x"], landing["y"]) == pytest.approx((into["x"], into["y"]), abs=1e-9), (into, landing)
+  assert landing["z"] == pytest.approx(into["z"] - 0.04, abs=1e-9), (into, landing)
