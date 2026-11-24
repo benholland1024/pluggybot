@@ -344,10 +344,13 @@ HUMANOID_JOINTS = _humanoid_axes()
 #: Each body's own axes, present whatever it holds.
 BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: ...and the reports of a pull (#493, the force move #525): how far it
-#: went, the hardest it pushed, whether it ended held fast (#650: until it,
-#: nothing a served robot reads told that from out of reach) and the way the
-#: hand was going at its end.
-PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.dx", "pull.dy", "pull.dz")
+#: went, the hardest it pushed, whether it ended held fast by what it pulls
+#: (#650: until it, nothing a served robot reads told that from out of
+#: reach), out of reach (#744: Rowan asked which), or with one of its own
+#: arm's joints on its stop (#744: held fast there, Luca read the lid's open
+#: stop), and the way the hand was going at its end.
+PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.reach", "pull.stop", "pull.dx",
+                "pull.dy", "pull.dz")
 SENSORS["pull.moved"] = Sensor(
   "pull.moved", lambda life: reported("pull", "moved", life),
   "how far the last `pull` took the hand from where it began, m")
@@ -356,7 +359,17 @@ SENSORS["pull.force"] = Sensor(
   "the hardest the last `pull` pushed along its way, N, as your hand felt it")
 SENSORS["pull.held"] = Sensor(
   "pull.held", lambda life: reported("pull", "held", life),
-  "1 if the last `pull` ended held fast, as your hand felt it, 0 if something else stopped it")
+  "1 if the last `pull` ended held fast by what it pulls, as your hand felt it -- none of "
+  "your arm's joints at the end of its range -- 0 if something else stopped it")
+SENSORS["pull.reach"] = Sensor(
+  "pull.reach", lambda life: reported("pull", "reach", life),
+  "1 if the last `pull` stopped because your hand could reach no further that way, 0 if "
+  "something else stopped it")
+SENSORS["pull.stop"] = Sensor(
+  "pull.stop", lambda life: reported("pull", "stop", life),
+  "1 if one of your arm's joints read at the end of its range as the last `pull` stopped -- "
+  "that joint turns no further that way, so your own arm can hold your hand there as fast "
+  "as what it pulls -- 0 if none did")
 #: ...and where the last step took the stance (#525), in the stance frame
 #: it stood in before: what a place read before it is turned into.
 STEP_SENSORS = ("step.dx", "step.dy", "step.turn")
@@ -370,6 +383,22 @@ SENSORS["step.dy"] = Sensor(
 SENSORS["step.turn"] = Sensor(
   "step.turn", lambda life: reported("step", "turn", life),
   "how far you turned in the last `step`, rad (left, +)")
+#: ...and where the stance went while the last `reach` and `withdraw` ran
+#: (#746: a posture swivelled Luca's feet 15-26 deg, and nothing it read
+#: said so), as `step.*` say it: in the frame it stood in before, by its
+#: legs' reckoning (`Body.reckoned`).
+STANCE_SENSORS = tuple(f"{v}.{k}" for v in ("reach", "withdraw") for k in ("dx", "dy", "turn"))
+for _v in ("reach", "withdraw"):
+  SENSORS[f"{_v}.dx"] = Sensor(
+    f"{_v}.dx", (lambda verb: lambda life: reported(verb, "dx", life))(_v),
+    f"how far ahead your feet went while your last `{_v}` ran, m, in the stance frame you "
+    "stood in before it")
+  SENSORS[f"{_v}.dy"] = Sensor(
+    f"{_v}.dy", (lambda verb: lambda life: reported(verb, "dy", life))(_v),
+    f"how far to your left your feet went while your last `{_v}` ran, m, in that frame")
+  SENSORS[f"{_v}.turn"] = Sensor(
+    f"{_v}.turn", (lambda verb: lambda life: reported(verb, "turn", life))(_v),
+    f"how far your feet turned while your last `{_v}` ran, rad (left, +)")
 #: ...and where the last `find` found its place (#559, a served humanoid's:
 #: what it walks up to with `drive_to` and `face`), in its MAP, as the
 #: address it searched round is -- never the stance frame a hand's are in.

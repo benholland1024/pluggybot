@@ -38,8 +38,8 @@ from scipy.optimize import least_squares
 
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import (RANGE_MARGIN, REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
-                                     Motion, HandGoal, SelfModel, Waist, _rot_error,
+from pluggybot.humanoid.arms import (RANGE_MARGIN, REACH_POS_TOL, REACH_ROT_TOL, STOP_RAD, Arm,
+                                     Gripper, Motion, HandGoal, SelfModel, Waist, _rot_error,
                                      kept_value, value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
@@ -2661,7 +2661,8 @@ class Reach:
     where the hand IS -- never at a command the arm could not follow -- and
     its `report`: why, how long, how far it went and where it ended up
     from where it began (stance frame, m), and the hardest it read along
-    its way where it watched its force (N)."""
+    its way where it watched its force (N) -- a pull's, its arm's joints
+    read on their stop as it ended (`stops`, #744)."""
     st = self.pulls[side]
     c = self.cmd[side]
     short = float(np.linalg.norm(self.goal[side].pos - h))
@@ -2683,9 +2684,22 @@ class Reach:
       went = h - pv["trail"][0]
       n = float(np.linalg.norm(went))
       rep["way"] = [round(float(v), 4) for v in (went / n if n > STEP_M else pv["way"])]
+      rep["stops"] = self._on_stops(side)
     self.report[side] = rep
     self.pulls[side] = None
     self.phase[side] = "hold"
+
+  def _on_stops(self, side: str) -> list[str]:
+    """The joints of `side`'s arm its drivers last read on their STOP (#744):
+    within `STOP_RAD` of an end of the range its model of itself gives, as
+    the whole body's force reading leaves one out -- its arm's solve keeps
+    every joint `RANGE_MARGIN` inside, so one read there was pushed onto it
+    (held fast at its own wrist's end, a pull read as at a lid's open stop).
+    Off `sensed`, never read afresh: a read draws noise."""
+    sm = self.self_model
+    arm = sm.arm[side]
+    q, lo, hi = self.sensed[arm], sm.ranges[arm, 0], sm.ranges[arm, 1]
+    return [j for j, on in zip(hm.ARM, (q - lo < STOP_RAD) | (hi - q < STOP_RAD)) if on]
 
   def _held(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> float:
     """One command of a carried hand (`carry`), `h` and `r` where its grip
