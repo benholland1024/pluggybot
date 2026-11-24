@@ -10213,9 +10213,9 @@ moment of the world's push on the hand about the level line through the
 stance's middle that tips the robot over its soles' edge toward the hand
 -- `blocked`, the body in the posture it has got to (`halt`), the arm held
 where its drivers read its joints, never at the command it drove on to. It
-says what a reach stopped on its way always said ("stopped short ... or
-pushing on something"), and its `withdraw` backs out along its fingers as
-any hand that is out does.
+says so ("stopped on its way out: it caught on something, which would have
+tipped you toward it", #743), and its `withdraw` backs out along its fingers
+as any hand that is out does.
 - *Not any push, nor a pull alone.* Our own references' ways out press on
   something in 57 of their 304 at the hands check's set-outs 0-31 (the
   counter, a drawer's top, the door's top, the chest's knob) and press on.
