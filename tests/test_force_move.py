@@ -589,6 +589,48 @@ def test_a_pull_that_loses_its_grip_ends_where_the_hand_is():
     _pulling(way, force=0.0)
 
 
+def _carrying(end, held=False, verb=True):
+  """`_pulling`'s hand CARRIED toward `end` instead (`carry`, a
+  `move_hand`'s), a procedure's (`verb`) or the loop's own, holding
+  something where `held`."""
+  r = _bare_reach()
+  _out_hand(r, H, np.eye(3))
+  r.phase["left"], r.pulls["left"] = "hold", None
+  r.force = {s: np.zeros(3) for s in hm.SIDES}
+  r.grip_now = lambda side: (H.copy(), np.eye(3))
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: tuple(
+    float(v) for v in r.posture)
+  r.grippers["left"].holding = held
+  # ...and its arm reaching every command: the rule here is the carry's grip
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  assert r.carry("left", end, verb=verb)
+  return r
+
+
+def test_a_procedures_carry_that_loses_its_grip_ends_where_the_hand_is():
+  """#742: a cube procedure's jaws shut on its board's front edge read held,
+  and the carry to the mat slid them off it on the way up -- carried on, the
+  empty hand "arrived", 16 carries of 16 at the weekend's live draws. A
+  procedure's carry (`verb`) that began with its gripper reading held ends
+  where that grip is lost, as a pull does (`_pulled`): "let go", held where
+  the hand is. ⚠ Never one that began holding nothing, nor the loop's own
+  (a charge's plug carried to its port), whose carries are as before."""
+  up = np.array([0.0, 0.0, 1.0])
+  r = _carrying(H + 0.1 * up, held=True)
+  for k in range(1, 4):
+    r._held("left", DT, H + 0.01 * k * up, np.eye(3))
+  assert r.pulls["left"] is not None and r.phase["left"] == "carry"
+  r.grippers["left"].holding = False
+  r._held("left", DT, H + 0.04 * up, np.eye(3))
+  assert r.pulls["left"] is None and r.report["left"]["why"] == "let go"
+  assert r.phase["left"] == "hold" and r.cmd["left"].pos == pytest.approx(H + 0.04 * up)
+  for held, verb in ((False, True), (True, False)):
+    r = _carrying(H + 0.1 * up, held=held, verb=verb)
+    r.grippers["left"].holding = False
+    r._held("left", DT, H + 0.01 * up, np.eye(3))
+    assert r.pulls["left"] is not None and r.phase["left"] == "carry", (held, verb)
+
+
 def test_a_held_hand_going_on_takes_another_posture_from_its_arm_as_it_is(monkeypatch):
   """Up a lid's arc an arm stood at its elbow's stop 2 cm short of its way
   for 9 s, while a fresh seed "reached" in the posture it held (#525)."""

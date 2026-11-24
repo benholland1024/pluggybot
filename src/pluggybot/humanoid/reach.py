@@ -1279,6 +1279,18 @@ class Reach:
     self.slack = {s: True for s in hm.SIDES}
     #: How long each hand has been out of reach or pushing (`BLOCKED_S`).
     self._off = {s: 0.0 for s in hm.SIDES}
+    #: ...and what stopped each hand's last reach on its way (`blocked`), by
+    #: the rule that did (#743): `by` "pushed" (on its way in, its force past
+    #: `BLOCKED_N`; `n` the hardest it read, N), "reach" (on its way in, its own
+    #: solve past `BLOCKED_M` off its command) or "caught" (on its way out,
+    #: `_struck`); None where none stopped it so. Words alone read it.
+    self.stopped: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: ...and of the run of ticks behind a stop on its way in (`_off`), how
+    #: many pushed, how many in all, and the hardest push read, N: the push
+    #: is said where it held at least half the run (#743's review: judged on
+    #: the stop's tick alone, a push's last dip or a lone spike named the
+    #: other cause).
+    self._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
     #: ...and how long its way out's reading has tipped the body past the
     #: line, running (`OUT_TIP_S`).
     self._tip = {s: 0.0 for s in hm.SIDES}
@@ -1397,6 +1409,7 @@ class Reach:
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
     `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
     (a charge's)."""
+    self.stopped[side] = None
     kept = self.keep(side, verb)
     if kept is not None:
       postures = (kept,)
@@ -1583,6 +1596,7 @@ class Reach:
     that it no longer drives on into what it met."""
     self.q_cmd[side] = self.sensed[self.self_model.arm[side]].copy()
     self.halt(side, "blocked")
+    self.stopped[side] = {"by": "caught"}
 
   def ease(self, side: str) -> bool:
     """A hand held where it is -- holding (`hold`) or stopped on its way
@@ -1736,7 +1750,8 @@ class Reach:
     through `path`'s points first, from one posture that follows them all
     (`path_for`), turning to `turns`' at each (one a point of `path` and
     one at `pos`, None keeping the one before), where given. False (nothing moves) for a hand that is
-    not out, or an end no posture reaches. How it ends is its `report`."""
+    not out, or an end no posture reaches. How it ends is its `report` -- a
+    `verb`'s ends "let go" where a grip it began with is lost (`_held`)."""
     kept = self.keep(side, verb)
     if not self.out(side):
       return False
@@ -1776,7 +1791,9 @@ class Reach:
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
-                        "fixed": bool(ways) or turns is not None}
+                        "fixed": bool(ways) or turns is not None,
+                        # ...a `verb`'s, a grip it began with: lost, it ends there (`_held`)
+                        **({"gripped": True} if verb and self.grippers[side].held() else {})}
     if moved_posture:
       # the hand holds still while the body takes the posture (`_held`)
       self.pulls[side]["postured"] = 0.0
@@ -2678,9 +2695,16 @@ class Reach:
     round a chest's knob and out of it) -- and a miss past `BLOCKED_M` held
     `BLOCKED_S` ends the move where the hand is (`out of reach`), once the
     move has had `SETTLE_S` to begin: a carry stopped at the arm's stretch
-    starts the next where its solve cannot quite put it."""
+    starts the next where its solve cannot quite put it. ⚠ A PROCEDURE'S
+    CARRY (`carry`'s `verb`) ENDS WHERE A GRIP IT BEGAN WITH IS LOST, AS A PULL
+    DOES (`_pulled`, "let go"; #742): carried on, a jaw slid off a board's edge
+    and the empty hand "arrived", the cube where it was set out, 16 carries of
+    16. Never the loop's own (a charge's plug), bit for bit as before."""
     st = self.pulls[side]
     st["t"] += dt
+    if st.get("gripped") and not self.grippers[side].held():
+      self._end(side, "let go", h, r)
+      return self.cmd[side].stiffness
     # ⚠ A HAND HOLDS STILL WHILE ITS BODY TAKES A NEW POSTURE: carried on
     # meanwhile, a lid was jerked down at 1.7-2.3 rad/s and up to 81 deg
     settling = (st.get("postured") is not None and not self._posture_held()
@@ -3000,12 +3024,21 @@ class Reach:
         # way in (a hold may carry a weight, and a pull pushes on purpose) --
         # never while its body takes a posture with the hand waiting: the
         # force off the drivers assumes the body still (`BLOCKED_S`).
-        off = phase != "retreat" and not waiting and (
-          ep > BLOCKED_M or (phase == "approach" and np.linalg.norm(self.force[s]) > BLOCKED_N))
+        pushing = float(np.linalg.norm(self.force[s]))
+        pushed = phase == "approach" and pushing > BLOCKED_N
+        off = phase != "retreat" and not waiting and (ep > BLOCKED_M or pushed)
+        if off:
+          # ...the run behind a stop, counted afresh wherever `_off` begins again
+          n_push, n_all, hardest = (0, 0, 0.0) if self._off[s] == 0.0 else self._pushes[s]
+          self._pushes[s] = (n_push + pushed, n_all + 1, max(hardest, pushing) if pushed else hardest)
         self._off[s] = self._off[s] + dt if off else 0.0
         if self._off[s] >= BLOCKED_S:
           # Stopped where it was last commanded: the goal is out of its reach,
-          # or the hand pushes on something.
+          # or the hand pushes on something -- the push said where it held at
+          # least half the run, both or not (`_pushes`)
+          n_push, n_all, hardest = self._pushes[s]
+          self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
+                             else {"by": "reach"})
           self.cmd[s] = held
           q, ep, _ = sm.solve(s, held.pos, held.rot)
           self.phase[s], there = "blocked", False

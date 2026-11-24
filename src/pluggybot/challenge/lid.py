@@ -305,8 +305,9 @@ def _lid(raw: dict, metrics: dict) -> tuple[bool, str]:
     return False, f"the lid rose to {rose} deg, short of the {past} it must open past"
   if down > LOWER_RAD_S:
     fast, most = against(down, LOWER_RAD_S, 1)
+    # ...the measured part alone: nothing here reads why it came down (#745)
     return False, (f"opened to {opened} deg, but it came down at {fast} "
-                   f"rad/s while open -- let fall, not lowered (no faster than {most})")
+                   f"rad/s while open (no faster than {most})")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
     return False, (f"opened to {opened} deg and lowered, but {touched} still "
