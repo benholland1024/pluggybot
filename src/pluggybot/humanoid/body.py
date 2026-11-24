@@ -887,11 +887,12 @@ class HumanoidBody(Body):
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
-      kept, own = self.reach.kept[side], self.reach.own[side]
+      kept, own, swung = self.reach.kept[side], self.reach.own[side], self.reach.swung[side]
       if (follows and self.reach.kept_by[side] is None
           and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb)):
         return True
       kept, own = self.reach.kept[side] or kept, self.reach.own[side] or own
+      self.reach.swung[side] = self.reach.swung[side] or swung
       if own is not None and kept is None:
         # every way out passes through its own trunk (#722)
         self._why[side] = "own body"

@@ -1396,6 +1396,15 @@ def swing_parts(sm: SelfModel, sides) -> list[tuple]:
   return out
 
 
+def part_reach(part: tuple) -> float:
+  """How far from its centre a part of `swing_parts` reaches, m: a capsule
+  its half-length and its radius (its `geom_size` is [radius, half-length],
+  so their norm leaves 2.7 cm of a forearm's rounded ends unread), a box its
+  corner."""
+  _, _, capsule, _, _, size = part
+  return float(size[0] + size[1]) if capsule else float(np.linalg.norm(size))
+
+
 def part_gap(points: np.ndarray, part: tuple) -> np.ndarray:
   """How far each of `points` (n, 3) is outside a part of `swing_parts`, m:
   from a capsule's axis less its radius, from a box's faces; negative
@@ -1668,10 +1677,12 @@ class Reach:
     """Whether `reach` would plan `goal` for `side` and take a way out that
     keeps off every other robot's body (#678) -- None where it plans none,
     "own" where every plan, or every way out, would put the arm in its own
-    trunk (#726, #722); nothing moved, `kept` and `own` as they were."""
-    plan_, _, in_own, _ = self._planned(side, goal, approach, postures, flip, swing=True)
+    trunk (#726, #722), "swing" where every plan would swing an arm into what
+    its depth camera saw (#747); nothing moved, `kept` and `own` as they
+    were."""
+    plan_, _, in_own, swung = self._planned(side, goal, approach, postures, flip, swing=True)
     if plan_ is None:
-      return "own" if in_own is not None else None
+      return "own" if in_own is not None else "swing" if swung is not None else None
     kept, own = self.kept[side], self.own[side]
     self.own[side] = None
     out = self.way_out(side, plan_[1], plan_[0])
@@ -1814,7 +1825,7 @@ class Reach:
     # gap as the swing begins, and its least (when, and to what)
     flat = [(t, part) for t, ps in parts for part in ps]
     centres = np.array([part[3] for _, part in flat])
-    radii = np.array([float(np.linalg.norm(part[5])) + SWING_CLEAR_M for _, part in flat])
+    radii = np.array([part_reach(part) + SWING_CLEAR_M for _, part in flat])
     began: dict = {}
     least: dict = {}
     for (t, part), idx in zip(flat, tree.query_ball_point(centres, radii)):

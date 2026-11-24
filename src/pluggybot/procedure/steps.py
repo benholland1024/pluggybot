@@ -1099,10 +1099,10 @@ REACH_STOPPED_BY = {
             "tipped you toward it"}
 #: ...and one whose every posture would swing an arm into what its depth
 #: camera saw (#747, `Body.hand_swung`): which arm and part, and where that
-#: was, from its feet as it stood.
+#: was in the stance frame it stood in, as a reach is asked.
 REACH_SWUNG = ("every posture that puts your {hand} hand there would swing your {side} {part} "
-               "into something your depth camera saw {ahead:.2f} m in front of your feet and "
-               "{up:.2f} m up, so your arm did not move")
+               "into something your depth camera saw at x {x:.2f}, y {y:.2f}, z {z:.2f} in "
+               "your stance frame, so your arm did not move")
 #: ...the arm's parts as the robot says them.
 SWUNG_PARTS = {"upper_arm": "upper arm", "forearm": "forearm", "gripper": "hand",
                "jaw_a_pad": "fingers", "jaw_b_pad": "fingers"}
@@ -1189,7 +1189,11 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    # ...and one out holding something, which kept the body's posture (#719)
                    "holds": "; your {other} hand is out holding something",
                    # ...and one whose every way there passes through your own body (#722)
-                   "own": "; your {other} hand's every way there passes through your own body"}
+                   "own": "; your {other} hand's every way there passes through your own body",
+                   # ...and one whose every posture there would swing an arm into what
+                   # its depth camera saw (#747)
+                   "swing": "; your {other} hand's every posture there would swing an arm into "
+                            "something your depth camera saw"}
 
 
 def _where(kept: dict) -> str:
@@ -1283,9 +1287,9 @@ def _reach(life, args: dict) -> Routine:
   other = {"left": "right", "right": "left"}.get(hand)
   swung = life.body.hand_swung(hand) if why == "swing" else None
   if swung is not None:
+    x, y, z = swung["at"]
     reason = REACH_SWUNG.format(hand=hand, side=swung["side"],
-                                part=SWUNG_PARTS.get(swung["part"], swung["part"]),
-                                ahead=swung["at"][0], up=swung["at"][2])
+                                part=SWUNG_PARTS.get(swung["part"], swung["part"]), x=x, y=y, z=z)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(

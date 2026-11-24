@@ -251,15 +251,17 @@ def test_where_every_posture_swings_into_what_it_saw_a_procedures_reach_moves_no
   assert reach.swung["left"] is None
 
 
-def _hand_parts(floor):
+def _hand_parts(floor, every=False):
   """The hanging left hand's parts as the reach begins (`swing_parts`), the
-  body as it reads itself, its arms where they are commanded."""
+  body as it reads itself, its arms where they are commanded: its gripper,
+  or `every` part of the arm."""
   sm = rc.swing_model()
   floor._pose(floor.q_cmd)
   sm.q = floor.self_model.q.copy()
   sm.d.qpos[:] = floor.self_model.d.qpos
   mujoco.mj_kinematics(sm.m, sm.d)
-  return [p for p in rc.swing_parts(sm, ("left",)) if p[1] == "gripper"][0]
+  parts = rc.swing_parts(sm, ("left",))
+  return parts if every else [p for p in parts if p[1] == "gripper"][0]
 
 
 def _around(part, lo, hi):
@@ -305,6 +307,61 @@ def test_a_part_begun_further_in_than_the_clearance_goes_no_further(floor, monke
   finally:
     floor.seen = None
   assert met is not None and met["side"] == "left" and met["m"] < rc.SWING_CLEAR_M, met
+
+
+def test_a_part_reaches_its_rounded_ends(floor):
+  """Every point a part's gap puts inside it lies within `part_reach` of its
+  centre: a capsule's half-length and radius, a box's corner."""
+  for part in _hand_parts(floor, every=True):
+    g = np.stack(np.meshgrid(*(np.arange(-0.13, 0.13, 0.003),) * 3, indexing="ij"),
+                 axis=-1).reshape(-1, 3) + part[3]
+    inside = g[rc.part_gap(g, part) < 0.0]
+    assert len(inside) > 50
+    far = np.linalg.norm(inside - part[3], axis=1).max()
+    assert far <= rc.part_reach(part) + 1e-9, (part[1], far, rc.part_reach(part))
+
+
+def test_what_a_forearms_rounded_end_swings_into_is_met(floor, monkeypatch):
+  """A forearm and an upper arm are capsules: what lies in a rounded end as
+  the arm swings out is met -- searched within the norm of the capsule's
+  sizes of its middle, the last 2.7 cm of each end were never read."""
+  today = floor._planned("left", OWN_SIDE, rc.APPROACH_M, rc.REACH_POSTURES, True)[0]
+  q0, q1 = floor.q_cmd["left"].copy(), np.asarray(today[1], dtype=float)
+
+  def out(shown, posture, w, ws, q, ways, tick, every=rc.SWING_DT, **kw):
+    return [(k * every, float(shown[0]), float(shown[1]), float(w), q0 if k == 0 else q1)
+            for k in range(3)]
+  monkeypatch.setattr(rc, "swing_clock", out)
+  posed, real = [], rc.swing_parts
+  monkeypatch.setattr(rc, "swing_parts", lambda sm, sides: posed.append(real(sm, sides)) or posed[-1])
+  floor.seen = np.array([[3.0, 3.0, 0.5]])
+  try:
+    assert floor._swing("left", today, OWN_SIDE, floor._lean()) is None
+  finally:
+    floor.seen = None
+  first, last = posed[0], posed[-1]
+  fore = [p for p in last if p[:2] == ("left", "forearm")][0]
+  g = np.stack(np.meshgrid(*(np.arange(-0.12, 0.12, 0.004),) * 3, indexing="ij"),
+               axis=-1).reshape(-1, 3) + fore[3]
+  gap = rc.part_gap(g, fore)
+  pts = g[(gap > -0.015) & (gap < -0.008)
+          & (np.linalg.norm(g - fore[3], axis=1) > np.linalg.norm(fore[5]) + rc.SWING_CLEAR_M + 0.002)]
+  for part in first:
+    pts = pts[rc.part_gap(pts, part) > 0.01]
+  for ps in posed:
+    for part in ps:
+      if part[:2] != ("left", "forearm"):
+        pts = pts[rc.part_gap(pts, part) > 0.0]
+  g = OWN_SIDE.pos
+  pts = pts[(np.hypot(pts[:, 0] - g[0], pts[:, 1] - g[1]) > rc.SWING_WORK_M)
+            | (pts[:, 2] < g[2] - rc.SWING_WORK_UNDER_M)]
+  assert len(pts) > 5, "the premise: points in its rounded end alone, past the norm's reach"
+  floor.seen = pts
+  try:
+    met = floor._swing("left", today, OWN_SIDE, floor._lean())
+  finally:
+    floor.seen = None
+  assert met is not None and met["part"] == "forearm" and met["m"] < rc.SWING_CLEAR_M, met
 
 
 def test_the_work_round_the_goal_is_no_face(floor, monkeypatch):
@@ -424,6 +481,53 @@ def test_the_body_judges_a_procedures_reach_alone_and_says_swing():
       assert hb.HumanoidBody.hand_swung(me, "left") == said
 
 
+def test_a_paths_second_try_keeps_what_the_first_plan_would_swing_into():
+  """A reach that follows a path tries again in the posture asked
+  (`_reached`): one that plans none there is still the swing's."""
+  said = {"arm": "this", "side": "left", "part": "gripper", "m": -0.02, "began": None,
+          "at": [0.22, 0.31, 0.66], "t": 0.6}
+
+  class Arms:
+    kept, own, kept_by, keep_out = {"left": None}, {"left": None}, {"left": None}, []
+    swung, seen, tries = {"left": None}, None, 0
+
+    def reach(self, side, goal, **kw):
+      self.tries += 1
+      self.swung[side] = said if self.tries == 1 else None
+      return False
+  me = NS(reach=Arms(), _why={}, _kept={},
+          mission=NS(look_round=lambda: None, keep_out=lambda seen: [],
+                     arms_seen=lambda: _face(0.2)))
+  assert not hb.HumanoidBody._reached(me, "left", None, (), True, words=True, verb=True)
+  assert me.reach.tries == 2 and me._why["left"] == "swing"
+  assert hb.HumanoidBody.hand_swung(me, "left") == said
+
+
+def test_a_reach_kept_off_another_robot_says_the_other_hands_every_posture_swings():
+  """Asked whether the other hand's way would keep off that robot, a plan
+  whose every posture swings into what it saw is "swing" (`clear_way`), and
+  the robot is told so -- never that the hand does not reach there."""
+  reach = _floor()
+  reach.seen = _face(0.15, 20)
+  assert reach.clear_way("left", ACROSS, postures=rc.REACH_POSTURES[:12]) == "swing"
+  reach.seen = None
+  assert reach.clear_way("left", ACROSS, postures=rc.REACH_POSTURES[:12]) is True
+
+  class Off(StubBody):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                      turns=None, refuse=False):
+      return False
+      yield
+
+    def hand_why(self, side):
+      return "kept off"
+
+    def hand_kept(self, side):
+      return {"m": 0.9, "x": 0.5, "y": -0.6, "home": False, "back": False, "other": "swing"}
+  step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', Off(*_bare()))["steps"][-1]
+  assert step["reason"].endswith(st.OTHER_HAND_KEPT["swing"].format(other="left"))
+
+
 def test_a_reach_refused_for_its_swing_says_what_it_would_meet_and_whether_the_other_hand_could():
   class Swung(StubBody):
     reaches = False
@@ -443,5 +547,6 @@ def test_a_reach_refused_for_its_swing_says_what_it_would_meet_and_whether_the_o
     body.swung["left"] = {"side": "left", "part": "jaw_a_pad", "m": 0.0, "at": [0.214, 0.3, 0.664]}
     step = _fly('def a():\n    reach("left", 0.3, -0.2, 0.8)\n', body)["steps"][-1]
     assert not step["ok"] and step["why"] == "swing"
-    said = st.REACH_SWUNG.format(hand="left", side="left", part="fingers", ahead=0.214, up=0.664)
+    said = st.REACH_SWUNG.format(hand="left", side="left", part="fingers", x=0.214, y=0.3, z=0.664)
+    assert "at x 0.21, y 0.30, z 0.66 in your stance frame" in said
     assert step["reason"] == said + ("; your right hand could reach it as asked" if reaches else "")
