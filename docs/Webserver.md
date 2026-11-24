@@ -317,7 +317,12 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   it is booked the step is owed, a stop thrown in at the yield leaving it
   owed (a run's end, a stop while paused), and the save keeps that per
   robot. The restore books it once the step is stepped again. A save from
-  before it owes nothing and comes back as it always did. The keeper's own
+  before it owes nothing and comes back as it always did. And no save is
+  taken on a step a death or a stand-up landed in (`Keeper.landed`): a
+  routine it lands in may be closed there, unbooked, once the hooks are
+  done -- a procedure's verb on a death, a long routine on a stand-up --
+  and saved, the restore would book a step the world never did; the keeper
+  saves, or stops, a step later. The keeper's own
   hook runs after every step hook, whenever one was hung
   (`Body.last_hooks`): hung among them, it saved before a hand job's watch,
   hung at the job's claim, had read the step.

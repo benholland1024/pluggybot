@@ -182,9 +182,8 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def last_hooks(self) -> list:
     """...and those run after every one of them, whenever a step hook was
-    hung (#749): where the world is saved (`continuation.Keeper`). Hooked
-    among them, a save came before a hand job's watch hung at its claim,
-    and lost that step's reading."""
+    hung (#749): where the world is saved (`continuation.Keeper`), after
+    every reading of the step it saves."""
 
   @property
   @abc.abstractmethod
@@ -214,8 +213,7 @@ class Body(abc.ABC):
     scan), done now for the step the world last stepped, where the save it
     was restored from was taken inside that step's hooks with it still
     owed (#749, `continuation.restore`) -- else nothing. True where it was
-    owed. Undone, a save on a step whose scan was due came back with that
-    scan a step late, and every scan after it."""
+    owed."""
 
   @abc.abstractmethod
   def close(self) -> None:

@@ -610,13 +610,14 @@ class Navigator:
     leaves it owed: had the world gone on, this would have booked it. ⚠ So
     does a close: a run's end closes a robot waiting in its hold at its
     yield (`tick.run_many`), a hold that would have booked the step. ⚠ But
-    a close takes back what it said of a step not yet stepped: a wrapper
-    that closes it at its next command, unforwarded (a fall's, a
-    stand-up's), left the step the next routine stepped owed."""
+    a close, or anything thrown in, takes back what it said of a step not
+    yet stepped: a wrapper that closes it at its next command, unforwarded
+    (a fall's, a stand-up's), or another robot's hook raising before this
+    one's own hooks ran, left the next step stepped owed."""
     self._booking = True
     try:
       yield command
-    except GeneratorExit:
+    except BaseException:
       self._booking = False
       raise
     self._after_step()

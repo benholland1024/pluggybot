@@ -787,6 +787,7 @@ class _FakeLife:
     self.continuing = False
     self.stopping = ""
     self.dead = None
+    self.resets: list = []
     self._standing_up = False
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}

@@ -681,9 +681,24 @@ class Keeper:
     self.stopped_mid_move = False
     self._next: float | None = None
     self.last_step = LastStep(self.lives[0])
+    #: Each robot's death and stand-ups as the last step left them (`landed`)
+    self._seen: list | None = None
     for life in self.lives:
       life.continuing = True
     self.lives[-1].body.last_hooks.append(self.step_hook)
+
+  def landed(self) -> bool:
+    """Did a death or a stand-up land in this step's hooks? Read every step.
+    A routine it lands in may be closed at the step, unbooked, once the
+    hooks are done (`steps._until_down_routine` on a death,
+    `HubLifecycle._until_stood_up_routine` on a stand-up): a save there
+    kept the step owed, and the restore booked one the world never did
+    (#749's review). Saved a step later, the routine has decided."""
+    now = [(None if life.dead is None else id(life.dead), len(life.resets))
+           for life in self.lives]
+    landed = self._seen is not None and now != self._seen
+    self._seen = now
+    return landed
 
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the
@@ -697,6 +712,7 @@ class Keeper:
 
   def step_hook(self) -> None:
     self.last_step.hook()                 # every step, busy or not: a save
+    landed = self.landed()                # ...and so is what landed in it
     if self.stop_requested and self.paused():
       # ...at once: waited out, a body mid-move would step on in a world
       # the operator stopped. Only the living count: a robot lying dead is
@@ -705,7 +721,7 @@ class Keeper:
       self.stopped_mid_move = any(_mid_move(life) for life in self.lives
                                   if life.dead is None)
       raise MissionAborted(f"stopping: {self.stop_requested}")
-    if self.busy():                       # after a busy stretch replays too
+    if self.busy() or landed:             # after a busy stretch replays too
       return
     if self.stop_requested:
       raise MissionAborted(f"stopping: {self.stop_requested}")

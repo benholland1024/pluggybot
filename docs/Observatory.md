@@ -27,7 +27,9 @@ a day flown straight through is bit for bit the one before. Two things:
   (about one keeper save in 50, and every one that fell on a charge's
   first step) came back with that scan 2 ms late, and every scan after it,
   and the belief, the map and the camera's layer parted at the last bits
-  from the world that never stopped. Nothing a robot reads was lost.
+  from the world that never stopped. Nothing a robot reads was lost. A
+  save that falls on the step a death or a stand-up landed in is taken a
+  step later.
 - The keeper's hook runs after every step hook. A hand job's watch is hung
   at the job's claim, after it: on the pair's second robot a save came
   before the watch had read that step -- the most its prop moved, the

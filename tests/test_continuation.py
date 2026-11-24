@@ -398,6 +398,12 @@ def test_a_step_its_routine_books_after_the_hooks_is_owed_that_and_a_save_keeps_
     walk.close()                       # as a fall's or a stand-up's wrapper closes one
     a.run(a.settle_routine(m.model.opt.timestep))
     assert owed[-1] is False, "a step another routine stepped, owed by one never stepped"
+    walk = m._nav_routine(0.0, 0.0)
+    next(walk)                         # ...or thrown into there: the other robot's
+    with pytest.raises(MissionAborted):  # hook raised before this one's step was booked
+      walk.throw(MissionAborted("stop_when"))
+    a.run(a.settle_routine(m.model.opt.timestep))
+    assert owed[-1] is False, "a step owed by one a stop was thrown into, never stepped"
 
     def stop():
       kept.append(m.kept_state())
@@ -1049,6 +1055,36 @@ def test_a_hook_hung_on_the_seam_after_the_keeper_has_read_the_step_it_saves(tmp
   keeper._next = 0.0
   _hold(life, life.model.opt.timestep)
   assert saved == [[float(life.data.time)]], "saved before the step's last hook read it"
+
+
+def test_no_save_is_taken_on_a_step_a_death_or_a_stand_up_landed_in(tmp_path):
+  """A death or a stand-up lands in a step's hooks, and a routine it lands
+  in may be closed at that step, unbooked, once they are done: a
+  procedure's verb on a death (`steps._until_down_routine`), a long routine
+  on a stand-up (`_until_stood_up_routine`). Saved there, the step was kept
+  owed, and the restore booked one the world never did (#749's review). The
+  keeper saves a step later, and a stop is raised a step later, the
+  routine's word given."""
+  life = _stub(tmp_path)
+  keeper = continuation.Keeper([life], tmp_path / "world.npz", every_s=1e9)
+  dt = life.model.opt.timestep
+  _hold(life, dt)
+  landing: list = []
+  life.body.step_hooks.append(lambda: landing and landing.pop()())
+  for land in (lambda: setattr(life, "dead", {"t": float(life.data.time), "cause": "flat"}),
+               lambda: (setattr(life, "dead", None), life.resets.append({"t": 0.0}))):
+    saves = keeper.saves
+    keeper._next = 0.0
+    landing.append(land)
+    _hold(life, dt)
+    assert keeper.saves == saves, "saved on the step a death or a stand-up landed in"
+    _hold(life, dt)
+    assert keeper.saves == saves + 1
+  landing.append(lambda: setattr(life, "dead", {"t": float(life.data.time), "cause": "flat"}))
+  keeper.request_stop("SIGTERM")
+  _hold(life, dt)                                  # the step it landed in
+  with pytest.raises(MissionAborted, match="SIGTERM"):
+    _hold(life, dt)
 
 
 def _carried_on(life, tmp_path, resumes: int = 0):

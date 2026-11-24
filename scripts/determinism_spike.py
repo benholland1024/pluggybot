@@ -32,6 +32,10 @@ is the physics itself.
                                 # the save in a new process -- identical
                                 # after the restore point, or a restart
                                 # changes the world
+    ... --resume-at 400 --in-step
+                                # ...saved inside the hooks of the first step
+                                # past t=400 whose scan is still to come, as
+                                # the keeper saves (#749)
 
 The world is the humanoids' house (`home_humanoid`, #559).
 """
@@ -130,26 +134,33 @@ def child(cfg: dict, trace_path: Path) -> None:
     if cfg.get("saveAt") is not None:
       # the SAVING arm of --resume-at: the world written at the first pass
       # of the day loop past the mark -- where nothing is in flight -- and
-      # the day ended there
+      # the day ended there; or, `--in-step`, inside the hooks of the first
+      # step past it whose scan is still to come, the keeper's own place
+      # (#749: the step's bookkeeping after the hooks is owed there)
       from pluggybot import continuation
       from pluggybot.tick import MissionAborted
 
       # ...with where its last step began, as the keeper's saves carry it
-      # (issue #420): hooked last
+      # (issue #420): after every step hook, as the keeper's own
       last = continuation.LastStep(life)
-      life.body.step_hooks.append(last.hook)
+      life.body.last_hooks.append(last.hook)
 
-      def save_here():
+      def save_here(in_step: bool = False):
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
         if (d.time >= float(cfg["saveAt"])
-            and life.body.posture not in continuation.MOVING_POSTURES):
+            and life.body.posture not in continuation.MOVING_POSTURES
+            and not (in_step and (d.time < life.body.mission._next_scan
+                                  or continuation._mid_move(life)))):
           continuation.write(continuation.capture([life], life.world_fingerprint,
                                                   last_step=last),
                              cfg["worldState"])
-          log(k="saved", t=round(float(d.time), 4))
+          log(k="saved", t=round(float(d.time), 4), inStep=in_step)
           raise MissionAborted("saved")
-      life.at_loop_top.append(save_here)
+      if cfg.get("inStep"):
+        life.body.last_hooks.append(lambda: save_here(in_step=True))
+      else:
+        life.at_loop_top.append(save_here)
 
   st = Path(cfg.get("stateDir") or tempfile.mkdtemp(prefix="pluggy-det-"))
   if cfg.get("pair"):
@@ -311,12 +322,14 @@ def compare(traces: list[Path]) -> None:
 # ---- the parent --------------------------------------------------------------
 
 
-def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
+def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = False) -> int:
   """Issue #345's parity check: straight through, against saved at `at` and
   carried on from the save. Three processes, one after another -- the
-  resuming one needs the saving one's files."""
+  resuming one needs the saving one's files. `in_step`: saved inside the
+  hooks of a step whose scan is still to come, as the keeper saves (#749)."""
   state = out / "resumed-state"
-  arms = {"straight": {}, "saving": {"saveAt": at}, "resumed": {"resume": True}}
+  arms = {"straight": {}, "saving": {"saveAt": at, "inStep": in_step},
+          "resumed": {"resume": True}}
   for name, extra in arms.items():
     arm = {**cfg, **extra, "stateDir": str(out / f"{name}-state"),
            "worldState": str(state / "world.npz")}
@@ -333,7 +346,8 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
   a = [r for r in load(out / "straight.trace.jsonl") if r["t"] > saved]
   b = [r for r in load(out / "resumed.trace.jsonl") if r["t"] > saved]
   rep = first_divergence(a, b)
-  print(f"saved at the day loop's pass at t={saved}; traces in {out}")
+  print(f"saved {'inside the hooks of the step' if in_step else 'at the day loop'}'s pass"
+        f" at t={saved}; traces in {out}")
   # ...and what it sensed: a look the straight day never took moves no
   # joint, and every restore took one until the last look was kept
   sensed = first_perception_difference(a, b)
@@ -386,6 +400,9 @@ def main() -> int:
                   help="issue #345: fly the day straight through AND saved at "
                        "the first idle moment past T then carried on from the "
                        "save in a new process; the two must be identical after")
+  ap.add_argument("--in-step", action="store_true",
+                  help="--resume-at saves inside the hooks of the first step past T "
+                       "whose scan is still to come, as the keeper does (#749)")
   args = ap.parse_args()
   if args.child:
     child(json.loads(Path(args.child[0]).read_text()), Path(args.child[1]))
@@ -410,7 +427,7 @@ def main() -> int:
   cfg_path.write_text(json.dumps(cfg))
   env = {**os.environ, "MUJOCO_GL": os.environ.get("MUJOCO_GL", "egl")}
   if args.resume_at is not None:
-    return resume_check(out, cfg, args.resume_at, env)
+    return resume_check(out, cfg, args.resume_at, env, in_step=args.in_step)
   procs = []
   for i in range(args.runs):
     trace = out / f"run{i}.trace.jsonl"
