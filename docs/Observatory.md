@@ -38,8 +38,9 @@ reading the whole body's balance, where it closes (where it does not, the
 arm's own estimate read 430 N in free air: no reading). An end no posture
 reaches is refused, nothing moved, as always. A posture coming is
 given up where the hand has read past 20 N for 0.1 s running, the body
-backing off toward where the carry began until the hand reads no more,
-held there; that carry takes no other, and goes as far as its arm reaches.
+backing off toward where the carry began until the hand reads no more --
+or a command does not close -- held there; that carry takes no other, and
+goes as far as its arm reaches.
 A hand that grips what it carries (its grip lost, "let go", #742's) and the
 loop's own carries (a charge's) as before.
 
@@ -48,9 +49,12 @@ loop's own carries (a charge's) as before.
   and read past 20 N -- a `fall` row whose `at` names a `move_hand` --
   where the weekend of 11-21 had one in 19 cube tries (Rowan, t_0574), and
   at that draw on its own tree the rule took the carry's fall away.
-- **What it costs**: on Ben's bar (736 flights) only our door's hand drawn
-  back off its lever after letting go reads past 20 N in an open carry, so
-  a robot's own `move_hand` pressing on something is where it acts; flown
+- **What it costs**: Ben's bar (736 flights) passed 609 and fell 5 times on
+  both trees, 1 flight moved (a door that failed either way); only our
+  door's hand drawn back off its lever after letting go reads past 20 N in
+  an open carry there, so a robot's own `move_hand` pressing on something is
+  where it acts -- and once, a robot's own forearm on its own thigh, read as
+  the working hand's load, gave a posture up (that door); flown
   on purpose in free air into the deepest postures, the reading the rule
   reads (the whole body's, closed) came within 5 N of its line on its mean,
   never past it.

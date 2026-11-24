@@ -10216,7 +10216,21 @@ its run past the line held as they were), and a posture coming is given up
 only for a load past the line for `MEAN_S` running (a quarter's margin of the
 line). A gate on the trunk's rate would have had to sit at that one
 phantom's lowest, 0.166 rad/s, its mean falling under the line at 0.171: a
-fit to one case.
+fit to one case. **On Ben's bar** (the same loop, one Xeon E7-8890 v4 beside
+9d83cf32) one flight fell where the base did not, our door's set-out 31:
+its back-off `move_hand`, rising out of the lever press's deep bow (0.95
+rad, the waist 44 deg), read 20-29 N on commands that closed, for 0.12 s,
+with nothing on the left hand -- the right forearm pressed the right thigh
+at 72-99 N, and the balance reads a push on the robot's own body as the
+working hand's -- so the posture was given up; then the balance stopped
+closing, and the mean, held through those commands, kept the back-off
+going until the body was back in the bow it had begun in; the run fell in
+a `withdraw` 28 s later. So a back-off goes on only while a command that
+closes reads the load: one that does not close ends it where the body has
+got to (the door then 85 deg open, no fall, a fail either way). On it the
+whole bar passed 609 of 736 and fell 5 times on both trees, 1 flight moved (that door); at
+Rowan's draw on the tree it fell on (9914a40c) 1 of 32 fell where 2 had -- the
+gripped `pull`, bit for bit -- the carry's fall gone, every grade the same.
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,

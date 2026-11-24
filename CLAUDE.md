@@ -528,7 +528,12 @@ save a filmstrip PNG named after the script.
   BALANCE ALONE, WHERE IT CLOSES (`Reach.closed`): where its rows did not
   agree, the arm's own estimate, taken as still, read 430 N in free air as
   the body crouched, bowed and turned at once, and gave a posture up; where
-  it closed, bowed 0.95 rad, at most 60 N, its mean 15. ⚠ The body held where it stood at a loaded ask is no posture
+  it closed, bowed 0.95 rad, at most 60 N, its mean 15 -- and ITS BACK-OFF
+  GOES ON ONLY WHILE ONE THAT CLOSES READS THE LOAD (on a mean held through
+  ones that did not, a body rising out of a deep bow was walked all the way
+  back into it, and its run fell later). ⚠ It reads the robot's own forearm
+  on its own thigh as the working hand's load (20-29 N closed, nothing on the
+  hand: Ben's bar's door_31 gave a posture up so). ⚠ The body held where it stood at a loaded ask is no posture
   given up (`held_here`), and a path's or a turned carry's posture withheld
   at its ask is planned again once light (`recheck`: it plans none on its
   way). One so ended out of reach where another posture would reach says why
