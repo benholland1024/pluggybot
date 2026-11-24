@@ -1277,15 +1277,20 @@ def _dips(sm: SelfModel, side: str, q0, at, ahead: float):
 #: arm walks out its way to the pre-grasp, on the commands' own clocks
 #: (`swing_clock`), sampled this often, s...
 SWING_DT = 0.05
-#: ...each part of either arm kept this far, m, from what its depth camera
-#: saw where its arms swing (`mission.ArmsMemory`, a voxel's middle) -- or,
-#: begun nearer, no nearer than it began less this, m (a hand hanging on a
-#: counter's face as the reach begins: #722's form)...
-SWING_CLEAR_M = 0.02
+#: ...no part of either arm passing nearer than this, m, to what its depth
+#: camera saw at a face where its arms swing (`mission.ArmsMemory`, a voxel's
+#: middle) -- or, begun nearer, no nearer than it began less this, m (#722's
+#: form). MEASURED over 800 reaches walked in to the storeroom's counter
+#: (#747's census): the 20 left-hand plans that fell as the posture was taken
+#: carried a forearm 1.8-3.4 cm through the face as the robot's model of
+#: itself has it, the 393 right-hand ones that pressed nothing none through
+#: -- where kept 1 cm off, 99 of those were refused, and 2 cm, 128.
+SWING_CLEAR_M = 0.0
 SWING_SLACK_M = 0.005
-#: ...but what lies within this of its goal, m: what it reaches for and what
-#: that stands on.
-SWING_WORK_M = 0.08
+#: ...but what lies within this of its goal across, m, and from this under it
+#: up: what it reaches for and what that stands on -- a cube on its board
+#: 2.4 cm under the robots' own goals, met by every hand that came to it.
+SWING_WORK_M, SWING_WORK_UNDER_M = 0.15, 0.10
 #: ...and no longer than this, s: a posture and a way out are done in a few.
 SWING_MOST_S = 10.0
 
@@ -1387,14 +1392,17 @@ def swing_parts(sm: SelfModel, sides) -> list[tuple]:
 
 def part_gap(points: np.ndarray, part: tuple) -> np.ndarray:
   """How far each of `points` (n, 3) is outside a part of `swing_parts`, m:
-  from a capsule's axis less its radius, from a box's faces (0 inside)."""
+  from a capsule's axis less its radius, from a box's faces; negative
+  inside."""
   _, _, capsule, c, rot, size = part
   rel = points - c
   if capsule:
     u = rot[:, 2]
     t = np.clip(rel @ u, -size[1], size[1])
     return np.linalg.norm(rel - t[:, None] * u, axis=1) - size[0]
-  return np.linalg.norm(np.maximum(np.abs(rel @ rot) - size, 0.0), axis=1)
+  # ...a box's signed: inside, how far in from its nearest face
+  q = np.abs(rel @ rot) - size
+  return np.linalg.norm(np.maximum(q, 0.0), axis=1) + np.minimum(q.max(axis=1), 0.0)
 
 
 class Reach:
@@ -1800,15 +1808,17 @@ class Reach:
             "at": [round(float(v), 3) for v in at], "t": round(t, 2)}
 
   def _seen_tree(self, goal: HandGoal):
-    """What it saw where its arms swing (`seen`) less what lies within
-    `SWING_WORK_M` of `goal`, and a k-d tree over it -- kept while `seen`
-    and the goal's place are those it was built for; (None, None) for
-    none."""
+    """What it saw where its arms swing (`seen`) less the work round `goal`
+    (`SWING_WORK_M` across, from `SWING_WORK_UNDER_M` under it up), and a k-d
+    tree over it -- kept while `seen` and the goal's place are those it was
+    built for; (None, None) for none."""
     from scipy.spatial import cKDTree
     key = (id(self.seen), tuple(np.asarray(goal.pos, dtype=float).round(6)))
     if getattr(self, "_tree_key", None) != key:
-      pts = self.seen[np.linalg.norm(self.seen - np.asarray(goal.pos, dtype=float), axis=1)
-                      > SWING_WORK_M]
+      g = np.asarray(goal.pos, dtype=float)
+      work = ((np.hypot(self.seen[:, 0] - g[0], self.seen[:, 1] - g[1]) <= SWING_WORK_M)
+              & (self.seen[:, 2] >= g[2] - SWING_WORK_UNDER_M))
+      pts = self.seen[~work]
       self._tree_key, self._tree = key, ((cKDTree(pts), pts) if len(pts) else (None, None))
     return self._tree
 

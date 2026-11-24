@@ -143,6 +143,10 @@ KNEE_PAST_M, KNEE_BINS = 0.05, 180
 #: frame walking in from 0.65 m saw the face on its plane over its whole
 #: height, 4-7 mm nearer than it stood.
 ARMS_TOP_Z, ARMS_VOX_M = 1.35, 0.02
+#: ...a column's top is what lies within this of its highest voxel, m: a
+#: counter's top seen 0.5-1 m off reads a voxel or two deep, and read as a
+#: face it was met by every hand that came over it.
+ARMS_TOP_M = 0.03
 
 
 def _bins(a: np.ndarray) -> np.ndarray:
@@ -422,19 +426,20 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
-  def faces(self, pose, corrected) -> np.ndarray:
-    """`near`'s, less the highest of each column: what stands at a face. ⚠
-    THE TOP OF WHAT STANDS THERE IS NO FACE: a hand comes down over a
-    counter's top, a board on it or a table's, to the work it reaches for."""
+  def faces(self, pose, corrected, top_m: float = ARMS_TOP_M) -> np.ndarray:
+    """`near`'s, less each column's top (`ARMS_TOP_M` under its highest):
+    what stands at a face. ⚠ THE TOP OF WHAT STANDS THERE IS NO FACE: a hand
+    comes down over a counter's top, a board on it or a table's, to the work
+    it reaches for."""
     pts = self.near(pose, corrected)
     if not len(pts):
       return pts
     v = np.round(self.pts / ARMS_VOX_M).astype(np.int64) + (1 << 20)
     column = (v[:, 0] << 21) | v[:, 1]
-    order = np.lexsort((-v[:, 2], column))
-    top = np.zeros(len(v), dtype=bool)
-    top[order[np.r_[True, column[order][1:] != column[order][:-1]]]] = True
-    return pts[~top]
+    _, inverse = np.unique(column, return_inverse=True)
+    high = np.full(int(inverse.max()) + 1, -np.inf)
+    np.maximum.at(high, inverse, self.pts[:, 2])
+    return pts[self.pts[:, 2] < high[inverse] - top_m - 1e-9]
 
   def kept_state(self) -> tuple[dict, dict]:
     return ({"seen": None if self.seen is None else [float(v) for v in self.seen]},
