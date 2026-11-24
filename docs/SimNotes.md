@@ -7556,6 +7556,49 @@ still: the 120 mm tags' window, 10-14 cm off the camera, is narrower than a
 step lands. The instruments and their rows are
 `~/pluggybot-training/issue-660/`.
 
+## A tag beside `spot`'s picture, and its bows (issue #728's option 2)
+
+The weekend's refused `spot`s of 11-21/22 had their tag beside the picture
+far oftener than above it, and the robots blamed its top (#728). Bowed, the
+head turns down AND comes forward and down (on the statue, 16 cm forward and 9
+down at 0.45 rad): the turn alone would draw in a point just past the picture's
+side low down, as it rises toward the picture's middle, but the head's
+forward move pushes a near point out further. Which wins is a matter of height.
+- **On the robot's model of itself** (each bow `spot` can take posed as its
+  statue, 0.05-0.45 rad; exactly, by each bowed picture's corners' rays
+  against the standing picture's sides): nothing that stood beside the
+  standing picture -- at its side, or at a corner above or below it -- comes
+  into a bowed one higher than 0.41 m over the floor at 0.05 rad, 0.44 at
+  0.45 (0.436 with the stand's 1.2 cm lean). At a counter's height the bowed
+  picture's side draws IN, 4-10 deg of bearing at the bows `spot` asks and
+  0.3-0.9 at a 0.05 one. Lower, near the bottom's corners, a bow takes in
+  some of what stood beside and below it: on the floor, what stood up to 2.8
+  deg of the picture's own angle past its side (0.3 at 0.4 m up).
+- **Live, the robots' own procedures** (#728's W1 instrument: 208 flights of
+  the weekend's cube, chest and door procedures at their live draws, 703
+  `spot`s read off their runs' verbs): 136 had their tag beside the standing
+  picture -- 106 at its side, 30 beside and below, none beside and above; the
+  cube, the chest's knob, the mat; 0.1-34 deg past the side (median 8), 0.56-1.48
+  m off -- and in all 136 the bowed looks had it further out, none seeing it.
+- **Flown on `loop-staging` 2acb028d** (osmesa, two noise draws): a 26 mm
+  block on the counter's board 0.5-1.5 deg past the side, 0.6 and 0.9 m off,
+  was in no picture at any bow 0-0.45 rad by 0.05 (6 of 6), and 3 deg inside
+  was read standing (2 of 2). On the floor, at the places the statue lets in,
+  the block's middle came into a bowed picture (0.45 rad, once 0.25) in 5
+  flights of 16, 0.1-0.6 deg inside its side, and no look read it whole: the
+  live camera stands 1-2 cm behind the statue's, its head 0.5 deg back.
+- **Turning is what swings the picture**: on the statue a turn to face it
+  brings each of the 136 live tags into one of `spot`'s pictures. Not every
+  tag beside it comes in so: one far off at a prop's top (0.87 m high, 1.44 m
+  and more off) is above the picture whichever way the robot faces, and one
+  beside and above needs a step nearer.
+
+So `spot`'s text says that none of its bows brings in a tag beside the
+picture standing higher than `steps.SPOT_BOW_SIDE_UNDER_M` (0.5 m: the
+statue's 0.44 rounded up to a tenth, typed, a test working it out on the
+statue at every bow and on a grid), and that turning swings the picture.
+The instruments and their rows are `~/pluggybot-training/loop-1124b/z1-728b/`.
+
 ## Two robots at the counter (issue #670)
 
 **What happened.** At 11:48 on 11-08 Rowan's walk to the cupboard stopped at

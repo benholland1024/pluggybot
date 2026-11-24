@@ -545,6 +545,16 @@ SPOT_SIDE_TOP_DEG, SPOT_SIDE_BOTTOM_DEG = _spot_side_deg(1), _spot_side_deg(-1)
 #: the number a block's tag is known by, and 52.7 would read 53
 #: (`test_no_hand_verb_knows_the_chest`).
 SPOT_SIDE_BOTTOM_TENS = 10 * math.floor(SPOT_SIDE_BOTTOM_DEG / 10)
+#: ...and no bow of `spot`'s -- asked, or held short by #717's room -- takes
+#: in anything that stood beside the standing picture higher than this over
+#: the floor, m (#728's option 2): bowed, the head comes forward as it turns
+#: down, and at a counter's height the picture's sides draw in 4-10 deg at the
+#: bows it asks. Lower, near its bottom's corners, a bow takes in some of what
+#: stood beside and below it. On the robot's model of itself posed as each
+#: bow's statue, the highest that happens is 0.44 m: a test works it out there
+#: and fails unless this is that rounded up to a tenth (SimNotes, "A tag
+#: beside `spot`'s picture and its bows").
+SPOT_BOW_SIDE_UNDER_M = 0.5
 #: ...the picture's top over the floor IN THE STANCE FRAME, m, where the
 #: robot reads every place: at x = 0 (the camera's height carried back to the
 #: soles' middle, 4.5 cm behind it), falling this much a metre of x; and how
@@ -1682,7 +1692,10 @@ HANDS_VERBS: dict[str, Verb] = {
                f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level, "
                f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where your head faces "
                f"at its top and more than {SPOT_SIDE_BOTTOM_TENS} at its bottom, and bowing only "
-               "takes it lower. With your trunk square to your feet, a thing at x in your "
+               "takes it lower: none of `spot`'s bows brings in a tag beside the picture if the "
+               f"tag stands higher than {SPOT_BOW_SIDE_UNDER_M:g} m over the floor, and turning "
+               "swings the picture the way you turn. With your trunk square to your feet, a "
+               "thing at x in your "
                "stance frame is in the picture only if it stands lower than "
                f"({SPOT_TOP_AT_FEET_M:.2f} - {SPOT_TOP_DROP:.2f} x) m over the floor, and a tag "
                "reads only with the whole of it inside the picture: the lower a tag is, the "

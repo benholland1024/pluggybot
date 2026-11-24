@@ -1409,7 +1409,13 @@ save a filmstrip PNG named after the script.
   the colour camera, looking down; `look`, `find`, a practice's first
   picture and the lab's view are the navigation camera (`Body.head_camera`),
   and nothing a robot reads calls either "the head camera" (a test reads
-  every prompt). ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
+  every prompt). ⚠ `spot`'s SAYS NONE OF ITS BOWS BRINGS IN A TAG BESIDE ITS
+  PICTURE HIGHER THAN `SPOT_BOW_SIDE_UNDER_M` (0.5 m), AND THAT TURNING SWINGS
+  IT (#728's option 2; SimNotes, "A tag beside `spot`'s picture, and its
+  bows"): typed, the statue's 0.44 m at every bow `spot` can take rounded up
+  to a tenth -- a test works it out there and fails otherwise; lower, near
+  the bottom's corners, a bow takes in some of what stood beside and below
+  it. ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
   ITS VERB NO READING (`steps.forget_readings`): what it last reported would
   read as this call's. ⚠ A HAND'S MOVE MAY STOP ON A
   READING (#554; `steps.GUARDED_VERBS`, behind `WorldFacts.guarded`, on in

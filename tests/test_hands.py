@@ -2705,6 +2705,97 @@ def test_a_wall_tag_is_above_spots_picture_from_the_counter_and_in_the_navigatio
   assert 0.0 < in_from < 0.2, in_from
 
 
+def _bowed_eyes():
+  """The colour camera at every bow `spot` can look from -- those it asks
+  (`SPOT_GAZES`) and those #717's room holds it at instead, `BOW_STEP_RAD`
+  short of them down to none (`Body.bow_room`) -- and standing: the robot's
+  model of itself posed as each bow's statue (`reach.statue`: the stand's
+  height, its waist square, its arms hanging), its place and turn in the
+  stance frame. A statue cache of its own: it fills nobody's."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import SelfModel
+  from pluggybot.humanoid.body import BOW_STEP_RAD
+  bows = sorted({round(down - k * BOW_STEP_RAD, 6) for down in st.SPOT_GAZES
+                 for k in range(int(round(down / BOW_STEP_RAD)))} | {0.0})
+  sm = SelfModel()
+  sm.statues = {}
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  i = sm.m.camera("color_eye").id
+  eyes = {}
+  for bow in bows:
+    rc.statue(sm, (0.0, bow, 0.0), q0)
+    mujoco.mj_camlight(sm.m, sm.d)
+    eyes[bow] = (sm.d.cam_xpos[i].copy(), sm.d.cam_xmat[i].reshape(3, 3).copy())
+  half = math.radians(float(sm.m.cam_fovy[i]) / 2)
+  return eyes, math.tan(half) * tags.PICTURE_W / tags.PICTURE_H, math.tan(half)
+
+
+def _in_eye(eye, wide, tall, points):
+  """Which of `points` (N, 3) lie inside the picture of `eye` (a camera
+  looks along its -z, its x to the robot's right)."""
+  at, rot = eye
+  v = (points - at) @ rot
+  ahead = v[:, 2] < 0
+  with np.errstate(divide="ignore", invalid="ignore"):
+    return ahead & (np.abs(v[:, 0] / -v[:, 2]) <= wide) & (np.abs(v[:, 1] / -v[:, 2]) <= tall)
+
+
+def test_no_bow_of_spots_brings_in_a_tag_beside_its_picture_above_the_height_its_text_says():
+  """#728's option 2: the weekend's refused `spot`s had their tag beside the
+  picture far oftener than above it, and the robots blamed its top. Bowed,
+  the head comes forward as it turns down, and a tag beside the standing
+  picture stays out of every bowed one unless it lies low -- near its
+  bottom's corners a bow takes in some of what stood beside and below it
+  (the floor). `spot`'s text says so, off `SPOT_BOW_SIDE_UNDER_M`, and that
+  turning is what swings the picture. On the statue at every bow `spot` can
+  take: exactly (each bowed picture's corners' rays, a millimetre at a time),
+  the highest anything beside the standing picture comes into a bowed one is
+  under that height and within a tenth of it; and on a grid, nothing that
+  stood beside it at that height or higher comes in, while on the floor
+  something does."""
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  under = st.SPOT_BOW_SIDE_UNDER_M
+  assert ("and bowing only takes it lower: none of `spot`'s bows brings in a tag beside the "
+          f"picture if the tag stands higher than {under:g} m over the floor, and turning swings "
+          "the picture the way you turn") in spot
+  eyes, wide, tall = _bowed_eyes()
+  assert sorted(eyes) == pytest.approx([0.05 * k for k in range(10)]), sorted(eyes)
+  stand_at, stand_rot = eyes[0.0]
+
+  def beside(points):
+    v = (points - stand_at) @ stand_rot
+    with np.errstate(divide="ignore", invalid="ignore"):
+      return (v[:, 2] < 0) & (np.abs(v[:, 0] / -v[:, 2]) > wide)
+  # exactly: a height meets a picture in the quadrilateral its corners' rays
+  # mark, so nothing beside the standing picture comes in there while every
+  # corner's ray stays inside the standing picture's sides
+  heights = np.arange(0.0, stand_at[2], 0.001)
+  highest = -1.0
+  for bow, (at, rot) in eyes.items():
+    if not bow:
+      continue
+    for sx in (-1.0, 1.0):
+      for sy in (-1.0, 1.0):
+        ray = rot @ np.array([sx * wide, sy * tall, -1.0])
+        if ray[2] >= 0:
+          continue
+        t = (heights - at[2]) / ray[2]
+        out = beside(at + t[:, None] * ray[None, :]) & (t > 0)
+        if out.any():
+          highest = max(highest, float(heights[out].max()))
+  assert under - 0.1 < highest <= under, highest
+  # ...and on a grid, every bow, from that height up to the camera's
+  xs, ys = np.meshgrid(np.arange(-0.3, 3.0, 0.02), np.arange(-3.0, 3.0, 0.02), indexing="ij")
+  for z in (*np.arange(under, stand_at[2], 0.05), 0.0):
+    grid = np.column_stack([xs.ravel(), ys.ravel(), np.full(xs.size, z)])
+    side = grid[beside(grid)]
+    came = np.zeros(len(side), bool)
+    for bow in eyes:
+      if bow:
+        came |= _in_eye(eyes[bow], wide, tall, side)
+    assert bool(came.any()) is bool(z < under), (z, int(came.sum()))
+
+
 def test_a_practices_first_picture_is_said_to_be_the_navigation_cameras():
   """#660: the picture a practice opens with (`evaluation.practice.head_picture`,
   `Body.head_camera`) is the navigation camera's, by that name."""
