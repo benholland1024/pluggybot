@@ -40,8 +40,8 @@ Forwarded fresh at the saved instant instead, a restore parted wherever the
 walking policy decided on its first step (one save in ten); so a save
 carries where that step began (`LastStep`) and a restore steps it again
 (`replay`) -- ⚠ and does that step's bookkeeping after its hooks, where a
-routine still owed it (#749, `Body.book_owed`): the keeper saves inside
-them, and a scan due there came back a step late, and every scan after it.
+routine still owed it: the keeper saves inside them (#749, `Body.book_owed`;
+Webserver.md).
 """
 
 from __future__ import annotations
@@ -591,8 +591,7 @@ def restore(lives, snap: Snapshot) -> dict:
     matched["replayed"] = replay(first.model, first.data, snap.meta["physics"],
                                  snap.arrays)
     # ...and that step's bookkeeping after its hooks, where a routine still
-    # owed it (#749, `Body.book_owed`): the keeper saves inside them, and a
-    # scan due there came back a step late, and every scan after it
+    # owed it: the keeper saves inside them (#749, `Body.book_owed`)
     matched["booked"] = [life.root for life in lives if life.body.book_owed()]
     # ...and a robot saved lying inside the other, from before the pair
     # collided (issue #455), put clear before a step throws them apart
@@ -641,11 +640,10 @@ class Keeper:
   every robot's bookkeeping in order (`tick.run_many`), the world's
   activities with the first -- hooked on the first, the second robot was
   saved a step behind its own body. ⚠ AFTER EVERY STEP HOOK, whenever one
-  is hung (`Body.last_hooks`, #749): among them, a save came before a hand
-  job's watch hung at its claim, and lost that step's reading. ⚠ STILL
-  INSIDE THE STEP: a routine's own bookkeeping after it (a humanoid's
-  scan) is kept owed and done by the restore (`Body.book_owed`). ⚠ A STOP
-  IS RAISED ON THE SEAM, never from a signal handler:
+  is hung (`Body.last_hooks`), but STILL INSIDE THE STEP: a routine's own
+  bookkeeping after it is kept owed and done by the restore
+  (`Body.book_owed`; #749, Webserver.md). ⚠ A STOP IS RAISED ON THE SEAM,
+  never from a signal handler:
   a SIGTERM lands between any two bytecodes -- inside a ledger write, half
   way through a death -- and a state saved from there is half one thing.
   `request_stop` only sets a flag; the next step boundary raises
@@ -691,9 +689,8 @@ class Keeper:
     """Did a death or a stand-up land in this step's hooks? Read every step.
     A routine it lands in may be closed at the step, unbooked, once the
     hooks are done (`steps._until_down_routine` on a death,
-    `HubLifecycle._until_stood_up_routine` on a stand-up): a save there
-    kept the step owed, and the restore booked one the world never did
-    (#749's review). Saved a step later, the routine has decided."""
+    `HubLifecycle._until_stood_up_routine` on a stand-up), which a save
+    inside them cannot know: a step later, the routine has decided (#749)."""
     now = [(None if life.dead is None else id(life.dead), len(life.resets))
            for life in self.lives]
     landed = self._seen is not None and now != self._seen
