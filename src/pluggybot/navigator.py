@@ -609,9 +609,16 @@ class Navigator:
     it (`_owed`) -- and a stop raised in the hooks, thrown in at the yield,
     leaves it owed: had the world gone on, this would have booked it. ⚠ So
     does a close: a run's end closes a robot waiting in its hold at its
-    yield (`tick.run_many`), a hold that would have booked the step."""
+    yield (`tick.run_many`), a hold that would have booked the step. ⚠ But
+    a close takes back what it said of a step not yet stepped: a wrapper
+    that closes it at its next command, unforwarded (a fall's, a
+    stand-up's), left the step the next routine stepped owed."""
     self._booking = True
-    yield command
+    try:
+      yield command
+    except GeneratorExit:
+      self._booking = False
+      raise
     self._after_step()
 
   def _after_step(self) -> None:

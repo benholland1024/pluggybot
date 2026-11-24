@@ -393,6 +393,11 @@ def test_a_step_its_routine_books_after_the_hooks_is_owed_that_and_a_save_keeps_
     assert owed == [True] and not m._owed, "a walk's step is owed its bookkeeping until booked"
     a.run(a.settle_routine(m.model.opt.timestep))
     assert owed == [True, False] and not m._owed, "a step no routine books owes none"
+    walk = m._nav_routine(0.0, 0.0)
+    next(walk)                         # ...its command never stepped: closed at it,
+    walk.close()                       # as a fall's or a stand-up's wrapper closes one
+    a.run(a.settle_routine(m.model.opt.timestep))
+    assert owed[-1] is False, "a step another routine stepped, owed by one never stepped"
 
     def stop():
       kept.append(m.kept_state())
