@@ -11621,6 +11621,35 @@ its seat, is a robot lost, searched at once, as before. ⚠ The report is the ot
 own word, read as its reported pose is: a robot whose port says nothing
 holds nothing by this rule.
 
+## Standing still, no scan laid on time alone (issue #741's option 4)
+
+A robot standing still laid a scan into its map every `FUSE_S` (5 s): docked
+for minutes, every scan fused at a pose jittering by a millimetre had walked
+the map and the pose together 0.15 m (#386), and every 5 s 0.03 m. On the
+live robots' kept maps it still walked them (#741; the loop of 11-24's Y3,
+on the saves of 11-21 and 11-22, X7's loader, one pod): Luca held docked as
+saved on the 11-21 save, 13 cm off and its creep long over, stood at 13-14
+cm for 15 minutes and then walked 30 cm west in 45, its heading turning 2.6
+deg -- the shape of the live walk of 11-21 13:32 (20 cm in 38 minutes) --
+and at the counter, standing 28 minutes where the live robots stood (the
+11-22 save), the belief walked 0.8-8.8 cm west. With no scan laid while the
+belief has not moved a centimetre or turned half a degree since the last
+(outside an anchor's window, whose scans are laid every `FUSE_S` as before):
+the docked hold 13.1 cm at the median (13.4 at most) for the hour, the
+counter 0.4-0.8 cm.
+
+**What it does not do.** A docked belief a kept map's region took to its
+copy stays at the copy (the fits put it there, laid or not): re-docked on
+the 11-21 save, 10.8-12.4 cm at the median where the base's was 10.3-10.9.
+That is #741's option 3 (`loop-741`).
+
+**What is true now.** Standing still, a scan is laid only once the belief
+has moved `FUSE_M` or turned `FUSE_RAD` since the last laid, or inside an
+anchor's window every `FUSE_S`; a robot that stands still lays nothing new
+of what changes round it until it moves. It moves every flight that stands
+still with the matcher on: Ben's bar, flown beside the base (`loop-741b`'s
+PR text).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

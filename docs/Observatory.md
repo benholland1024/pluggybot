@@ -10,6 +10,26 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Standing still, no scan laid on time alone (#741's option 4, Y3, `loop-741b`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` and the session
+host's hello, byte for byte; no line a robot reads is new or reworded.
+
+**The change** (`ScanMatcher.fuses`; SimNotes, "Standing still, no scan
+laid on time alone"). A robot standing still laid a scan into its map every
+5 s; now none on time alone, only once its belief has moved 1 cm or turned
+half a degree since the last -- but an anchor's window lays its scans every
+5 s as before.
+
+**What the period is for.**
+- **The acceptance**: no docked or standing belief walks with the body still
+  -- the docked samples' `errorM` flat through a charge, where the weekend's
+  walked up to 20 cm in an hour.
+- **What it costs**: a robot standing still lays nothing new of what changes
+  round it until it moves.
+- **What it leaves**: a docked belief a kept map's region took to its copy
+  stays there (#741's option 3).
+
 ### A walk's legs go back to the standing policy once both soles are planted (#740, X2, `loop-740`) — opens when this PR is deployed
 
 **What the robots read** is unmoved but for one report field: the prompt

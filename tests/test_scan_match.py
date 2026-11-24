@@ -647,17 +647,23 @@ def test_the_prior_lets_go_of_odometry_that_pumps(room, monkeypatch):
   assert stand(sm.ScanMatcher(room)) > 0.045
 
 
-def test_a_robot_standing_still_fuses_a_scan_every_few_seconds(room):
+def test_a_robot_standing_still_lays_no_scan_on_time_alone_but_in_an_anchors_window(room):
   # Docked for minutes, every scan fused at a pose jittering by a
-  # millimetre walked the map and the pose together; fused only once the
-  # robot moves, or every FUSE_S, it stays.
+  # millimetre walked the map and the pose together; fused every FUSE_S,
+  # it walked them still (#741: a kept map's docked belief 13 cm to 43 cm
+  # in an hour), so standing still none is laid on time alone -- but the
+  # scans an anchor lays at its belief, one every FUSE_S.
   m = sm.ScanMatcher(room)
   ok = sm.Match(TRUE, True, "ok", 300, 0.02, 100.0, (1.0, 0.0, 0.0), 0, sm.NO_STEP)
   assert m.fuses(ok, 0.0)                              # nothing fused yet
   m.fused(TRUE, 0.0)
   jitter = ok._replace(pose=(TRUE[0] + 0.002, TRUE[1], TRUE[2] + 0.001))
   assert not m.fuses(jitter, 0.1)
-  assert m.fuses(jitter, sm.FUSE_S)
+  assert not m.fuses(jitter, sm.FUSE_S), "laid on time alone, standing still"
+  assert not m.fuses(jitter, 60.0 * sm.FUSE_S)
+  m.anchored()
+  m.fused(TRUE, 0.0)
+  assert not m.fuses(jitter, 0.1) and m.fuses(jitter, sm.FUSE_S)
   moved = ok._replace(pose=(TRUE[0] + 1.5 * sm.FUSE_M, TRUE[1], TRUE[2]))
   assert m.fuses(moved, 0.1)
   turned = ok._replace(pose=(TRUE[0], TRUE[1], TRUE[2] + 1.5 * sm.FUSE_RAD))

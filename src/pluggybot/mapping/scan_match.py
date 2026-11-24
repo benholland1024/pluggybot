@@ -282,7 +282,12 @@ ANCHORED_SCANS = 30
 #: A scan is fused only once the pose has moved this far or turned this
 #: much since the last one fused, or FUSE_S has passed. MEASURED: docked for
 #: 388 s, every scan fused at a pose jittering by a millimetre walked the
-#: map and the pose together 0.15 m; fused every 5 s, 0.03 m.
+#: map and the pose together 0.15 m; fused every 5 s, 0.03 m. ⚠ ON TIME
+#: ALONE ONLY INSIDE AN ANCHOR'S WINDOW (#741's option 4): standing still,
+#: each scan laid every FUSE_S at a belief a few mm off walked the map and
+#: the belief together -- docked on a kept map 13 cm to 43 cm in an hour,
+#: at the counter 0.8-8.8 cm in 28 minutes; laid only as the robot moves,
+#: 0.3 and 0.4-0.8 (SimNotes, "Standing still, no scan laid on time alone").
 FUSE_M = 0.01
 FUSE_RAD = math.radians(0.5)
 FUSE_S = 5.0
@@ -521,10 +526,11 @@ class ScanMatcher:
 
   def fuses(self, match: Match, t: float) -> bool:
     """Whether the scan just matched goes into the map: its verdict allows
-    it, and the robot has moved since the last one fused (FUSE_*)."""
+    it, and the robot has moved since the last one fused (FUSE_*) -- or,
+    inside an anchor's window, FUSE_S has passed."""
     if not match.fuse:
       return False
-    if self.fused_pose is None or t - self.fused_t >= FUSE_S:
+    if self.fused_pose is None or (self.anchoring and t - self.fused_t >= FUSE_S):
       return True
     x, y, th = match.pose
     fx, fy, fth = self.fused_pose

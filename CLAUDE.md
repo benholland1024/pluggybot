@@ -2615,7 +2615,11 @@ save a filmstrip PNG named after the script.
   not fix keeps odometry's estimate; a fit the map disagrees with, or one
   that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
   NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
-  moved or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
+  moved (docked, fusing every scan walked the map 0.15 m) -- ⚠ NEVER ON TIME
+  ALONE BUT IN AN ANCHOR'S WINDOW, every 5 s there (#741's option 4,
+  `ScanMatcher.fuses`): laid every 5 s standing still, a kept map's docked
+  belief walked 13 cm to 43 cm in an hour and the counter's 0.8-8.8 cm in 28
+  minutes; laid only as it moves, 0.3 and 0.4-0.8.
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one that held a direction, or whose
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
