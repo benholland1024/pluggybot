@@ -280,7 +280,11 @@ PRESSED_SHARE, PRESSED_ASK_N = 2.0, 20.0
 #: posture and the hand it rests on"): an open hand at a cube's board read
 #: 25-35 N while a carry took four postures, and at Rowan's live draw the
 #: body went down from a crouch of 0.16-0.22 m (2 of 24 flown); at the
-#: pull's 40 N none was refused. Never the loop's own (a charge's).
+#: pull's 40 N none was refused. Never the loop's own (a charge's). ⚠ A
+#: POSTURE IS GIVEN UP ONLY FOR A LOAD READ PAST IT FOR `MEAN_S` RUNNING: the
+#: reading is the body's taken as still, and flown in free air on purpose --
+#: bowed 0.95 rad, crouched 0.25 m, turned 30 deg -- its mean read 16.4 N (its
+#: raw reading 81 N) while the trunk moved.
 CARRY_PRESSED_SHARE = 1.0
 #: ...giving, its turn gives to what it holds this share a command (100 a
 #: second: a tenth of a second's lag) -- held, a wrist twisted by a drop
@@ -2784,9 +2788,13 @@ class Reach:
       km = min(1.0, dt / MEAN_S)
       fm = st["fm"] = (1.0 - km) * st.get("fm", self.force[side]) + km * self.force[side]
       loaded = self._pressed(fm, 0.0, CARRY_PRESSED_SHARE)
+      # ...a posture given up only for a load read past the line for `MEAN_S`
+      # running (`CARRY_PRESSED_SHARE`): the reading is the body's taken as still
+      st["over"] = st.get("over", 0.0) + dt if loaded else 0.0
     # ...never the body held where it stood at a loaded ask (`held_here`): no
     # posture came, and given up there, the carry took none once light
-    if settling and loaded and not st.get("given") and not st.get("held_here"):
+    if (settling and st.get("over", 0.0) >= MEAN_S - 1e-9 and not st.get("given")
+        and not st.get("held_here")):
       self.hold_posture(*st["began"])
       st["postured"], st["given"], st["backing"], st["loaded"] = st["t"], True, True, True
     elif st.get("backing") and not (settling and loaded):

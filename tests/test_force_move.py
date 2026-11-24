@@ -809,6 +809,45 @@ def test_a_carrys_posture_is_given_up_where_its_open_hand_reads_a_load_while_it_
 
 
 
+
+def test_a_carrys_posture_is_given_up_only_for_a_load_held_past_mean_s():
+  """Review round 3 of #699's carry, its third finding: a give-up reads the
+  body's estimate taken as still, while the trunk moves. Flown in free air,
+  bowing to 0.95 rad, crouching 0.25 m and turning 30 deg on purpose -- 6,966
+  commands with nothing touching the hand -- its `MEAN_S` mean read at most
+  16.4 N (its raw reading to 81 N): within a quarter of the line. So a posture
+  coming is given up only for a load the hand has read past the line for
+  `MEAN_S` running: a shorter knock gives nothing up, the posture comes; a
+  load held gives it up after `MEAN_S`."""
+  dt = rc.MEAN_S / 10
+  way = np.array([0.0, 0.0, -1.0])
+
+  def carrying():
+    r = _carrying_open(start=(0.0, 0.15, 0.0))
+    r.posture_now = lambda: np.array((-0.05, 0.1, 0.0))
+    r._posture_held = lambda: False             # ...its posture coming
+    return r
+
+  # a knock: past the line for 0.04 s, its mean 3 commands more
+  r = carrying()
+  r.force["left"] = 1.5 * CARRY_LINE * way
+  for _ in range(4):
+    r._held("left", dt, H, np.eye(3))
+  r.force["left"] = np.zeros(3)
+  for _ in range(20):
+    r._held("left", dt, H, np.eye(3))
+  assert not r.pulls["left"].get("given") and r.postures == [(0.0, 0.15, 0.0)]
+  # a load held: given up once it has read past the line for MEAN_S
+  r = carrying()
+  r.force["left"] = 1.5 * CARRY_LINE * way
+  n = 0
+  while not r.pulls["left"].get("given"):
+    r._held("left", dt, H, np.eye(3))
+    n += 1
+    assert n < 50
+  assert n == 10 and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)]
+
+
 def _asked_loaded(now, turns=None, read=1.1):
   """A bare reach's left hand out at `H`, an open hand reading `read` times
   the carry's line as a carry 5 cm up is asked (a procedure's), the body
