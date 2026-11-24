@@ -96,6 +96,17 @@ def test_the_swing_clock_walks_each_command_at_its_own_rate():
   assert np.array_equal(q[-1], ways[1]) and clock[-1][3] == -math.pi / 4
 
 
+def test_a_swing_clock_not_arrived_by_its_bound_is_judged_where_its_commands_end():
+  """An arm whose way takes longer than `SWING_MOST_S` is judged where it
+  ends as well: its last sample the arm at the way's end, the posture's and
+  the waist's commands arrived."""
+  far = np.array([0.0, 0.0, 0.0, rc.JOINT_RATE * (rc.SWING_MOST_S + 5.0), 0.0, 0.0])
+  clock = rc.swing_clock((0.0, 0.0), (-0.1, 0.3, 0.2), 0.0, 0.0, np.zeros(6), [far], 0.01)
+  t, h, p, w, q = clock[-1]
+  assert t == rc.SWING_MOST_S and (h, p, w) == (-0.1, 0.3, 0.2) and np.array_equal(q, far)
+  assert clock[-2][4][3] < far[3], "the premise: not arrived by the bound"
+
+
 # ---- the memory ---------------------------------------------------------------------------------
 
 
@@ -362,6 +373,44 @@ def test_what_a_forearms_rounded_end_swings_into_is_met(floor, monkeypatch):
   finally:
     floor.seen = None
   assert met is not None and met["part"] == "forearm" and met["m"] < rc.SWING_CLEAR_M, met
+
+
+def test_the_swing_is_judged_on_the_way_out_the_reach_would_fly(floor, monkeypatch):
+  """The way `way_out` would walk, never today's alone: from a hand already
+  out, the way kept off its own trunk (`_own_kept`), and with another robot
+  by, the way kept off its body (`_kept_off`); what those judgments say of
+  the trunk or that robot left as it was."""
+  today = floor._planned("left", OWN_SIDE, rc.APPROACH_M, rc.REACH_POSTURES, True)[0]
+  q = [np.full(6, 0.1 * k) for k in range(4)]
+  walked = []
+
+  def clock(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT, **kw):
+    walked.append([np.array(x) for x in ways])
+    return [(0.0, float(shown[0]), float(shown[1]), float(w), np.asarray(q0, dtype=float))]
+  monkeypatch.setattr(rc, "swing_clock", clock)
+  monkeypatch.setattr(floor, "_picked", lambda sm, side, q0, q1, out: ([q[0]], None))
+
+  def own_kept(sm, side, q0, q1, pick, refuse):
+    floor.own[side] = {"part": "torso", "m": 0.0}
+    return [q[1], q[2]], None
+
+  def kept_off(sm, side, q0, q1, out, pick, dips, poses, refuse, clear=None):
+    floor.kept[side], floor.judged_home[side] = {"m": 0.3}, [q[0]]
+    assert poses == (None, today[0])
+    return [q[3]]
+  monkeypatch.setattr(floor, "_own_kept", own_kept)
+  monkeypatch.setattr(floor, "_kept_off", kept_off)
+  floor.seen = np.array([[3.0, 3.0, 0.5]])
+  said = floor.kept["left"], floor.own["left"], floor.judged_home["left"]
+  try:
+    floor._swing("left", today, OWN_SIDE, floor._lean())
+    floor.keep_out = [object()]
+    floor._swing("left", today, OWN_SIDE, floor._lean())
+  finally:
+    floor.seen, floor.keep_out = None, []
+  assert [len(w) for w in walked] == [2, 1]
+  assert np.array_equal(walked[0][1], q[2]) and np.array_equal(walked[1][0], q[3])
+  assert (floor.kept["left"], floor.own["left"], floor.judged_home["left"]) == said
 
 
 def test_the_work_round_the_goal_is_no_face(floor, monkeypatch):

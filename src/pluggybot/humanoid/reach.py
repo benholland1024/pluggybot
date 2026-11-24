@@ -1293,7 +1293,9 @@ SWING_SLACK_M = 0.005
 #: up: what it reaches for and what that stands on -- a cube on its board
 #: 2.4 cm under the robots' own goals, met by every hand that came to it.
 SWING_WORK_M, SWING_WORK_UNDER_M = 0.15, 0.10
-#: ...and no longer than this, s: a posture and a way out are done in a few.
+#: ...for no longer than this, s -- a posture and a way out are done in a
+#: few -- and one whose commands have not arrived by then is judged where
+#: they end, as well.
 SWING_MOST_S = 10.0
 #: The arm's command is judged this far behind the waist's and the posture's,
 #: s: walking out it lags its command (Y6: 0.41 rad out where its command was
@@ -1305,7 +1307,8 @@ SWING_ARM_LAG_S = 0.2
 def swing_clock(shown, posture, waist, waist_speed, q0, ways, tick: float,
                 every: float = SWING_DT, lag: float = 0.0) -> list[tuple]:
   """A reach's commands as its arm sets off (#747), every `every` s until each
-  has arrived, its own loop's `tick` apart: the posture the standing policy
+  has arrived (or `SWING_MOST_S`, and then where they end), its own loop's
+  `tick` apart: the posture the standing policy
   is shown walked from `shown` (height, pitch) to `posture`'s at
   `HEIGHT_RATE` and `PITCH_RATE` (`StandDriver.step`), the waist's command
   from `waist` at `waist_speed` on `turned`, and the arm's from `q0` through
@@ -1334,7 +1337,9 @@ def swing_clock(shown, posture, waist, waist_speed, q0, ways, tick: float,
     if k % per == 0 or arrived:
       out.append((k * tick, h, p, w, q.copy()))
     if arrived:
-      break
+      return out
+  # ...not arrived by the bound: where its commands end, judged too
+  out.append((SWING_MOST_S, h1, p1, w1, (todo[-1] if todo else q).copy()))
   return out
 
 
@@ -1786,10 +1791,9 @@ class Reach:
       sm.q = self.self_model.q.copy()
       sm.d.qpos[:] = self.self_model.d.qpos
       mujoco.mj_kinematics(sm.m, sm.d)
-    # ...the way out the reach takes with nobody by (`way_out`'s `_picked`)
+    # ...the way out the reach would take (`way_out`'s)
     as_it_stands()
-    ways = [] if hold is not None else self._picked(sm, side, self.q_cmd[side].copy(), q_pre,
-                                                    out=True)[0]
+    ways = [] if hold is not None else self._way_flown(sm, side, q_pre, posture)
     as_it_stands()
     a = sm.d.qpos.copy()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
@@ -1854,6 +1858,27 @@ class Reach:
     return {"arm": "this" if s == side else "other", "side": s, "part": name, "m": round(m, 3),
             "began": None if b0 == math.inf else round(b0, 3),
             "at": [round(float(v), 3) for v in at], "t": round(t, 2)}
+
+  def _way_flown(self, sm, side: str, q1, posture) -> list:
+    """The way out `way_out` would walk to the pre-grasp `q1`, posed on `sm`
+    (#747's review: judged on today's alone, the swing was not the way
+    flown): today's with nobody by (`_picked`), from a hand already out kept
+    off its own trunk (`_own_kept`), and off another robot's body in
+    `posture` too (`_kept_off`) -- where none keeps clear, the one that comes
+    least near, the way a reach that goes takes; nothing either judgment
+    says of the trunk or of that robot kept."""
+    q0 = self.q_cmd[side].copy()
+    said = self.kept[side], self.own[side], self.judged_home[side]
+    try:
+      pick, dips = self._picked(sm, side, q0, q1, True)
+      clear = None
+      if dips is None:
+        pick, clear = self._own_kept(sm, side, q0, q1, pick, False)
+      if len(self.keep_out):
+        pick = self._kept_off(sm, side, q0, q1, True, pick, dips, (None, posture), False, clear)
+      return pick
+    finally:
+      self.kept[side], self.own[side], self.judged_home[side] = said
 
   def _seen_tree(self, goal: HandGoal, seen=None):
     """What it saw where its arms swing (`seen`) less the work round `goal`
