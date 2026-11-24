@@ -1821,15 +1821,21 @@ class Reach:
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     self.goal[side] = HandGoal(ways[0] if ways else end, rots[0].copy(), k)
     self.speed[side], self._off[side] = float(speed), 0.0
+    fixed = bool(ways) or turns is not None
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
-                        "fixed": bool(ways) or turns is not None,
+                        "fixed": fixed,
                         "open": open_, **({"loaded": True} if loaded else {}),
+                        # ...withheld: a path's posture planned again once it reads light (`_held`)
+                        **({"recheck": True} if loaded and fixed else {}),
                         # ...a `verb`'s, a grip it began with: lost, it ends there (`_held`)
                         **({"gripped": True} if verb and not open_ else {})}
     if moved_posture:
-      # the hand holds still while the body takes the posture (`_held`)
+      # the hand holds still while the body takes the posture (`_held`) --
+      # withheld, the one it is held in where it has got to: none to give up
       self.pulls[side]["postured"] = 0.0
+      if loaded:
+        self.pulls[side]["held_here"] = True
     if began is not None:
       self.pulls[side]["began"] = began
     self.report[side] = None
@@ -2778,7 +2784,9 @@ class Reach:
       km = min(1.0, dt / MEAN_S)
       fm = st["fm"] = (1.0 - km) * st.get("fm", self.force[side]) + km * self.force[side]
       loaded = self._pressed(fm, 0.0, CARRY_PRESSED_SHARE)
-    if settling and loaded and not st.get("given"):
+    # ...never the body held where it stood at a loaded ask (`held_here`): no
+    # posture came, and given up there, the carry took none once light
+    if settling and loaded and not st.get("given") and not st.get("held_here"):
       self.hold_posture(*st["began"])
       st["postured"], st["given"], st["backing"], st["loaded"] = st["t"], True, True, True
     elif st.get("backing") and not (settling and loaded):
@@ -2805,8 +2813,24 @@ class Reach:
         if posture is not None and tuple(posture) != tuple(self.posture):
           if st.get("open") and "began" not in st:
             st["began"] = self._standing_in()
+          st.pop("held_here", None)
           self.hold_posture(*posture)
           st["postured"] = st["t"]
+    if st.get("recheck") and not loaded:
+      # ...a path's or a turned carry's, which plans none on its way: the one
+      # withheld at its ask planned again over what is left of it, once, at
+      # the first command that reads light -- one reading at the ask kept the
+      # whole move from the posture its path needed
+      del st["recheck"]
+      st.pop("loaded", None)
+      g = self.goal[side]
+      posture = self.path_for(side, [c.pos, g.pos] + [p for p, _ in st["ways"]],
+                              rot=[c.rot, g.rot] + [t for _, t in st["ways"]])
+      if posture is not None and tuple(posture) != tuple(float(v) for v in self.posture):
+        st.setdefault("began", self._standing_in())
+        st.pop("held_here", None)
+        self.hold_posture(*posture)
+        st["postured"] = st["t"]
     if ep < WILD_M:
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:

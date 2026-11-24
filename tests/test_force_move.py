@@ -808,6 +808,109 @@ def test_a_carrys_posture_is_given_up_where_its_open_hand_reads_a_load_while_it_
     assert r.postures == [(0.0, 0.15, 0.0)] and not st_.get("given"), (grips, verb)
 
 
+
+def _asked_loaded(now, turns=None, read=1.1):
+  """A bare reach's left hand out at `H`, an open hand reading `read` times
+  the carry's line as a carry 5 cm up is asked (a procedure's), the body
+  `now` -- standing where it holds (0, 0.3, 0) or, elsewhere, still coming
+  into it -- its plan (-0.2, 0.55, 0), any plan after it (-0.1, 0.5, 0);
+  every posture held recorded and held as a `Reach` holds it. Turned where
+  `turns` (a path's or a turned carry's)."""
+  r = _bare_reach()
+  _out_hand(r, H, np.eye(3))
+  r.phase["left"] = "hold"
+  r.posture = np.array([0.0, 0.3, 0.0])
+
+  def hold(height, pitch, waist=0.0):
+    r.postures.append((height, pitch, waist))
+    r.posture = np.array([height, pitch, waist])
+
+  r.hold_posture = hold
+  r.posture_now = lambda: np.array(now)
+  r._posture_held = lambda: tuple(now) == (0.0, 0.3, 0.0)
+  r.force["left"] = read * CARRY_LINE * np.array([0.0, 1.0, 0.0])
+  r.grip_now = lambda side: (H.copy(), np.eye(3))
+  r.planned = []
+
+  def plan(side, poses, rot=None, **kw):
+    r.planned.append([np.array(p, dtype=float) for p in poses])
+    return (-0.2, 0.55, 0.0) if len(r.planned) == 1 else (-0.1, 0.5, 0.0)
+
+  r.path_for = r.posture_for = plan
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  assert r.carry("left", H + np.array([0.0, 0.0, 0.05]), turns=turns, verb=True)
+  return r
+
+
+def test_a_posture_withheld_at_a_loaded_ask_is_no_posture_given_up():
+  """Review round 3 of #699's carry, its first finding: asked loaded while
+  the body still came into a posture, a carry held the body where it had got
+  to -- and on its first command, the hand still loaded as the body settled
+  there, gave that up as if a posture had come, and so took no posture for
+  the rest of the carry, light or not (W1's draws k1, k4 and k20). The body
+  held where it stood is no posture coming: nothing is given up there; once
+  the hand reads light a posture is asked again, and THAT one, loaded as it
+  comes, is given up, back where the carry began."""
+  got_to = (-0.05, 0.1, 0.0)
+  r = _asked_loaded(got_to)
+  assert r.postures == [got_to] and r.pulls["left"]["loaded"]
+  for _ in range(5):
+    r._held("left", DT, H, np.eye(3))
+  st_ = r.pulls["left"]
+  assert not st_.get("given") and not st_.get("backing") and r.postures == [got_to]
+  # light, its arm missing: a posture is asked again, and taken
+  r.force["left"] = np.zeros(3)
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+    np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
+  r._held("left", DT, H, np.eye(3))
+  assert r.postures == [got_to, (-0.1, 0.5, 0.0)] and "loaded" not in r.pulls["left"]
+  # ...and loaded as it comes, given up: back where the carry began
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  r.force["left"] = 1.1 * CARRY_LINE * np.array([0.0, 1.0, 0.0])
+  for _ in range(3):
+    r._held("left", DT, H, np.eye(3))
+  assert r.pulls["left"]["given"] and r.postures == [got_to, (-0.1, 0.5, 0.0), got_to]
+
+
+def test_a_path_withheld_at_a_loaded_ask_plans_its_posture_again_once_light():
+  """Review round 3 of #699's carry, its second finding: whether the ask
+  withholds a posture rests on one reading, and a path's or a turned carry's
+  -- which plans no posture on its way -- kept that for the whole move: a
+  knock at the ask, or a load just let go of, held the body in a posture the
+  path could not be followed from. Withheld so, its posture is planned
+  again over what is left of the path -- from the command on -- at the first
+  command that reads light, and taken; once: loaded again and light again,
+  nothing more is planned. Asked light, a path is planned once, as it always
+  was."""
+  end = H + np.array([0.0, 0.0, 0.05])
+  for now in ((0.0, 0.3, 0.0), (-0.05, 0.1, 0.0)):
+    r = _asked_loaded(now, turns=[np.eye(3)])
+    st_ = r.pulls["left"]
+    assert st_["fixed"] and st_["loaded"] and len(r.planned) == 1 and r.postures == [now]
+    for _ in range(3):
+      r._held("left", DT, H, np.eye(3))
+    assert len(r.planned) == 1 and r.postures == [now], now
+    r.force["left"] = np.zeros(3)
+    r._held("left", DT, H, np.eye(3))
+    assert len(r.planned) == 2 and r.postures == [now, (-0.1, 0.5, 0.0)], now
+    assert np.allclose(r.planned[1][0], r.cmd["left"].pos) and np.allclose(r.planned[1][-1], end)
+    assert "loaded" not in r.pulls["left"] and r.pulls["left"]["postured"] > 0.0
+    r._posture_held = lambda: True
+    r.force["left"] = 1.1 * CARRY_LINE * np.array([0.0, 1.0, 0.0])
+    r._held("left", DT, H, np.eye(3))
+    r.force["left"] = np.zeros(3)
+    for _ in range(3):
+      r._held("left", DT, H, np.eye(3))
+    assert len(r.planned) == 2 and len(r.postures) == 2, now
+  # ...asked light: planned once, as it always was
+  r = _asked_loaded((0.0, 0.3, 0.0), turns=[np.eye(3)], read=0.9)
+  assert r.postures == [(-0.2, 0.55, 0.0)] and "recheck" not in r.pulls["left"]
+  r.force["left"] = np.zeros(3)
+  for _ in range(3):
+    r._held("left", DT, H, np.eye(3))
+  assert len(r.planned) == 1
+
+
 def test_a_move_out_of_reach_whose_open_hand_read_a_load_says_so():
   """Out of reach where another posture would reach, its hand -- holding
   nothing -- having read a load (#699), a `move_hand` says why it kept
