@@ -2148,6 +2148,20 @@ def test_an_anchor_lays_the_room_again_over_a_copy_laid_askew():
   assert math.hypot(pose[0] - at[0], pose[1] - at[1]) > 0.3
 
 
+def test_a_fall_a_few_scans_into_a_relays_window_leaves_the_belief_where_the_fix_put_it():
+  # #741's review: a fall closes an anchor's window and its relay
+  # (`fell`); #681 had left the window open, because closed it handed a right
+  # belief back to the askew map -- which the relay forgets at the fix's next
+  # scan. So a fall ten scans in: the region laid from the fix holds the
+  # belief. (In the one step between a fix and the relay's scan a fall drops
+  # the relay with nothing forgotten: #681's case, the copy live.)
+  east, north = _docked(math.hypot(*_LAID_OFF) + 0.3, fall_after=10)
+  assert math.hypot(east, north) < 0.015, (east, north)
+  # ...the premise: with no relay the copy takes it back
+  east, north = _docked(0.0, fall_after=10)
+  assert east < -0.015 and north > 0.015, (east, north)
+
+
 #: A copy laid askew by a belief a station's fix then moves back, short of
 #: the matcher's search (`ASKEW_M`): the fix keeps the map (#741).
 _NEAR_ASKEW = (0.35, -0.25, math.radians(2.0))
@@ -2267,7 +2281,7 @@ _DOCK = (1.5, 0.75, -math.pi / 2)
 _LAID_OFF = (-0.10, 0.083)
 
 
-def _docked(relay):
+def _docked(relay, fall_after=None):
   """The hall mapped through beliefs `_LAID_OFF` off, the robot docked and
   the belief put right (`anchored`, and `relay` if given), then its scans
   matched and laid as `Navigator._scan_step` lays them, a scan every LIDAR
@@ -2284,8 +2298,11 @@ def _docked(relay):
   m.anchored()
   if relay:
     m.relay(relay)
-  pose, t, after = _DOCK, 0.0, 0
+  pose, t, after, laid = _DOCK, 0.0, 0, 0
   while m.anchoring or after < 200:
+    if fall_after is not None and laid == fall_after:
+      m.fell()                         # ...a fall as the window lays its scans
+      fall_after = None
     after += 0 if m.anchoring else 1
     t += 0.1
     ranges = cast(_HALL, _DOCK, rng)
@@ -2293,10 +2310,11 @@ def _docked(relay):
     if m.fuses(m.last, t):
       if m.relay_m:
         g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m,
-                      behind_m=sm.RELAY_BEHIND_M, free_from=np.minimum(BAND_FF, sm.MATCH_MIN_M))
+                      behind_m=sm.RELAY_BEHIND_M, keep_near=sm.relay_keeps(BAND_FF))
         m.relaid()
       g.update(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), free_from=BAND_FF, graze_m=GRAZE_M)
       m.fused(pose, t)
+      laid += 1
   return pose[0] - _DOCK[0], pose[1] - _DOCK[1]
 
 
@@ -2382,6 +2400,32 @@ def test_a_relay_keeps_a_wall_nearer_than_its_scan_can_clear_one(house):
     return [cell]
   (near,) = _relayed(house, mark)
   assert near > 0.0, "a wall nearer than the scan clears one was laid floor"
+
+
+def test_relay_keeps_every_wall_on_a_bearing_its_scan_clears_none_of():
+  # #741's second review: a bearing the band clears no wall on (`free_from`
+  # inf: bowed past CLEARS_TILT_RAD, or behind another robot nearer than the
+  # room) keeps every wall; elsewhere the relay keeps a wall nearer than
+  # both its free_from and the fit's MATCH_MIN_M.
+  got = sm.relay_keeps(np.array([np.inf, 0.6, 2.8]))
+  assert got[0] == np.inf and got[1] == 0.6 and got[2] == sm.MATCH_MIN_M
+
+
+def test_a_relay_on_a_bowed_scan_forgets_no_wall_its_rays_cannot_clear(house):
+  # ...and at the seam: the relay's scan taken bowed past CLEARS_TILT_RAD
+  # (every bearing's free_from inf), a wall 2 m out on a bearing that runs on
+  # past it -- copied there, or low under the rays -- is kept: forgotten,
+  # `update` would have laid it floor.
+  def mark(m, scan):
+    real = m._scan
+    m._scan = lambda: (lambda sc: sc._replace(free_from=np.full(len(sc.free_from), np.inf)))(real())
+    far = np.flatnonzero(scan.ranges > 3.0)
+    k = int(far[np.argmin(np.abs(scan.angles[far]))])
+    cell = _on_bearing(m, scan, k, 2.0)
+    m.grid.grid[cell[1], cell[0]] = 3.0
+    return [cell]
+  (kept,) = _relayed(house, mark)
+  assert kept > 0.0, "a wall the bowed scan cannot clear was laid floor"
 
 
 def test_a_relay_forgets_nothing_far_behind_what_its_scan_met(house):
