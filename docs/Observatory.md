@@ -12,9 +12,11 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 
-**What the robots read** moves by one History sentence: the prompt
-`790b89b6…` (71,972 characters, 17 sections) and the session host's hello
-`4e057ff0` are byte for byte as they were. A `move_hand` that ends out of
+**What the robots read** moves by one History sentence: by this change, the
+prompt `790b89b6…` (71,972 characters, 17 sections) and the session host's
+hello `4e057ff0` are byte for byte as they were (the release's, with
+#728's sentence in, are `264ac7f6…` and `9dcf6202`: the period of #744,
+#746 and #728, below). A `move_hand` that ends out of
 reach because its hand -- holding nothing -- read a push past 20 N, where
 another posture would have reached, said "your left hand could reach no
 further that way from any posture you hold", which would no longer be
@@ -117,14 +119,22 @@ relay still to come dropped (#681 left the window open).
   where no fix fires (#741's third box, option 4's); and work at the counter
   (about 8 cm a try, #681's comment of 11-23).
 
-### A pull says out of reach and its own arm's stop apart from held fast, and a reach and a withdraw say where the feet went (#744, #746, Y2, `loop-readings`) — opens when this PR is deployed
+### A pull says out of reach and its own arm's stop apart from held fast, a reach and a withdraw say where the feet went, and `spot` says none of its bows brings in a tag beside its picture (#744, #746, #728, Y2 and Z1, `loop-readings`, `loop-728b`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `bb1e3d07…` (70,506
-characters, 17 sections) becomes `790b89b6…` (71,972 characters, 17
-sections), one section moved, PROCEDURES YOU MAY WRITE; the session host's
-hello `a61b6376` becomes `4e057ff0` (three verbs' texts, eight sensors
-more, `pull.held`'s words). No History line is new or reworded. The
-sentences, each a draft for Ben:
+characters, 17 sections) becomes `264ac7f6…` (72,130 characters, 17
+sections), one section moved, PROCEDURES YOU MAY WRITE (Y2's words made it
+`790b89b6…`, 71,972; #728's sentence the rest); the session host's hello
+`a61b6376` becomes `9dcf6202` (four verbs' texts, eight sensors more,
+`pull.held`'s words; Y2's made it `4e057ff0`). No History line is new or
+reworded. The sentences, each a draft for Ben:
+- `spot`'s text (#728's option 2), BEFORE: "...out to 34 degrees either side
+  of where your head faces at its top and more than 50 at its bottom, and
+  bowing only takes it lower. With your trunk square to your feet, ...";
+  AFTER: "...and bowing only takes it lower: none of `spot`'s bows brings in
+  a tag beside the picture if the tag stands higher than 0.5 m over the
+  floor, and turning swings the picture the way you turn. With your trunk
+  square to your feet, ..." (+158 characters).
 - `pull`'s text, BEFORE: "How far it went, the hardest it pushed, whether
   it ended held fast and the way it was going at its end ride `pull.*`,
   unless it reads false"; AFTER: "How far it went, the hardest it pushed,
@@ -158,9 +168,10 @@ sentences, each a draft for Ben:
 decision of the body's, and our references fly as before. But a robot's OWN
 procedure that reads `pull.held` reads 0 where it read 1, at a pull held
 fast with one of its arm's joints at an end, and goes another way there
-(below).
+(below). `spot`'s sentence is words alone: no procedure reads a verb's text.
 
-**The change** (`Reach._on_stops`, the pull's report's `stops` through
+**The change** (`steps.SPOT_BOW_SIDE_UNDER_M` in `spot`'s text, #728;
+`Reach._on_stops`, the pull's report's `stops` through
 `Body.pull_routine`, `steps._pull`; `Body.reckoned`, `steps._feet` and
 `_feet_went`; `axes.PULL_SENSORS`, `STANCE_SENSORS`). A pull's end names the
 joints of its arm its drivers last read within `reach.JOINT_END_RAD` (5
@@ -182,10 +193,23 @@ held-fast pulls as the lid's open stop, and its `chest_open3` ends its lift
 on them. Rowan's lifts ran out of reach 516 times, nothing it read said so,
 and it asked which. Of 497 reaches, 82 turned the soles past 5 deg and 16
 past 15 (26.2 at most), the belief turning with them, while the words said
-"a little".
+"a little". And #728 (the loop of 11-22's W1): of the weekend's 546 looks of
+refused `spot`s, the tag stood beside the picture or at its corner in 82 %,
+above it alone in 1 %, and the robots' notes blamed its top.
 
-**Measured** (one Vast pod, an Intel Xeon E7-8890 v4, each flight its own
-process, fa842927 beside the branch).
+**Measured, `spot`** (SimNotes, "A tag beside `spot`'s picture, and its
+bows"): on the robot's model of itself at every bow `spot` can take, nothing
+that stood beside the standing picture comes into a bowed one higher than
+0.44 m over the floor (at a counter's height the bowed picture's side draws
+in 4-10 deg at the bows it asks); lower, near its bottom's corners, some of
+what stood beside and below it does. Live, of 703 `spot`s in W1's 208 flights
+of the robots' own procedures, 136 had their tag beside the standing picture,
+and at all 136 the bows took it further out. Flown on 2acb028d: a block 0.5-1.5
+deg past the side on a counter in no picture at any bow (6 of 6); on the
+floor, its middle into a bowed picture in 5 of 16, never read whole.
+
+**Measured, the pull and the feet** (one Vast pod, an Intel Xeon E7-8890 v4,
+each flight its own process, fa842927 beside the branch).
 - **Our references fly as before**: the hands checks at set-outs 0-31 and
   the tour's five jobs at draws 0-31, 320 pairs, identical by end state (the
   sim time and a hash of every qpos and qvel) and by path (every verb's
@@ -230,6 +254,11 @@ process, fa842927 beside the branch).
   ends at its wrist's stop.
 - A procedure that reads `reach.*` or `withdraw.*` and turns a place read
   before by it, as `step`'s text shows.
+- A refused `spot` whose tag stood beside the picture (the observatory's
+  `drift` truth beside a procedure's place for its tag): whether the robot
+  turns next (a `face`, a `step`'s turn) rather than stepping nearer or
+  looking again, and whether a note still blames the picture's top for it
+  (#728's third box).
 
 ### A hand's verbs say what their body knows when they fail: a carry whose grip let go, a reach's stop, a lid that came down fast (#742, #743, #745, Y1, `loop-words3`) — opens when this PR is deployed
 

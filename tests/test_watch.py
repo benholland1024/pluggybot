@@ -210,7 +210,8 @@ def test_a_spot_that_sees_nothing_says_which_camera_did_not_and_where_its_pictur
   """#660: `spot`'s refusal, as `watch`'s, names the colour camera it read,
   never the head camera, and the top of its picture, which no bow raises:
   "from where you stand" alone sent a robot off to stand elsewhere for a tag
-  above that picture. #728: and its sides, which no bow widens: told the
+  above that picture. #728: and its sides, past which no bow takes in a tag
+  higher than `SPOT_BOW_SIDE_UNDER_M`: told the
   top alone, a robot turned 32-36 deg from square, its door's lever 48-52
   deg from where its head faced, read every refusal as the top edge's and
   called that edge "stance-dependent". The numbers are `spot`'s text's
