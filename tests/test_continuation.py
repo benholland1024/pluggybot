@@ -428,6 +428,37 @@ def test_a_step_its_routine_books_after_the_hooks_is_owed_that_and_a_save_keeps_
       body.close()
 
 
+def test_a_step_a_death_or_a_stand_up_closed_its_routine_at_owes_nothing(tmp_path):
+  """A procedure's verb is closed the step its robot dies
+  (`steps._until_down_routine`), and a long routine the step a stand-up
+  lands (`_until_stood_up_routine`), that step booked by nobody: a save
+  after it -- a run's end right there -- kept it owed, and the restore
+  booked a step the world never did (#749's review). Closed so, it owes
+  nothing (`Body.forgo_owed`)."""
+  from pluggybot.lifecycle import STOOD_UP
+  from pluggybot.procedure.steps import _until_down_routine
+  life = _humanoid(tmp_path)
+  life.body.start_at(*world_config(HUMANOID_HOME)["start"])
+  m = life.body.mission
+  n = [0]
+
+  def third_step(land):
+    n[0] = 0
+
+    def hook():
+      n[0] += 1
+      if n[0] == 3:
+        land()
+    return hook
+  life.body.step_hooks.append(third_step(lambda: setattr(life, "dead", {"cause": "flat"})))
+  assert life.body.run(_until_down_routine(life, m._drive_routine(0.1, 0.0, 0.0))) == (None, "died")
+  assert n[0] == 3 and not m._owed, "the step it died in, closed unbooked, still owed"
+  life.dead = None
+  life.body.step_hooks[-1] = third_step(lambda: life.resets.append({"t": 0.0}))
+  assert life.body.run(life._until_stood_up_routine(m._drive_routine(0.1, 0.0, 0.0))) is STOOD_UP
+  assert n[0] == 3 and not m._owed, "the step it stood up in, closed unbooked, still owed"
+
+
 def test_a_step_is_booked_after_its_hooks_through_one_door():
   """Every routine that books its steps says so before it yields
   (`Navigator._booked_routine`), or a save inside a step's hooks reads it

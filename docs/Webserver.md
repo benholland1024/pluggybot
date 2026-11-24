@@ -322,7 +322,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   routine it lands in may be closed there, unbooked, once the hooks are
   done -- a procedure's verb on a death, a long routine on a stand-up --
   and saved, the restore would book a step the world never did; the keeper
-  saves, or stops, a step later. The keeper's own
+  saves, or stops, a step later, and the routine closed there owes nothing
+  (`Body.forgo_owed`), so a run's end right after it -- `Keeper.finish`
+  saves whatever a body is doing, and is never deferred -- does not book it
+  either. The keeper's own
   hook runs after every step hook, whenever one was hung
   (`Body.last_hooks`): hung among them, it saved before a hand job's watch,
   hung at the job's claim, had read the step.

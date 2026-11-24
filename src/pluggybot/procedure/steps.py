@@ -2051,6 +2051,7 @@ def _until_down_routine(life, routine: Routine) -> Routine:
       continue
     if dead(life):
       routine.close()
+      body.forgo_owed()                    # ...the step it died in, closed unbooked (#749)
       return None, "died"
 
 

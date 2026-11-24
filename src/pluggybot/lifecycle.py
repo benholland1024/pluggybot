@@ -7290,6 +7290,7 @@ class HubLifecycle:
       if len(self.resets) != since:          # ...or on the step just driven
         break
     routine.close()
+    self.body.forgo_owed()                   # ...that step closed unbooked (#749)
     self.state = "EXPLORE"                   # as `_stand_up` left it
     self._void_errand()
     return STOOD_UP

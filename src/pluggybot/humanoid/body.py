@@ -589,6 +589,9 @@ class HumanoidBody(Body):
   def book_owed(self) -> bool:
     return self.mission.book_owed()
 
+  def forgo_owed(self) -> None:
+    self.mission._owed = False
+
   @property
   def working(self) -> bool:
     """A hand out (#559): its move is a routine's, which no file holds, so

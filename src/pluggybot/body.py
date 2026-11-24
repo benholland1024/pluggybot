@@ -216,6 +216,14 @@ class Body(abc.ABC):
     owed."""
 
   @abc.abstractmethod
+  def forgo_owed(self) -> None:
+    """The step the world last stepped is booked by nobody: the routine
+    stepping this body was closed at it, a death or a stand-up having
+    landed in its hooks (`steps._until_down_routine`,
+    `HubLifecycle._until_stood_up_routine`). A save from here on -- a run's
+    end at that step -- owes nothing of it (#749)."""
+
+  @abc.abstractmethod
   def close(self) -> None:
     """Release what it holds (renderers); its beliefs stay readable."""
 
@@ -1167,6 +1175,9 @@ class StubBody(Body):
 
   def book_owed(self) -> bool:
     return False                          # it books nothing after a step
+
+  def forgo_owed(self) -> None:
+    pass
 
   def close(self) -> None:
     pass

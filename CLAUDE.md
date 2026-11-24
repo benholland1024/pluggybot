@@ -2006,8 +2006,9 @@ save a filmstrip PNG named after the script.
   saves inside a step's hooks, so every routine that books its steps yields
   them through `Navigator._booked_routine` (a test reads every call of
   `_after_step`), the keeper's hook is a `Body.last_hooks` one (after every
-  step hook, whenever hung), and no save is taken on a step a death or a
-  stand-up landed in (`Keeper.landed`). A new piece of state that decides
+  step hook, whenever hung), no save is taken on a step a death or a
+  stand-up landed in (`Keeper.landed`), and a routine they close there owes
+  nothing (`Body.forgo_owed`). A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
