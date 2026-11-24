@@ -10,6 +10,86 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand's verbs say what their body knows when they fail: a carry whose grip let go, a reach's stop, a lid that came down fast (#742, #743, #745, Y1, `loop-words3`) — opens when this PR is deployed
+
+**What the robots read** moves in History alone: the prompt (`bb1e3d07…`,
+70,506 characters, 17 sections) and the session host's hello (`a61b6376…`)
+are unmoved byte for byte, and no verb's text changes. Three sentences do:
+- A `reach` that stopped short said "your right hand stopped short on its
+  way: out of reach from how you truly stand, or pushing on something; as
+  it stopped, its grip was N cm from where you asked". It now says the rule
+  its body says stopped it: "your right hand stopped short on its way in: it
+  pushed on something before it got there, 52 N; ...", "...on its way in:
+  out of reach from how you truly stand; ..." or "your right hand stopped
+  on its way out: it caught on something, which would have tipped you toward
+  it; ..." -- 93, 82 and 101 characters where the old was 104. The last
+  undoes #708's choice of words (its period below kept the old sentence for
+  a hand caught on its way out). Where the body says no cause, the old
+  sentence stands.
+- A procedure's `move_hand` whose gripper read held as it began, and read
+  held no longer on its way, said nothing: it read ok, "arrived". It now
+  reads false: "your right hand's grip let go of what it held on the way".
+- The lid's grade said "opened to 90 deg, but it came down at 2.4 rad/s
+  while open -- let fall, not lowered (no faster than 1.0)". It now says
+  the measured part alone: "... while open (no faster than 1.0)". The
+  criterion is Ben's as written, and the practice's job text still defines
+  it ("let fall, it is not set down").
+
+**What a deployed robot does** changes in one place (#742): that carry ends
+where its grip reads lost, the hand held where it is, as a pull's does, so
+a `move_hand` written as a statement ends the run there and one an `if`
+tests reads false and the run goes on. The loop's own carries (a charge's
+plug, to the port and to the cup) are as before.
+
+**The change** (`Reach._held`, `Reach.carry`'s `verb`; `Reach.stopped`,
+`Body.hand_stopped`; `steps.REACH_STOPPED`, `steps.MOVE_WHY["let go"]`;
+`challenge/lid.py`). The grip a carry began with is the pull's own reading,
+the gripper's `held()` as the move is asked. A stop on a hand's line in
+says the push where both its rules held at once.
+
+**Why** (the loop of 11-23's X5: the weekend's own cube and chest
+procedures flown at their live draws). Every cube grip that read held had
+squeezed the cube's board's or the counter's front edge, and the next
+`move_hand` "arrived" with its jaws shut, 16 carries of 16; live, Luca's
+four cube runs with a held grip were each lost on the job's time, Luca
+believing the cube was on the mat. Of 181 reaches that stopped short, 156
+were stopped by a push (at the cube, the lower jaw on the board 8 cm before
+it), and Luca stepped back for a stance it read as too close. Of 23 lids
+graded "let fall", 8 came down with both pads still on the knob.
+
+**Measured** (one Vast pod, an Intel Xeon E7-8890 v4, each flight its own
+process, 846b2563 flown beside b0f6c661). Ben's bar, 609 of 736 passes and
+5 falls on both trees -- the hands checks at set-outs 0-31 122 and 4, held
+out at 32-127 337 and 1, the tour's five jobs 150 and 0 -- and none of the
+736 flights moved, by end state or by path, words aside: our references'
+158 carries begun on a held grip (the cube's, to its mat) never read their
+grip lost, so the rule acted on none; the words of 156 reaches and 6 lids
+changed, and nothing else. The weekend's own cube flights (X5's 16, also
+flown on the dev box, which replays the pod): 13 replay X5's rows on
+846b2563 (the other 3 part at a step's hand-back, #740's, before any grip),
+and in each a grip on an edge read lost 0.008-1.66 s into its carry, which
+on 846b2563 "arrived" 3.9-8.6 s later with the jaws shut. With the change
+all 13 stop there and read false: 10 runs end there (Luca's statements),
+where the base's lines said "ran the procedure ... to its end" or "held
+back" on an empty descent; 3 go on (Rowan's `if`s). Grades and falls as
+before: none passed, none fell. At each stop the pads touched the board's
+edge (9), the counter (1) or nothing (3), never the cube. History's room:
+over X5's 200 flights' run lines, 33 change and none grows (the longest 396
+-> 395 characters with its stamp); the lid's grade line 152 -> 127.
+
+**What to read on the live rows.**
+- "your ... hand's grip let go of what it held on the way": where a cube
+  procedure's carry begins on a grip of an edge. Whether a robot told so
+  reads its hand's place or grip, aims elsewhere or shuts again. Where its
+  carry is an `if`'s test, the words are said only where History's line has
+  room after the tests before it (Rowan's three, after a `spot`'s sides).
+- A reach's stop by its cause: whether a robot told "it pushed on something
+  before it got there" asks a turn (`fx..jz`) or moves its aim, where told
+  both causes Luca stepped back.
+- The lid's grade without "let fall": whether a robot told "came down at N
+  rad/s while open" lowers slower still (Luca, 11-21, read 5.9 and 1.1
+  rad/s as its lowering's fault) or looks at its grip and its lift.
+
 ### A walk's legs go back to the standing policy once both soles are planted (#740, X2, `loop-740`) — opens when this PR is deployed
 
 **What the robots read** is unmoved but for one report field: the prompt
