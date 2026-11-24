@@ -990,6 +990,32 @@ def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(house):
   b.close()
 
 
+def test_a_restart_between_a_fix_and_the_scan_it_lays_afresh_lays_it(house):
+  # #741: a save landing between a station's fix that kept the map and the
+  # scan that lays its region afresh carries the relay in the robot's own
+  # kept state; the restored robot's first scan laid forgets that region.
+  from pluggybot.body import RackPose
+  a = _humanoid(house)
+  m, s = a.mission, a._station
+  m._scan_step()
+  a._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))
+  armed = m.matcher.relay_m
+  assert armed > 0.0, "the premise: a relay pending"
+  state, arrays = m.kept_state()
+  b = _humanoid(house)
+  n = b.mission
+  n.restore_kept(state, arrays)
+  assert n.matcher.relay_m == armed and n.matcher.anchoring == m.matcher.anchoring
+  asked = []
+  forget = n.grid.forget_seen
+  n.grid.forget_seen = lambda *x, **kw: (asked.append(kw.get("round_m")), forget(*x, **kw))[1]
+  n.data.time += sm.FUSE_S
+  n._scan_step()
+  assert asked == [armed] and n.matcher.relay_m == 0.0
+  a.close()
+  b.close()
+
+
 def test_a_pose_past_the_fits_reach_is_found_by_the_search(room):
   # 0.4 m off, the walls are past the field's reach and the fit cannot
   # pull the pose back: MEASURED, an odometry pump while tilted left a robot

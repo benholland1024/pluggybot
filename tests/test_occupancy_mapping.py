@@ -260,12 +260,16 @@ def test_what_a_scan_looks_across_and_round_it_is_forgotten_and_nothing_else():
   # within round_m of them go back to unknown; a wall's far side past that,
   # and what lies off every bearing the scan carries, keep their evidence.
   grid = OccupancyGrid(x_min=-2, y_min=-2, x_max=6, y_max=6, resolution=0.05)
-  grid.grid[...] = 3.0                      # all of it held as a wall
+  grid.grid[...] = 3.0                      # all of it held as a wall...
+  ix, iy = grid.world_to_cell(1.0, 0.0)
+  grid.grid[iy, ix - 10:ix + 10] = -3.0     # ...but a stretch of floor before the wall east
   angles = np.radians([0.0, 90.0])
   ranges = np.array([2.0, 8.0])             # a wall 2 m east; nothing north
+  bare = grid.grid.copy()
   held = grid.forget_seen((0.0, 0.0, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0),
                           round_m=0.2)
-  assert logodds_at(grid, 1.0, 0.0) == 0.0 and logodds_at(grid, 2.0, 0.0) == 0.0
+  assert logodds_at(grid, 1.0, 0.0) == 0.0, "floor it looked across, held"
+  assert logodds_at(grid, 2.0, 0.0) == 0.0, "the wall it ended on, held"
   assert logodds_at(grid, 2.15, 0.0) == 0.0, "within round_m past its end"
   assert logodds_at(grid, 2.4, 0.0) == 3.0, "a wall's far side past round_m"
   assert logodds_at(grid, 0.0, 2.9) == 0.0, "to max range where it met nothing"
@@ -273,3 +277,7 @@ def test_what_a_scan_looks_across_and_round_it_is_forgotten_and_nothing_else():
   assert logodds_at(grid, 1.0, 1.0) == 3.0, "off both bearings"
   assert logodds_at(grid, -1.0, 0.0) == 3.0, "behind the sensor"
   assert held == int(np.count_nonzero(grid.grid == 0.0))
+  # ...and with no reach round it, the cell each ray ends in and not past it
+  grid.grid[...] = bare
+  grid.forget_seen((0.0, 0.0, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0))
+  assert logodds_at(grid, 2.02, 0.0) == 0.0 and logodds_at(grid, 2.07, 0.0) == 3.0
