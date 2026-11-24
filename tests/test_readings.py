@@ -104,11 +104,13 @@ def test_a_pull_ends_saying_which_of_its_arms_joints_its_drivers_read_on_their_s
   """#744: the body knows which: its wrist's encoder reads the roll at its
   range's end. A pull's end names its own arm's joints its drivers last
   read (`Reach.sensed`, never read afresh: a read draws noise) within
-  `arms.STOP_RAD` of an end of the range the robot's model of itself gives
-  -- the rule its whole-body force reading leaves such a joint out by. Its
-  arm's solve keeps every joint `arms.RANGE_MARGIN` inside, so one read on
-  its stop was pushed there. The other arm's are not this pull's, and a
-  joint with no reading yet is on no stop."""
+  `reach.JOINT_END_RAD` of an end of the range the robot's model of itself
+  gives, or past it -- its arm's solve keeps every joint `arms.RANGE_MARGIN`
+  inside, so one read there was pushed onto its stop -- and never one
+  further in, as the whole body's force reading's wider `arms.STOP_RAD`
+  would have (#744's review: a shoulder's yaw 19 mrad short of its end,
+  pressing nothing). The other arm's are not this pull's, and a joint with
+  no reading yet is at no end."""
   way = np.array([0.0, 0.0, 1.0])
   r = _pulling(way)
   sm = r.self_model
@@ -124,16 +126,16 @@ def test_a_pull_ends_saying_which_of_its_arms_joints_its_drivers_read_on_their_s
     for k, q in at.items():
       r_.sensed[arm[k]] = q
     return _held_fast(r_, way)["stops"]
-  assert ends({roll: hi[roll] - 0.5 * ha.STOP_RAD}) == ["wrist_roll"]
+  assert ends({roll: hi[roll] - 0.5 * rc.JOINT_END_RAD}) == ["wrist_roll"]
   assert ends({roll: hi[roll] + 0.01}) == ["wrist_roll"]   # pressed past it
-  assert ends({roll: hi[roll] - 1.5 * ha.STOP_RAD}) == []
-  assert ends({elbow: lo[elbow] + 0.5 * ha.STOP_RAD,
-               roll: lo[roll] + 0.2 * ha.STOP_RAD}) == ["elbow", "wrist_roll"]
+  assert ends({roll: hi[roll] - 1.5 * rc.JOINT_END_RAD}) == []
+  assert ends({roll: hi[roll] - 0.5 * ha.STOP_RAD}) == []  # near, pressing nothing
+  assert ends({elbow: lo[elbow] + 0.5 * rc.JOINT_END_RAD,
+               roll: lo[roll] + 0.2 * rc.JOINT_END_RAD}) == ["elbow", "wrist_roll"]
   assert ends({}) == []
   r = _pulling(way)
   assert np.isnan(r.sensed).all() and _held_fast(r, way)["stops"] == []
-  # ...and a carry's end names none: the reading is a pull's
-  assert ha.STOP_RAD < ha.RANGE_MARGIN
+  assert rc.JOINT_END_RAD < ha.STOP_RAD < ha.RANGE_MARGIN
 
 
 def test_the_humanoids_pull_reports_the_stops_its_reach_read_as_it_ended():

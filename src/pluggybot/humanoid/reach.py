@@ -38,8 +38,8 @@ from scipy.optimize import least_squares
 
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import (RANGE_MARGIN, REACH_POS_TOL, REACH_ROT_TOL, STOP_RAD, Arm,
-                                     Gripper, Motion, HandGoal, SelfModel, Waist, _rot_error,
+from pluggybot.humanoid.arms import (RANGE_MARGIN, REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
+                                     Motion, HandGoal, SelfModel, Waist, _rot_error,
                                      kept_value, value_back)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
@@ -187,6 +187,14 @@ REPLAN_M, REPLAN_ROT, REPLAN_S = 0.015, 0.12, 1.0
 #: lid's arc reached within a millimetre failed on the wrist's last 7-14
 #: deg (#493).
 HOLD_ROT_TOL = 0.2
+#: A pull's arm joint its driver reads within this of an end of its range,
+#: or past it, rad, is AT ITS END (`_on_stops`, #744's `pull.joint_end`). X5's
+#: chest flights flown again with the truth beside the reading: every joint
+#: pressing its limit as a pull ended (MuJoCo's limit is soft: pressed, up to
+#: 45 mrad past it) read at most 1 mrad inside its end; at `arms.STOP_RAD`'s 20
+#: mrad, a shoulder's yaw up to 19 mrad short of its end, pressing nothing,
+#: read as on it too (SimNotes, "What a pull and a reach read of the body").
+JOINT_END_RAD = 0.005
 #: A carried hand has arrived once within this of its goal, m; one whose
 #: command arrived and which is still short of it this long after, s, is
 #: held back by something (`carry`'s report says how far short).
@@ -2690,16 +2698,17 @@ class Reach:
     self.phase[side] = "hold"
 
   def _on_stops(self, side: str) -> list[str]:
-    """The joints of `side`'s arm its drivers last read on their STOP (#744):
-    within `STOP_RAD` of an end of the range its model of itself gives, as
-    the whole body's force reading leaves one out -- its arm's solve keeps
-    every joint `RANGE_MARGIN` inside, so one read there was pushed onto it
-    (held fast at its own wrist's end, a pull read as at a lid's open stop).
-    Off `sensed`, never read afresh: a read draws noise."""
+    """The joints of `side`'s arm its drivers last read at an END of the
+    range its model of itself gives (#744: held fast at its own wrist's end,
+    a pull read as at a lid's open stop): within `JOINT_END_RAD` of it or
+    past it -- its arm's solve keeps every joint `RANGE_MARGIN` inside, so
+    one read there was pushed onto its stop. Off `sensed`, never read
+    afresh: a read draws noise."""
     sm = self.self_model
     arm = sm.arm[side]
     q, lo, hi = self.sensed[arm], sm.ranges[arm, 0], sm.ranges[arm, 1]
-    return [j for j, on in zip(hm.ARM, (q - lo < STOP_RAD) | (hi - q < STOP_RAD)) if on]
+    return [j for j, on in zip(hm.ARM, (q - lo < JOINT_END_RAD) | (hi - q < JOINT_END_RAD))
+            if on]
 
   def _held(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> float:
     """One command of a carried hand (`carry`), `h` and `r` where its grip
