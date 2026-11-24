@@ -121,6 +121,28 @@ def test_the_arms_memory_keeps_what_it_saw_where_its_arms_swing_its_tops_no_face
   assert not len(m.near((0.0, 0.0, 0.0), np.array([hmis.KNEE_JUMP_M + 0.01, 0.0, 0.0])))
 
 
+def test_what_it_saw_where_its_arms_swing_rides_a_restart():
+  """The memory goes into the body's kept state and comes back with it
+  (#345: a new piece of state that decides anything); a save from before
+  #747 comes back with none."""
+  from test_guard import _floor_body
+  body = _floor_body()
+  try:
+    mi = body.mission
+    face = np.array([[0.2, y, z] for y in np.arange(-0.6, 0.6, 0.02) for z in np.arange(0.1, 0.8, 0.02)])
+    mi.swing.fold(face, float(body._d.time), mi.pose, mi.odo.corrected)
+    pts, ts = mi.swing.pts.copy(), mi.swing.t.copy()
+    assert len(pts) > 100
+    state, arrays = body.kept_state()
+    mi.swing.forget()
+    body.restore_kept(state, arrays)
+    assert np.array_equal(mi.swing.pts, pts) and np.array_equal(mi.swing.t, ts)
+    body.restore_kept(state, {k: v for k, v in arrays.items() if not k.startswith("arms")})
+    assert not len(mi.swing.pts), "a save from before it: nothing seen"
+  finally:
+    body.close()
+
+
 # ---- the judgment -------------------------------------------------------------------------------
 
 
@@ -332,6 +354,37 @@ def test_the_swing_is_judged_on_the_robots_model_of_itself_never_the_simulators_
   assert reach.swung["left"] is not None, "the premise: judged and refused"
   assert reach.d is spy, "the premise: the reach meets the world through the spy"
   assert not spy.read & TRUTH, spy.read & TRUTH
+
+
+def test_what_it_saw_is_placed_and_asked_off_its_own_senses_never_the_simulators_truth():
+  """The memory placed into the stance frame and a procedure's plan judged
+  against it (`arms_seen`, `Body.hand_reaches(verb=True)`), with the body's
+  every view of the world's `MjData` a spy: nothing read of where the world
+  says the bodies are or what they touch."""
+  from test_guard import _floor_body
+  from test_humanoid import TRUTH, _Spy
+  body = _floor_body()
+  try:
+    mi = body.mission
+    # ...a face 0.2 m ahead, folded as a frame folds it (from the pelvis along its heading)
+    face = np.array([[0.2, y, z] for y in np.arange(-0.6, 0.6, 0.02) for z in np.arange(0.1, 0.8, 0.02)])
+    mi.swing.fold(face, float(body._d.time), mi.pose, mi.odo.corrected)
+    data = body._d
+    spy = _Spy(data)
+    holders = [body, mi, body.reach, body.stand, body.stand.trunk]
+    swapped = [(o, k) for o in holders for k, v in vars(o).items() if v is data]
+    for o, k in swapped:
+      setattr(o, k, spy)
+    try:
+      seen = mi.arms_seen()
+      body.hand_reaches("left", (0.30, -0.20, 0.80), verb=True)
+    finally:
+      for o, k in swapped:
+        setattr(o, k, data)
+    assert len(seen) > 100 and swapped, "the premise: it saw the face, through the spy"
+    assert not spy.read & TRUTH, spy.read & TRUTH
+  finally:
+    body.close()
 
 
 # ---- through the body and the verb --------------------------------------------------------------
