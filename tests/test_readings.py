@@ -302,24 +302,47 @@ def test_a_reach_refused_before_it_ran_leaves_no_reading_of_the_feet():
   assert ran["steps"][-1]["reason"] == "withdraw.dx has no reading: `withdraw` has not run", ran
 
 
+def _bow(body, dp):
+  """The pelvis carried `dp` (stance frame, m) over planted feet, as a
+  posture carries it and the odometry follows: its model of itself posed
+  so, the believed pelvis moved the same way, turned by the believed
+  stance's heading."""
+  odo = body.mission.odo
+  syaw = body.stance[2]
+  odo.sm.d.qpos[0:2] += dp
+  odo.x += math.cos(syaw) * dp[0] - math.sin(syaw) * dp[1]
+  odo.y += math.sin(syaw) * dp[0] + math.cos(syaw) * dp[1]
+
+
 def test_the_humanoids_feet_are_reckoned_by_its_legs_never_by_a_correction():
   """A scan match or a station's look moves the belief, and with it
   `stance`: no move of the feet. `reckoned` is the stance by the legs' own
-  reckoning -- the stance under the believed pelvis less every correction
-  from outside it, the pelvis's place over the feet turned with it (#744's
-  review: taken off the stance alone, a turn's correction moved it by that
-  place times the turn) -- so a correction moves it not at all."""
+  reckoning -- the stance less every correction from outside it, summed --
+  so a correction's place and turn move it not at all, and a posture
+  carrying the pelvis over planted feet moves it not at all, however large
+  the corrections summed before (#744's second review: the pelvis's place
+  turned by the summed turn read a 16 cm bow, 90 deg of turn corrected
+  since boot, as the feet moving 0.23 m). A turn corrected meanwhile leaves
+  only that place turned by it."""
   body = _floor_body()
-  # ...its pelvis 12 cm ahead of its feet's middle and 5 to their left, as
-  # in a bow the odometry's model of itself has it
-  body.mission.odo.sm.d.qpos[0:2] += (0.12, 0.05)
   s0, r0 = body.stance, body.reckoned
   assert s0 == r0
   x, y, yaw = body.mission.pose
-  body.mission.odo.correct(x + 0.12, y - 0.07, yaw + 0.3)
+  body.mission.odo.correct(x + 0.12, y - 0.07, yaw + math.pi / 2)
   s1, r1 = body.stance, body.reckoned
-  assert math.hypot(s1[0] - s0[0], s1[1] - s0[1]) > 0.1 and s1[2] - s0[2] == pytest.approx(0.3)
-  assert r1 == pytest.approx(r0, abs=1e-12)
+  assert math.hypot(s1[0] - s0[0], s1[1] - s0[1]) > 0.1 and s1[2] - s0[2] == pytest.approx(math.pi / 2)
+  assert r1 == pytest.approx(r0, abs=1e-9)
+  # ...and a bow after it: the stance stays where the feet are, and so does
+  # the reckoning
+  _bow(body, np.array([0.16, 0.0]))
+  assert body.stance == pytest.approx(s1, abs=1e-9) and body.reckoned == pytest.approx(r0, abs=1e-9)
+  # ...a turn corrected with the pelvis over the feet that far: at most
+  # that place times the turn
+  x, y, yaw = body.mission.pose
+  body.mission.odo.correct(x, y, yaw + 0.05)
+  r2 = body.reckoned
+  assert r2[2] == pytest.approx(r0[2], abs=1e-12)
+  assert math.hypot(r2[0] - r0[0], r2[1] - r0[1]) <= 0.17 * 0.05 + 1e-9
 
 
 def test_the_robot_is_told_its_new_readings():

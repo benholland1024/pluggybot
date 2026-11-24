@@ -62,10 +62,10 @@ arm's solve keeps every commanded joint 0.05 rad inside its range, so a
 joint read there was pushed onto its stop -- off `Reach.sensed`, never read
 afresh. `pull.held` is held fast with none of them, `pull.joint_end` any of
 them whatever ended the pull, `pull.reach` out of reach. A reach's and a withdraw's feet are the stance
-under the believed pelvis less every correction from outside the legs'
-reckoning (`Body.reckoned`), from the verb's start to its end, in the stance
-frame it stood in before, however it ended; a reach refused before it ran
-leaves none.
+less every correction from outside the legs' reckoning, summed
+(`Body.reckoned`), from the verb's start to its end, in the stance frame it
+stood in before, however it ended; a reach refused before it ran leaves
+none.
 
 **Why** (the loop of 11-23's X5: the weekend's own chest flights at their
 live draws). 144 of 159 lifts that ended held fast had one of the robot's

@@ -11652,11 +11652,16 @@ drivers' replies as the arm's loop last read them: read afresh, a reading
 draws noise and moves the flight.
 
 **Where the feet went** (`Body.reckoned`, `steps._feet_went`). The stance
-under the believed pelvis less every correction from outside the legs'
-reckoning (a scan match, a station's look), from a verb's start to its end,
-turned into the stance frame the robot stood in as it began: the reckoning
-a step measures its walk by. Taken off the stance alone, a heading's
-correction turned the pelvis's place over the feet with it (#744's review).
+less every correction from outside the legs' reckoning (a scan match, a
+station's look), summed, from a verb's start to its end, turned into the
+stance frame the robot stood in as it began: the reckoning a step measures
+its walk by. A posture carrying the pelvis over planted feet moves it not
+at all, however large the corrections summed since boot; a turn corrected
+while the verb runs leaves the pelvis's place over the feet turned by it,
+at most that place times the turn (mm). The "exact" form review round 1
+asked for, the corrections taken off the pelvis before its place was turned
+by the summed turn, read a posture as the feet moving -- a 16 cm bow at 90
+deg of turn corrected since boot as 0.23 m -- and review round 2 took it out.
 Against the soles' own place and heading over the 120 chest flights, 246
 reaches (40 turning the soles past 5 deg, 15 past 15, 26.2 at most) and 220
 withdraws: the turn within 0.42 deg of the soles' own (0.11 at the median),
