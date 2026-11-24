@@ -2,6 +2,8 @@
 import numpy as np
 import math
 
+from scipy import ndimage
+
 
 L_FREE = -0.4   # Amount to subtract when a ray passes through a cell
 L_OCC = 0.85    # amount to add when a ray collides a cell
@@ -192,6 +194,55 @@ class OccupancyGrid:
     self.grid += evidence.reshape(rows, cols)
 
     np.clip(self.grid, -5.0, 5.0, out=self.grid)
+
+  def seen_by(self, pose, angles, ranges, max_range, origin=(0.03, 0.03),
+              round_m: float = 0.0):
+    """The cells a scan from `pose` looks across -- from its origin out to
+    each bearing's end, `max_range` where it brought nothing back -- and the
+    cells within `round_m` of one: (the grid's window, as a pair of slices,
+    and the mask over it), or None. A bearing the scan does not carry is
+    looked across by none of it."""
+    px, py, theta = pose
+    fwd, left = origin
+    ox = px + fwd * math.cos(theta) - left * math.sin(theta)
+    oy = py + fwd * math.sin(theta) + left * math.cos(theta)
+    angles = np.asarray(angles, dtype=float)
+    if angles.size == 0:
+      return None
+    ranges = np.minimum(np.asarray(ranges, dtype=float), max_range)
+    res = self.resolution
+    rows, cols = self.grid.shape
+    reach = int(math.ceil((max_range + round_m) / res)) + 2
+    cx, cy = self.world_to_cell(ox, oy)
+    x0, y0 = max(cx - reach, 0), max(cy - reach, 0)
+    x1, y1 = min(cx + reach + 1, cols), min(cy + reach + 1, rows)
+    if x1 <= x0 or y1 <= y0:
+      return None
+    seen = np.zeros((y1 - y0, x1 - x0), dtype=bool)
+    # ...each ray sampled every half cell, its end included
+    a = theta + angles
+    ts = np.minimum(np.arange(int(max_range / (res / 2)) + 2)[None, :] * (res / 2),
+                    ranges[:, None])
+    ixs = np.floor((ox + ts * np.cos(a)[:, None] - self.x_min) / res).astype(np.int64) - x0
+    iys = np.floor((oy + ts * np.sin(a)[:, None] - self.y_min) / res).astype(np.int64) - y0
+    inside = (ixs >= 0) & (ixs < x1 - x0) & (iys >= 0) & (iys < y1 - y0)
+    seen[iys[inside], ixs[inside]] = True
+    if round_m > 0.0:
+      seen = ndimage.distance_transform_edt(~seen) * res <= round_m
+    return (slice(y0, y1), slice(x0, x1)), seen
+
+  def forget_seen(self, pose, angles, ranges, max_range, origin=(0.03, 0.03),
+                  round_m: float = 0.0) -> int:
+    """`seen_by`'s cells back to unknown, for the scan laid next to lay
+    again (issue #741: `ScanMatcher.relay`): how many of them held
+    evidence."""
+    region = self.seen_by(pose, angles, ranges, max_range, origin, round_m)
+    if region is None:
+      return 0
+    window, seen = self.grid[region[0]], region[1]
+    held = int(np.count_nonzero(window[seen]))
+    window[seen] = 0.0
+    return held
 
 
   def to_image(self) -> np.ndarray:             # uint8: 0 wall / 255 free / 127 unknown

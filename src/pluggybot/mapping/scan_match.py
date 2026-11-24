@@ -286,6 +286,9 @@ ANCHORED_SCANS = 30
 FUSE_M = 0.01
 FUSE_RAD = math.radians(0.5)
 FUSE_S = 5.0
+#: Whether a robot standing still lays a scan every FUSE_S outside an
+#: anchor's window (#741's option 4: False, none).
+STILL_LAYS = False
 
 NO_STEP = (0.0, 0.0, 0.0)
 #: The verdicts that move the pose, and those whose scan may be fused
@@ -453,6 +456,9 @@ class ScanMatcher:
     self.pending: tuple[float, float, float] | None = None
     #: Scans still to be laid at an anchor's belief, unmatched (`anchored`).
     self.anchoring = 0
+    #: The next scan laid goes in over what it sees, and the cells within
+    #: this of it, forgotten first (`relay`), m; 0: as ever.
+    self.relay_m = 0.0
     #: Scans before a doubted or slid fit may be searched again (DOUBT_EVERY).
     self.doubt_wait = 0
     #: Wide searches left at every heading since a fall (`fell`), and what
@@ -524,7 +530,9 @@ class ScanMatcher:
     it, and the robot has moved since the last one fused (FUSE_*)."""
     if not match.fuse:
       return False
-    if self.fused_pose is None or t - self.fused_t >= FUSE_S:
+    if self.fused_pose is None:
+      return True
+    if t - self.fused_t >= FUSE_S and (self.anchoring or STILL_LAYS):
       return True
     x, y, th = match.pose
     fx, fy, fth = self.fused_pose
@@ -545,6 +553,23 @@ class ScanMatcher:
     self._settled()
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
+    else:
+      self.relay_m = 0.0
+
+  def relay(self, round_m: float) -> None:
+    """A fix put the belief right and kept the map (issue #741): the region
+    round it holds the offset of the belief that laid it, and once the
+    anchor's window closes its fits take the belief back there. So the next
+    scan laid goes in over the cells it looks across, and those within
+    `round_m` of them -- where a copy of what it sees lies -- forgotten
+    first (`OccupancyGrid.forget_seen`), and the window lays them afresh."""
+    self.relay_m = float(round_m)
+
+  def relaid(self) -> None:
+    """The scan `relay` asked for was laid: the field goes with the cells
+    it was computed from."""
+    self.relay_m = 0.0
+    self.at = None
 
   def fell(self) -> None:
     """The robot is up from a fall (issue #690): until a scan fits, its next
@@ -1125,6 +1150,7 @@ class ScanMatcher:
     self.fused_pose, self.fused_t = None, -math.inf
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
+    self.relay_m = 0.0
     self.doubt_wait = 0
     self.turned_left, self.turned_seen, self.turned_from = 0, None, None
     self._settled()
@@ -1139,8 +1165,8 @@ class ScanMatcher:
              "fusedT": None if self.fused_pose is None else self.fused_t,
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring, "doubtWait": self.doubt_wait,
-             "turnedLeft": self.turned_left,
+             "anchoring": self.anchoring, "relayM": self.relay_m,
+             "doubtWait": self.doubt_wait, "turnedLeft": self.turned_left,
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
              "turnedFrom": None if self.turned_from is None else list(self.turned_from),
              "looksLeft": self.looks_left, "widerWait": self.wider_wait,
@@ -1160,6 +1186,7 @@ class ScanMatcher:
     pending = state.get("pending")
     self.pending = None if pending is None else tuple(float(v) for v in pending)
     self.anchoring = int(state.get("anchoring", 0))
+    self.relay_m = float(state.get("relayM", 0.0))
     self.doubt_wait = int(state.get("doubtWait", 0))
     self.turned_left = int(state.get("turnedLeft", 0))
     seen = state.get("turnedSeen")
