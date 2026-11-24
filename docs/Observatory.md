@@ -60,7 +60,9 @@ too. The loop's own reach (a charge's) is never judged.
   the minute before it saw (112 of the 200 live tries X5 flies began at the
   counter; none of them fell on the base). A thing moved since it was seen,
   a column's top 3 cm (a counter's front edge: the census's one new fall
-  caught it), the legs, the trunk and the head.
+  caught it), the legs, the trunk and the head. And it may refuse a reach
+  for a prop's old face: one it moved within 0.55 m is kept up to that
+  minute.
 
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 

@@ -12160,8 +12160,14 @@ the knees' memory): up close the camera sees the top alone, so a later
 procedure's reach at the counter is judged on the minute before it -- 112
 of the 200 live tries X5 flies began at the counter, none of which fell on
 the base. A voxel 0.55 m or more off is let go where a frame sees past its
-bearing at any height. A column's top 3 cm, a counter's front edge among
-them, is no face. A way home, a carry and a pull are not judged. The
+bearing at any height. A prop it moved leaves its old face up to that
+minute: within 0.55 m no frame clears what was kept (a carve against the
+depth picture would), so the next reach near where it stood is judged
+against it -- refused or passed over, never felled. The swing is sampled
+every 50 ms, a part moving several centimetres a sample, so a thin one
+could pass a face between two: all 26 of the census's falls were met, and
+none fell among the reaches it judged clear. A column's top 3 cm, a
+counter's front edge among them, is no face. A way home, a carry and a pull are not judged. The
 statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
 the truth lags the commands: the census, not the model, set the clearance.
 
