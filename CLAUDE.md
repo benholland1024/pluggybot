@@ -2781,10 +2781,9 @@ save a filmstrip PNG named after the script.
   that bearing's end, forgotten before the scan is laid -- kept, the region round the station held the
   offset of the belief that laid it and took the belief back as the window
   closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
-  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (as far round as the
-  fix's reach, the lobby's relay forgot 928 walls behind what it saw, never
-  laid again from there; under the bound every reach forgot the same cells,
-  and none is armed), ⚠ AND NO WALL
+  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (uncapped, the lobby's
+  relay forgot 928 walls behind what it saw, never laid again from there),
+  ⚠ AND NO WALL
   NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
   CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
   `update` lays it floor (the house's couch behind a robot the lost search

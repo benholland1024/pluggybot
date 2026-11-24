@@ -1217,7 +1217,8 @@ class ScanMatcher:
     self.anchoring = int(state.get("anchoring", 0))
     # ...a save from the relay's first form kept its reach (`relayM`, m), > 0
     # while one was pending
-    self.relaying = bool(state.get("relay", float(state.get("relayM", 0.0)) > 0.0))
+    self.relaying = (bool(state["relay"]) if "relay" in state
+                     else float(state.get("relayM") or 0.0) > 0.0)
     self.doubt_wait = int(state.get("doubtWait", 0))
     self.turned_left = int(state.get("turnedLeft", 0))
     seen = state.get("turnedSeen")

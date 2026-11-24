@@ -198,9 +198,10 @@ class OccupancyGrid:
     """The cells a scan from `pose` looks across: each cell whose nearest
     bearing of the scan's lies within a degree of it, from the scan's origin
     out to that bearing's end (`max_range` where it brought nothing back)
-    and `behind_m` past it -- (the grid's window, as a pair of slices, and
-    the mask over it), or None. A bearing the scan does not carry is looked
-    across by none of it."""
+    and `behind_m` past it, judged at the cell's middle -- so the cell a ray
+    ends in is one only where `behind_m` reaches its middle -- (the grid's
+    window, as a pair of slices, and the mask over it), or None. A bearing
+    the scan does not carry is looked across by none of it."""
     cone = self._cone(pose, angles, ranges, max_range, origin, behind_m)
     return None if cone is None else (cone[0], cone[3])
 

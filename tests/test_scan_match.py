@@ -2260,13 +2260,17 @@ def test_a_restart_keeps_an_anchors_window(room):
   assert not m.relaying
   # ...and a save from the relay's first form, which kept its reach
   # (`relayM`, m: > 0 while one was pending), restores it
-  for reach, pending in ((0.46, True), (0.0, False)):
+  for reach, pending in ((0.46, True), (0.0, False), (None, False)):
     old = dict(state)
     old.pop("relay")
     old["relayM"] = reach
     n = sm.ScanMatcher(room)
     n.restore_kept(old, arrays)
     assert n.relaying is pending, reach
+  # ...where both are kept, the relay's own word
+  n = sm.ScanMatcher(room)
+  n.restore_kept(dict(state, relay=False, relayM=0.46), arrays)
+  assert not n.relaying
 
 
 #: A hall like the research center's lobby: 3 m by 12 m, doors off it.
@@ -2430,10 +2434,9 @@ def test_a_relay_on_a_bowed_scan_forgets_no_wall_its_rays_cannot_clear(house):
 def test_a_relay_forgets_nothing_far_behind_what_its_scan_met(house):
   # #741's review: what lies behind a wall the scan saw is never laid again
   # from where the robot stands, and a copy behind a fresh wall pulls
-  # nothing; forgotten as far round as the fix's reach (up to 1.7 m), the
-  # rooms beyond lost their maps. No further than RELAY_BEHIND_M past each
-  # bearing's end.
-  past = 0.40                       # past RELAY_BEHIND_M, inside the fix's reach
+  # nothing; forgotten up to 1.7 m past what the scan met, the rooms beyond
+  # lost their maps. No further than RELAY_BEHIND_M past each bearing's end.
+  past = 0.40                       # m past its bearing's end, beyond RELAY_BEHIND_M
 
   def mark(m, scan):
     assert sm.RELAY_BEHIND_M < past
@@ -2444,6 +2447,23 @@ def test_a_relay_forgets_nothing_far_behind_what_its_scan_met(house):
     return [behind]
   (behind,) = _relayed(house, mark)
   assert behind == 3.0, "a cell behind what the scan met was forgotten"
+
+
+def test_a_fix_that_only_turned_the_belief_lays_again_what_it_sees(house):
+  # #741: a look that turns the belief past FIX_TOL_RAD keeps an askew map
+  # as surely as one that moves it, and relays as one does
+  from pluggybot.body import RackPose
+  from pluggybot.humanoid.body import FIX_TOL_M
+  body = _humanoid(house)
+  m, s = body.mission, body._station
+  body.start_at(*body.charge_seat(), s.yaw)       # at the seat: a turn there moves it little
+  x, y, yaw = m.pose
+  fix = body._fix_at(RackPose(s.x, s.y, s.yaw + math.radians(3.0)))
+  assert fix is not None and not fix["dropped"]
+  assert abs(math.degrees(math.remainder(yaw - m.pose[2], 2 * math.pi)) - 3.0) < 0.01
+  assert math.hypot(m.pose[0] - x, m.pose[1] - y) < FIX_TOL_M, "the premise: a turn alone"
+  assert m.matcher.relaying and m.matcher.anchoring == sm.ANCHORED_SCANS
+  body.close()
 
 
 def test_the_scan_laid_after_a_fix_goes_in_over_what_it_sees_forgotten_once(house):
