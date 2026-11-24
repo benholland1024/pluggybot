@@ -87,8 +87,9 @@ process, fa842927 beside the branch).
   `pull.held` read as before; `pull.joint_end` read 1 at 30 pulls, none held
   fast.
 - **The robots' own procedures that read `pull.held`**, at their live draws
-  (X5's 120 chest flights, W1's 64 door flights), beside the branch's final
-  code: 184 flights, 172 identical by end state and path. The 12 that part
+  (X5's 120 chest flights, W1's 64 door flights), beside the branch
+  (f8e90cce: since then only the feet's reckoning and docs moved, which none
+  of them reads): 184 flights, 172 identical by end state and path. The 12 that part
   each part at the verb right after the
   second pull in a row that ended held fast at its own arm's end (the base
   reads `pull.held` 1 there and ends its lift; the branch reads 0, with
