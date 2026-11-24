@@ -736,7 +736,7 @@ class _FakeLife:
     self.init_kwargs = kw
     # The world it was built on, as the real lifecycle holds it.
     self.model, self.data = model, data
-    self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing",
+    self.body = types.SimpleNamespace(step_hooks=[], last_hooks=[], grid=None, posture="standing",
                                       working=False, making_way=None,
                                       build_cameras=self._build_cameras)
     # How often serve.py asked for its cameras, in all and by the time its
@@ -787,6 +787,7 @@ class _FakeLife:
     self.continuing = False
     self.stopping = ""
     self.dead = None
+    self.resets: list = []
     self._standing_up = False
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
@@ -1823,7 +1824,7 @@ def test_serve_keeps_the_world_and_a_signal_only_asks_it_to_stop(monkeypatch, tm
     life, _, _ = _serve_wiring(monkeypatch, ["--world", "home",
                                              "--world-state", str(tmp_path / "w.npz")])
     assert life.continuing and life.run_kwargs["resume"] is None
-    keeper = life.body.step_hooks[-1].__self__
+    keeper = life.body.last_hooks[-1].__self__
     handler = signal.getsignal(signal.SIGTERM)
     handler(signal.SIGTERM, None)
     assert keeper.stop_requested == "SIGTERM"
@@ -1861,7 +1862,7 @@ def test_a_paused_stop_mid_move_gives_back_the_count_it_was_restored_on(monkeypa
       self.body.working = True                          # a hand out...
       signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
       with pytest.raises(MissionAborted):               # ...the keeper's step
-        self.body.step_hooks[-1]()
+        self.body.last_hooks[-1]()
       return super().run(*a, **kw)
 
   serve = _load_serve()
@@ -1906,7 +1907,7 @@ def test_a_paused_stop_mid_move_gives_back_a_start_overs_count(monkeypatch, tmp_
       self.body.working = True                          # a hand out...
       signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
       with pytest.raises(MissionAborted):               # ...the keeper's step
-        self.body.step_hooks[-1]()
+        self.body.last_hooks[-1]()
       return super().run(*a, **kw)
 
   serve = _load_serve()

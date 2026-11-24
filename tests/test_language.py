@@ -367,7 +367,7 @@ def _stub_life():
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
     in_sight=lambda x, y: True, hold_routine=routine("wait"),
     pose=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0, arm_kept=lambda: None, carrying=lambda side: False, arm_held=lambda side: False,
-    )
+    forgo_owed=lambda: None)
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupt_due=lambda: False,
                          interrupted_routine=lambda: tick.result(False),

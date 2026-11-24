@@ -2000,7 +2000,15 @@ save a filmstrip PNG named after the script.
   (without it a step parts by 1e-12), and the LAST STEP STEPPED AGAIN from
   where it began (#420; `LastStep`, `replay`): a running world's forward
   pass is a step behind its `qpos`, and one forwarded fresh parted at the
-  walking policy's first decision. A new piece of state that decides
+  walking policy's first decision. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
+  OWED IT AFTER THE HOOKS (`_after_step`: the look, the depth frame's fold,
+  the scan) BOOKED THERE (#749; `Body.book_owed`; Webserver.md): the keeper
+  saves inside a step's hooks, so every routine that books its steps yields
+  them through `Navigator._booked_routine` (a test reads every call of
+  `_after_step`), the keeper's hook is a `Body.last_hooks` one (after every
+  step hook, whenever hung), no save is taken on a step a death or a
+  stand-up landed in (`Keeper.landed`), and a routine they close there owes
+  nothing (`Body.forgo_owed`). A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up

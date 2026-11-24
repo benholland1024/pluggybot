@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A restore books the step it steps again, and the keeper saves after every step hook (#749, Z6, `loop-749`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were.
+
+**What changed in the world.** What happens AT a restart, and nothing else:
+a day flown straight through is bit for bit the one before. Two things:
+
+- A save taken inside a step's hooks -- every keeper save, and a run's end
+  stopped by a signal or while paused -- keeps whether that step still
+  owed its bookkeeping after them (the walking look, the depth frame's fold
+  into the camera's layer, the LIDAR's scan), and the restore does it on
+  the step it steps again. Before, a save on a step whose scan was due
+  (about one keeper save in 50, and every one that fell on a charge's
+  first step) came back with that scan 2 ms late, and every scan after it,
+  and the belief, the map and the camera's layer parted at the last bits
+  from the world that never stopped. Nothing a robot reads was lost. A
+  save that falls on the step a death or a stand-up landed in is taken a
+  step later.
+- The keeper's hook runs after every step hook. A hand job's watch is hung
+  at the job's claim, after it: on the pair's second robot a save came
+  before the watch had read that step -- the most its prop moved, the
+  fastest, the worst tilt -- and the restored watch read on from the next.
+
+**What the period is for.** Expect nothing visible. It makes a restarted
+world's record replay as the world flown straight through, so a reading
+across a `mission resumed` can be checked bit for bit offline.
+
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 
 **What the robots read** moves by one History sentence: by this change, the

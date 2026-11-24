@@ -885,6 +885,7 @@ def _settled(planted, fall_at=None, apart=None, spread=None):
     if fall_at is not None and len(held) == fall_at:
       fake.legs = "getup"
   fake._after_step = after
+  fake._booked_routine = lambda cmd: hmi.HumanoidMission._booked_routine(fake, cmd)
   routine = hmi.HumanoidMission.to_stand_routine(fake)
   try:
     cmd = next(routine)
