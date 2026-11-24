@@ -281,3 +281,12 @@ def test_what_a_scan_looks_across_and_round_it_is_forgotten_and_nothing_else():
   grid.grid[...] = bare
   grid.forget_seen((0.0, 0.0, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0))
   assert logodds_at(grid, 2.02, 0.0) == 0.0 and logodds_at(grid, 2.07, 0.0) == 3.0
+  # ...and a keep (`keep_near`, `scan_match.relay_keeps`) keeps only what
+  # held a WALL nearer than it, the floor there going as any other cell (the
+  # sensor on a cell's middle, so its rays run through the cells' middles)
+  grid.grid[...] = bare
+  grid.forget_seen((0.025, 0.025, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0),
+                   behind_m=0.15, keep_near=np.array([1.2, 1.2]))
+  assert logodds_at(grid, 1.025, 0.025) == 0.0, "floor nearer than the keep, held"
+  assert logodds_at(grid, 0.025, 1.025) == 3.0, "a wall nearer than the keep, forgotten"
+  assert logodds_at(grid, 0.025, 1.525) == 0.0, "a wall past the keep, held"
