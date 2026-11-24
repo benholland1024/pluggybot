@@ -6,6 +6,36 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-24
+
+- Your answers now have up to 600 s and 64,000 tokens before they are cut
+  off, twice what they had. Before, an answer still being written at 300 s,
+  or past 32,768 tokens, was lost.
+- A `find` searches all you keep from this life (your History, `think`s,
+  notes and findings, goals, pinned lines and the lines you took out) and
+  brings back at most 8 lines, the best match first, after anything `read`
+  brings. The lines your own recalls write are now left out of those 8.
+  Before, they took places among them, and the same `find` asked again
+  brought back fewer lines each time.
+- When one of your jobs falls just short of its line, its result now gives
+  your reading with as many decimals as tell the two apart: a drawer that
+  came out a little under 15 cm reads "came out 14.7 cm, short of the 15",
+  where it read "came out 15 cm, short of the 15".
+- While you charge, the station's cable slowly pulls you in. After more
+  than 300 s plugged in, taking the plug out now starts with a step
+  straight back from the station and a look at it standing still, and your
+  hand goes by where that look places the station, not by where you
+  believed you stood. Before, after a long charge your hand could fail to
+  get the plug out.
+- When your arm's way home stalls far behind where it is sent, it is now
+  held where it is, raised 5 cm and sent home again, up to twice, as an arm
+  held at its rest already was. If it is still held, it stays there, and a
+  `withdraw` reads false saying something holds it.
+- After a walk or a `step`, your legs now go back to standing only once
+  both your soles are down, or after 1.2 s more all the same. Before, they
+  could go back with one sole still off the floor, and you could fall
+  forward.
+
 ## 2026-11-20
 
 - A charging station the other robot is plugged into is now taken for your

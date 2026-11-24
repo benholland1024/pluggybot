@@ -28,7 +28,7 @@ from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, 
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
-from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
+from pluggybot.mapping.scan_match import MATCH_RANGE_M, REACH_M, SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
@@ -223,6 +223,17 @@ FIX_TOL_RAD = math.radians(2.0)
 #: out within 20 s, relocated onto a copy; on an empty map, 0.23 m at worst.
 ASKEW_M = SEARCH_M
 ASKEW_RAD = SEARCH_RAD
+#: ⚠ A FIX THAT KEEPS THE MAP LAYS AGAIN WHAT ITS NEXT SCAN SEES (#741,
+#: `ScanMatcher.relay`): from the sensor out to each bearing's end, filled
+#: between the rays and up to `RELAY_BEHIND_M` past it, forgotten, and that
+#: scan laid at the belief put right. The reach armed -- what the fix moved
+#: the belief, its turn at the LIDAR's reach, and the fit's own reach more --
+#: is 0.40 m at least, and under that bound widens nothing (#741's third
+#: review: the lobby's regions 27.4-27.7 m2 for reaches of 0.46-1.01 m).
+#: MEASURED (SimNotes, "A station's fix that keeps the map lays again what
+#: it sees"): kept, the lobby's copy took a re-docked belief back to 10-11
+#: cm within 3 minutes of the fix.
+RELAY_PAST_M = REACH_M
 
 
 def _yaw(rot: np.ndarray) -> float:
@@ -625,6 +636,20 @@ class HumanoidBody(Body):
     px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
     return x - (c * px - s * py), y - (s * px + c * py), syaw
 
+  @property
+  def reckoned(self) -> tuple[float, float, float]:
+    """Its stance by its legs' own reckoning (#746): `stance` less every
+    correction from outside it -- a scan match, a station's look -- summed
+    (`StanceOdometry.corrected`), as a step's walk is measured (`_by_legs`).
+    ⚠ NEVER THE PELVIS'S PLACE OVER THE FEET TURNED BY THE SUMMED TURN: the
+    odometry moves the pelvis in the believed heading, and so turned, a bow
+    read as the feet moving. A turn corrected while a verb runs leaves that
+    place turned by it, at most the place times the turn (mm). Off the
+    odometry's state as it last ticked: nothing read afresh."""
+    x, y, yaw = self.stance
+    c = self.mission.odo.corrected
+    return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
+
   def to_stance(self, p) -> np.ndarray:
     """A believed world point in its stance frame."""
     x, y, yaw = self.stance
@@ -886,6 +911,10 @@ class HumanoidBody(Body):
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
+
+  def hand_stopped(self, side) -> dict | None:
+    stopped = self.reach.stopped[side] if self._why.get(side) == "stopped short" else None
+    return None if stopped is None else dict(stopped)
 
   def hand_kept(self, side) -> dict | None:
     return self._kept.get(side)
@@ -1257,7 +1286,8 @@ class HumanoidBody(Body):
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
     if not self.reach.pull(side, d, limit_n, distance_m, speed, give, verb=verb):
-      rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
+      # ...nothing moved: no stop of its arm's read as this pull's (#744)
+      rep = {**(self.reach.report[side] or {}), "why": "out of reach", "stops": []}
     else:
       rep = yield from self._held_routine(side, patience)
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
@@ -1275,7 +1305,8 @@ class HumanoidBody(Body):
                          "moved": round(n, 4), "along": round(float(rep.get("went", disp @ d)), 4),
                          "dx": float(disp[0]), "dy": float(disp[1]), "dz": float(disp[2]),
                          "direction": [float(v) for v in way],
-                         "force": round(float(rep.get("force") or 0.0), 2)})
+                         "force": round(float(rep.get("force") or 0.0), 2),
+                         "stops": list(rep.get("stops") or ())})
 
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.sensed_force[side]
@@ -1306,7 +1337,9 @@ class HumanoidBody(Body):
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
-    (#581's stage 2)."""
+    (#581's stage 2). ⚠ ITS LEGS GO BACK TO STANDING ONCE BOTH SOLES READ
+    DOWN, AND WHERE THE SETTLE'S BOUND RAN OUT FIRST IT SAYS SO, `feetDown`
+    false (#740; `HumanoidMission.to_stand_routine`)."""
     mi = self.mission
     yield from mi._getup_routine()
     by_legs = self._by_legs()
@@ -1362,7 +1395,8 @@ class HumanoidBody(Body):
         # and its turn's included: standing still, the LIDAR takes none
         why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
     seen = mi.odo.corrected.copy()
-    yield from mi.to_stand_routine()
+    # ...handed over once both soles read planted, or its bound out (#740)
+    settled = yield from mi.to_stand_routine()
     d_ = mi.odo.corrected - seen
     self._jump = max(self._jump, math.hypot(float(d_[0]), float(d_[1])))
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
@@ -1397,7 +1431,10 @@ class HumanoidBody(Body):
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
             "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
-            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
+            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {}),
+            # ...and its legs gone back to standing before both its soles had
+            # read down, its settle's bound out (#740)
+            **({"feetDown": False} if settled is False else {})}
 
   def _by_legs(self):
     """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
@@ -1855,13 +1892,17 @@ class HumanoidBody(Body):
       return None
     dropped = moved > ASKEW_M or turned > ASKEW_RAD
     self.mission._set_pose(tx, ty, tyaw)
+    relay = None
     if dropped:
       self.forget_world()
     elif self.mission.matcher is not None:
       self.mission.matcher.anchored()
+      relay = moved + turned * MATCH_RANGE_M + RELAY_PAST_M
+      self.mission.matcher.relay(relay)
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
-                                     moved=True, dropped=dropped, station=self.mission.station)
+                                     moved=True, dropped=dropped, station=self.mission.station,
+                                     **({} if relay is None else {"relayM": round(relay, 2)}))
 
   places = property(lambda self: self.mission.places)
 

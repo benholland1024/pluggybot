@@ -54,6 +54,28 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a station fix that kept the map says the reach it laid the map again within (`relayM`, pluggybot #741)
+
+A `drift` row whose `why` is `fixed`, a humanoid's at its station, that kept
+the map (`dropped` false) carries `relayM`, m: the reach the fix armed --
+what it moved the belief, its turn at 8 m, and 0.30 m more -- round what its
+next scan sees, which that scan forgot before it was laid again from the
+belief put right. What is forgotten never runs more than 0.15 m past what
+the scan met, and a reach (0.40 m at least) widens nothing under that bound.
+A fix that dropped the map, or a dock's, carries none.
+
+```jsonc
+{"type": "drift", "t": 333864.7, "robot": "pluggybot", "why": "fixed",
+ "pose": {"x": 20.63, "y": -5.547, "yawDeg": -92.6},
+ "believed": {"x": 20.633, "y": -5.551, "yawDeg": -92.6},
+ "before": {"x": 20.524, "y": -5.447, "yawDeg": -92.5}, "errorM": 0.005,
+ "headingDeg": 0.0, "fixture": "station", "tags": 2, "atM": 0.36,
+ "moved": true, "dropped": false, "station": "station_facility", "relayM": 0.46}
+```
+
+No bump: the field is additive, and no committed fixture carries a fix (the
+pair's day has none).
+
 ### 0.21.0, no new shape: a person's chat is their own, and the narration says neither whose nor what (rooftop-media-2026 #518)
 
 Ben's call of 2026-11-17: a chat is like texting one robot. The website
@@ -940,7 +962,10 @@ only record of it was the box's log. One event type is new:
     `posture`, `state`;
   - `fixed`: `fixture` (`dock` / `rack` / `station`, a humanoid's), `moved`, `dropped` (the map went
     too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
-    / `seat`);
+    / `seat`); a humanoid's that kept the map, `relayM` (the reach it armed
+    round what its next scan sees, that scan forgetting the map there and
+    laying it again; never more than 0.15 m past what the scan met, which
+    every reach passes, pluggybot #741);
   - `lost`: `fixture`;
   - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
     where one was found its `fixture` and whether it `dropped` the map;

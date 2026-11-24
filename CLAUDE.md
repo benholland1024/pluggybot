@@ -341,7 +341,12 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or the force it reads (below) a push on its way in --
-  unstopped, an arm pushed the robot over. ⚠ ON ITS WAY OUT, THE TICK WHAT
+  unstopped, an arm pushed the robot over. ⚠ AND SAYS WHICH RULE STOPPED IT,
+  JUDGED ON THE RUN BEHIND THE STOP (#743; `Reach.stopped`, `_pushes`,
+  `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
+  the push where it held at least half the run, at its hardest, else out of
+  reach -- on the stop's tick alone, a last dip or a lone spike named the
+  other. ⚠ ON ITS WAY OUT, THE TICK WHAT
   IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
   (`POSTURE_TOL`), ONCE IT HAS FOR `OUT_TIP_S` (0.03 s) RUNNING -- its pull
@@ -1134,7 +1139,7 @@ save a filmstrip PNG named after the script.
   `quadruped-final`, and #563 brings one back.
 - **The hands in a procedure, and graded practice** (#493;
   `procedure/steps.py` `HANDS_VERBS` and `language(facts)`,
-  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` /
+  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` / `STANCE_SENSORS` /
   `BODY_AXES["humanoid"]`; `mind/practice.py`, `evaluation/practice.py`,
   `scripts/practice.py`): the vocabulary as stated priors -- `spot`,
   `measure`, `reach`, `via`, `move_hand`, `pull`, `close_hand`,
@@ -1243,8 +1248,15 @@ save a filmstrip PNG named after the script.
   turn giving to what it holds ⚠ BUT NEVER ABOUT THE JAWS' LINE (a lid's
   weight turned a freely giving wrist 70 deg down and out of reach on 4
   chests of 8); a grip it began with lost ending it where the hand is;
-  going on where the arm misses, ANOTHER posture from the arm as it is,
-  never one it has left (`posture_for(onward=, past=)`). `close_hand(force)`
+  going on where the arm misses, ANOTHER posture from the
+  arm as it is, never one it has left (`posture_for(onward=, past=)`). ⚠ A
+  PROCEDURE'S `move_hand` ENDS WHERE A GRIP IT BEGAN WITH IS LOST TOO, READ
+  FALSE, "let go" (#742; `Reach._held`, its `verb`; never the loop's own, a
+  charge's plug): carried on, jaws slid off a board's edge and the empty
+  hand "arrived", 16 carries of 16. ⚠ BUT ONE WHOSE STOP CONDITION IS ITS OWN
+  GRIP (`until="right.held", below=...`) ENDS AS THAT CONDITION'S STOP, ok
+  (`steps._on_its_grip`): the rule reads the grip inside the physics step and
+  the condition between steps, so aligned, the rule always came first. `close_hand(force)`
   takes the Dex1-1's 5-120 N, `held` against half of what its drive pushes
   at the gap it reads (`arms.pushes`, #646: under 2 cm a hard squeeze's
   spring stalls short of the force, and against half the force the plate's
@@ -1295,7 +1307,24 @@ save a filmstrip PNG named after the script.
   FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home, or a
   hand that holds carried, a turn on the spot and a walk on the walking policy, its report
-  where the stance went in the frame before (`step.*`) -- ⚠ A WALK ITS OWN
+  where the stance went in the frame before (`step.*`; and while a `reach` or
+  a `withdraw` ran, `reach.*` and `withdraw.*`, #746: a posture swivelled
+  Luca's feet 15-26 deg, by its legs' reckoning, `Body.reckoned`, nothing
+  read afresh) -- ⚠ ITS LEGS, AND
+  EVERY WALK'S, GO BACK TO THE STANDING POLICY ONLY ONCE BOTH SOLES HAVE READ
+  PLANTED `PLANTED_S` (0.1 s) RUNNING (#740; `HumanoidMission.
+  to_stand_routine`, `odometry.PlantedRun`; SimNotes, "The step's hand-back
+  once its soles are planted"): the other sole's LOWEST CORNER within
+  `DOWN_M` (4 mm) of the planted one's EITHER WAY, every reading of the
+  0.1 s window within `STILL_M` (3 mm) of the others, and neither sole's
+  corners spread over `SPREAD_M` (15 mm) of height (⚠ the heights alone
+  miss #740's own fall: one sole on its toes, the other hanging unloaded,
+  read level and still) -- held still `SETTLE_S` (0.8 s) as before, else on,
+  `SETTLE_MORE_S` (1.2 s) at most, then all the same, the step's report
+  saying so (`feetDown`: false): handed over as the settle ended, a sole
+  come down unloading and lifting again, the standing policy let the robot
+  fall forward. ⚠ Never a sole's tilt of a few degrees: one loaded on its
+  edge is no hazard. -- ⚠ A WALK ITS OWN
   LEGS RECKON WENT UNDER `STEP_LEAST_M` READS `too short`, never `stepped`
   (#649: a walk's first 0.3 s are the pelvis leaning over planted feet, so a
   short ask could end before a foot lifted and read `stepped`), its stop
@@ -1350,7 +1379,12 @@ save a filmstrip PNG named after the script.
   `tests/test_hands.py`): an argument refused, a hand not out, a way all 0,
   a fall -- held fast it is ok, and `pull.held` says so, a served robot
   being shown no step's `why` -- and `spot` and `watch` say they read a
-  block's face seen most square-on. ⚠ `spot` AND `watch` SAY WHICH CAMERA
+  block's face seen most square-on. ⚠ `pull.held` IS WHAT IT PULLS: HELD
+  FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.joint_end` (#744;
+  `Reach._on_stops`, `JOINT_END_RAD` off `Reach.sensed`, never read afresh;
+  `tests/test_readings.py`): held at its own wrist's end, Luca read a lid's
+  open stop; and out of reach is `pull.reach` (what it moved, Observatory.md,
+  the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
   them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):
@@ -2602,7 +2636,8 @@ save a filmstrip PNG named after the script.
   not fix keeps odometry's estimate; a fit the map disagrees with, or one
   that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
   NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
-  moved or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
+  moved or 5 s have passed (docked, fusing every scan walked the map 0.15 m)
+  -- an anchor's window's excepted, laid as they come (below, #741).
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one that held a direction, or whose
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
@@ -2686,10 +2721,16 @@ save a filmstrip PNG named after the script.
   base's again (the bound's price; a fit that only slid would else be
   looked round for good). ⚠ THE WIDE SEARCH'S OWN TAKE, AND THE SEARCH AT
   EVERY HEADING'S, IS CHECKED BY THE NEXT LOOK (`_put`: the doubt begins
-  again where the belief was put, its looks and its 2 m). ⚠ AN ANCHOR'S
-  WINDOW IS LEFT AS IT WAS (flown both ways, neither right: shoved a second
-  after a fix the open window laid 19 scans 1.25 m off the body, closed it
-  handed a right belief back to the askew map; SimNotes). ⚠ ONLY UP FROM
+  again where the belief was put, its looks and its 2 m). ⚠ UP FROM A FALL
+  AN ANCHOR'S WINDOW IS OVER, AND A RELAY STILL TO COME IS DROPPED (#741,
+  where #681 left the window open; `ScanMatcher.fell`; SimNotes, "A
+  station's fix that keeps the map lays again what it sees"): shoved a
+  second after the lost search's fix, the open window laid 17 scans at the
+  belief the get-up moved and ended 1.30 m off; closed, what the fix saw
+  already laid again, 0.01 m, and it plugged in. ⚠ The price: a fall begun
+  in the 0.1 s between a fix and its relay's scan leaves nothing laid
+  again, and the closed window hands the right belief back to the copy
+  (#681's 0.2-0.45 m). ⚠ ONLY UP FROM
   A FALL: a robot that has not fallen is matched as it was, verdict for
   verdict (202 recorded falls replayed with the doubt off: the base's). ⚠
   IT BELIEVES THE MAP: a copy of the room `UNIQUE_M` or more away that
@@ -2714,7 +2755,28 @@ save a filmstrip PNG named after the script.
   ⚠ THE STATION OUTRANKS THE MAP: anchored off its tags (a fix, below),
   the next `ANCHORED_SCANS` (30) scans are laid at the belief unmatched
   (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
-  robot 0.6 m back into it; `start_at` closes the window. ⚠ A RETURN NEARER
+  robot 0.6 m back into it; `start_at` closes the window. ⚠ ONLY A FIX
+  THAT KEEPS THE MAP OPENS ONE, AND IT LAYS AGAIN WHAT ITS NEXT SCAN SEES
+  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`, `RELAY_PAST_M`;
+  SimNotes, "A station's fix that keeps the map lays again what it sees"):
+  every cell from the sensor to each bearing's end, filled between the rays,
+  forgotten before that scan is laid -- kept, the region round the station held the
+  offset of the belief that laid it and took the belief back as the window
+  closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
+  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (as far round as the
+  fix's reach, the lobby's relay forgot 928 walls behind what it saw, never
+  laid again from there; under the bound the reach, `relayM`, 0.40 m at
+  least, widens nothing), ⚠ AND NO WALL
+  NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
+  CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
+  `update` lays it floor (the house's couch behind a robot the lost search
+  fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
+  head's panels leave free_from, it goes -- open, round 3. The price, kept: a
+  robot that walks away and back meets the lobby's copy again, 13 cm). ⚠ THE WINDOW'S
+  SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
+  it lasted 146 s docked and the legs carried a belief 3 cm through it, the
+  region laid along it; a window of one scan slid the fits 3 cm along the
+  lobby on walls one scan thick. ⚠ A RETURN NEARER
   THAN `MATCH_MIN_M` (1 m) IS NO POINT OF THE FIT (#581's stage 2): what the
   hands work on, struck by a ring or two at the part's noisiest -- matched,
   the band's matcher moved a dock's belief 40-67 cm in 16-19 s; and every
@@ -2734,7 +2796,7 @@ save a filmstrip PNG named after the script.
   `HumanoidBody._fix_at`, `lost_routine`; SimNotes, "The humanoid's charging
   station"): each station is commissioned (#560: three), as the
   quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` moves
-  the belief and lays the map again round it; ⚠ PAST THE MATCHER'S SEARCH (`ASKEW_*`) THE MAP AND ITS
+  the belief and lays again what its next scan sees (#741, above); ⚠ PAST THE MATCHER'S SEARCH (`ASKEW_*`) THE MAP AND ITS
   PLACES ARE DROPPED: kept, a map laid while lost pulled a corrected belief
   onto a copy within 20 s. The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost

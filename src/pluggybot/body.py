@@ -692,7 +692,8 @@ class Body(abc.ABC):
     frame it stood in before
     (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
     turned into -- and, where its scans of the room say otherwise, by them
-    (`mdx`, `mdy`, #718)."""
+    (`mdx`, `mdy`, #718); `feetDown` false where its legs went back to
+    standing before both its soles read down (#740)."""
 
   @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
@@ -766,7 +767,8 @@ class Body(abc.ABC):
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
     -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
-    "fell", "feet moved", "out of time"), in
+    "let go" -- a `verb`'s, a grip it began with lost on its way, ended
+    where the hand is (#742) -- "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
     procedure's, whose posture the other hand's grip keeps (#719), never
@@ -776,12 +778,22 @@ class Body(abc.ABC):
   def hand_why(self, side: str) -> str:
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
-    (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
+    (it stopped on its way: in, pushing on something or out of reach as the
+    body truly stood; out, caught on something -- `hand_stopped` says
+    which), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
     `hand_kept`), "own body" (#722: every way out would pass through its
     own trunk, so nothing moved), "fell", "out of time" -- or "" where it
     held (#493)."""
+
+  @abc.abstractmethod
+  def hand_stopped(self, side: str) -> dict | None:
+    """What stopped a hand's last `reach_routine` on its way, where
+    `hand_why` says "stopped short", by the rule that did (#743): `by`
+    "pushed" (on its way in, the force it read at the hand past its line;
+    `n`, N, that reading), "reach" (on its way in, out of reach from how
+    the body truly stood) or "caught" (on its way out, what its arm read
+    would have tipped the body toward the hand) -- else None."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -860,8 +872,10 @@ class Body(abc.ABC):
     moved", "out of time"), in how long,
     how far the hand went (`moved`) and along its way (`along`), where it
     ended up from where it began (believed world frame, m), the way the hand
-    was going at its end (`direction`, a unit vector: what it held allowed)
-    and the hardest it pushed along its way (`force`, N). `verb`: as
+    was going at its end (`direction`, a unit vector: what it held allowed),
+    the hardest it pushed along its way (`force`, N) and its arm's joints
+    its drivers read on their stop as it ended (`stops`, by name: #744, held
+    fast there is its own arm's hold, never what it pulls). `verb`: as
     `move_hand_routine`'s."""
 
   @property
@@ -871,6 +885,16 @@ class Body(abc.ABC):
     hands' work is put in -- the humanoid's between its soles (#507), a
     body with no hand its own pose -- what a procedure's hand verbs say
     their places in (#493)."""
+
+  @property
+  @abc.abstractmethod
+  def reckoned(self) -> tuple[float, float, float]:
+    """Its STANCE by its legs' own reckoning, (x, y, heading): `stance` less
+    every correction from outside that reckoning (a scan match, a
+    station's look), which moves the belief and never the feet -- so only
+    how it moves means anything: where the feet went while a verb ran
+    (#746: `reach.*`, `withdraw.*`, as a `step` measures its own walk). It
+    reads nothing afresh."""
 
   # ---- posture and rest ----------------------------------------------------
 
@@ -1073,6 +1097,9 @@ class StubBody(Body):
     self.watched: list = []
     self.sight: dict | None = None
     self._why: dict[str, str] = {}
+    #: ...and what a test says stopped a hand's reach on its way (#743,
+    #: `hand_stopped`'s shape)
+    self.stopped: dict[str, dict] = {}
     self.forgot = 0
     #: ...what moved its belief (a test puts records in), the fixtures it
     #: was lost at, and whether a search finds one (a test sets it)
@@ -1462,6 +1489,10 @@ class StubBody(Body):
     put `out_of_reach`."""
     return self._why.get(side, "")
 
+  def hand_stopped(self, side) -> dict | None:
+    """What a test put `stopped`: no reach of a stub's stops on its way."""
+    return self.stopped.get(side)
+
   def hand_kept(self, side) -> dict | None:
     """No other robot's body in any arm's way: none."""
     return None
@@ -1499,17 +1530,22 @@ class StubBody(Body):
     self.pulled.append((side, tuple(direction), float(limit_n), float(distance_m), bool(give)))
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "along": 0.0, "dx": 0.0,
-              "dy": 0.0, "dz": 0.0, "direction": list(direction), "force": 0.0}
+              "dy": 0.0, "dz": 0.0, "direction": list(direction), "force": 0.0, "stops": []}
     d = np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
     to = np.asarray(self.hand_at(side), dtype=float) + float(distance_m) * d
     return {"why": "distance", **self._carried(side, to), "along": float(distance_m),
-            "direction": [float(v) for v in d], "force": 0.0}
+            "direction": [float(v) for v in d], "force": 0.0, "stops": []}
     yield
 
   @property
   def stance(self):
     return self.pose
+
+  @property
+  def reckoned(self):
+    """`stance`: nothing corrects a stub's belief."""
+    return self.stance
 
   def stand_routine(self):
     self.resting = False
