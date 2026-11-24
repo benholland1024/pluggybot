@@ -2,6 +2,8 @@
 import numpy as np
 import math
 
+from scipy import ndimage
+
 
 L_FREE = -0.4   # Amount to subtract when a ray passes through a cell
 L_OCC = 0.85    # amount to add when a ray collides a cell
@@ -192,6 +194,98 @@ class OccupancyGrid:
     self.grid += evidence.reshape(rows, cols)
 
     np.clip(self.grid, -5.0, 5.0, out=self.grid)
+
+  def seen_by(self, pose, angles, ranges, max_range, origin=(0.03, 0.03),
+              round_m: float = 0.0, behind_m: float | None = None, bearing=None):
+    """The cells a scan from `pose` looks across -- from its origin out to
+    each bearing's end, `max_range` where it brought nothing back -- and the
+    cells within `round_m` of one, but none further than `behind_m` past the
+    end of the bearing it lies on (None: no such bound): (the grid's window,
+    as a pair of slices, and the mask over it), or None. A bearing the scan
+    does not carry is looked across by none of it. `bearing`, a callable
+    taking the window, is `_bearing_of` for it, where the caller keeps it."""
+    px, py, theta = pose
+    fwd, left = origin
+    ox = px + fwd * math.cos(theta) - left * math.sin(theta)
+    oy = py + fwd * math.sin(theta) + left * math.cos(theta)
+    angles = np.asarray(angles, dtype=float)
+    if angles.size == 0:
+      return None
+    ranges = np.minimum(np.asarray(ranges, dtype=float), max_range)
+    res = self.resolution
+    rows, cols = self.grid.shape
+    reach = int(math.ceil((max_range + round_m) / res)) + 2
+    cx, cy = self.world_to_cell(ox, oy)
+    x0, y0 = max(cx - reach, 0), max(cy - reach, 0)
+    x1, y1 = min(cx + reach + 1, cols), min(cy + reach + 1, rows)
+    if x1 <= x0 or y1 <= y0:
+      return None
+    seen = np.zeros((y1 - y0, x1 - x0), dtype=bool)
+    # ...each ray sampled every half cell, its end included
+    a = theta + angles
+    ts = np.minimum(np.arange(int(max_range / (res / 2)) + 2)[None, :] * (res / 2),
+                    ranges[:, None])
+    ixs = np.floor((ox + ts * np.cos(a)[:, None] - self.x_min) / res).astype(np.int64) - x0
+    iys = np.floor((oy + ts * np.sin(a)[:, None] - self.y_min) / res).astype(np.int64) - y0
+    inside = (ixs >= 0) & (ixs < x1 - x0) & (iys >= 0) & (iys < y1 - y0)
+    seen[iys[inside], ixs[inside]] = True
+    if round_m > 0.0:
+      seen = ndimage.distance_transform_edt(~seen) * res <= round_m
+    window = (slice(y0, y1), slice(x0, x1))
+    if behind_m is not None:
+      dist, k = (bearing or (lambda w: self._bearing_of(w, ox, oy, theta, angles)))(window)
+      seen &= (k >= 0) & (dist <= np.where(k >= 0, ranges[k], 0.0) + behind_m)
+    return window, seen
+
+  def _bearing_of(self, window, ox, oy, theta, angles):
+    """Each cell of `window`: its distance from the sensor at (`ox`, `oy`),
+    m, and the index into `angles` (bearings from `theta`) of the one
+    nearest its own, -1 where none lies within a degree of it."""
+    res = self.resolution
+    ys = self.y_min + (np.arange(window[0].start, window[0].stop) + 0.5) * res - oy
+    xs = self.x_min + (np.arange(window[1].start, window[1].stop) + 0.5) * res - ox
+    dist = np.hypot(xs[None, :], ys[:, None])
+    rel = np.mod(np.arctan2(ys[:, None], xs[None, :]) - theta + math.pi, 2 * math.pi) - math.pi
+    rays = np.mod(angles + math.pi, 2 * math.pi) - math.pi
+    order = np.argsort(rays, kind="stable")
+    ring = rays[order]
+    i = np.searchsorted(ring, rel)
+    lo, hi = (i - 1) % ring.size, i % ring.size
+    gap_lo = np.abs(np.mod(rel - ring[lo] + math.pi, 2 * math.pi) - math.pi)
+    gap_hi = np.abs(np.mod(rel - ring[hi] + math.pi, 2 * math.pi) - math.pi)
+    near = np.where(gap_lo <= gap_hi, lo, hi)
+    gap = np.minimum(gap_lo, gap_hi)
+    return dist, np.where(gap <= math.radians(1.0), order[near], -1)
+
+  def forget_seen(self, pose, angles, ranges, max_range, origin=(0.03, 0.03),
+                  round_m: float = 0.0, behind_m: float | None = None,
+                  keep_near=None) -> int:
+    """`seen_by`'s cells back to unknown, for the scan laid next to lay
+    again (issue #741: `ScanMatcher.relay`): how many of them held
+    evidence. A cell that held a wall nearer than `keep_near` (m, per
+    bearing; the caller's: `scan_match.relay_keeps`) is kept."""
+    px, py, theta = pose
+    fwd, left = origin
+    ox = px + fwd * math.cos(theta) - left * math.sin(theta)
+    oy = py + fwd * math.sin(theta) + left * math.cos(theta)
+    angles = np.asarray(angles, dtype=float)
+    looked = {}
+
+    def bearing(window):
+      if "it" not in looked:
+        looked["it"] = self._bearing_of(window, ox, oy, theta, angles)
+      return looked["it"]
+    region = self.seen_by(pose, angles, ranges, max_range, origin, round_m, behind_m, bearing)
+    if region is None:
+      return 0
+    window, seen = self.grid[region[0]], region[1]
+    if keep_near is not None:
+      dist, k = bearing(region[0])
+      near = np.where(k >= 0, np.asarray(keep_near, dtype=float)[k], 0.0)
+      seen = seen & ~((window > 0.0) & (k >= 0) & (dist < near))
+    held = int(np.count_nonzero(window[seen]))
+    window[seen] = 0.0
+    return held
 
 
   def to_image(self) -> np.ndarray:             # uint8: 0 wall / 255 free / 127 unknown

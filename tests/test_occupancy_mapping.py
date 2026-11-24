@@ -252,3 +252,41 @@ def test_a_slant_read_a_hair_over_square_on_is_square_on():
   finally:
     og._slant = real
   assert logodds_at(g, 1.0, 0.0) < 0.0
+
+
+def test_what_a_scan_looks_across_and_round_it_is_forgotten_and_nothing_else():
+  # #741 (`ScanMatcher.relay`): the cells a scan from the pose looks across
+  # -- out to each bearing's end, to max range where it met nothing -- and
+  # within round_m of them go back to unknown; a wall's far side past that,
+  # and what lies off every bearing the scan carries, keep their evidence.
+  grid = OccupancyGrid(x_min=-2, y_min=-2, x_max=6, y_max=6, resolution=0.05)
+  grid.grid[...] = 3.0                      # all of it held as a wall...
+  ix, iy = grid.world_to_cell(1.0, 0.0)
+  grid.grid[iy, ix - 10:ix + 10] = -3.0     # ...but a stretch of floor before the wall east
+  angles = np.radians([0.0, 90.0])
+  ranges = np.array([2.0, 8.0])             # a wall 2 m east; nothing north
+  bare = grid.grid.copy()
+  held = grid.forget_seen((0.0, 0.0, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0),
+                          round_m=0.2)
+  assert logodds_at(grid, 1.0, 0.0) == 0.0, "floor it looked across, held"
+  assert logodds_at(grid, 2.0, 0.0) == 0.0, "the wall it ended on, held"
+  assert logodds_at(grid, 2.15, 0.0) == 0.0, "within round_m past its end"
+  assert logodds_at(grid, 2.4, 0.0) == 3.0, "a wall's far side past round_m"
+  assert logodds_at(grid, 0.0, 2.9) == 0.0, "to max range where it met nothing"
+  assert logodds_at(grid, 0.0, 3.4) == 3.0, "past max range and round_m"
+  assert logodds_at(grid, 1.0, 1.0) == 3.0, "off both bearings"
+  assert logodds_at(grid, -1.0, 0.0) == 3.0, "behind the sensor"
+  assert held == int(np.count_nonzero(grid.grid == 0.0))
+  # ...and with no reach round it, the cell each ray ends in and not past it
+  grid.grid[...] = bare
+  grid.forget_seen((0.0, 0.0, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0))
+  assert logodds_at(grid, 2.02, 0.0) == 0.0 and logodds_at(grid, 2.07, 0.0) == 3.0
+  # ...and a keep (`keep_near`, `scan_match.relay_keeps`) keeps only what
+  # held a WALL nearer than it, the floor there going as any other cell (the
+  # sensor on a cell's middle, so its rays run through the cells' middles)
+  grid.grid[...] = bare
+  grid.forget_seen((0.025, 0.025, 0.0), angles, ranges, 3.0, origin=(0.0, 0.0),
+                   behind_m=0.15, keep_near=np.array([1.2, 1.2]))
+  assert logodds_at(grid, 1.025, 0.025) == 0.0, "floor nearer than the keep, held"
+  assert logodds_at(grid, 0.025, 1.025) == 3.0, "a wall nearer than the keep, forgotten"
+  assert logodds_at(grid, 0.025, 1.525) == 0.0, "a wall past the keep, held"
