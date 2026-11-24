@@ -28,7 +28,7 @@ from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, 
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
-from pluggybot.mapping.scan_match import MATCH_RANGE_M, REACH_M, SEARCH_M, SEARCH_RAD
+from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
@@ -223,17 +223,6 @@ FIX_TOL_RAD = math.radians(2.0)
 #: out within 20 s, relocated onto a copy; on an empty map, 0.23 m at worst.
 ASKEW_M = SEARCH_M
 ASKEW_RAD = SEARCH_RAD
-#: ⚠ A FIX THAT KEEPS THE MAP LAYS AGAIN WHAT ITS NEXT SCAN SEES (#741,
-#: `ScanMatcher.relay`): from the sensor out to each bearing's end, filled
-#: between the rays and up to `RELAY_BEHIND_M` past it, forgotten, and that
-#: scan laid at the belief put right. The reach armed -- what the fix moved
-#: the belief, its turn at the LIDAR's reach, and the fit's own reach more --
-#: is 0.40 m at least, and under that bound widens nothing (#741's third
-#: review: the lobby's regions 27.4-27.7 m2 for reaches of 0.46-1.01 m).
-#: MEASURED (SimNotes, "A station's fix that keeps the map lays again what
-#: it sees"): kept, the lobby's copy took a re-docked belief back to 10-11
-#: cm within 3 minutes of the fix.
-RELAY_PAST_M = REACH_M
 
 
 def _yaw(rot: np.ndarray) -> float:
@@ -1909,17 +1898,14 @@ class HumanoidBody(Body):
       return None
     dropped = moved > ASKEW_M or turned > ASKEW_RAD
     self.mission._set_pose(tx, ty, tyaw)
-    relay = None
     if dropped:
       self.forget_world()
     elif self.mission.matcher is not None:
       self.mission.matcher.anchored()
-      relay = moved + turned * MATCH_RANGE_M + RELAY_PAST_M
-      self.mission.matcher.relay(relay)
+      self.mission.matcher.relay()
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
-                                     moved=True, dropped=dropped, station=self.mission.station,
-                                     **({} if relay is None else {"relayM": round(relay, 2)}))
+                                     moved=True, dropped=dropped, station=self.mission.station)
 
   places = property(lambda self: self.mission.places)
 
