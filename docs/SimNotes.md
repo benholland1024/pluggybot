@@ -10170,10 +10170,16 @@ where it has got to, as #719 keeps a body -- never a posture still coming
 (re-asked that, a body went on bowing over the loaded hand, and no give-up
 could come). On a straight carry's way a posture refused for a load is
 asked again at the next command that reads light, as a pull's is; a path's
-or a turned carry's posture is chosen once, as it is asked, and one
-refused then is kept for the move. Ended out of reach where another
-posture would reach, its last posture withheld for a load, it says so
-(`steps.MOVE_LOADED`), never that no posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
+or a turned carry's, which plans none on its way, is planned again over
+what is left of its path, once, at the first command that reads light
+(`recheck`: chosen once at the ask, one reading there kept the whole move
+from the posture its path needed). The body held where it stood at a
+loaded ask is no posture coming, and nothing is given up there
+(`held_here`: given up, the carry took none once light -- W1's draws k1, k4
+and k20); and a posture coming is given up only for a load the hand has
+read past the line for `MEAN_S` running (below). Ended out of reach where
+another posture would reach, its last posture withheld for a load, it says
+so (`steps.MOVE_LOADED`), never that no posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
 own noise): at Rowan's draw with the belief 0.85 m off, on the tree it fell on
 (9914a40c, which flies W1's 24 rows exactly) 2 of 24 fell -- one in the
 carry, one in a `pull` with the cube gripped -- and with this rule 1 of 24,
@@ -10191,14 +10197,16 @@ lever after letting go, 7 of them for 0.01-0.04 s as it was asked with no
 posture coming; the rule changed one flight, a door that failed either way
 (101.7 N read, 189 N true), and pools sealed by that form (240 flights)
 passed 197 and fell 6 on both. Every flight where it can act was flown
-again on each later form, deciding the same. ⚠ Open (review round 3 of
-11-23): asked loaded as the body still comes, the carry gives that posture
-up on its first command and latches it, so it takes none later reading
-light; whether a load withholds the posture at the ask rests on one
-reading, which for a path or a turned carry holds for the whole move; and
-the give-up reads the body's still-body estimate while the trunk moves (no
-flight here read a phantom past 20 N; a free-air carry bowing deep on
-purpose was not flown).
+again on each later form, deciding the same. **Its reading while the
+trunk moves** (the loop of 11-24, `~/pluggybot-training/loop-1124/y4-699c/`):
+the reading is the body's taken as still, and an open hand carried in free
+air into the deepest postures on purpose -- bowed to 0.95 rad, crouched
+0.25 m, its waist turned 30 deg -- read, over 6,966 commands while a posture
+came with nothing touching it (the world or its own body), a `MEAN_S` mean
+of at most 16.4 N, its raw reading up to 81 N: within a quarter of the
+line, so a give-up asks the load held `MEAN_S` (a trunk-still gate would
+have taken away the give-ups where the rule acted at W1's draws, which came
+while the trunk moved).
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,

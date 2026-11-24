@@ -520,12 +520,17 @@ save a filmstrip PNG named after the script.
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
   call. ⚠ A PROCEDURE'S CARRY (`move_hand`) OF A HAND THAT HOLDS NOTHING
-  TAKES NONE WHILE IT READS PAST 20 N, at its start and on its way, one
-  coming given up and backed off so too (#699 on a carry;
-  `reach.CARRY_PRESSED_SHARE`): a carry asks no force, and an open hand at
-  a cube's board read 25-35 N while one carry took four postures; one so
-  ended out of reach where another posture would reach says why
-  (`steps.MOVE_LOADED`). Never the loop's own (a charge's). ⚠ WHILE ONE HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
+  TAKES NONE WHILE IT READS PAST 20 N, at its ask (held where the body is)
+  and on its way, one coming given up and backed off so too, but only for a
+  load held past `MEAN_S` (#699 on a carry; `reach.CARRY_PRESSED_SHARE`): a
+  carry asks no force, and an open hand at a cube's board read 25-35 N while
+  one carry took four postures, where bowed 0.95 rad in free air its mean
+  read 16.4 N. ⚠ The body held where it stood at a loaded ask is no posture
+  given up (`held_here`), and a path's or a turned carry's posture withheld
+  at its ask is planned again once light (`recheck`: it plans none on its
+  way). One so ended out of reach where another posture would reach says why
+  (`steps.MOVE_LOADED`). Never the loop's own (a charge's). ⚠ WHILE ONE
+  HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
   SOMETHING, THE OTHER'S REACH, CARRY AND PULL -- A PROCEDURE'S (`verb`),
   NEVER THE LOOP'S OWN (A CHARGE'S, A WALK'S LIFT) -- TAKE NO POSTURE BUT THE
   ONE THE BODY STANDS IN, READ ONCE AS EACH IS

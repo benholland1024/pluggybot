@@ -10,44 +10,47 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3, `loop-699c`) — opens when this PR is deployed
+### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 
 **What the robots read** moves by one History sentence: the prompt
-`bb1e3d07…` (70,506 characters, 17 sections) and the session host's hello
-are byte for byte as they were. A `move_hand` that ends out of reach
-because its hand -- holding nothing -- read a push past 20 N, where another
-posture would have reached, said "your left hand could reach no further
-that way from any posture you hold", which would no longer be true; it now
-says "your left hand could reach no further that way from the posture you
-are in: it holds nothing and read a push of more than 20 N, so your body
-keeps it" (149 characters; a run's History line that ends on it is 300 of
-its 384). Every other `move_hand` says what it said.
+`790b89b6…` (71,972 characters, 17 sections) and the session host's hello
+`4e057ff0` are byte for byte as they were. A `move_hand` that ends out of
+reach because its hand -- holding nothing -- read a push past 20 N, where
+another posture would have reached, said "your left hand could reach no
+further that way from any posture you hold", which would no longer be
+true; it now says "your left hand could reach no further that way from the
+posture you are in: it holds nothing and read a push of more than 20 N, so
+your body keeps it" (149 characters: on the weekend's own runs' lines, 258-338
+of a line's 400 with its stamp where it ends the run, said in full in 6 of 6;
+where the run goes on past it as a test, 331-382, and crowded out by the
+run's other reasons in 2 of 5 where today's 72 fit). Every other
+`move_hand` says what it said.
 
 **The change** (`Reach.carry`, `Reach._held`; `reach.CARRY_PRESSED_SHARE`,
 `steps.MOVE_LOADED`; SimNotes, "A pull's posture and the hand it rests
 on"). A procedure's `move_hand` of a hand whose gripper does not read it
 holds something, as the carry is asked, takes no new posture while the
 hand reads past 20 N: as the carry is asked, the posture the body is in
-(where it has got to, if one is still coming); on its way, none until it
-reads light again (a path's or a turned carry's posture is chosen once, as
-it is asked). An end no posture reaches is refused, nothing moved, as
-always. A posture coming is given up where the hand
-reads past it, the body backing off toward where the carry began until the
-hand reads no more, held there; that carry takes no other, and goes as far
-as its arm reaches. A hand that grips what it carries, and the loop's own
-carries (a charge's), as before.
+(where it has got to, if one is still coming), and nothing is given up
+there; on its way, none until its 0.1 s mean reads light again, a path's or
+a turned carry's withheld at its ask planned again then, once. An end no
+posture reaches is refused, nothing moved, as always. A posture coming is
+given up where the hand has read past 20 N for 0.1 s running, the body
+backing off toward where the carry began until the hand reads no more,
+held there; that carry takes no other, and goes as far as its arm reaches.
+A hand that grips what it carries (its grip lost, "let go", #742's) and the
+loop's own carries (a charge's) as before.
 
 **What the period is for.**
 - **The acceptance**: no fall inside a `move_hand` whose hand held nothing
   and read past 20 N -- a `fall` row whose `at` names a `move_hand` --
   where the weekend of 11-21 had one in 19 cube tries (Rowan, t_0574), and
-  at that draw on its own tree the rule took the carry's fall away (2 of 24
-  -> 1, the other a gripped `pull`).
-- **What it costs**: Ben's bar (736 flights) passed 609 and fell 5 on both
-  trees, one flight moved (a door that failed either way); of the bar's 421
-  open carries only our door's hand drawn back off its lever read past 20 N
-  (8), so a robot's own `move_hand` pressing on something is where it acts:
-  at Rowan's draw it moved 10 of 32 flights, every grade the same.
+  at that draw on its own tree the rule took the carry's fall away.
+- **What it costs**: on Ben's bar (736 flights) only our door's hand drawn
+  back off its lever after letting go reads past 20 N in an open carry, so
+  a robot's own `move_hand` pressing on something is where it acts; flown
+  on purpose in free air into the deepest postures, the reading the rule
+  reads came within 3.6 N of its line, never past it.
 - **What it leaves**: a hand that grips what it carries or pulls still
   takes its postures (the other fall at that draw: the cube gripped in a
   `pull`, Ben's call by #699's own text), and a carry's hand pressing at
