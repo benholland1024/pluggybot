@@ -545,6 +545,8 @@ def _bare_reach():
   # ...nor a hand stopped on its way, nor a run behind a stop (#743)
   r.stopped = {s: None for s in hm.SIDES}
   r._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
+  # ...nor what its depth camera saw where its arms swing, nor a swing refused (#747)
+  r.seen, r.swung = None, {s: None for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}
@@ -1748,7 +1750,7 @@ def test_a_hand_stopped_on_its_way_keeps_the_rule_that_stopped_it(miss, push, sa
   # ...and a new reach forgets the last, whatever it does
   from pluggybot.humanoid.arms import HandGoal
   r.stopped["left"] = said
-  r._planned = lambda side, goal, approach, postures, flip: (None, goal, None)
+  r._planned = lambda side, goal, approach, postures, flip, swing=False: (None, goal, None, None)
   assert not r.reach("left", HandGoal(np.array([0.45, 0.30, 0.90]), None, 1.0))
   assert r.stopped["left"] is None
 

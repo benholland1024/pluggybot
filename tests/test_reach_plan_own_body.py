@@ -278,6 +278,7 @@ def test_the_body_says_own_body_where_every_plan_lies_in_the_trunk():
   it): a procedure's reach is refused, "own body"; the loop's own goes."""
   for verb in (True, False):
     r = _standing_reach()
-    me = NS(reach=r, _why={}, _kept={}, mission=NS(look_round=lambda: None, keep_out=lambda seen: []))
+    me = NS(reach=r, _why={}, _kept={}, mission=NS(look_round=lambda: None, keep_out=lambda seen: [],
+                                                  arms_seen=lambda: np.zeros((0, 3))))
     went = hb.HumanoidBody._reached(me, "left", INTO_TORSO, STAND, False, words=verb, verb=verb)
     assert went is (not verb) and me._why["left"] == ("own body" if verb else "out of reach")

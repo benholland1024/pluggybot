@@ -210,7 +210,7 @@ def _at_lever():
   r = _standing_reach()
   r.q_cmd["left"], r.phase["left"] = AT_LEVER.copy(), "hold"
   plan_ = ((0.0, 0.0, 0.0), LEVER_AGAIN.copy(), LEVER_AGAIN.copy(), True)
-  r._planned = lambda side, goal, approach, postures, flip: (plan_, goal, None)
+  r._planned = lambda side, goal, approach, postures, flip, swing=False: (plan_, goal, None, None)
   return r, HandGoal(np.array([0.3, 0.1, 0.9]), None, 1.0)
 
 
@@ -267,7 +267,8 @@ def test_the_body_refuses_a_verbs_reach_for_its_own_trunk_and_never_its_own():
   a procedure's reach is refused, "own body"; the loop's own goes."""
   for verb in (True, False):
     r, goal = _at_lever()
-    me = NS(reach=r, _why={}, _kept={}, mission=NS(look_round=lambda: None, keep_out=lambda seen: []))
+    me = NS(reach=r, _why={}, _kept={}, mission=NS(look_round=lambda: None, keep_out=lambda seen: [],
+                                                  arms_seen=lambda: np.zeros((0, 3))))
     went = hb.HumanoidBody._reached(me, "left", goal, rc.REACH_POSTURES, False, words=verb, verb=verb)
     assert went is (not verb) and me._why["left"] == ("own body" if verb else "out of reach")
 
@@ -313,12 +314,14 @@ def test_a_reach_refused_for_its_own_trunk_is_the_bodys_why_own_body():
 
   class Arms:
     kept, own, kept_by, keep_out = {"left": None}, {"left": None}, {"left": None}, []
+    swung, seen = {"left": None}, None
 
     def reach(self, side, goal, **kw):
       self.own[side] = said
       return False
   me = NS(reach=Arms(), _why={}, _kept={},
-          mission=NS(look_round=lambda: None, keep_out=lambda seen: []))
+          mission=NS(look_round=lambda: None, keep_out=lambda seen: [],
+                     arms_seen=lambda: np.zeros((0, 3))))
   assert not hb.HumanoidBody._reached(me, "left", None, (), False, words=True)
   assert me._why["left"] == "own body" and "left" not in me._kept
 

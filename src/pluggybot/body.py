@@ -783,8 +783,10 @@ class Body(abc.ABC):
     which), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
     `hand_kept`), "own body" (#722: every way out would pass through its
-    own trunk, so nothing moved), "fell", "out of time" -- or "" where it
-    held (#493)."""
+    own trunk, so nothing moved), "swing" (#747: every posture that puts it
+    there would swing an arm into what its depth camera saw, so nothing
+    moved; `hand_swung`), "fell", "out of time" -- or "" where it held
+    (#493)."""
 
   @abc.abstractmethod
   def hand_stopped(self, side: str) -> dict | None:
@@ -794,6 +796,14 @@ class Body(abc.ABC):
     `n`, N, that reading), "reach" (on its way in, out of reach from how
     the body truly stood) or "caught" (on its way out, what its arm read
     would have tipped the body toward the hand) -- else None."""
+
+  @abc.abstractmethod
+  def hand_swung(self, side: str) -> dict | None:
+    """What a hand's last `reach_routine` would have swung an arm into, where
+    `hand_why` says "swing" (#747): `side` the arm, `part` its part, `m`
+    how near it would have come, `at` where its depth camera saw what it
+    would meet (x ahead, y left, z up, m, from where the body stood) --
+    else None."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -1100,6 +1110,9 @@ class StubBody(Body):
     #: ...and what a test says stopped a hand's reach on its way (#743,
     #: `hand_stopped`'s shape)
     self.stopped: dict[str, dict] = {}
+    #: ...and what its posture would have swung an arm into (#747,
+    #: `hand_swung`'s shape)
+    self.swung: dict[str, dict] = {}
     self.forgot = 0
     #: ...what moved its belief (a test puts records in), the fixtures it
     #: was lost at, and whether a search finds one (a test sets it)
@@ -1492,6 +1505,10 @@ class StubBody(Body):
   def hand_stopped(self, side) -> dict | None:
     """What a test put `stopped`: no reach of a stub's stops on its way."""
     return self.stopped.get(side)
+
+  def hand_swung(self, side) -> dict | None:
+    """What a test put `swung`: no stub's posture swings into anything."""
+    return self.swung.get(side)
 
   def hand_kept(self, side) -> dict | None:
     """No other robot's body in any arm's way: none."""

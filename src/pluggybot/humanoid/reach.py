@@ -902,7 +902,8 @@ def _reached(sm: SelfModel, side: str, posture, q0: np.ndarray, goal: HandGoal,
 
 def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
          postures=REACH_POSTURES, approach: float = APPROACH_M, lean: "Lean | None" = None,
-         arms: dict | None = None, start=None, own: dict | None = None):
+         arms: dict | None = None, start=None, own: dict | None = None,
+         swing: dict | None = None):
   """The least-bent posture from which `side`'s hand reaches `goal` -- and
   its pre-grasp, `approach` short of it -- WITH `REACH_MARGIN_M` to spare,
   else the least bent that reaches it at full stretch; and the arm's
@@ -916,7 +917,12 @@ def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
   the arm at both kept off the robot's own trunk (`_reached`'s `clear`) --
   where every posture that reaches puts it in the trunk, None, and `own`
   says how near the first of them came (`part`, `m`) and holds its plan,
-  the one planned without the trunk (`plan`)."""
+  the one planned without the trunk (`plan`). With `swing`, a dict (#747):
+  each plan that keeps off its trunk judged as it would swing
+  (`swing["judge"]`, a function of the plan: None where it keeps clear,
+  else what it would meet) -- where every one would meet something, None,
+  and `swing` says what the first would have met (`met`) and holds its plan
+  (`plan`), `own` then left as it was."""
   sm = model or SelfModel()
   q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
   pre = pregrasp(goal, approach)
@@ -931,10 +937,15 @@ def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
         continue
       found = (tuple(posture), got[0], got[1], slack)
       if own is None or got[2] is None:
-        return found
+        met = None if swing is None else swing["judge"](found)
+        if met is None:
+          return found
+        if "met" not in swing:
+          swing.update(met=met, plan=found)
+        continue
       if first is None:
         first = (found, got[2])
-  if first is not None:
+  if first is not None and not (swing is not None and "met" in swing):
     own.update(first[1], plan=first[0])
   return None
 
@@ -1260,6 +1271,129 @@ def _dips(sm: SelfModel, side: str, q0, at, ahead: float):
   return lambda w: dip(sm, side, q0, w, low, ahead)
 
 
+#: A PROCEDURE'S REACH JUDGES ITS POSTURE'S SWING (#747; `Reach._swing`,
+#: `plan`'s `swing`; SimNotes, "A reach's posture swung into the counter"):
+#: the body walked from where it reads itself to the plan's posture while its
+#: arm walks out its way to the pre-grasp, on the commands' own clocks
+#: (`swing_clock`), sampled this often, s...
+SWING_DT = 0.05
+#: ...each part of either arm kept this far, m, from what its depth camera
+#: saw where its arms swing (`mission.ArmsMemory`, a voxel's middle)...
+SWING_CLEAR_M = 0.02
+#: ...but what lies within this of its goal, m: what it reaches for and what
+#: that stands on.
+SWING_WORK_M = 0.08
+#: ...and no longer than this, s: a posture and a way out are done in a few.
+SWING_MOST_S = 10.0
+
+
+def swing_clock(shown, posture, waist, waist_speed, q0, ways, tick: float,
+                every: float = SWING_DT) -> list[tuple]:
+  """A reach's commands as its arm sets off (#747), every `every` s until each
+  has arrived, its own loop's `tick` apart: the posture the standing policy
+  is shown walked from `shown` (height, pitch) to `posture`'s at
+  `HEIGHT_RATE` and `PITCH_RATE` (`StandDriver.step`), the waist's command
+  from `waist` at `waist_speed` on `turned`, and the arm's from `q0` through
+  `ways` at `JOINT_RATE` (`Reach._joints`: a tick each target it reaches).
+  [(t, height, pitch, waist, arm)]."""
+  from pluggybot.humanoid.policy import HEIGHT_RATE, PITCH_RATE
+  h, p = (float(v) for v in shown)
+  h1, p1, w1 = (float(v) for v in posture)
+  w, ws = float(waist), float(waist_speed)
+  q = np.asarray(q0, dtype=float).copy()
+  todo = [np.asarray(x, dtype=float) for x in ways]
+  out = [(0.0, h, p, w, q.copy())]
+  per = max(1, round(every / tick))
+  for k in range(1, int(SWING_MOST_S / tick) + 1):
+    h = h1 if abs(h1 - h) <= HEIGHT_RATE * tick else h + math.copysign(HEIGHT_RATE * tick, h1 - h)
+    p = p1 if abs(p1 - p) <= PITCH_RATE * tick else p + math.copysign(PITCH_RATE * tick, p1 - p)
+    w, ws = _turned1(w, ws, w1, tick)
+    if todo:
+      gap = todo[0] - q
+      worst = float(np.abs(gap).max())
+      if worst <= JOINT_RATE * tick:
+        q = todo.pop(0).copy()
+      else:
+        q = q + gap * (JOINT_RATE * tick / worst)
+    arrived = h == h1 and p == p1 and w == w1 and not ws and not todo
+    if k % per == 0 or arrived:
+      out.append((k * tick, h, p, w, q.copy()))
+    if arrived:
+      break
+  return out
+
+
+def _turned1(at: float, speed: float, goal: float, dt: float) -> tuple[float, float]:
+  """`turned` for one joint, in floats: the same arithmetic, a swing's
+  hundreds of ticks without an array's cost each."""
+  to_go = goal - at
+  brake = WAIST_ACCEL * dt * (math.sqrt(0.25 + 2.0 * abs(to_go) / (WAIST_ACCEL * dt * dt)) - 0.5)
+  want = math.copysign(min(brake, WAIST_RATE), to_go) if to_go else 0.0
+  speed = speed + min(max(want - speed, -WAIST_ACCEL * dt), WAIST_ACCEL * dt)
+  step = speed * dt
+  there = ((step != 0.0 and to_go != 0.0 and (step > 0.0) == (to_go > 0.0)
+            and abs(step) >= abs(to_go)) or (abs(to_go) < 1e-9 and abs(speed) <= WAIST_ACCEL * dt))
+  return (goal, 0.0) if there else (at + step, speed)
+
+
+#: The one model of itself a swing is posed on (`swing_model`).
+_SWING: SelfModel | None = None
+
+
+def swing_model() -> SelfModel:
+  """The model of itself a reach's swing is posed on, sample by sample
+  (`Reach._swing`): apart from the planner's, whose statues a plan goes on
+  reading -- one for every robot (`_SWING`)."""
+  global _SWING
+  if _SWING is None:
+    _SWING = SelfModel()
+  return _SWING
+
+
+def _slerp(a: np.ndarray, b: np.ndarray, f: float) -> np.ndarray:
+  dot = float(a @ b)
+  if dot < 0.0:
+    b, dot = -b, -dot
+  if dot > 0.9999:
+    q = a + (b - a) * f
+    return q / np.linalg.norm(q)
+  th = math.acos(dot)
+  return (math.sin((1.0 - f) * th) * a + math.sin(f * th) * b) / math.sin(th)
+
+
+def _progress(x: float, x0: float, x1: float) -> float | None:
+  return None if abs(x1 - x0) < 1e-9 else min(max((x - x0) / (x1 - x0), 0.0), 1.0)
+
+
+def swing_parts(sm: SelfModel, sides) -> list[tuple]:
+  """Each arm's solid parts as posed (`ARM_PARTS`): (side, part, capsule,
+  centre, its frame, half-sizes)."""
+  m, d = sm.m, sm.d
+  ids = sm.statues.get("swingParts")
+  if ids is None:
+    ids = sm.statues["swingParts"] = {
+      s: [(p, m.geom(f"{s}_{p}").id) for p in ARM_PARTS] for s in hm.SIDES}
+  out = []
+  for side in sides:
+    for part, g in ids[side]:
+      out.append((side, part, m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE,
+                  d.geom_xpos[g].copy(), d.geom_xmat[g].reshape(3, 3).copy(),
+                  m.geom_size[g].copy()))
+  return out
+
+
+def part_gap(points: np.ndarray, part: tuple) -> np.ndarray:
+  """How far each of `points` (n, 3) is outside a part of `swing_parts`, m:
+  from a capsule's axis less its radius, from a box's faces (0 inside)."""
+  _, _, capsule, c, rot, size = part
+  rel = points - c
+  if capsule:
+    u = rot[:, 2]
+    t = np.clip(rel @ u, -size[1], size[1])
+    return np.linalg.norm(rel - t[:, None] * u, axis=1) - size[0]
+  return np.linalg.norm(np.maximum(np.abs(rel @ rot) - size, 0.0), axis=1)
+
+
 class Reach:
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
@@ -1392,6 +1526,13 @@ class Reach:
     #: the ways tried, the least near's part of the trunk (`part`, torso or
     #: head) and its least room, m (`m`); else None.
     self.own: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: What its depth camera saw where its arms swing, its stance frame
+    #: (`HumanoidMission.arms_seen`): set by the body as a procedure's reach
+    #: is planned, else None -- and, by side, what the last such reach's
+    #: posture would have swung an arm into where every plan would (#747,
+    #: `_swing`), else None.
+    self.seen: np.ndarray | None = None
+    self.swung: dict[str, dict | None] = {s: None for s in hm.SIDES}
     #: ...and, by side, the way home the last judgment found clear and the
     #: arm it began from (`home_clear`): the way `_go_home` then takes.
     self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
@@ -1436,7 +1577,11 @@ class Reach:
     And its PLAN keeps the arm off its own trunk at the pre-grasp and at the
     goal (#726, `plan`'s `own`): where every plan that reaches puts it in
     the trunk, a `verb`'s moves nothing (`own` says how near the first came),
-    and the loop's own takes that one. ⚠ NO OTHER POSTURE
+    and the loop's own takes that one. ⚠ A `verb`'S POSTURE KEEPS ITS ARMS
+    OFF WHAT ITS DEPTH CAMERA SAW AS THE ARM SETS OFF (#747, `_swing`): a plan
+    whose swing would bring either arm within `SWING_CLEAR_M` of it is
+    passed over, and where every one would, nothing moves (`swung` says
+    what the first would have met). ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
     `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
     (a charge's)."""
@@ -1444,8 +1589,14 @@ class Reach:
     kept = self.keep(side, verb)
     if kept is not None:
       postures = (kept,)
-    plan_, goal, own = self._planned(side, goal, approach, postures, flip)
+    plan_, goal, own, swung = self._planned(side, goal, approach, postures, flip, swing=verb)
     self.kept[side] = self.judged_home[side] = self.own[side] = None
+    self.swung[side] = None
+    if swung is not None:
+      # every plan that keeps off its own trunk would swing an arm into what
+      # its depth camera saw (#747): a verb's moves nothing
+      self.swung[side] = swung
+      return False
     if own is not None:
       # every plan that reaches puts the arm in its own trunk (#726): a
       # verb's moves nothing; the loop's own -- no wait frees it -- takes it
@@ -1488,7 +1639,7 @@ class Reach:
     keeps off every other robot's body (#678) -- None where it plans none,
     "own" where every plan, or every way out, would put the arm in its own
     trunk (#726, #722); nothing moved, `kept` and `own` as they were."""
-    plan_, _, in_own = self._planned(side, goal, approach, postures, flip)
+    plan_, _, in_own, _ = self._planned(side, goal, approach, postures, flip, swing=True)
     if plan_ is None:
       return "own" if in_own is not None else None
     kept, own = self.kept[side], self.own[side]
@@ -1510,20 +1661,30 @@ class Reach:
   def plans(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
             postures=REACH_POSTURES, flip: bool = True) -> bool:
     """Whether a procedure's `reach` would plan `goal` for `side`: its arm
-    kept off its own trunk (#726) -- nothing moved."""
-    return self._planned(side, goal, approach, postures, flip)[0] is not None
+    kept off its own trunk (#726), its swing off what it saw (#747) --
+    nothing moved."""
+    return self._planned(side, goal, approach, postures, flip, swing=True)[0] is not None
 
-  def _planned(self, side, goal, approach, postures, flip):
+  def _planned(self, side, goal, approach, postures, flip, swing: bool = False):
     """(the plan, its goal -- half a turn round where that grip was tried --
-    and None), its arm kept off its own trunk (#726, `plan`'s `own`); or,
-    where every plan that reaches puts it in the trunk, (None, the goal,
-    `own`: how near the first came, its `plan` and its `goal`)."""
+    None, None), its arm kept off its own trunk (#726, `plan`'s `own`) and,
+    `swing` -- a procedure's -- its swing off what its depth camera saw
+    (#747, `seen`, `_swing`); or, where every plan that keeps off the trunk
+    would swing into it, (None, the goal, None, what the first would have
+    met); or, where every plan that reaches puts it in the trunk, (None, the
+    goal, `own`: how near the first came, its `plan` and its `goal`, None)."""
     # ...on the robot as it reads itself standing, the other arm where it is
     # and this one's answer nearest it as it is (#627)
     sm = self._planner_model()
-    kw = {"lean": self._lean(), "arms": self._arms(but=side), "start": self.q_cmd[side]}
+    lean = self._lean()
+    kw = {"lean": lean, "arms": self._arms(but=side), "start": self.q_cmd[side]}
+    judged = swing and self.seen is not None and len(self.seen) > 0
+
+    def judge(g: HandGoal) -> dict | None:
+      return {"judge": lambda found: self._swing(side, found, g, lean)} if judged else None
     own: dict = {}
-    plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=own, **kw)
+    swung = judge(goal)
+    plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=own, swing=swung, **kw)
     if own:
       own["goal"] = goal
     if plan_ is None and goal.rot is not None and flip:
@@ -1532,10 +1693,106 @@ class Reach:
       # ...where the grip asked reaches only through the trunk too: the same
       # grip half a turn round may keep off it (#493)
       also: dict = {}
-      plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=also, **kw)
+      too = judge(goal)
+      plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=also, swing=too, **kw)
       if also and not own:
         own = dict(also, goal=goal)
-    return plan_, goal, (own or None) if plan_ is None else None
+      if too and "met" in too and not (swung and "met" in swung):
+        swung = too
+    if plan_ is not None:
+      return plan_, goal, None, None
+    if swung and "met" in swung:
+      return None, goal, None, dict(swung["met"])
+    return None, goal, own or None, None
+
+  def _swing(self, side: str, found, goal: HandGoal, lean: "Lean | None") -> dict | None:
+    """What a plan's swing would meet (#747; `SWING_*`): its posture walked
+    from where the body reads itself to the plan's while `side`'s arm walks
+    out its way to the pre-grasp, on the commands' clocks (`swing_clock`) --
+    the trunk between the body as it reads itself (its arms where they are
+    commanded) and the plan's statue, balanced as the plan balanced it, the
+    waist and the arms where their commands are -- and each part of either
+    arm against what its depth camera saw where its arms swing (`seen`),
+    less what lies within `SWING_WORK_M` of the goal. None where every part
+    keeps `SWING_CLEAR_M` off all of it, else the nearest: the arm (`arm`:
+    this one's side, or the other's), its part, how near, m, where it was
+    seen, its stance frame, and how long after the arm set off, s."""
+    seen = self.seen
+    if seen is None or not len(seen):
+      return None
+    tree, pts = self._seen_tree(goal)
+    if tree is None:
+      return None
+    posture, q_pre = found[0], np.asarray(found[1], dtype=float)
+    other = OTHER_SIDE[side]
+    sm = swing_model()
+    # ...its statues the planner's: one robot's drawing, balanced alike
+    sm.statues = self._planner_model().statues
+
+    def as_it_stands() -> None:
+      sm.q = self.self_model.q.copy()
+      sm.d.qpos[:] = self.self_model.d.qpos
+      mujoco.mj_kinematics(sm.m, sm.d)
+    # ...the way out the reach takes with nobody by (`way_out`'s `_picked`)
+    as_it_stands()
+    ways, _ = self._picked(sm, side, self.q_cmd[side].copy(), q_pre, out=True)
+    as_it_stands()
+    a = sm.d.qpos.copy()
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    statue(sm, posture, q0, {**self._arms(but=side), **_arm(side, found[2])}, lean, fast=True)
+    b = sm.d.qpos.copy()
+    shown = self.stand.posture - self.trim
+    w0 = float(self.waist_cmd[0])
+    clock = swing_clock(shown, posture, w0, float(self.waist_speed[0]), self.q_cmd[side], ways,
+                        self.every * self.m.opt.timestep)
+    waist = sm.qadr[sm.waist]
+    arm = {s: sm.qadr[sm.arm[s]] for s in hm.SIDES}
+    parts = []
+    for t, h, p, w, q in clock:
+      fh, fp = _progress(h, shown[0], posture[0]), _progress(p, shown[1], posture[1])
+      fw = _progress(w, w0, posture[2])
+      f = fp if fp is not None else fh if fh is not None else fw if fw is not None else 1.0
+      d = sm.d
+      d.qpos[:] = b
+      d.qpos[0:2] = a[0:2] + (b[0:2] - a[0:2]) * f
+      d.qpos[2] = a[2] + (b[2] - a[2]) * (fh if fh is not None else f)
+      d.qpos[3:7] = _slerp(a[3:7], b[3:7], f)
+      d.qpos[waist] = w
+      d.qpos[arm[side]] = q
+      d.qpos[arm[other]] = self.q_cmd[other]
+      mujoco.mj_kinematics(sm.m, d)
+      parts.append((t, swing_parts(sm, (side, other))))
+    # ...each part against what lies within its own reach as it swings
+    flat = [(t, part) for t, ps in parts for part in ps]
+    centres = np.array([part[3] for _, part in flat])
+    radii = np.array([float(np.linalg.norm(part[5])) + SWING_CLEAR_M for _, part in flat])
+    near = None
+    for (t, part), idx in zip(flat, tree.query_ball_point(centres, radii)):
+      if not idx:
+        continue
+      cand = pts[idx]
+      gap = part_gap(cand, part)
+      k = int(np.argmin(gap))
+      if near is None or gap[k] < near[0]:
+        near = (float(gap[k]), t, part[0], part[1], cand[k])
+    if near is None or near[0] >= SWING_CLEAR_M:
+      return None
+    m, t, s, name, at = near
+    return {"arm": "this" if s == side else "other", "side": s, "part": name, "m": round(m, 3),
+            "at": [round(float(v), 3) for v in at], "t": round(t, 2)}
+
+  def _seen_tree(self, goal: HandGoal):
+    """What it saw where its arms swing (`seen`) less what lies within
+    `SWING_WORK_M` of `goal`, and a k-d tree over it -- kept while `seen`
+    and the goal's place are those it was built for; (None, None) for
+    none."""
+    from scipy.spatial import cKDTree
+    key = (id(self.seen), tuple(np.asarray(goal.pos, dtype=float).round(6)))
+    if getattr(self, "_tree_key", None) != key:
+      pts = self.seen[np.linalg.norm(self.seen - np.asarray(goal.pos, dtype=float), axis=1)
+                      > SWING_WORK_M]
+      self._tree_key, self._tree = key, ((cKDTree(pts), pts) if len(pts) else (None, None))
+    return self._tree
 
   def _lean(self) -> Lean | None:
     """How the robot reads itself standing now (`Lean.read`): its model of
