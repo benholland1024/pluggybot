@@ -597,5 +597,30 @@ def test_a_reach_refused_for_its_swing_says_what_it_would_meet_and_whether_the_o
     step = _fly('def a():\n    reach("left", 0.3, -0.2, 0.8)\n', body)["steps"][-1]
     assert not step["ok"] and step["why"] == "swing"
     said = st.REACH_SWUNG.format(hand="left", side="left", part="fingers", x=0.214, y=0.3, z=0.664)
-    assert "at x 0.21, y 0.30, z 0.66 in your stance frame" in said
+    assert "the first your left fingers, at x 0.21, y 0.30, z 0.66 in your stance frame" in said
     assert step["reason"] == said + ("; your right hand could reach it as asked" if reaches else "")
+
+
+def test_a_reach_whose_kept_posture_swings_says_the_other_hand_keeps_it():
+  """The other hand out holding something keeps the body in the posture it
+  is in (#719): a swing refused there says so, of that one posture."""
+  class Kept(StubBody):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
+      return False
+      yield
+
+    def hand_why(self, side):
+      return "swing"
+
+    def posture_kept_by(self, side):
+      return "right"
+
+    def hand_reaches(self, side, pos, rot=None, verb=False):
+      return True
+  body = Kept(*_bare())
+  body.swung["left"] = {"side": "left", "part": "forearm", "m": -0.02, "at": [0.3, 0.1, 0.7]}
+  step = _fly('def a():\n    reach("left", 0.3, -0.2, 0.8)\n', body)["steps"][-1]
+  assert not step["ok"] and step["why"] == "swing"
+  assert step["reason"] == st.REACH_SWUNG_KEPT.format(
+    other="right", hand="left", side="left", part="forearm", x=0.3, y=0.1, z=0.7)
+  assert step["reason"].startswith("your right hand is out holding something")

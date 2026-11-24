@@ -18,12 +18,16 @@ observatory is NOT a result: it reports into the issue it informs.
 sentence in: the period of #744, #746 and #728, below), and `reach`'s text
 is unchanged. A `reach` whose every posture would swing an arm into what
 the robot's depth camera saw now reads false, nothing moved: "every posture
-that puts your left hand there would swing your left fingers into something
-your depth camera saw at x 0.24, y -0.11, z 0.66 in your stance frame, so
-your arm did not move", and, where the other hand's plan keeps clear, ";
-your right hand could reach it as asked" (185 and 226 characters: a run's
-History line ending there with three short locals, 317 and 358 of the 384 a
-line leaves past its stamp); a reach kept off another robot says of the
+that puts your left hand there would swing an arm into something your depth
+camera saw -- the first your left fingers, at x 0.24, y -0.11, z 0.66 in
+your stance frame -- so your arm did not move", and, where the other hand's
+plan keeps clear, "; your right hand could reach it as asked" (208 and 249
+characters: a run's History line ending there with three short locals, 340
+and 381 of the 384 a line leaves past its stamp). Kept in its posture by the
+other hand's grip (#719) it says so ("your right hand is out holding
+something, so your body keeps the posture it is in, and from it your left
+hand's way there would swing your left fingers into something your depth
+camera saw, at ...", 263), and a reach kept off another robot says of the
 other hand "; your right hand's every posture there would swing an arm
 into something your depth camera saw" where that is why. Before, the same
 reach went, and pressed the counter or fell. A draft for Ben.
@@ -49,9 +53,10 @@ too. The loop's own reach (a charge's) is never judged.
   reach again. Walked in to the storeroom's counter (the census, 400 left
   hands across the body), it fell once where the base fell 26.
 - **What it costs**: [THE BARS]. A refusal searches every posture: 6.2-6.6
-  s of the one physics thread on the dev box, where an out-of-reach
-  refusal takes 0.03 s, and its words ask the other hand's plan, as long
-  again where that one swings too; a passing plan 40 ms more; the pair
+  s of the one physics thread on the dev box, where a plan out of reach
+  takes 0.03 s; and every plan a refusal's words ask (the other hand's,
+  and out of reach the grip turned another way) is judged too, each as long
+  again where its every posture swings; a passing plan 40 ms more; the pair
   1.45 % slower walking (the memory's fold).
 - **What it misses**: a face never seen from about 0.33 m or further (a
   robot that turned to it up close), and one seen more than a minute

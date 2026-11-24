@@ -12146,9 +12146,10 @@ own tries.]
 judgment), and the fold 0.8 ms a frame, 0.9 % of the pair's walking wall
 time (1.45 % slower over three interleaved rounds on the dev box). A
 refusal searches every posture, 47-71 judgments, 6.2-6.6 s of the one
-physics thread on the dev box, where an out-of-reach refusal takes 0.03 s
-(and its words ask the other hand's plan, as long again where that one
-swings too):
+physics thread on the dev box, where a plan out of reach takes 0.03 s
+(and every plan its words ask -- the other hand's, and out of reach the
+grip turned another way -- is judged too, each as long again where its
+every posture swings):
 P2's plans that passed over found their posture within 6 judgments in 85
 of 121, and a cap at 10 (about 1 s) would refuse the other 36 -- where P2
 held 13 to the base's 6 and fell once.
@@ -12160,7 +12161,8 @@ the knees' memory): up close the camera sees the top alone, so a later
 procedure's reach at the counter is judged on the minute before it -- 112
 of the 200 live tries X5 flies began at the counter, none of which fell on
 the base. A voxel 0.55 m or more off is let go where a frame sees past its
-bearing at any height. A prop it moved leaves its old face up to that
+bearing at any height -- one above the picture's top at its range, a shelf
+at the shoulders' height seen from nearer, among them. A prop it moved leaves its old face up to that
 minute: within 0.55 m no frame clears what was kept (a carve against the
 depth picture would), so the next reach near where it stood is judged
 against it -- refused or passed over, never felled. The swing is sampled

@@ -440,7 +440,7 @@ save a filmstrip PNG named after the script.
   close, a counter's face is none (its picture ends 69 deg down), so a
   flight that stands still with a bare `STILL` -- which steps no
   `_after_step` -- judges nothing. ⚠ A refusal searches every posture,
-  6.2-6.6 s of the one physics thread, its words the other hand's too (a
+  6.2-6.6 s of the one physics thread, and each plan its words ask too (a
   passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged

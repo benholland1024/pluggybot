@@ -1098,11 +1098,17 @@ REACH_STOPPED_BY = {
   "caught": "your {hand} hand stopped on its way out: it caught on something, which would have "
             "tipped you toward it"}
 #: ...and one whose every posture would swing an arm into what its depth
-#: camera saw (#747, `Body.hand_swung`): which arm and part, and where that
-#: was in the stance frame it stood in, as a reach is asked.
-REACH_SWUNG = ("every posture that puts your {hand} hand there would swing your {side} {part} "
-               "into something your depth camera saw at x {x:.2f}, y {y:.2f}, z {z:.2f} in "
-               "your stance frame, so your arm did not move")
+#: camera saw (#747, `Body.hand_swung`): the first posture's arm and part,
+#: and where that was in the stance frame it stood in, as a reach is asked
+#: -- or, kept in the posture it is in by the other hand's grip (#719), that
+#: posture's.
+REACH_SWUNG = ("every posture that puts your {hand} hand there would swing an arm into "
+               "something your depth camera saw -- the first your {side} {part}, at x {x:.2f}, "
+               "y {y:.2f}, z {z:.2f} in your stance frame -- so your arm did not move")
+REACH_SWUNG_KEPT = ("your {other} hand is out holding something, so your body keeps the posture "
+                    "it is in, and from it your {hand} hand's way there would swing your {side} "
+                    "{part} into something your depth camera saw, at x {x:.2f}, y {y:.2f}, "
+                    "z {z:.2f} in your stance frame, so your arm did not move")
 #: ...the arm's parts as the robot says them.
 SWUNG_PARTS = {"upper_arm": "upper arm", "forearm": "forearm", "gripper": "hand",
                "jaw_a_pad": "fingers", "jaw_b_pad": "fingers"}
@@ -1288,8 +1294,15 @@ def _reach(life, args: dict) -> Routine:
   swung = life.body.hand_swung(hand) if why == "swing" else None
   if swung is not None:
     x, y, z = swung["at"]
-    reason = REACH_SWUNG.format(hand=hand, side=swung["side"],
-                                part=SWUNG_PARTS.get(swung["part"], swung["part"]), x=x, y=y, z=z)
+    part = SWUNG_PARTS.get(swung["part"], swung["part"])
+    held_by = life.body.posture_kept_by(hand)
+    if held_by:
+      # ...the one posture the other hand's grip keeps (#719): that hand is
+      # at its work, so nothing is said of what it could do
+      return {"ok": False, "hand": hand, "why": why, "reason": REACH_SWUNG_KEPT.format(
+        hand=hand, other=held_by, side=swung["side"], part=part, x=x, y=y, z=z), **said,
+        "felt": felt}
+    reason = REACH_SWUNG.format(hand=hand, side=swung["side"], part=part, x=x, y=y, z=z)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
