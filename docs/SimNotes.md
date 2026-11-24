@@ -11647,7 +11647,14 @@ pull, 567 read at an end with a joint pressing, 75 with none pressing, 454
 neither, and none missed. The whole body's force reading's `STOP_RAD` (20
 mrad), the first margin tried, counted 476 joints pressing nothing, a
 shoulder's yaw up to 21 mrad short of its end among them (178 pulls with
-none pressing). The joint is read off `Reach.sensed`, the
+none pressing). A tighter margin buys nothing a procedure reads: at 2 mrad,
+as at 5, the two held-fast pulls that read `pull.held` 0 with nothing
+pressing had a shoulder's yaw truly 0.5-0.6 mrad from its end. Nor does the
+driver's torque tell a pressing joint from one near its end pressing
+nothing (#744's second review): at all 237 joints pressing their limit at
+the ends of 467 pulls of 8 flights, the reported torque pointed AWAY from
+the end -- the motor resists the push onto its stop -- as it did at the
+near ones pressing nothing. The joint is read off `Reach.sensed`, the
 drivers' replies as the arm's loop last read them: read afresh, a reading
 draws noise and moves the flight.
 
