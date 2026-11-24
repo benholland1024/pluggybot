@@ -11628,8 +11628,10 @@ Our reference for `shelf` (`hands_check.SHELF`, the walk there
 `solutions.SHELF_APPROACH`; Challenges.md §13), flown on Vast pods -- stage 1
 (the loop of 2026-11-22, task W3) on an EPYC 7C13 share, stage 2 (the loop of
 2026-11-23, task X6) on a Xeon E5-2697A v4 share for its dev draws and an EPYC
-7532 share for the bar -- each stage-2 flight with a trail of every product's
-true place and the true stance after each verb. What flying took:
+7532 share for the bar, round 2 of stage 2 (the loop of 2026-11-24, task Y5)
+on the merged tree 1cad3d99 on an EPYC 7B13 share for its dev draws and the
+bar -- each stage-2 flight with a trail of every product's true place and the
+true stance after each verb. What flying took:
 
 - **The cart is 0.35 m deep, not #736's 0.5.** At 0.5 the robot standing
   0.13 m off its front stands 0.63 m off the shelf's, where neither board's
@@ -11700,6 +11702,73 @@ true place and the true stance after each verb. What flying took:
   -- and ends with the frame 0.35 m ahead, not the check's 0.32: its looks
   creep the stance in, and nearer than 0.29 the frame's tag no longer reads.
   Landed a median 1.3 deg off square (1 of 15 past 4).
+- **On the merged tree the near-shelf family ends at a look.** With #740's
+  hand-back (a walk's end held until both soles read planted), stage 2's
+  first reference read 13 of 32 over the tour, with no fall, and 18 of 32 at
+  the check (one pod): the robot still comes to stand 0.41-0.47 m off the
+  shelf, but 11 of the tour's 19 failures end at `near`'s last look, which no
+  test reads -- a label carried, the candle at the cart, the frame at the
+  walk's end -- and the check's three falls are the family's: back steps of
+  3-5 cm asked carrying, which read `too short` (17 such asks of 4-7 cm moved
+  the feet 3 % of the ask), then a fall.
+- **Carrying, a look never bows** (`Body.gaze_routine`: no bow with a hand
+  out of its rest), so a label on the lower board, 0.535 m up, reads only
+  from about 0.46-0.47 m ahead, and `near` brings it to 0.50.
+- **The stance turns as it steps, and says by how much.** Over 96 check
+  flights the carried trips turned the stance +2.1 deg (the frame's) and +1.5
+  (the candle's) on average, 53 and 27 % of them past 2; the corrective steps
+  at a label, carrying, +1.1 and +2.3; the candle's steps at the cart -1.8. A
+  step's own `step.turn` reads its true turn to 0.08 deg (the median; 0.21 at
+  the 90th percentile, 1,259 steps).
+- **The candle lost at the cart.** After the trip back it read 0.38-0.44 m
+  ahead, the uncarried trip back having drifted the stance out from the
+  shelf (4 cm at the median, up to 10), square; `near`'s step ahead went
+  about 1.4 times its ask, and at 0.28-0.30 m ahead and 0.23-0.24 m left or
+  more the candle no longer read.
+  The search the procedure was told -- a step right -- took it further left
+  each time, out to 0.3-0.6 m (9 of 64 dev checks).
+- **The frame lost at the walk's end** stood 0.25-0.26 m left of the robot's
+  middle, 0.31-0.33 ahead, past the colour camera's side edge, each time.
+- **Where the products fell.** Of 8 drops in 96 checks, 4 were let go 15-25
+  cm over an upper-board slot: at full stretch the press went up, out of
+  reach, and the rule's 5 cm lower from there was not the board; 2 slipped out
+  in the set-down reach, 1 in a carried step, 1 was dragged off by the
+  back-out.
+- **Round 2's reference looks again where it can be seen.** After `near`
+  has stepped, a look that misses steps back half its last ask (the told way
+  only before any step: the frame at the cart 5 cm to the left, a label 8
+  cm to the left, the candle 10 cm to the right); one still missing at
+  `near`'s end is tried once more after one step -- a label from 8 cm back
+  and 5 cm left, a product at the cart from 5 cm left -- before the look no
+  test reads. At a label `near` asks no step back, and ahead only past 5
+  cm, half of it; at the cart 0.6 of a step ahead (the undoing of half a
+  step and no step back at a label were each tried in round 1 on 3b16a76b
+  and not kept there). The walk leaves the
+  frame 0.19 m left of the robot's middle, not 0.21, and its looks at the
+  cart are tested (a walk that failed stopped the job's runner before the
+  check began). A press that never landed goes to the set-down point
+  itself, 4 cm under it, before the let-go. On the dev draws a product was
+  lost at the cart in 4 of 64 checks (the first reference's 10) and no
+  check fell (its 2); over the tour's
+  dev draws it fell 3 times in 16, each after a carried trip that ended
+  0.42-0.43 m from the shelf, 4-6 deg off square: twice in its recovery
+  step back, carrying, 0.40-0.42 m out, and once in the withdraw from the
+  upper board, set down from 0.42 m where it asked no step back.
+- **Round 2 tried on the dev draws and did not keep** (each flown once on
+  the check's set-outs 200-263 and the tour's draws 300-315; the first
+  reference 47 of 80, 3 falls; the kept one 50, 3): each trip keeping the
+  heading it began with, its steps' own turns summed and turned back past
+  1.5 deg (39 of 80) -- the carried trips' own turn past 2 deg fell from 48
+  to 7 % of them and they ended no nearer the shelf, but the looks were
+  lost as before, by `near`'s own steps; with the steps at the cart turning
+  back theirs too (35: of the 16 flights it moved, 4 failed and none
+  passed); with the pick's reach turned back first (42), and the frame
+  sought to the left with the walk's looks tested (42); the kept one's
+  levers with every heading lever (48, 4 falls) and without the cart's turn
+  back (46, 5 falls) -- the heading levers added falls, and products set
+  more than 4 cm off along their board (10-11 of the dev checks' products,
+  against 3 and 5); and the kept one with an upper-board label stepped to
+  past 2 cm (49, 4 falls).
 - **Tried on the dev draws and not kept** (each mended the failure it was
   aimed at; none read better overall on the same 64 set-outs, 34-36 against
   the kept one's 38): the trip back aimed 4 cm short of where it should end
@@ -11714,22 +11783,23 @@ true place and the true stance after each verb. What flying took:
   no step back carrying
   between 0.40 m and the label's place (an oblique step back carrying fell;
   aiming the label 3 cm further out, three flights of three fell).
-- **The numbers** (each draw its own noise; each reading beside stage 1's on
-  one pod). Stage 1's reference read 10 of 32 at the check's set-outs 0-31 and
-  0 of 16 over the tour; on 3b16a76b it passes the same ten set-outs and 0 of
-  the tour's 32. Stage 2's, frozen at c64b2fd2: at the check's set-outs 0-31
-  16 of 32 (stage 1's 10; one fall each), over the tour's draws 0-31 18 of 32
-  (0; three falls each) -- short of the bar's 24 -- and held out, on 32 draws
-  sealed by c64b2fd2, 14 of 32 at the check (7; four falls each) and 16 of
-  32 over the tour (3; four falls and none). Of the 20 falls on the bar's
-  draws and the sealed pool (12 of stage 2's, 8 of stage 1's), 15 came in
-  corrective steps carrying with the robot 0.36-0.48 m from the shelf (11 of
-  stage 2's, 4 of stage 1's), 12 of them after a carried trip run 3-7 deg
-  off square: the candle's carried trip is the one nothing squares. Stage
-  2's twelfth came in a withdraw from the upper board whose back-out swung
-  the stance 21 deg, as one of stage 1's did. It was chosen, by a rule
-  written before its rows, as the best of twelve variants flown on the
-  check's set-outs 200-263 (38 of 64; stage 1's 14).
+- **The numbers** (each draw its own noise; each reading beside the
+  reference before it on one pod). Stage 1's reference read 10 of 32 at the
+  check's set-outs 0-31 and 0 of 32 over the tour (on 3b16a76b). Stage 2's
+  first, frozen at c64b2fd2, read 16 and 18 of 32 there on 3b16a76b (held
+  out, 14 and 16 of 32), and on
+  the merged tree f37e9fd5 (with #740) 18 of 32 at the check (one fall) and
+  13 of 32 over the tour (none). Round 2's, frozen at 66ba56fa, beside it on
+  the merged tree on one pod: over the tour's draws 0-31 12 of 32 (one fall;
+  the first's 13, none) -- short of the bar's 24, and no gain -- and at the
+  check's set-outs 0-31 19 of 32 (two falls; 18, one). It was
+  chosen, by a rule written before their rows, as the best of eight
+  variants flown on the check's set-outs 200-263 and the tour's draws
+  300-315 (50 of 80, three falls; the first's 47, three): its dev lead did
+  not carry to the bar's draws. Its bar falls: two in its recovery step
+  back, carrying, 0.43-0.46 m out after the label squaring had turned the
+  label out of the picture, one in its landing move after a press that let
+  go on the upper board.
 
 ## A station's fix that keeps the map lays again what it sees (issue #741)
 

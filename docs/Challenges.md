@@ -577,12 +577,12 @@ the label's face, set down from in front of the board and let go of, then
 backed out before the arm goes home (never from over an edge, #736's item
 9). Its bar, written before it flew: 24 of 32 draws over the tour, a fall
 failing its try, each draw its own noise, on one pod, then 32 held out
-sealed by the frozen commit. **It is not met.** Stage 2's reference (the
-loop of 2026-11-23), frozen at c64b2fd2, each reading beside stage 1's (the
-loop of 2026-11-22) on one pod: over the tour 18 of 32 (stage 1's 0), at
-the check's set-outs 16 of 32 (10), and held out, on 32 draws sealed by
-c64b2fd2, 14 of 32 at the check (7) and 16 of 32 over the tour (3).
-SimNotes, "Stocking the shop's shelf", has what flying took.
+sealed by the frozen commit. **It is not met.** On the merged tree
+(1cad3d99's, with #740's hand-back) stage 2's first reference (c64b2fd2,
+18 of 32 over the tour on 3b16a76b) reads 13 of 32 over the tour and 18 at
+the check; round 2's, frozen at 66ba56fa, beside it on one pod: over the
+tour 12 of 32, at the check's set-outs 19 of 32. SimNotes,
+"Stocking the shop's shelf", has what flying took.
 
 **The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,
 as the checks' rows are. No world offers it: the stock is not in the served
