@@ -205,6 +205,15 @@ def default_url(backend: str) -> str:
   return os.environ.get(URL_ENV, "").strip() or LOCAL_URL
 
 
+def _who(named, header: str | None) -> str | None:
+  """Who answered: the answer's own word where it gives a name, else the
+  router's header (`x-inference-provider`), which may name only a router
+  behind it (Overseer.md §6, "Who answered"). One rule for both fetches."""
+  if isinstance(named, str) and named.strip():
+    return named.strip()
+  return header
+
+
 def _default_fetch(url: str, body: dict | None, headers: dict,
                    timeout: float) -> tuple[int, dict]:
   """One HTTP exchange: (status, parsed JSON). The injection seam for tests.
@@ -212,8 +221,8 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
   An HTTP error status is RETURNED rather than raised, because a 4xx body is
   data this module reads (the retry decision, the endpoint's error message);
   only transport-level failures raise. An answer keeps who sent it, as
-  `stream_fetch`'s does (`provider`, the router's `x-inference-provider`;
-  issue #604: the deployed mind's empty answers could not say).
+  `stream_fetch`'s does (`_who`, the header kept as `route`; issue #604:
+  the deployed mind's empty answers could not say).
   """
   data = json.dumps(body).encode() if body is not None else None
   req = urllib.request.Request(url, data=data, headers=headers,
@@ -221,9 +230,10 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
   try:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
       payload = json.loads(resp.read().decode())
-      provider = resp.headers.get("x-inference-provider")
-      if provider and isinstance(payload, dict):
-        payload.setdefault("provider", provider)
+      route = resp.headers.get("x-inference-provider")
+      if isinstance(payload, dict) and (route or "provider" in payload):
+        payload["provider"] = _who(payload.get("provider"), route)
+        payload["route"] = route
       return resp.status, payload
   except urllib.error.HTTPError as e:
     try:
@@ -240,7 +250,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   together as the one JSON a request not streamed is answered with (its
   reasoning before its answer, in `<think>`, as `_answer_text` reads it),
   why it ended (`finish_reason`: "length" where the tokens ran out) and
-  who answered (`provider`, the router's `x-inference-provider`).
+  who answered (`provider`, `_who`: the one its chunks name, else the
+  router's header, kept as `route`).
   `timeout` is each read's, and `wall_s`, where given, the whole
   exchange's: no read waits past it (a worker still reading makes the next
   decision `busy`), and a stream still going at it ends "deadline", its
@@ -262,13 +273,13 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
                      "stream_options": {"include_usage": True}}).encode()
   req = urllib.request.Request(url, data=data, headers=headers, method="POST")
   content, reasoning, usage = [], [], {}
-  provider = finish = failed = None
+  provider = route = finish = failed = None
   done = streamed = False
   end = None if wall_s is None else monotonic() + wall_s
   try:
     with urllib.request.urlopen(req, timeout=timeout if wall_s is None
                                 else min(timeout, wall_s)) as resp:
-      provider = resp.headers.get("x-inference-provider")
+      provider = route = resp.headers.get("x-inference-provider")
       sock = _socket_of(resp) if end is not None else None
       if sock is not None:
         # from the headers on: the first line may wait too
@@ -297,6 +308,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
             said = err.get("message") if isinstance(err, dict) else err
             failed = f"the stream failed mid-answer: {str(said or d)[:160]}"
             break
+          provider = _who(d.get("provider"), provider)
           usage = d.get("usage") or usage
           for choice in d.get("choices") or ():
             delta = choice.get("delta") or {}
@@ -332,7 +344,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   elif finish is None and not done:
     finish = "closed"
   payload = {"choices": [{"message": {"content": text}, "finish_reason": finish}],
-             "usage": usage, "provider": provider}
+             "usage": usage, "provider": provider, "route": route}
   if failed:
     payload["streamError"] = failed
   if not usage and end is not None:
@@ -434,6 +446,11 @@ class ChatClient:
     self.reasoning_effort = (reasoning_effort or "").strip() or None
     self.label = label
     self.fetch = fetch or _default_fetch
+    #: Who answered, from the name an answer gives (case aside) to the id
+    #: a model id pins ("BaseTen" -> `baseten`). ⚠ Filled by `pricing()`
+    #: alone, off the catalogue: a client whose catalogue read failed says
+    #: every name as the answer gives it (and its run reads unpriced).
+    self.provider_ids: dict[str, str] = {}
     # `.messages.create(...)` -- the seam, shaped like the SDK's.
     self.messages = SimpleNamespace(create=self._create)
 
@@ -496,6 +513,9 @@ class ChatClient:
     text = _answer_text(payload)
     usage = payload.get("usage") or {}
     finish = ((payload.get("choices") or [{}])[0] or {}).get("finish_reason")
+    named = payload.get("provider")
+    provider = (self.provider_ids.get(named.casefold(), named)
+                if isinstance(named, str) else None)
     return SimpleNamespace(
       content=[SimpleNamespace(type="text", text=text)],
       usage=SimpleNamespace(
@@ -509,7 +529,9 @@ class ChatClient:
       # or was still going at its deadline (`deadline_fetch`)
       stop_reason=("max_tokens" if finish == "length"
                    else finish if finish in ("closed", "deadline", "failed") else "end_turn"),
-      provider=payload.get("provider"),
+      provider=provider,
+      # ...and the router's own word for how it reached it (its header)
+      route=payload.get("route"),
       # how a stream that failed mid-answer failed (`stream_fetch`)
       stream_error=payload.get("streamError"),
       # ...and whether its usage is the provider's count or our estimate of
@@ -558,6 +580,8 @@ class HFClient(ChatClient):
     ESTIMATE the router need not honour, and a deployment that cares what
     it pays pins the policy in `$PLUGGY_MODEL`), and `:fastest` or any
     other policy as unknown, because nothing here can say who will answer.
+    The same entry names each provider as its answers do: kept, so who
+    answered is said in the pin's own words (`provider_ids`).
     """
     base, _, policy = model.partition(":")
     try:
@@ -570,6 +594,13 @@ class HFClient(ChatClient):
     for entry in payload.get("data", ()):
       if entry.get("id") != base:
         continue
+      ids = [p for p in entry.get("providers", ()) if isinstance(p.get("provider"), str)]
+      # every id first, so no provider's name can stand for another's id;
+      # by its id too, where the catalogue names it otherwise or not at all
+      for key in ("provider", "provider_name"):
+        for p in ids:
+          if isinstance(p.get(key), str):
+            self.provider_ids.setdefault(p[key].casefold(), p["provider"])
       live = [p for p in entry.get("providers", ())
               if p.get("status") == "live" and p.get("pricing")]
       if policy and policy != "cheapest":

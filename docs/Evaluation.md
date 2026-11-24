@@ -1005,8 +1005,9 @@ informs a decision:
   median of 4.88 s against a synthetic state, 7.49 s in flight, because a
   mission's prompt carries a day of History the synthetic state does not.
   Choose a deadline from the probe, confirm it with a flight;
-  `CALL_TIMEOUT_S` is a patience budget (Overseer.md §6), 115 s since #604,
-  when 13 % of a day's deployed calls outlived its 90 s. ⚠ Since #604 the
+  `CALL_TIMEOUT_S` is a patience budget (Overseer.md §6): 115 s at #604,
+  when 13 % of a day's deployed calls outlived its 90 s, 300 s streamed,
+  and 600 s since 11-22. ⚠ Since #604 the
   probe's synthetic state reproduces none of a live day's long thinks: a
   live turn is measured by replaying the served robots' own requests.
 

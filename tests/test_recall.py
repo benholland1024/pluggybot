@@ -15,10 +15,12 @@ from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.inbox import MAX_EARLIER
+from pluggybot.mind.memory import FIND_LIMIT
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_RECALLED_CHARS, CHAT_SAID, HISTORY_RECALLED,
-  RECALLED_CHAIN_CHARS, RECALLED_CHARS, ThoughtFiles,
+  RECALL_MARKS, RECALLED_CHAIN_CHARS, RECALLED_CHARS, ThoughtFiles,
 )
+from pluggybot.telemetry.protocol import RECORD_KINDS
 
 from test_body import stub_life
 from test_overseer import CutResponse, FakeClient, full
@@ -68,6 +70,93 @@ def test_find_searches_everything_this_life_and_never_the_record_of_a_recall(fil
   assert files.recall(find="whiteboard")["hits"] == 1, "a recall found itself"
   assert files.recall(read="history")["hits"] == 1, "...or the record of one"
   assert files.recall(find="") == {"read": "", "find": "", "hits": 0, "lines": []}
+
+
+def test_a_find_asked_again_and_again_brings_back_what_it_found_the_first_time():
+  """Issue #739: a find's eight places (`FIND_LIMIT`) were taken before the
+  records of a recall were left out, and every recall leaves two History
+  lines holding its words, its `chose` line written before it runs -- short
+  and recent, they took the places, and the fifth find of one procedure's
+  name brought nothing back. Each find here as the lifecycle makes it: the
+  same lines every time, the line of another kind that quotes a recall's
+  record and the History line that only reads like one among them. Shown to
+  fail without the fix."""
+  f = ThoughtFiles()
+  f.note({"topic": "tasks/table", "title": "recon", "text": "table_recon2 found the fork 3 cm left"}, t=1.0)
+  f.remember("ran table_recon2: the plate's tag seen at 0.4 m", t=2.0)
+  f.remember("Recalled table_recon2's grip from the cup", t=3.0)
+  f.think("[t=3s] recalled 0 lines -- find 'table_recon2', so try the note", t=4.0)
+  decision = Menu.for_world("home_humanoid", None).validate(
+    full(action="recall", find="table_recon2"))
+  first = None
+  for i in range(3 * FIND_LIMIT):
+    f.remember(f"chose {decision.summary()}", t=10.0 + 2 * i)
+    block = f.recall(find="table_recon2")
+    first = first or block
+    assert block == first and block["hits"] == 4, (i, block)
+    f.remember(f"recalled {block['hits']} lines -- find 'table_recon2'", t=11.0 + 2 * i)
+  assert f.recall(read="#4")["hits"] == 1, "...nor a read"
+
+
+def test_a_find_beside_a_read_brings_back_its_eight_after_what_the_read_brought():
+  """#739's review: the rows a `read` brought were passed over after the
+  store's `FIND_LIMIT`, so where they matched the words too they took the
+  find's places -- and the RECALL rule says a find brings back its eight
+  after anything `read` brings. Shown to fail without the fix: 3 for 8."""
+  f = ThoughtFiles()
+  for i in range(5):
+    f.note({"topic": "tasks/table", "title": f"fork {i}", "text": "fork"}, t=float(i))
+  for i in range(10):
+    f.remember(f"the fork lay {i} cm off the place card", t=10.0 + i)
+  block = f.recall(read="tasks/table", find="fork")
+  assert [ln.split()[0] for ln in block["lines"]] == \
+    [f"#{i}" for i in (*range(1, 6), *range(15, 7, -1))], block
+  assert block["hits"] == 5 + FIND_LIMIT
+  assert f.recall(read="tasks/table", find="card")["hits"] == 5 + FIND_LIMIT, "...and no more"
+
+
+#: Every kind of line a find searches (`RECORD_KINDS`), as the RECALL rule
+#: names it to the robot (#738).
+FOUND_SAID = {"history": ("History",), "think": ("`think`s",),
+              "note": ("notes", "findings"), "core": ("goals", "pinned lines")}
+
+
+def test_the_rule_says_what_a_find_searches_and_the_most_it_brings_back():
+  """Issue #738: told only "a few words to search for", Rowan read a
+  topic's notes as History lines and concluded a find searches History
+  alone. The RECALL rule, as served, names every kind of line a find
+  searches as the robot reads them, their topics and titles, this life's,
+  the lines it took out too, and the most it brings back off `FIND_LIMIT`
+  -- and so it is. Shown to fail without the clause."""
+  assert set(FOUND_SAID) == set(RECORD_KINDS), "a kind no rule names"
+  system = Overseer(Menu(boards=("whiteboard_a",)), client=FakeClient()).system[0]["text"]
+  bullet = system[system.index("- RECALL is how"):]
+  bullet = bullet[:bullet.index("\n- ")]
+  assert "A find searches" in bullet, bullet
+  clause = bullet[bullet.index("A find searches"):]
+  clause = clause[:clause.index(". ")]
+  for kind, words in FOUND_SAID.items():
+    for word in words:
+      assert word in clause, (kind, word, clause)
+  for said in ("this life", "topics and titles", "took out", f"at most {FIND_LIMIT},",
+               "best match first"):
+    assert said in clause, (said, clause)
+  # ...and so it is: a line of every kind, one taken out, and notes found
+  # by a topic and by a title alone
+  f = ThoughtFiles()
+  f.remember("the zebra crossing", t=1.0)
+  f.think("a zebra to think about", t=2.0)
+  f.note({"topic": "zebra", "title": "stripes", "text": "black and white"}, t=3.0)
+  f.note({"topic": "animals", "title": "zebra", "text": "fast"}, t=4.0)
+  f.intend("paint a zebra", t=5.0)
+  f.pin("a zebra pinned", t=6.0)
+  f.unpin("a zebra pinned", t=7.0)
+  found = f.records.find(f.robot, "zebra")
+  assert {r.kind for r in found} == set(RECORD_KINDS), found
+  assert sum(r.kind == "note" for r in found) == 2 and any(not r.active for r in found)
+  for i in range(FIND_LIMIT):
+    f.remember(f"zebra number {i}", t=10.0 + i)
+  assert f.recall(find="zebra")["hits"] == FIND_LIMIT
 
 
 def test_read_chat_is_the_chat_in_history_and_nothing_else():
@@ -206,6 +295,10 @@ def test_the_chain_accumulates_and_an_external_action_clears_it():
   wire = [m for m in seen if m["type"] == "recall"]
   assert [(m["read"], m["find"], m["hits"]) for m in wire] == [("", "whiteboard", 1), ("history", "", 1)]
   assert "recalled 1 line -- read history" in life.thoughts.read("History.md")
+  # ...and what a recall leaves in History is what no find brings back (#739)
+  told = [r.text for r in life.thoughts.records.active(life.thoughts.robot, "history")
+          if "recall" in r.text]
+  assert len(told) == 4 and all(any(m in t for m in RECALL_MARKS) for t in told), told
   # ...and the rows reach the result dict `end()` builds for the record.
   import inspect
   from pluggybot.lifecycle import HubLifecycle

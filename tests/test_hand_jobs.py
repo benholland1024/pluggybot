@@ -605,7 +605,9 @@ def test_a_job_called_past_its_minutes_fails(tmp_path):
   life.body.run(life.body.hold_routine(1.0))
   life.body.run(life._grade_routine())
   verdict = life.tasks.get(task.id).verdict
-  assert not verdict["ok"] and "called 1 s after the start" in verdict["reason"]
+  # 0.6 s at 0.01 minutes: said "past the 1 s" before #737
+  assert not verdict["ok"] and ("called 1.0 s after the start, past the 0.6 s the job allows"
+                                in verdict["reason"]), verdict["reason"]
 
 
 class _Stop(Exception):

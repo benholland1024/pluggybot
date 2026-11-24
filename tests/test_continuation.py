@@ -1043,9 +1043,14 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   _walk(lives[1], 0.5, 0.2, 0.3)
   lives[0].battery.energy_wh, lives[1].battery.energy_wh = 0.3, 0.6
   lives[0].encounters.count = 4
+  # ...and when each one's dock put its plug in, its unplug's clock (#703:
+  # every live unplug that failed began a run that began plugged in) -- the
+  # second's save from before the clock, which knows none
+  lives[0].body.mission.plugged_t, lives[1].body.mission.plugged_t = 12.5, 34.0
   path = tmp_path / "world.npz"
   continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
   snap = continuation.read(path)
+  assert snap.meta["robots"]["r2_pluggybot"]["mission"].pop("pluggedT") == 34.0
 
   back = build_pair(HUMANOID_HOME, resume=snap)
   for life, start in zip(back, starts):
@@ -1058,6 +1063,7 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
     assert now.body.pose == was.body.pose
     assert np.array_equal(now.body.grid.grid, was.body.grid.grid)
   assert back[0].encounters.count == 4
+  assert back[0].body.mission.plugged_t == 12.5 and back[1].body.mission.plugged_t is None
 
 
 @pytest.mark.parametrize("where", ["the station", "its own start"])

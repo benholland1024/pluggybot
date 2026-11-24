@@ -217,7 +217,13 @@ trunk 35 deg past the posture its legs hold, by its IMU, or its pelvis sunk
 -- so a bow its reach asks is no fall (#520). The
 numbers are judged as measured and only shown
 rounded; the call is wherever the attempt ended (Evaluation.md §4); the
-reason never carries the catch, whose number is secret on the row.
+reason never carries the catch, whose number is secret on the row. ⚠ A
+reason prints a reading against its line at the places that tell the two
+apart (`lid.against`, #737), every hands check's too: rounded alone, a
+reading up to half a unit short read as the line it failed ("the drawer
+came out 15 cm, short of the 15", Luca's on 11-22; "called 960 s after the
+start, past the 960 s", Rowan's), and the lid's line, 1 rad, prints "57.3"
+beside a lid at 57.1 deg, where the job says "past 57 degrees".
 
 **What the lines were read off** (`scripts/attempts.py --drops`, the 128
 drawn lids on a bare floor): let go from rest 1 deg over the shut line,
@@ -340,7 +346,8 @@ departures, both about where an attempt starts:
   remembered (180 s; `tasks.CUBE_MINUTES`), offered later on the table's
   terms: three times its slowest over the tour, 159 s on a fresh map, gave
   8, and left a claim at the mall about 300 s to write the procedure in,
-  where one answer may take 300 (Ben's call, 2026-11-11). Held past them
+  where one answer could take 300 (Ben's call, 2026-11-11; one may take
+  600 since 11-22, and the minutes were not moved with it). Held past them
   with no `done` waiting on its grade, the job is failed at its holder's
   next pass of the day loop, between what the robot does, or at once on a
   charge trip ("not graded within the 960 s the job allows -- the drawer
@@ -515,9 +522,10 @@ eased before it is let go), 15 of 32 (held out, 11 of 32); a fourth (round
 again where its descent is held back on the lid), 16 of 32 (held out,
 19 of 32); a fifth (round 5: the plate brought back in two moves, the last
 to no nearer the body's middle than 0.25 m), 15 of 32 (held out, 15 of 32;
-SimNotes has round 4's reference read beside it). Round 6's lever was read
-and taken back out: the reference is round 5's (SimNotes, "The place laid
-from the pass", round 6).
+SimNotes has round 4's reference read beside it). The lever each of
+rounds 6, 7 and 8 froze was read on the bar and taken back out (the rest
+were read on dev draws only): the reference is round 5's (SimNotes, "The
+place laid from the pass", rounds 6-8).
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

@@ -10,6 +10,356 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A walk's legs go back to the standing policy once both soles are planted (#740, X2, `loop-740`) — opens when this PR is deployed
+
+**What the robots read** is unmoved but for one report field: the prompt
+`bb1e3d07…` (70,506 characters, 17 sections) and the session host's hello,
+byte for byte; no History line is new or reworded. A `step` whose legs went
+back to standing before both its soles read planted -- its settle's bound
+run out -- says `feetDown: false` in its report, a field the verb's text
+does not describe: a practice's report and the `procedure` event carry it;
+History, which says an ok step's report nowhere, does not.
+
+**The change** (`HumanoidMission.to_stand_routine`, `odometry.PlantedRun`;
+`DOWN_M` 4 mm, `STILL_M` 3 mm, `SPREAD_M` 15 mm, `PLANTED_S` 0.1 s,
+`SETTLE_MORE_S` 1.2 s; SimNotes, "The step's hand-back once its soles are
+planted"). Every walk's end -- a `step`'s, and the first hand verb after a
+`drive_to`, `face` or `find` -- held the walker still 0.8 s and gave the
+legs to the standing policy whatever its soles did. Now, where both soles
+have not read planted for 0.1 s by then (the other's lowest corner within 4
+mm of the planted one's either way, still, and neither sole on its toes or
+an edge past 15 mm of its corners), the walker is held on until they have,
+1.2 s at most, then the legs go over all the same. Where they have, nothing
+moves.
+
+**What the period is for.**
+- **The acceptance**: no fall in a `step`'s last moments -- a `fall` row
+  whose `at` names a `step`, its trunk going over within a second of the
+  verb's end -- where the weekend's wakes had none either: the mechanism is
+  known from the pass's flights (never offered) on an EPYC 9654.
+- **What it costs**: the walker held on a little longer at about one
+  hand-over in 130 in the bar's flights (5 of 641, 0.02-0.07 s more), at
+  none of the sealed pools' 284, and at one in twenty where the robot
+  sidesteps carrying a piece (the pass's flights' 68 of 1,433, 0.16 s more
+  at the median, 0.68 s at most), 1.2 s at most; a hand-over whose bound
+  ran out goes over at whatever phase the walker's stepping is in, as
+  before -- none did in those flights.
+- **What it leaves**: the walker's own stepping in place after a sidestep
+  (held still, it steps on), which the hold waits out but never stops.
+
+### After a long charge the unplug steps back and looks first (#703's option 2, X1, `loop-703b`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte. No
+line a robot reads is new or reworded: "CHARGE: unplugging at …" and "CHARGE:
+my hand could not get the plug out -- going on anyway" are as they were. That
+last line in the sim's log now carries its tries' trace, the log's alone.
+
+**The change** (`charge.crept`, `_step_back_routine`, `CREPT_AFTER_S`,
+`CREEP_M_S`, `CREEP_MOST_M`, `CREPT_PAST_M`, `HumanoidMission.plugged_t`;
+SimNotes, "The unplug after a long charge"). A robot's dock starts a clock as
+its plug goes in, kept across a restart. Plugged in more than 300 s, its
+unplug's first try steps straight back first -- the creep the clock gives, 7.5
+mm a minute up to 18.3 cm, and 5 cm more, never turned -- then takes a plain
+look standing still and goes by the station that look places, never by its
+belief. A shorter charge unplugs as before. A save from before the clock
+steps back as far as a creep goes: **the first wake's** (both robots were
+plugged in at the weekend's pause, Luca for 2,059 s at the lobby's station,
+Rowan 514 s at the house's).
+
+**What the period is for.**
+- **The acceptance**: an unplug after a charge carried over a run's end
+  takes its plug out -- "my hand could not get the plug out" against the
+  weekend's 3 of 8 -- and no robot falls in an unplug. A failed one's log
+  line says whether the step back ran (`crept`, `step`) and whether its look
+  saw the station (`looked`).
+- **What it costs**: one step back and a look (5-7 s) on every unplug after
+  a charge of more than 300 s, and a plug let go short of its cup from a
+  robot standing further back than its seat (the balancer reels it home).
+- **What it leaves**: the belief's drift while docked (its own issue), which
+  anything else at a station still reads, and a charge of 300 s or less with
+  a drifted belief, which unplugs as before.
+
+### A find asked again brings back what it finds (#739, X4, `loop-739`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections), the session host's hello and every sentence a
+recall leaves in History, byte for byte. What moves is what a find brings
+back: a `recall` block's lines, and the N of its `recalled N lines`
+History line and of the `recall` event's `hits`, which can be larger. A
+block's caps are unchanged (4,000 characters, a chat read's 8,000). It
+rides the release cut from `loop-staging` on 11-24.
+
+**The change** (`RecordStore.find`'s `history_without`,
+`thoughts.RECALL_MARKS`, `ThoughtFiles.recall`). A find brings back eight
+lines of its own. A recall's own History lines -- its `chose recall (...)`
+line, written before it runs, and its `recalled N lines -- ...` -- are left
+out inside the store's query, before its eight (`FIND_LIMIT`): left out
+after, as since #221, they took places among the eight (found in #738's
+review: in #739's made-up case the fifth find of the same words brought
+nothing back, and its own `chose` line took a place in 39 of the 63 first
+finds since 11-14). Beside a `read`, it asks for as many more as the read
+brought: the read's rows, which may match too, took its places as well
+(the RECALL rule says its eight come after anything `read` brings). What a
+find brought back before is still there, first and in the same order.
+Replayed off the robots' own stores as each find saw them, from 11-14 to
+11-22 (79 finds, each replay matching its narrated count): 57 bring back
+more, 171 lines in all, none fewer -- 92 of them shown, in 33 blocks, the
+rest past a block's 4,000 characters and counted as cut -- and 73 now
+bring back the full eight of their own, against 17; the 3 that found
+nothing of their own bring back 8, and the weekend's two words searched
+five times each, `t_0394` and `table_recon2`, found 2-3 and 3-8 lines of
+their own and now 8 each time.
+
+**What the period is for.**
+- **The acceptance**: the `recall` events' `hits` for one robot's words
+  found again, against the weekend's `t_0394` (35, 6, 5, 2, 8, with what
+  was read beside it).
+- **What it costs**: the turn after a find carries more recalled text (on
+  those 79, 285 characters more a block on average, at most 2,505), so
+  more input tokens; and whether the robots, told by #738 what a find
+  searches, lean on it more.
+
+### A way home whose arm stalls is held, a withdraw's too (#693's withdraw case, W2, `loop-693d`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte. No
+word is new: a `withdraw` reads false more often, "your left arm did not get
+home: something holds it there" (its text already says an arm something holds
+on its way home is raised and sent home again, pressing on nothing, and
+reads false), and a walk's report says `armHeld` where a hand-over's way home
+stalled.
+
+**The change** (`Reach._stalled`, `STALL_RAD`, `STALL_S`; SimNotes, "A way
+home whose arm stalls"). Any way home in joint space -- a withdraw's, a
+walk's hand-over's, the loop's own -- whose drivers read the arm more than
+0.5 rad behind its command for 0.3 s running is held where they read it, as
+one held at its rest is (#693b): pressing on nothing, raised 5 cm and sent
+home again, now twice for every way home held (`LIFTS`, #693b's and the
+hand-over's too), then left held. The stand an arm keeps from the robot is
+asked as before, at its way home's command end.
+
+**What the period is for.**
+- **The acceptance**: falls within 5 s of a `withdraw` at the counter (W1's
+  read: 2 on the weekend's two wakes, both Luca's after the door's pulls; 1
+  on 11-15), against the period before.
+- **What it costs**: `withdraw`s that read "held" (a procedure's step whose
+  why is "held"), and whether the run then ended where it would have gone on;
+  what the next withdraw or walk does with an arm left held; and what a
+  second raise does (flown: a door's hand-over raised again pushed its door
+  back from 55 to 49 deg, and two door runs' forearms were still on the door
+  after the call; SimNotes, "A way home whose arm stalls").
+- **What it leaves**: a way home whose body gives way before its arm falls
+  half a radian behind (`door_final50`'s key 0 in the flights), and a
+  withdraw from a deep bow onto the counter (`cube_run3`'s two).
+
+### What a find searches, said; a grade's reading told from its line (#738, #737; W5, `loop-words2`) — opens when this PR is deployed
+
+**What the robots read.** The prompt moves, `6ec0fc48…` (70,256
+characters, 17 sections) -> `bb1e3d07…` (70,506, 17 sections), by one
+sentence in the RECALL bullet (#738), its number formatted in off
+`FIND_LIMIT`:
+- BEFORE "… -- and/or `find` to a few words to search for. You stand still
+  for ten seconds …"
+- AFTER "… -- and/or `find` to a few words to search for. A find searches
+  all you keep from this life -- your History, `think`s, notes and
+  findings (their topics and titles too), goals, pinned lines and the lines
+  you took out -- and brings back at most 8, the best match first, after
+  anything `read` brings. You stand still for ten seconds …"
+
+The grades' reasons move where a reading sits within half a printed unit
+of its line (#737; History and the site, never the prompt). Each is printed
+at the fewest places that tell it from its line (`lid.against`):
+- the drawer: BEFORE "the drawer came out 15 cm, short of the 15 it must"
+  (Luca's t_0735, 11-22 13:07, a little under 15); AFTER "came out 14.7 cm"
+  (or 14.97: as many places as it takes), and so "but was 14.97 cm out when
+  you finished" and "but 14.96 cm 5 s later";
+- the door: BEFORE "the door opened 50 deg, short of the 50 it must"
+  (Rowan's, 11-15); AFTER "opened 49.6 deg", and so its other two;
+- the lid: BEFORE "the lid rose to 57 deg, short of the 57 it must open
+  past" (never seen live); AFTER "rose to 57.1 deg, short of the 57.3 it
+  must open past" -- its line is 1 rad, 57.30 deg, and its job says "past 57
+  degrees" (Ben's call, below);
+- the three speed limits: "came down at 1.04 rad/s … (no faster than 1.0)"
+  where it read "1.0 rad/s", the cube's and the table's "came down at 0.53
+  m/s … (no faster than 0.5)" where they read "0.5 m/s";
+- the fork: "lies 15.3 deg off the place's line … within 15 deg" where it
+  read "lies 15 deg";
+- a tilt: the cube's "rests on the mat tipped 10.3 deg" and the table's "the
+  cup rests at its place tipped 10.3 deg" where they read "10 deg" (the
+  practice's table job says "upright within 10 degrees");
+- a lid past its line: "opened to 57.4 deg, but …" where every lid from
+  57.30 to 57.49 deg read "opened to 57 deg", beside one short of it at
+  "57.1 deg, short of the 57.3";
+- a lid not shut: "but the lid was 5.3 deg open 5 s after the call" where
+  it read "5 deg open" (the practice's job: open is "more than 5
+  degrees");
+- the time limit, all five jobs: BEFORE "called 960 s after the start, past
+  the 960 s the job allows" (Rowan's t_0758, 11-22 15:03, 960.3 s); AFTER
+  "called 960.3 s …", and a limit that is not whole is said as it is
+  ("past the 0.6 s", where it read "past the 1 s");
+- the hold, all five: "measured 4.97 s after the call, not the 5 s" where
+  it read "5.0 s".
+
+Unmoved: every reading far from its line ("came out 0 cm, short of the
+15", "rose to 50 deg, short of the 57", "called 1038 s …, past the 960
+s"), the cube's and the table's distances (a reading past 2.5 cm already
+rounds to 3), every line said with no reading ("it must open past 57
+deg"), every pass but a lid's from 57.30 to 57.49 deg. A reason grows 1-4
+characters a number near its line: over 767 mixes of the table's faults with every reading a hair past its
+line, the worst it can be, the longest History line 467 -> 480 characters
+and those past 400 60 -> 69. The session host's hello (sha1 `a61b6376`) and
+every recording are unmoved (the counter's carries a pass).
+
+**Why.** #738: Rowan asked on 11-21 whether a find searches notes as well
+as History (tk_0062), and on 11-22 answered itself wrongly from a `read`
+whose six notes it took for History lines. #737: Luca read its drawer's
+grade as the grader failing it at the line itself (tk_0066: "claim bars
+need to sit above the grade line by that margin"), and Rowan took "past
+the 960 s" for a law of the job's clock.
+
+**Ben's call, the lid's line.** Left as it is: the line 1 rad and the job's
+"past 57 degrees" (`economy/tasks.py`), so a lid at 57.1 deg fails and now
+reads "the lid rose to 57.1 deg, short of the 57.3 it must open past" beside
+a job that says 57. The other ways: the job says "past 57.3 degrees" (a
+job's words), or the line moves to 57 deg (a grader changed, Challenges.md
+§3). No lid grade of 11-14 to 11-22 read 57.
+
+**What the period is for.**
+- **Finds**: the share of `recall`s with a `find`, and whether a robot's
+  notes or tickets still say a find searches History alone. Baseline: 23 of
+  91 recalls on 11-21/22 carried a find (7 alone, 16 beside a `read`).
+- **Grades near their line**: none prints its reading as the line it
+  failed now (each sentence pinned, `tests/test_grade_words.py`); what the
+  robots write of a near miss. Baseline: 2 of 104 grades on
+  11-21/22 printed their reading as the line (t_0735, t_0758).
+
+### The minds' deadline doubled, the budget with it (W0, `loop-deadline`) — opens when this PR is deployed
+
+**What the robots read.** The prompt (`6ec0fc48…`, 70,256 characters, 17
+sections) and the session host's hello are unmoved: neither says the
+deadline nor the budget. Two of History's fallback reasons say the new
+numbers, each at the length it had (History's `chose …` line, 136 and
+155 characters on 11-21/22):
+- BEFORE `… -- your answer was still being written when its 300 s ran out`;
+  AFTER `… its 600 s ran out`.
+- BEFORE `… -- your answer was cut off: it ran out of its 32,768 tokens
+  before it was written`; AFTER `… its 64,000 tokens …` (the provider's
+  count, where it gives one).
+
+The header's `build.deadlineS` says 600, which the site files per run, so a
+reading by run splits here by itself.
+
+**The change** (Overseer.md §6, "The deadline doubled"). `CALL_TIMEOUT_S`
+300 -> 600 s; `MAX_TOKENS_AUTONOMOUS` 32,768 -> 64,000, the escalation's
+with it; `ESCALATE_TIMEOUT_S` 360 -> 720. Unchanged: the mind and its
+effort (`zai-org/GLM-5.3-Flash:baseten`, none named), the interrupt's 115 s
+and 4,096 tokens, `STREAM_SILENCE_S` (115), `UNMINDED_AFTER_S` (1800), the
+cooloff, the purse ($20 a week), every job's minutes.
+
+**Why.** Ben's call of 11-22, quality before speed, the effort kept. On the
+wakes of 11-21/22 the calls failed 170 of 564 times, and 140 of the 170
+were thinks cut off at 32,768 tokens inside the 300 s (a median 212 s, at
+110-248 tokens a second). Doubling the deadline over that budget would have
+answered none of them, so the budget doubles too.
+
+**Measured before deploying** (`~/pluggybot-training/loop-1122/w0-deadline/`,
+the deployed pin through the code's own client):
+- the provider takes the budget (65,536 asked, a 200; and 64,000 through
+  every other GLM-5.3-Flash pin, `:cheapest`, two DeepSeek-V4.1-Flash pins
+  and the escalation's model);
+- the route carries a stream past 300 s (two made-up asks streamed 466 s and
+  516 s, at 127-141 tokens a second, and ended at their 65,536 tokens);
+- the weekend's own failed turns finish. Of 15 rebuilt from the 11-21 wake
+  (12 cut-offs, 3 timeouts), 14 answered at the new pair, 8 of them with
+  more than 32,768 tokens or after 300 s; one ran out of its 64,000 at
+  538 s. At the old pair the same turns answered 7 times of 15 (asked
+  straight after, at a slower hour), and no turn answered there that did
+  not at the new pair.
+
+**What it can cost.**
+- A think is spent standing still at about 93 W: 600 s is 15.5 Wh, 80 % of
+  the 19.5 Wh reserve. No decision of 11-21/22 or of 11-18 began within
+  20 Wh of the reserve; the lowest packs at a decision were 9 % of 777.6 Wh
+  (70 Wh, Rowan, 11-21/22) and 7 % (54 Wh, Luca, 11-18).
+- A held job's minutes run while the robot thinks, and none was moved. The
+  cube's 9 left a claim at the mall about 300 s to write in, and the
+  table's 14 left its lay about 560 s; one think may now take 600.
+- The death clock: both robots' maps carried an `every` ask through the
+  weekend (Luca every 900 s, Rowan every 1500 s), which stamps the clock
+  whatever the robot is doing, and the longest logged gap between asks was
+  901 s and 1501 s. And for a map that asks when it has nothing to do, no
+  chain of failed thinks and cooloffs can outlast the clock: one think to
+  its deadline, the idle a failed call leaves and the moment between two
+  decisions come to about 666 s, and 1,388 s with an escalation's second
+  leg (off on the deployed world; pinned).
+- The purse. At the catalogue's rates the weekend's wakes cost about $4.4
+  and $4.0. A rolling week holds three wakes (Wednesday's and the
+  weekend's), about $13 of the $20. On the 12 cut-off turns, the new pair's
+  answers averaged 33.1k tokens out, about the 32,768 each cut-off was
+  billed for, and an answer brings no re-ask after it. So a wake should
+  cost about what it did. A call at the cap costs $0.037 against $0.021
+  before, and the week runs out only at about 1.5 times the weekend's spend
+  a wake ($6.7). Past that, `fallback:allowance` refuses every call until
+  the week's end.
+
+**What the period is for** (Wednesday 11-25's test wake, then the weekend's;
+the baseline is the wakes of 11-21/22, on the release of 11-20, and the
+release that carries this carries the loop of 11-22's other changes too):
+- **Failed calls by kind, per decision**: cut-off, timeout, offline,
+  garbled. Baseline: 140, 26 and 4 of 564 (the 170 above, 30 %), and 1
+  garbled answer.
+- **The decision's seconds**: the median and p90 `wallS`, and the share of
+  each robot's day spent standing still thinking. Baseline: a median of
+  124 s and 142 s, about two thirds of each day.
+- **How much of the new room is used**: answers past 32,768 tokens or past
+  300 s. Baseline: none could be.
+- **Passes**: jobs passed of those tried, and offers expired. Baseline: 25
+  of 104, and 50 table offers expired.
+- **The purse**: dollars a wake, and any `fallback:allowance`. Baseline:
+  about $4.4 and $4.0.
+- **The pack**: decisions begun near the reserve, and any `flat` death.
+
+⚠ A wake's provider speed moves every one of these: 68 tokens a second on
+11-18 against about 155 on 11-21/22, the same pin. So read tokens per wall
+second beside each number. One test wake is a count, not a verdict.
+
+### Who answered is the provider the router's answer names, its header kept beside it as `route` (V3, `loop-provider`) — opens when this PR is deployed
+
+**What the robots read.** Nothing moves: the prompt (`6ec0fc48…`, 70,256
+characters, 17 sections) and the session host's hello (byte for byte) are
+unmoved, and so are History and the other robot's `doing`. Who answered is
+the operator's evidence alone: the console's DECIDE line, the `call` event,
+`pw_decisions.provider`.
+
+**The change** (Overseer.md §6, "Who answered, and the route of 11-18").
+`provider` is the provider the router's ANSWER names, in the pin's own
+words (`baseten` for the answer's "BaseTen", off the catalogue the client
+reads as it starts), and the router's `x-inference-provider` header is kept
+beside it as `route` in `Decision.call` and the `call` event (additive, no
+bump; the site files no `route`), the console saying `baseten via
+openrouter: …`.
+
+**Why.** From the 11-18 wake on the router answers through OpenRouter, a
+change of the route nobody here deployed: its header says `openrouter`
+whatever the pin, and read off the header alone all 303 of that wake's
+calls said `openrouter` (421 of 421 on 11-15 said `baseten`). The answer's
+chunks name the provider, so a pinned id answered by another provider can
+be seen again. ⚠ THE BOUNDARY: `pw_decisions.provider` reads `baseten` up
+to the 11-15 wake, `openrouter` from the 11-18 wake until this deploys,
+`baseten` again after; a reading by provider across those days folds the
+middle one in by its build (`build.model`'s pin).
+
+**What the period is for.**
+- **Whether the pin holds**: the decision rows by `provider` against the
+  pin, where a provider other than the pin's is OpenRouter answering for it.
+- **The route's speed**: tokens out per wall second by provider, and the
+  timeouts against 300 s -- 68 a second (median) on 11-18 against 142-145 on
+  11-14 and 11-15, the same pin, and 29 of 313 answers timed out; asked
+  again on 11-20 on 26 of that wake's own turns, the same pin wrote about
+  110 a second and 4 of the 26 ran out their 300 s (V3,
+  `~/pluggybot-training/loop-1120/v3-mind/`).
+
 ### A station the other robot is plugged into is taken, never a robot lost (#731, U1, `loop-731`) — opens when this PR is deployed
 
 **What the robots read.** The prompt (`6ec0fc48…`) and the session host's

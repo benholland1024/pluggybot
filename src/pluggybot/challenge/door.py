@@ -158,28 +158,30 @@ def _door(raw: dict, metrics: dict) -> tuple[bool, str]:
   """Criteria 1 to 3 on measurements all there: the verdict and its
   reason."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                   f"not the {HOLD_S:.0f} s the job asks for")
+    held, asked = lid.against(float(raw["holdS"]), HOLD_S, 1, 0)
+    return False, f"measured {held} s after the call, not the {asked} s the job asks for"
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                   f"the {limit:.0f} s the job allows")
+    took, allows = lid.against(float(raw["elapsedS"]), limit)
+    return False, f"called {took} s after the start, past the {allows} s the job allows"
   most, at_call, end = (float(raw[k]) for k in ("mostDeg", "angleAtCallDeg", "angleDeg"))
   want = math.degrees(OPEN_RAD)
   if at_call < want:
     if most < 1.0:
       return False, f"the door never opened: it must open past {want:.0f} deg"
     if most < want:
-      return False, f"the door opened {most:.0f} deg, short of the {want:.0f} it must"
-    return False, (f"the door opened {most:.0f} deg but was {at_call:.0f} deg open "
-                   f"when you finished, short of the {want:.0f} it must")
+      opened, must = lid.against(most, want)
+      return False, f"the door opened {opened} deg, short of the {must} it must"
+    was, must = lid.against(at_call, want)
+    return False, (f"the door opened {most:.0f} deg but was {was} deg open "
+                   f"when you finished, short of the {must} it must")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
     return False, (f"the door {at_call:.0f} deg open, but {touched} still touched it "
                    "after the call -- let go")
   if end < want:
-    return False, (f"the door {at_call:.0f} deg open at the call, but {end:.0f} deg "
-                   f"{HOLD_S:.0f} s later")
+    return False, (f"the door {at_call:.0f} deg open at the call, but "
+                   f"{lid.against(end, want)[0]} deg {HOLD_S:.0f} s later")
   return True, f"the door {end:.0f} deg open in {float(raw['elapsedS']):.0f} s, and let go"
 
 

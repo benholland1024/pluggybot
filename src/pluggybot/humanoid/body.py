@@ -943,8 +943,8 @@ class HumanoidBody(Body):
     for the walker, under which the standing posture never moves. ⚠ ITS
     TRUNK IS WAITED ON STILL THERE (`Reach._posture_held`), never the posture
     the policy is shown alone (#693): off the stand, an arm with none of it
-    ahead comes home before the stand is asked (`Reach._go_home`), and the
-    next verb began as the trunk still rose. The arm's word is its own as it
+    ahead has its command home before the stand is asked (`Reach._go_home`),
+    and the next verb began as the trunk still rose. The arm's word is its own as it
     came home: a waist turning home after swung the hanging arm into a
     counter's face, and read off its rest then it said "held". ⚠ ITS
     WAY HOME KEEPS OFF ANOTHER ROBOT ITS LIDAR SEES as it begins (#678;
@@ -1306,7 +1306,9 @@ class HumanoidBody(Body):
     ALONE, never a correction the matcher made meanwhile (`_by_legs`): a
     correction is no step, and the band's matcher at its station, its
     corrections walked as steps, stopped a step to the seat 3.6 cm inside it
-    (#581's stage 2)."""
+    (#581's stage 2). ⚠ ITS LEGS GO BACK TO STANDING ONCE BOTH SOLES READ
+    DOWN, AND WHERE THE SETTLE'S BOUND RAN OUT FIRST IT SAYS SO, `feetDown`
+    false (#740; `HumanoidMission.to_stand_routine`)."""
     mi = self.mission
     yield from mi._getup_routine()
     by_legs = self._by_legs()
@@ -1362,7 +1364,8 @@ class HumanoidBody(Body):
         # and its turn's included: standing still, the LIDAR takes none
         why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
     seen = mi.odo.corrected.copy()
-    yield from mi.to_stand_routine()
+    # ...handed over once both soles read planted, or its bound out (#740)
+    settled = yield from mi.to_stand_routine()
     d_ = mi.odo.corrected - seen
     self._jump = max(self._jump, math.hypot(float(d_[0]), float(d_[1])))
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
@@ -1397,7 +1400,10 @@ class HumanoidBody(Body):
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
             "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
-            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {})}
+            **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {}),
+            # ...and its legs gone back to standing before both its soles had
+            # read down, its settle's bound out (#740)
+            **({"feetDown": False} if settled is False else {})}
 
   def _by_legs(self):
     """A pose of the belief's, (x, y, heading), as the legs' reckoning alone
@@ -1899,6 +1905,8 @@ class HumanoidBody(Body):
     from pluggybot.activity import station as st
     from pluggybot.humanoid import charge
     self._charge_trace = []
+    # ...and no clock until this dock puts the plug in (#703)
+    self.mission.plugged_t = None
     if self._station is None:
       return "no station"
     # ...facing the cup from where it stands, never the station's own
@@ -1924,6 +1932,10 @@ class HumanoidBody(Body):
       return "not lined up"
     self._station_seen = seen
     why = yield from charge.plug_in_routine(self, seen, self._charge_trace)
+    if self.charging():
+      # ...its own clock from here, whatever its last try's word: the port may
+      # seat a plug just after it (#703; SimNotes, "The unplug after a long charge")
+      self.mission.plugged_t = float(self._d.time)
     return "docked" if why == "plugged in" else why
 
   def charging(self) -> bool:
@@ -1951,23 +1963,42 @@ class HumanoidBody(Body):
     return self.hold_routine(seconds)
 
   def redock_routine(self):
-    """Its plug out while it charged: plugged in again from where it stands."""
+    """Its plug out while it charged: plugged in again from where it stands,
+    its clock kept (`plugged_s`): the creep it counts goes on from its dock --
+    a body moved meanwhile (a fall) steps back further than it crept, and its
+    look places the station."""
     from pluggybot.humanoid import charge
     seen = self._station_seen or charge.look(self)
     if seen is None or self.charging():
       return
     yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
+  @property
+  def plugged_s(self) -> float | None:
+    """How long its plug has been in, s by its own clock since its dock put
+    it in (#703's option 2), or None where it does not know: a save from
+    before the clock, or a clock ahead of the world's. Read only while it is
+    plugged in."""
+    t, now = self.mission.plugged_t, float(self._d.time)
+    return None if t is None or t > now else now - t
+
   def undock_routine(self):
     """Unplugged from its seat -- stepped back to it first where a charge
-    crept it in (`charge.unplug_routine`, #703) -- the plug left to its
-    balancer at the cup, and turned away from the station: its walker barely
-    backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
+    crept it in (`charge.unplug_routine`, #703), and after a charge its own
+    clock says was long enough to creep, first straight back and a look of
+    its own (`charge.crept`, whatever its belief says) -- the plug left to
+    its balancer at the cup, and turned away from the station: its walker
+    barely backs up (4 cm in 3 s asked 0.25 m/s), so it walks off forward."""
     from pluggybot.humanoid import charge
+    # ...its trace the unplug's alone, for a failed one's log
+    self._charge_trace = []
     seen = self._station_seen or charge.look(self) or self._station
     if self.charging():
-      why = yield from charge.unplug_routine(self, seen, self._charge_trace)
+      why = yield from charge.unplug_routine(self, seen, self._charge_trace,
+                                             back=charge.crept(self.plugged_s))
       self._charge_trace.append({"undock": why})
+    if not self.charging():
+      self.mission.plugged_t = None
     yield from self.step_routine(0.0, 0.0, math.pi)
 
   def charge_trace(self) -> str:
