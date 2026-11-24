@@ -28,7 +28,7 @@ from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, 
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
-from pluggybot.mapping.scan_match import MATCH_RANGE_M, SEARCH_M, SEARCH_RAD
+from pluggybot.mapping.scan_match import MATCH_RANGE_M, REACH_M, SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
@@ -226,9 +226,12 @@ ASKEW_RAD = SEARCH_RAD
 #: ⚠ A FIX THAT KEEPS THE MAP LAYS AGAIN WHAT ITS NEXT SCAN SEES (#741,
 #: `ScanMatcher.relay`): from the sensor out to each bearing's end, and
 #: within the fix's own reach of it -- what it moved the belief, its turn at
-#: the LIDAR's reach, and RELAY_PAST_M more -- forgotten, for the anchor's
-#: window to lay from the belief put right.
-RELAY_PAST_M = 0.30
+#: the LIDAR's reach, and the fit's own reach more, where a copy of what it
+#: sees may lie -- forgotten, and that scan laid at the belief put right.
+#: MEASURED (SimNotes, "A station's fix that keeps the map lays again what
+#: it sees"): kept, the lobby's copy took a re-docked belief back to 10-11
+#: cm within 3 minutes of the fix.
+RELAY_PAST_M = REACH_M
 
 
 def _yaw(rot: np.ndarray) -> float:

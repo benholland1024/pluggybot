@@ -665,6 +665,11 @@ def test_a_robot_standing_still_fuses_a_scan_every_few_seconds(room):
   # ...and a fit that slid is never laid into the map, however long it has been
   assert not m.fuses(moved._replace(why="slid", accepted=False), 99.0)
   assert m.fuses(moved._replace(why="sparse", accepted=False), 99.0)
+  # ...but an anchor's scans are laid as they come, ten a second (#741: held
+  # to FUSE_S, its window ran 146 s of unmatched reckoning docked)
+  m.anchored()
+  m.fused(TRUE, 1.0)
+  assert m.fuses(ok._replace(why="anchored", accepted=False), 1.1)
 
 
 # ---- the body's wiring ---------------------------------------------------------
@@ -2175,20 +2180,45 @@ def _backed_off(window, relay):
   return math.hypot(pose[0] - at[0], pose[1] - at[1])
 
 
-def test_a_relays_one_scan_window_takes_no_belief_onto_a_copy_within_the_fixs_reach():
-  # #741: a fix that keeps the map has one scan of window, the one its relay
-  # lays -- what the anchor's 30 scans were for (#422: a robot backing off
-  # the dock matched into a copy laid askew) the relay does by forgetting
-  # what that scan sees and every cell within the fix's reach of it, where
-  # a copy of what it sees lies. Backed off 1.2 m matched from the second
-  # scan on, the belief holds as the 30 scans held it.
+def test_a_relays_window_takes_no_belief_onto_a_copy_within_the_fixs_reach():
+  # #741: a fix that keeps the map keeps the anchor's 30 scans -- what they
+  # are for (#422: a robot backing off the dock matched into a copy laid
+  # askew) -- and forgets first what its next scan sees and every cell
+  # within the fix's reach of it, where a copy of what it sees lies: backed
+  # off 1.2 m over a copy laid askew within that reach, the belief holds.
   moved = math.hypot(*_NEAR_ASKEW[:2])
   reach = moved + abs(_NEAR_ASKEW[2]) * sm.MATCH_RANGE_M + 0.30
-  assert _backed_off(sm.ANCHORED_SCANS, None) < 0.02, "the premise: the 30 scans hold it"
   assert _backed_off(sm.ANCHORED_SCANS, reach) < 0.02
-  # ...the premise of the forget: one scan of window, nothing forgotten,
-  # and the copy takes the belief
-  assert _backed_off(1, None) > 0.2
+  # ...the premise: with neither, the copy takes the belief
+  assert _backed_off(0, None) > 0.2
+
+
+def test_only_a_fix_that_keeps_the_map_opens_an_anchors_window_and_it_relays():
+  # #741: an anchor's scans are laid as they come, never held to FUSE_S, so
+  # that cadence acts only where a window is open -- and the one call in
+  # the code that opens one is a station's fix that keeps the map, which
+  # arms the relay beside it. The syntax tree read: every `anchored()` call
+  # but a `on=False` (a warp's close) is that one.
+  import ast
+  from pathlib import Path
+
+  import pluggybot
+  src = Path(pluggybot.__file__).parent
+  opens = []
+  for path in sorted(src.rglob("*.py")):
+    tree = ast.parse(path.read_text())
+    for fn in ast.walk(tree):
+      if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        continue
+      for node in ast.walk(fn):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "anchored"
+            and not any(k.arg == "on" and isinstance(k.value, ast.Constant)
+                        and k.value.value is False for k in node.keywords)):
+          relays = [n for n in ast.walk(fn) if isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute) and n.func.attr == "relay"]
+          opens.append((path.name, fn.name, len(relays)))
+  assert opens == [("body.py", "_fix_at", 1)], opens
 
 
 def test_a_restart_keeps_an_anchors_window(room):
@@ -2200,14 +2230,13 @@ def test_a_restart_keeps_an_anchors_window(room):
   n.restore_kept(state, arrays)
   assert n.anchoring == sm.ANCHORED_SCANS - 1
   assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
-  # ...and the region its next scan lays afresh, that scan its window (#741)
+  # ...and the region its next scan lays afresh (#741)
   m.anchored()
   m.relay(0.42)
-  assert m.anchoring == 1
   state, arrays = m.kept_state()
   n = sm.ScanMatcher(room)
   n.restore_kept(state, arrays)
-  assert n.relay_m == 0.42 and n.anchoring == 1
+  assert n.relay_m == 0.42 and n.anchoring == sm.ANCHORED_SCANS
   n.anchored(on=False)
   assert n.relay_m == 0.0, "a warp kept the region its fix asked laid afresh"
   m.forget()
@@ -2230,9 +2259,9 @@ _LAID_OFF = (-0.10, 0.083)
 def _docked(relay):
   """The hall mapped through beliefs `_LAID_OFF` off, the robot docked and
   the belief put right (`anchored`, and `relay` if given), then its scans
-  matched and laid as `Navigator._scan_step` lays them -- a scan every
-  FUSE_S through the anchor's window, every LIDAR period after it, for
-  20 s: the belief, east and north of the truth."""
+  matched and laid as `Navigator._scan_step` lays them, a scan every LIDAR
+  period, through the anchor's window and 20 s after it: the belief, east
+  and north of the truth."""
   rng = np.random.default_rng(1)
   g = OccupancyGrid(-1, -1, 7, 13, 0.05)
   for _ in range(40):
@@ -2247,7 +2276,7 @@ def _docked(relay):
   pose, t, after = _DOCK, 0.0, 0
   while m.anchoring or after < 200:
     after += 0 if m.anchoring else 1
-    t += sm.FUSE_S if m.anchoring else 0.1
+    t += 0.1
     ranges = cast(_HALL, _DOCK, rng)
     pose = m.match(pose, ANGLES, ranges).pose
     if m.fuses(m.last, t):
@@ -2287,9 +2316,9 @@ def test_the_stations_look_alone_opens_the_window(house):
   assert m.matcher.anchoring == 0, "the start opened the window"
   assert body._fix_at(s) is None and m.matcher.anchoring == 0, "a look that agrees"
   body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))     # the belief 0.36 m off
-  # ...its window the one scan that lays its region afresh, as far round as
-  # the fix moved it and RELAY_PAST_M more (#741)
-  assert m.matcher.anchoring == 1
+  # ...and its region laid afresh as far round as the fix moved it and
+  # RELAY_PAST_M more (#741)
+  assert m.matcher.anchoring == sm.ANCHORED_SCANS
   assert m.matcher.relay_m == pytest.approx(math.hypot(0.3, 0.2) + RELAY_PAST_M)
   body.start_at(*m.pose)                                   # ...and a stand-up
   assert m.matcher.anchoring == 0, "a stand-up kept the station's window"

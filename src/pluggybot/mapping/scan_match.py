@@ -277,7 +277,13 @@ FALLEN_LOOKS = 6
 #: room 0.9 m askew; anchored on the dock, matching against the copy pulled
 #: it 0.62 m back into it as it backed off. 30 is the undock's own back-out
 #: (0.9 m at 0.3 m/s, ten scans a second), and a wall clamped at +5 is
-#: floor after 14 misses.
+#: floor after 14 misses. ⚠ ...LAID AS THEY COME, ten a second, never held
+#: to FUSE_S (#741): held, the window lasted 146 s docked, and the legs'
+#: reckoning, unmatched through it, carried a re-docked belief 3 cm, the
+#: region laid afresh along it (3.4-4.5 cm after); a window of the relay's
+#: one scan instead slid the fits 3 cm along the lobby against walls one scan
+#: thick (SimNotes, "A station's fix that keeps the map lays again what it
+#: sees").
 ANCHORED_SCANS = 30
 #: A scan is fused only once the pose has moved this far or turned this
 #: much since the last one fused, or FUSE_S has passed. MEASURED: docked for
@@ -524,10 +530,11 @@ class ScanMatcher:
 
   def fuses(self, match: Match, t: float) -> bool:
     """Whether the scan just matched goes into the map: its verdict allows
-    it, and the robot has moved since the last one fused (FUSE_*)."""
+    it, and the robot has moved since the last one fused (FUSE_*) -- or it
+    is an anchor's (`anchored`), laid as it comes."""
     if not match.fuse:
       return False
-    if self.fused_pose is None or t - self.fused_t >= FUSE_S:
+    if self.fused_pose is None or self.anchoring or t - self.fused_t >= FUSE_S:
       return True
     x, y, th = match.pose
     fx, fy, fth = self.fused_pose
@@ -557,13 +564,8 @@ class ScanMatcher:
     anchor's window closes its fits take the belief back there. So the next
     scan laid goes in over the cells it looks across, and those within
     `round_m` of them -- where a copy of what it sees lies -- forgotten
-    first (`OccupancyGrid.forget_seen`), at the belief put right, and that
-    scan is the window: the next is matched against the region it laid.
-    ⚠ NOT THE WHOLE WINDOW: laid unmatched for its 30 scans docked (146 s),
-    the legs' reckoning carried a belief 3 cm and the region was laid along
-    it, where matched it held within 1.1 cm."""
+    first (`OccupancyGrid.forget_seen`), and the window lays them afresh."""
     self.relay_m = float(round_m)
-    self.anchoring = min(self.anchoring, 1)
 
   def relaid(self) -> None:
     """The scan `relay` asked for was laid: the field goes with the cells
