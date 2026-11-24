@@ -61,12 +61,12 @@ joints of its arm its drivers last read within `reach.JOINT_END_RAD` (5
 mrad) of an end of the range its model of itself gives, or past it -- the
 arm's solve keeps every commanded joint 0.05 rad inside its range, so a
 joint read there was pushed onto its stop -- off `Reach.sensed`, never read
-afresh. `pull.held` is held fast with none of them, `pull.joint_end` any of
-them whatever ended the pull, `pull.reach` out of reach; `pull.held` any held fast, as before. A reach's and a withdraw's feet are the stance
-under the believed pelvis less every correction from outside the legs'
-reckoning (`Body.reckoned`), from the verb's start to its end, in the stance
-frame it stood in before, however it ended; a reach refused before it ran
-leaves none.
+afresh. `pull.held` is any held fast, as before, `pull.joint_end` any of
+them whatever ended the pull, `pull.reach` out of reach. A reach's and a withdraw's feet are the stance
+less every correction from outside the legs' reckoning, summed
+(`Body.reckoned`), from the verb's start to its end, in the stance frame it
+stood in before, however it ended; a reach refused before it ran leaves
+none.
 
 **Why** (the loop of 11-23's X5: the weekend's own chest flights at their
 live draws). 144 of 159 lifts that ended held fast had one of the robot's
@@ -87,25 +87,19 @@ process, fa842927 beside the branch).
   both. Their 399 pulls that ended held fast had no arm joint at an end, so
   `pull.held` read as before; `pull.joint_end` read 1 at 30 pulls, none held
   fast.
-- **The robots' own procedures that read `pull.held`**, at their live draws
-  (X5's 120 chest flights, W1's 64 door flights), beside `loop-readings`'
-  option 1 (here `pull.held` reads as on the base at every pull, so these
-  fly as the base by construction): 184 flights, 172 identical by end state
-  and path. The 12 that part each part at the verb right after the
-  second pull in a row that ended held fast at its own arm's end (the base
-  reads `pull.held` 1 there and ends its lift; the branch reads 0, with
-  `pull.joint_end` 1, and pulls again): Luca's `chest_open3` (64 flights)
-  4 passed, 1 fell, 59 failed on the base, 1, 0 and 63 on the branch, 10
-  parting; its `chest_open4` (8) 0, 0, 8 on both, 1 parting; Rowan's
-  `chest_run13` (8) 0, 1, 7 on both, 1 parting late; Rowan's `chest_run10`,
-  `11`, `12`, `14` and the two door procedures (`door_final50` 22, 3, 7;
-  `door_fix54` 4, 1, 27) part nowhere. After the parting point Luca's lid
-  rose higher on the branch (69-110 deg, the base's 54-104) and in 10 of the
-  11 came down fast while open (1.4-7.6 rad/s; on the base 6 of them did),
-  the other left 109 deg open: the base's three passes there (it set the lid
-  down from 59-86 deg at 0.34-0.44 rad/s) are lost, and its one fall is a
-  failure without a fall. In all, 27
-  passed and 6 fell on the base, 24 and 5 on the branch.
+- **The robots' own procedures that read `pull.held`**, at their live
+  draws (X5's 120 chest flights, W1's 64 door flights): here `pull.held`
+  reads as on the base at every pull, so these fly as the base: the 12
+  that option 1 parts, flown on this branch (dcc535b0, its readings these)
+  beside the base on one pod, an AMD EPYC 7B13, are identical by end state
+  and path. Beside the base, `loop-readings`' option 1 parts 12 of the
+  184, each at the verb right after the second pull in a row that ended
+  held fast at its own arm's end, where it reads `pull.held` 0 and pulls
+  again: Luca's `chest_open3` (64 flights) 4 passed, 1 fell and 59 failed
+  on the base, 1, 0 and 63 there, 10 parting; its `chest_open4` (8) 1
+  parting, and Rowan's `chest_run13` (8) 1, late, their outcomes
+  unchanged; the lid, lifted higher, came down fast in 10 of Luca's 11. In
+  all, 31 passed and 6 fell on the base, 28 and 5 on option 1.
 - **The readings against the truth** (X5's chest flights flown again with
   every arm joint's true and read distance to its end and its limit's force,
   and the soles' own place and heading): every one of 640 joints pressing

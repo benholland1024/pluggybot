@@ -1383,9 +1383,8 @@ save a filmstrip PNG named after the script.
   (#744's additive form; `Reach._on_stops`, `JOINT_END_RAD` off
   `Reach.sensed`, never read afresh; `tests/test_readings.py`): held at its
   own wrist's end, Luca read a lid's open stop -- and a kept procedure that
-  reads `pull.held` runs as it did (read as option 1 has it, Luca's
-  `chest_open3` lifted on past its wrist's end; Observatory.md); out of reach
-  is `pull.reach`. ⚠ `spot` AND `watch` SAY WHICH CAMERA
+  reads `pull.held` runs as it did; out of reach is `pull.reach`
+  (Observatory.md, the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
   them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):
