@@ -2783,11 +2783,11 @@ def test_no_bow_of_spots_brings_in_a_tag_beside_its_picture_above_the_height_its
   turning is what swings the picture. On the statue at every bow `spot` can
   take: exactly (`_highest_brought_in`), the highest anything beside the
   standing picture comes into a bowed one is under that height and within a
-  tenth of it -- and bowing from the deepest crouch a posture holds, its
-  camera lower, lower still (every centimetre between, the stand's is the
-  highest: 0.18 m at the crouch's end); and on a grid, nothing that stood
-  beside it at that height or higher comes in, while on the floor
-  something does."""
+  tenth of it; bowing from a crouch -- every 5 cm a posture's height can
+  take (`policy.HEIGHT_RANGE`), the camera lower -- it is lower, but never
+  none (0.18 m from the deepest); and on a grid, nothing that stood beside
+  it at that height or higher comes in, while on the floor something
+  does."""
   from pluggybot.humanoid.policy import HEIGHT_RANGE
   spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
   under = st.SPOT_BOW_SIDE_UNDER_M
@@ -2798,7 +2798,9 @@ def test_no_bow_of_spots_brings_in_a_tag_beside_its_picture_above_the_height_its
   assert sorted(eyes) == pytest.approx([0.05 * k for k in range(10)]), sorted(eyes)
   highest = _highest_brought_in(eyes, wide, tall)
   assert under - 0.1 < highest <= under, highest
-  assert _highest_brought_in(_bowed_eyes(HEIGHT_RANGE[0])[0], wide, tall) < highest
+  for height in np.arange(HEIGHT_RANGE[1] - 0.05, HEIGHT_RANGE[0] - 1e-9, -0.05):
+    crouched = _highest_brought_in(_bowed_eyes(float(height))[0], wide, tall)
+    assert 0.0 < crouched < highest, (height, crouched)
   # ...and on a grid, every bow, from that height up to the camera's
   xs, ys = np.meshgrid(np.arange(-0.3, 3.0, 0.02), np.arange(-3.0, 3.0, 0.02), indexing="ij")
   for z in (*np.arange(under, eyes[0.0][0][2], 0.05), 0.0):

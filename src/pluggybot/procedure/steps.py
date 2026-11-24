@@ -552,8 +552,11 @@ SPOT_SIDE_BOTTOM_TENS = 10 * math.floor(SPOT_SIDE_BOTTOM_DEG / 10)
 #: bows it asks. Lower, near its bottom's corners, a bow takes in some of what
 #: stood beside and below it. On the robot's model of itself posed as each
 #: bow's statue, the highest that happens is 0.44 m: a test works it out there
-#: and fails unless this is that rounded up to a tenth (SimNotes, "A tag
-#: beside `spot`'s picture, and its bows").
+#: and fails unless this is that rounded up to a tenth. ⚠ The statue's, its
+#: weight over the soles' middle (0.436 with the stand's 1.2 cm lean); the
+#: live head stands 1-2 cm behind it, and flown, nothing beside the picture
+#: came in at a counter's height (SimNotes, "A tag beside `spot`'s picture,
+#: and its bows").
 SPOT_BOW_SIDE_UNDER_M = 0.5
 #: ...the picture's top over the floor IN THE STANCE FRAME, m, where the
 #: robot reads every place: at x = 0 (the camera's height carried back to the

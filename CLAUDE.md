@@ -1414,7 +1414,7 @@ save a filmstrip PNG named after the script.
   ITS PICTURE HIGHER THAN `SPOT_BOW_SIDE_UNDER_M` (0.5 m), AND THAT TURNING
   SWINGS IT (#728's option 2; SimNotes, "A tag beside `spot`'s picture, and
   its bows"): typed, the statue's 0.44 m at every bow `spot` can take rounded
-  up to a tenth -- a test works it out there, and from the deepest crouch
+  up to a tenth -- a test works it out there, and from every 5 cm of crouch
   (lower), and fails otherwise; lower, near the bottom's corners, a bow
   takes in some of what stood beside and below it. ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
   ITS VERB NO READING (`steps.forget_readings`): what it last reported would
