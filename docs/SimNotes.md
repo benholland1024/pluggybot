@@ -10200,13 +10200,22 @@ passed 197 and fell 6 on both. Every flight where it can act was flown
 again on each later form, deciding the same. **Its reading while the
 trunk moves** (the loop of 11-24, `~/pluggybot-training/loop-1124/y4-699c/`):
 the reading is the body's taken as still, and an open hand carried in free
-air into the deepest postures on purpose -- bowed to 0.95 rad, crouched
-0.25 m, its waist turned 30 deg -- read, over 6,966 commands while a posture
-came with nothing touching it (the world or its own body), a `MEAN_S` mean
-of at most 16.4 N, its raw reading up to 81 N: within a quarter of the
-line, so a give-up asks the load held `MEAN_S` (a trunk-still gate would
-have taken away the give-ups where the rule acted at W1's draws, which came
-while the trunk moved).
+air into the deepest postures on purpose, nothing touching the robot but
+its soles -- the world or its own body -- read up to 430 N: a turned carry
+from the stand into a crouch, a bow and a waist turn at once (-0.2 m, 0.55
+rad, -15 deg) read so on the 25 commands whose whole-body balance did not
+close (`SelfModel.felt` reads nothing there, and the arm's own estimate
+stood as `Reach.force`), its mean past the line for 0.21 s, and the rule as
+it then was gave that posture up (out of reach either way there, no fall).
+Where the balance closed, the same flights read at most 25 N raw, the
+deepest (0.95 rad, the waist 45 deg) 60 N, and a mean of at most 15 N. So a
+carry's load is read off the whole body's balance alone, where it closes
+(`Reach.closed`: a command that does not close reads nothing, the mean and
+its run past the line held as they were), and a posture coming is given up
+only for a load past the line for `MEAN_S` running (a quarter's margin of the
+line). A gate on the trunk's rate would have had to sit at that one
+phantom's lowest, 0.166 rad/s, its mean falling under the line at 0.171: a
+fit to one case.
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,

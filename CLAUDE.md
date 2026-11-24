@@ -524,8 +524,11 @@ save a filmstrip PNG named after the script.
   and on its way, one coming given up and backed off so too, but only for a
   load held past `MEAN_S` (#699 on a carry; `reach.CARRY_PRESSED_SHARE`): a
   carry asks no force, and an open hand at a cube's board read 25-35 N while
-  one carry took four postures, where bowed 0.95 rad in free air its mean
-  read 16.4 N. ⚠ The body held where it stood at a loaded ask is no posture
+  one carry took four postures. ⚠ ITS LOAD IS READ OFF THE WHOLE BODY'S
+  BALANCE ALONE, WHERE IT CLOSES (`Reach.closed`): where its rows did not
+  agree, the arm's own estimate, taken as still, read 430 N in free air as
+  the body crouched, bowed and turned at once, and gave a posture up; where
+  it closed, bowed 0.95 rad, at most 60 N, its mean 15. ⚠ The body held where it stood at a loaded ask is no posture
   given up (`held_here`), and a path's or a turned carry's posture withheld
   at its ask is planned again once light (`recheck`: it plans none on its
   way). One so ended out of reach where another posture would reach says why

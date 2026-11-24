@@ -894,6 +894,17 @@ def test_a_carry_reads_a_load_only_where_the_whole_bodys_balance_closes():
   assert not r.pulls["left"].get("given")
   read(r, 1.5 * CARRY_LINE * way, True, 1)
   assert r.pulls["left"]["given"] and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)]
+  # ...and loaded, it stays loaded through a command that does not close: no posture planned on it
+  r = _carrying_open()
+  r.pulls["left"]["fixed"] = False
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+    np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
+  read(r, 1.1 * CARRY_LINE * way, True, 1)
+  read(r, np.zeros(3), False, 1)
+  assert (0.0, 0.3, 0.0) not in r.postures and r.pulls["left"]["loaded"]
+  read(r, np.zeros(3), True, 1)
+  assert r.postures[-1] == (0.0, 0.3, 0.0)
 
 
 def _asked_loaded(now, turns=None, read=1.1, reach=None):

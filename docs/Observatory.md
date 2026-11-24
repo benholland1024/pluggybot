@@ -33,8 +33,10 @@ holds something, as the carry is asked, takes no new posture while the
 hand reads past 20 N: as the carry is asked, the posture the body is in
 (where it has got to, if one is still coming), and nothing is given up
 there; on its way, none until its 0.1 s mean reads light again, a path's or
-a turned carry's withheld at its ask planned again then, once. An end no
-posture reaches is refused, nothing moved, as always. A posture coming is
+a turned carry's withheld at its ask planned again then, once -- every
+reading the whole body's balance, where it closes (where it does not, the
+arm's own estimate read 430 N in free air: no reading). An end no posture
+reaches is refused, nothing moved, as always. A posture coming is
 given up where the hand has read past 20 N for 0.1 s running, the body
 backing off toward where the carry began until the hand reads no more,
 held there; that carry takes no other, and goes as far as its arm reaches.
@@ -50,7 +52,8 @@ loop's own carries (a charge's) as before.
   back off its lever after letting go reads past 20 N in an open carry, so
   a robot's own `move_hand` pressing on something is where it acts; flown
   on purpose in free air into the deepest postures, the reading the rule
-  reads came within 3.6 N of its line, never past it.
+  reads (the whole body's, closed) came within 5 N of its line on its mean,
+  never past it.
 - **What it leaves**: a hand that grips what it carries or pulls still
   takes its postures (the other fall at that draw: the cube gripped in a
   `pull`, Ben's call by #699's own text), and a carry's hand pressing at
