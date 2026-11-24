@@ -179,6 +179,35 @@ def test_a_look_takes_no_posture_its_plan_passed_over():
   assert floor.left["left"] == [] and floor.seen_at["left"] is None
 
 
+def test_a_look_passes_over_a_posture_whose_swing_meets_what_it_saw():
+  """A look at the pre-grasp (#627) judges the posture it would take as the
+  plan's are judged, its hand held where it waits (`_swing`'s `hold`): a
+  crouch it would take lowers the other, hanging hand onto what was seen
+  under it, so it keeps the posture it holds; unseen, it takes the crouch."""
+  reach = _floor()
+  reach._pose(reach.q_cmd)
+  sm = rc.swing_model()
+  sm.q = reach.self_model.q.copy()
+  sm.d.qpos[:] = reach.self_model.d.qpos
+  mujoco.mj_kinematics(sm.m, sm.d)
+  right = [p for p in rc.swing_parts(sm, ("right",)) if p[1] == "gripper"][0]
+  under = _around(right, 0.03, 0.06)
+  under = under[under[:, 2] < right[3][2] - 0.03]
+  left = [p for p in rc.swing_parts(sm, ("left",)) if p[1] == "gripper"][0]
+  # ...and under the hand that waits: held at its pre-grasp, it goes nowhere
+  below = _around(left, 0.03, 0.06)
+  below = below[below[:, 2] < left[3][2] - 0.03]
+  here = reach.posture.copy()
+  for seen, takes in ((None, True), (under, False), (below, True)):
+    reach.goal["left"] = HandGoal(np.array([0.30, 0.10, 0.70]), None, 1.0)
+    reach.cmd["left"] = HandGoal(*reach.self_model.grip_pose("left"), 1.0)
+    reach.allowed["left"], reach.left["left"], reach.looks["left"] = [(-0.16, 0.0, 0.0)], [], 0
+    reach.seen_at["left"] = seen
+    stays = reach._look("left")
+    assert stays is (not takes) and tuple(reach.posture) == ((-0.16, 0.0, 0.0) if takes else tuple(here))
+    reach.hold_posture(*here)
+
+
 def test_where_every_posture_swings_into_what_it_saw_a_procedures_reach_moves_nothing():
   """Refused, nothing asked of the body, `swung` saying which arm's part, how
   near and where; the loop's own reach -- a charge's -- never judged, goes."""
@@ -251,15 +280,31 @@ def test_a_part_begun_further_in_than_the_clearance_goes_no_further(floor, monke
   assert met is not None and met["side"] == "left" and met["m"] < rc.SWING_CLEAR_M, met
 
 
-def test_the_work_round_the_goal_is_no_face(floor):
-  """What lies within `SWING_WORK_M` of its goal is what it reaches for and
-  what that stands on: the plan over a face round the goal alone is today's."""
+def test_the_work_round_the_goal_is_no_face(floor, monkeypatch):
+  """What lies within `SWING_WORK_M` across its goal, from `SWING_WORK_UNDER_M`
+  under it up, is what it reaches for and what that stands on (the robots'
+  goals hover 2.4 cm over the cube's board): voxels inside the hand as it
+  waits at its pre-grasp, there, are no meeting -- with no work, they are."""
   today = floor._planned("left", OWN_SIDE, rc.APPROACH_M, rc.REACH_POSTURES, True)[0]
-  round_it = _face(0.30, y0=0.06, y1=0.14, z0=0.74, z1=0.86)
-  assert np.linalg.norm(round_it - OWN_SIDE.pos, axis=1).max() <= rc.SWING_WORK_M + 0.03
-  inside = round_it[np.linalg.norm(round_it - OWN_SIDE.pos, axis=1) <= rc.SWING_WORK_M]
+  sm = rc.swing_model()
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  rc.statue(sm, today[0], q0, {**floor._arms(but="left"), **rc._arm("left", today[1])}, floor._lean(),
+            fast=True)
+  sm._set_arm("left", today[1])
+  gripper = [p for p in rc.swing_parts(sm, ("left",)) if p[1] == "gripper"][0]
+  inside = _around(gripper, -0.02, -0.01)
+  g = OWN_SIDE.pos
+  inside = inside[(np.hypot(inside[:, 0] - g[0], inside[:, 1] - g[1]) <= rc.SWING_WORK_M)
+                  & (inside[:, 2] >= g[2] - rc.SWING_WORK_UNDER_M)]
+  assert len(inside) > 20, "the premise: the hand at its pre-grasp lies in its work"
   got = _plan(floor, "left", OWN_SIDE, inside)
   assert got[0][0] == today[0] and got[3] is None
+  monkeypatch.setattr(rc, "SWING_WORK_M", 0.0)
+  floor.seen = inside.copy()
+  try:
+    assert floor._swing("left", today, OWN_SIDE, floor._lean()) is not None
+  finally:
+    floor.seen = None
 
 
 # ---- honest -------------------------------------------------------------------------------------
