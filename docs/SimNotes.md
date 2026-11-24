@@ -12062,7 +12062,11 @@ pre-grasp: each found there, fixed, flown again. The 26 left-hand plans
 that fell went 1.6-3.4 cm into the face as the robot's model of itself has
 it; of the 393 right-hand ones that pressed nothing, 7 came 0.05-0.46 cm in
 -- their whole search took a 0.8 rad bow turned 60 deg -- and kept 1 cm
-off, 99 would have been passed over.
+off, 99 would have been passed over. The census and the experiment below
+read a capsule (a forearm, an upper arm) only within the norm of its
+MuJoCo sizes of its middle, the last 2.7 cm of each rounded end unread
+(found in review: `part_reach`, its half-length and its radius); the
+final bars fly it read.
 
 **Then acting, and its form chosen by a rule written before** (the same
 800, one pod). Passed over with the look free, the left hand fell 3 times
@@ -12087,14 +12091,21 @@ own tries.]
 judgment), and the fold 0.8 ms a frame, 0.9 % of the pair's walking wall
 time (1.45 % slower over three interleaved rounds on the dev box). A
 refusal searches every posture, 47-71 judgments, 6.2-6.6 s of the one
-physics thread on the dev box, where an out-of-reach refusal takes 0.03 s:
+physics thread on the dev box, where an out-of-reach refusal takes 0.03 s
+(and its words ask the other hand's plan, as long again where that one
+swings too):
 P2's plans that passed over found their posture within 6 judgments in 85
 of 121, and a cap at 10 (about 1 s) would refuse the other 36 -- where P2
 held 13 to the base's 6 and fell once.
 
 **What it does not do.** The legs, the trunk and the head are not judged
 (the thighs never felled the robot alone). A face never seen, or moved
-since, is not there; a column's top 3 cm, a counter's front edge among
+since, is not there, nor one seen more than a minute before (`KNEE_S`, as
+the knees' memory): up close the camera sees the top alone, so a later
+procedure's reach at the counter is judged on the minute before it -- 112
+of the 200 live tries X5 flies began at the counter, none of which fell on
+the base. A voxel 0.55 m or more off is let go where a frame sees past its
+bearing at any height. A column's top 3 cm, a counter's front edge among
 them, is no face. A way home, a carry and a pull are not judged. The
 statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
 the truth lags the commands: the census, not the model, set the clearance.

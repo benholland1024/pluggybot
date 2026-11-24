@@ -436,11 +436,12 @@ save a filmstrip PNG named after the script.
   FOR ITS SWING, ITS LOOK TAKES NO SECOND POSTURE: free, the look took back
   what the plan passed over or went on to the deepest bows, whose trunk and
   head no swing judges, and fell 3-5 times in 128 where the base fell 2. ⚠ IT
-  SEES ONLY WHAT ITS CAMERA SAW: placed up close, a counter's face is none
-  (its picture ends 69 deg down), so a flight that stands still with a bare
-  `STILL` -- which steps no `_after_step` -- judges nothing. ⚠ A refusal
-  searches every posture, 6.2-6.6 s of the one physics thread (a passing
-  plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠
+  SEES ONLY WHAT ITS CAMERA SAW, AND FOR A MINUTE (`KNEE_S`): placed up
+  close, a counter's face is none (its picture ends 69 deg down), so a
+  flight that stands still with a bare `STILL` -- which steps no
+  `_after_step` -- judges nothing. ⚠ A refusal searches every posture,
+  6.2-6.6 s of the one physics thread, its words the other hand's too (a
+  passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged

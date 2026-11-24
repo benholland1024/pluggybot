@@ -19,12 +19,14 @@ sentence in: the period of #744, #746 and #728, below), and `reach`'s text
 is unchanged. A `reach` whose every posture would swing an arm into what
 the robot's depth camera saw now reads false, nothing moved: "every posture
 that puts your left hand there would swing your left fingers into something
-your depth camera saw 0.24 m in front of your feet and 0.66 m up, so your
-arm did not move", and, where the other hand's plan keeps clear, "; your
-right hand could reach it as asked" (180 and 221 characters: a run's History
-line ending there with three short locals, 361 of the 384 a line leaves
-past its stamp). Before, the same reach went, and pressed the counter or
-fell. A draft for Ben.
+your depth camera saw at x 0.24, y -0.11, z 0.66 in your stance frame, so
+your arm did not move", and, where the other hand's plan keeps clear, ";
+your right hand could reach it as asked" (185 and 226 characters: a run's
+History line ending there with three short locals, 317 and 358 of the 384 a
+line leaves past its stamp); a reach kept off another robot says of the
+other hand "; your right hand's every posture there would swing an arm
+into something your depth camera saw" where that is why. Before, the same
+reach went, and pressed the counter or fell. A draft for Ben.
 
 **The change** (`Reach._swing`, `swing_clock`, `plan`'s `swing`,
 `mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
@@ -48,11 +50,16 @@ too. The loop's own reach (a charge's) is never judged.
   hands across the body), it fell once where the base fell 26.
 - **What it costs**: [THE BARS]. A refusal searches every posture: 6.2-6.6
   s of the one physics thread on the dev box, where an out-of-reach
-  refusal takes 0.03 s; a passing plan 40 ms more; the pair 1.45 % slower
-  walking (the memory's fold).
+  refusal takes 0.03 s, and its words ask the other hand's plan, as long
+  again where that one swings too; a passing plan 40 ms more; the pair
+  1.45 % slower walking (the memory's fold).
 - **What it misses**: a face never seen from about 0.33 m or further (a
-  robot that turned to it up close), a thing moved since it was seen, a
-  column's top 3 cm (a counter's front edge: the census's one new fall
+  robot that turned to it up close), and one seen more than a minute
+  before, as its knees' memory forgets one: up close the camera sees the
+  top alone, so a later procedure's reach at the counter is judged on what
+  the minute before it saw (112 of the 200 live tries X5 flies began at the
+  counter; none of them fell on the base). A thing moved since it was seen,
+  a column's top 3 cm (a counter's front edge: the census's one new fall
   caught it), the legs, the trunk and the head.
 
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
