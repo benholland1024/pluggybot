@@ -10138,10 +10138,99 @@ with its price.
   on its way back to where the pull began; nothing of the pull's own ends
   it then (held fast, pinned and out of reach wait while a posture comes),
   only its caller's patience or an `until`. A hand still loaded when the
-  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
-  `move_hand` takes its postures as it did.
+  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. A
+  `move_hand` of a hand that holds nothing is the next paragraph's.
 - *A reach's joint-space way out* is not this rule's: it stops on a push
   of its own (#708, next).
+
+**A carry (`move_hand`) of a hand that holds nothing (the loop of 11-23,
+`~/pluggybot-training/loop-1123/x3-699c/`).** On 11-21 Rowan's own
+`cube_run2` reached short of the cube, shut its gripper on nothing, let go,
+reached again and then carried the open hand 4.5 cm further at the same
+height (`move_hand`, t_0574): its belief 0.85 m off, the hand met the
+cube's board, and the robot went down from a crouch. Flown at the live draw
+(the loop of 11-22's W1), 2 of 24 fell: one in the carry, the open gripper
+on the board at 20-35 N while the carry took (0, 0.3 rad), (-0.16 m, 0.3)
+and (-0.20 m, 0.55) on its way; one in a later `pull` with the cube
+gripped (a gripped hand, the case above left to Ben). A carry had no line
+at all -- the pull's rule is the pull's -- and asks no force to take twice
+of: at the draw on the tree of 11-23 the robot's own reading over a carry
+was 25-35 N (its `MEAN_S` mean) while one carry took four postures, the
+deepest (-0.16, 0.3), the pull's 40 N refusing none. **What is true now**
+(`Reach.carry`, `_held`; `reach.CARRY_PRESSED_SHARE`): a procedure's carry
+(a `verb`'s, never the loop's own) of a hand whose gripper does not read
+held as it is asked takes no posture while the hand reads past 20 N
+(`PRESSED_ASK_N`, once) -- as it reads at the ask, then over `MEAN_S` --
+and gives a coming one up there as a pull does, backing off toward where
+the carry began until it reads no more, held there, that carry taking no
+other; it goes as far as its arm reaches from there, out of reach at once
+where it cannot follow. Loaded as it is asked, it plans as any carry does
+-- an end no posture reaches is refused, nothing moved, as always -- and
+takes where the body is: the posture it holds within `POSTURE_TOL`, else
+where it has got to, as #719 keeps a body -- never a posture still coming
+(re-asked that, a body went on bowing over the loaded hand, and no give-up
+could come). On a straight carry's way a posture refused for a load is
+asked again at the next command that reads light, as a pull's is; a path's
+or a turned carry's, which plans none on its way, is planned again over
+what is left of its path, once, at the first command that reads light
+(`recheck`: chosen once at the ask, one reading there kept the whole move
+from the posture its path needed). The body held where it stood at a
+loaded ask is no posture coming, and nothing is given up there
+(`held_here`: given up, the carry took none once light -- W1's draws k1, k4
+and k20); and a posture coming is given up only for a load the hand has
+read past the line for `MEAN_S` running (below). Ended out of reach where
+another posture would reach, its last posture withheld for a load, it says
+so (`steps.MOVE_LOADED`), never that no posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
+own noise): at Rowan's draw with the belief 0.85 m off, on the tree it fell on
+(9914a40c, which flies W1's 24 rows exactly) 2 of 24 fell -- one in the
+carry, one in a `pull` with the cube gripped -- and with this rule 1 of 24,
+the gripped one, bit for bit; on the tree of 11-23 (3619f4eb) neither fell
+(0 of 24 both ways), the base taking 18 postures deeper while an open carry
+read past 20 N, in 10 flights (to (-0.20 m, 0.55 rad), the hand pushing 72
+N true), the rule none: only its give-ups' way back and, asked loaded as
+the body still came, a hold where it had got to. Where it gave up, the true
+push on the hand was 21-33 N; the reading can also fall short of it (14 N
+read, 29 N true). Ben's bar (the hands checks at set-outs 0-31 and 32-127,
+the tour's five jobs: 736 flights), flown on the rule's first form, passed
+609 and fell 5 on both trees; of its 421 open carries (median 1.9 N, 95th
+percentile 13 N) 8 read past 20 N, all our door's hand drawn back off its
+lever after letting go, 7 of them for 0.01-0.04 s as it was asked with no
+posture coming; the rule changed one flight, a door that failed either way
+(101.7 N read, 189 N true), and pools sealed by that form (240 flights)
+passed 197 and fell 6 on both. Every flight where it can act was flown
+again on each later form, deciding the same. **Its reading while the
+trunk moves** (the loop of 11-24, `~/pluggybot-training/loop-1124/y4-699c/`):
+the reading is the body's taken as still, and an open hand carried in free
+air into the deepest postures on purpose, nothing touching the robot but
+its soles -- the world or its own body -- read up to 430 N: a turned carry
+from the stand into a crouch, a bow and a waist turn at once (-0.2 m, 0.55
+rad, -15 deg) read so on the 25 commands whose whole-body balance did not
+close (`SelfModel.felt` reads nothing there, and the arm's own estimate
+stood as `Reach.force`), its mean past the line for 0.21 s, and the rule as
+it then was gave that posture up (out of reach either way there, no fall).
+Where the balance closed, the same flights read at most 25 N raw, the
+deepest (0.95 rad, the waist 45 deg) 60 N, and a mean of at most 15 N. So a
+carry's load is read off the whole body's balance alone, where it closes
+(`Reach.closed`: a command that does not close reads nothing, the mean and
+its run past the line held as they were), and a posture coming is given up
+only for a load past the line for `MEAN_S` running (a quarter's margin of the
+line). A gate on the trunk's rate would have had to sit at that one
+phantom's lowest, 0.166 rad/s, its mean falling under the line at 0.171: a
+fit to one case. **On Ben's bar** (the same loop, one Xeon E7-8890 v4 beside
+9d83cf32) one flight fell where the base did not, our door's set-out 31:
+its back-off `move_hand`, rising out of the lever press's deep bow (0.95
+rad, the waist 44 deg), read 20-29 N on commands that closed, for 0.12 s,
+with nothing on the left hand -- the right forearm pressed the right thigh
+at 72-99 N, and the balance reads a push on the robot's own body as the
+working hand's -- so the posture was given up; then the balance stopped
+closing, and the mean, held through those commands, kept the back-off
+going until the body was back in the bow it had begun in; the run fell in
+a `withdraw` 28 s later. So a back-off goes on only while a command that
+closes reads the load: one that does not close ends it where the body has
+got to (the door then 85 deg open, no fall, a fail either way). On it the
+whole bar passed 609 of 736 and fell 5 times on both trees, 1 flight moved (that door); at
+Rowan's draw on the tree it fell on (9914a40c) 1 of 32 fell where 2 had -- the
+gripped `pull`, bit for bit -- the carry's fall gone, every grade the same.
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,

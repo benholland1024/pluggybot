@@ -519,7 +519,26 @@ save a filmstrip PNG named after the script.
   GRIPS WHAT IT PULLS TAKES ITS POSTURES AS IT DID: two of our door's 72
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
-  call. ⚠ WHILE ONE HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
+  call. ⚠ A PROCEDURE'S CARRY (`move_hand`) OF A HAND THAT HOLDS NOTHING
+  TAKES NONE WHILE IT READS PAST 20 N, at its ask (held where the body is)
+  and on its way, one coming given up and backed off so too, but only for a
+  load held past `MEAN_S` (#699 on a carry; `reach.CARRY_PRESSED_SHARE`): a
+  carry asks no force, and an open hand at a cube's board read 25-35 N while
+  one carry took four postures. ⚠ ITS LOAD IS READ OFF THE WHOLE BODY'S
+  BALANCE ALONE, WHERE IT CLOSES (`Reach.closed`): where its rows did not
+  agree, the arm's own estimate, taken as still, read 430 N in free air as
+  the body crouched, bowed and turned at once, and gave a posture up; where
+  it closed, bowed 0.95 rad, at most 60 N, its mean 15 -- and ITS BACK-OFF
+  GOES ON ONLY WHILE ONE THAT CLOSES READS THE LOAD (on a mean held through
+  ones that did not, a body rising out of a deep bow was walked all the way
+  back into it, and its run fell later). ⚠ It reads the robot's own forearm
+  on its own thigh as the working hand's load (20-29 N closed, nothing on the
+  hand: Ben's bar's door_31 gave a posture up so). ⚠ The body held where it stood at a loaded ask is no posture
+  given up (`held_here`), and a path's or a turned carry's posture withheld
+  at its ask is planned again once light (`recheck`: it plans none on its
+  way). One so ended out of reach where another posture would reach says why
+  (`steps.MOVE_LOADED`). Never the loop's own (a charge's). ⚠ WHILE ONE
+  HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
   SOMETHING, THE OTHER'S REACH, CARRY AND PULL -- A PROCEDURE'S (`verb`),
   NEVER THE LOOP'S OWN (A CHARGE'S, A WALK'S LIFT) -- TAKE NO POSTURE BUT THE
   ONE THE BODY STANDS IN, READ ONCE AS EACH IS

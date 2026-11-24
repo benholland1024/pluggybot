@@ -64,7 +64,8 @@ from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_
                                      STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
                                      STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
-from pluggybot.humanoid.reach import LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS
+from pluggybot.humanoid.reach import (CARRY_PRESSED_SHARE, LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS,
+                                      PRESSED_ASK_N)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
@@ -1297,6 +1298,12 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
 #: option 2).
 MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture you are in: "
              "your {other} hand is out holding something, so your body keeps it")
+#: ...and one out of reach whose hand, holding nothing, read a load as a
+#: posture would have come (#699 on a carry: `reach.CARRY_PRESSED_SHARE` of
+#: `reach.PRESSED_ASK_N`, its line).
+MOVE_LOADED = ("your {hand} hand could reach no further that way from the posture you are in: "
+               f"it holds nothing and read a push of more than "
+               f"{CARRY_PRESSED_SHARE * PRESSED_ASK_N:.0f} N, so your body keeps it")
 
 
 def _hand_report(life, hand: str, rep: dict) -> dict:
@@ -1357,6 +1364,9 @@ def _move_hand(life, args: dict) -> Routine:
   if kept_by and life.body.hand_reaches(hand, end, rot):
     # ...where another posture would reach its end (#719)
     return {"ok": False, **out, **said, "reason": MOVE_KEPT.format(hand=hand, other=kept_by)}
+  if rep.get("why") == "out of reach" and rep.get("loaded") and life.body.hand_reaches(hand, end, rot):
+    # ...or its hand, holding nothing, read a load (#699)
+    return {"ok": False, **out, **said, "reason": MOVE_LOADED.format(hand=hand)}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 
