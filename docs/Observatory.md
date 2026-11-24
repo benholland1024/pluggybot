@@ -103,7 +103,11 @@ relay still to come dropped (#681 left the window open).
   unknown until it is seen again, and the planner plans through it at
   `UNKNOWN_COST`: at the lobby's station a region of 27.5 m², of which 3.7
   m² read unknown to the planner as the window closes and 1.2 m² ten minutes
-  on.
+  on. What its rays pass over behind it reads floor: at the house, the
+  couch (Rowan's dock of 11-22 replayed: 7 cells as the window closes, 12
+  ten minutes on; no walk past it measured went through them); and true
+  walls met at a graze lose cells as the window closes, level with the relay
+  off ten minutes on (SimNotes, "#741's open points, counted").
 - **What it leaves**: a fix of under 10 cm is still no fix, so a copy that
   close stays (the 11-23 save's lobby, 3.5-5.7 cm north: #741's option 2);
   what the relay keeps holds copies, so a walk from a re-laid lobby meets the
