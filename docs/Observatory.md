@@ -102,8 +102,8 @@ process, fa842927 beside the branch).
   11 came down fast while open (1.4-7.6 rad/s; on the base 6 of them did),
   the other left 109 deg open: the base's three passes there (it set the lid
   down from 59-86 deg at 0.34-0.44 rad/s) are lost, and its one fall is a
-  failure without a fall. In all, 27
-  passed and 6 fell on the base, 24 and 5 on the branch.
+  failure without a fall. In all, 31
+  passed and 6 fell on the base, 28 and 5 on the branch.
 - **The readings against the truth** (X5's chest flights flown again with
   every arm joint's true and read distance to its end and its limit's force,
   and the soles' own place and heading): every one of 640 joints pressing
