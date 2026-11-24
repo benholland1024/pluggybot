@@ -1358,6 +1358,8 @@ class Reach:
     #: ...whether each hand's `force` this command is the whole body's balance,
     #: closed: where it is not, the arm's alone, which takes the body as still,
     #: stands -- and a carry's rule reads no load there (#699; `carry`, `_held`).
+    #: Not kept: read afresh each command before anything reads it, and no hand
+    #: that holds nothing is out across a save (`Body.working`).
     self.closed = {s: False for s in hm.SIDES}
     #: ...and what the robot reads of it (`HELD_PHASES`, #631).
     self.sensed_force = {s: np.zeros(3) for s in hm.SIDES}
@@ -1849,6 +1851,10 @@ class Reach:
         self.pulls[side]["held_here"] = True
     if began is not None:
       self.pulls[side]["began"] = began
+    if loaded:
+      # ...its reading the mean it holds: read light on a command whose
+      # balance did not close, a replan took the posture withheld (`_held`)
+      self.pulls[side]["fm"] = np.asarray(self.force[side], dtype=float).copy()
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -2724,6 +2730,12 @@ class Reach:
     read on their stop as it ended (`stops`, #744)."""
     st = self.pulls[side]
     c = self.cmd[side]
+    if st.get("backing") and st.get("pull") is None:
+      # ...a carry's body backing off a posture given up held where it has got
+      # to, as its back-off holds it (`_held`, #699): left going, it walked all
+      # the way back to where the carry began, as a pull's swung a low arm
+      # into the counter (935 N)
+      self.hold_posture(*self.posture_now())
     short = float(np.linalg.norm(self.goal[side].pos - h))
     if not at_goal:
       # where the hand IS, at the turn it was ASKED (`carry`): held at the

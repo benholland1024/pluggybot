@@ -907,6 +907,52 @@ def test_a_carry_reads_a_load_only_where_the_whole_bodys_balance_closes():
   assert r.postures[-1] == (0.0, 0.3, 0.0)
 
 
+
+def test_a_carry_ended_while_it_backs_off_is_held_where_the_body_has_got_to():
+  """Review round 4 of #699's carry: a carry that ends from outside -- a stop condition, its
+  patience, its feet -- while its body backs off a posture given up left the body walking all the way
+  back to where the carry began, the hand held where it was: sent all the way back, a pull's waist
+  swung a low arm into the counter (935 N). Ended so, the body is held where it has got to, as the
+  back-off itself holds it."""
+  way, got_to = np.array([0.0, 0.0, -1.0]), (-0.05, 0.1, 0.0)
+  for why in ("out of time", "feet moved", st.UNTIL):
+    r = _carrying_open(start=(0.0, 0.15, 0.0))
+    r.posture_now = lambda: np.array(got_to)
+    r._posture_held = lambda: False
+    r.force["left"] = 1.1 * CARRY_LINE * way
+    r._held("left", DT, H, np.eye(3))
+    assert r.pulls["left"]["backing"] and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)]
+    r.stop("left", why)
+    assert r.pulls["left"] is None and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0), got_to], why
+  # ...a carry not backing off ends as it always did, its posture as it was
+  r = _carrying_open(start=(0.0, 0.15, 0.0))
+  r.posture_now = lambda: np.array(got_to)
+  r._posture_held = lambda: False
+  r._held("left", DT, H, np.eye(3))
+  r.stop("left", "out of time")
+  assert r.postures == [(0.0, 0.15, 0.0)]
+
+
+def test_a_load_withheld_at_the_ask_is_held_through_commands_that_do_not_close():
+  """Review round 4 of #699's carry: withheld at its ask for a load, a carry kept no mean, so where
+  its next commands' balance did not close it read light, and a replan -- or a path's planning again --
+  took the very posture withheld over the loaded hand. The ask's reading is the mean it holds."""
+  for turns in (None, [np.eye(3)]):
+    r = _asked_loaded((0.0, 0.3, 0.0), turns=turns)
+    assert r.pulls["left"]["loaded"] and r.postures == [(0.0, 0.3, 0.0)]
+    r.pulls["left"]["fixed"] = turns is not None
+    r.self_model.solve = lambda side, pos, rot=None, iters=None: (
+      np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
+    r.force["left"], r.closed["left"] = np.zeros(3), False
+    for _ in range(3):
+      r._held("left", DT, H, np.eye(3))
+    assert r.postures == [(0.0, 0.3, 0.0)] and r.pulls["left"]["loaded"], turns
+    # ...until a command that closes reads it light
+    r.closed["left"] = True
+    r._held("left", DT, H, np.eye(3))
+    assert r.postures == [(0.0, 0.3, 0.0), (-0.1, 0.5, 0.0)], turns
+
+
 def _asked_loaded(now, turns=None, read=1.1, reach=None):
   """A bare reach's left hand out at `H`, an open hand reading `read` times
   the carry's line as a carry 5 cm up is asked (a procedure's), the body
