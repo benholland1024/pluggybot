@@ -1606,7 +1606,9 @@ class Reach:
     kept = self.keep(side, verb)
     if kept is not None:
       postures = (kept,)
-    plan_, goal, own, swung = self._planned(side, goal, approach, postures, flip, swing=verb)
+    passed: list = []
+    plan_, goal, own, swung = self._planned(side, goal, approach, postures, flip, swing=verb,
+                                            passed=passed)
     self.kept[side] = self.judged_home[side] = self.own[side] = None
     self.swung[side] = None
     if swung is not None:
@@ -1644,7 +1646,8 @@ class Reach:
     self.goal[side] = goal
     self.q_to[side] = self.outs[side].pop(0)
     self.allowed[side] = [tuple(float(v) for v in p_) for p_ in postures]
-    self.left[side], self.looks[side], self.looking[side] = [], 0, False
+    # ...a posture its plan passed over for its swing (#747) none its look takes
+    self.left[side], self.looks[side], self.looking[side] = passed, 0, False
     self.seen_at[side] = self.seen if verb else None
     self.phase[side] = "move"
     # ...a way home it cut short is over: no later rest reads it held
@@ -1683,14 +1686,16 @@ class Reach:
     nothing moved."""
     return self._planned(side, goal, approach, postures, flip, swing=True)[0] is not None
 
-  def _planned(self, side, goal, approach, postures, flip, swing: bool = False):
+  def _planned(self, side, goal, approach, postures, flip, swing: bool = False,
+               passed: list | None = None):
     """(the plan, its goal -- half a turn round where that grip was tried --
     None, None), its arm kept off its own trunk (#726, `plan`'s `own`) and,
     `swing` -- a procedure's -- its swing off what its depth camera saw
     (#747, `seen`, `_swing`); or, where every plan that keeps off the trunk
     would swing into it, (None, the goal, None, what the first would have
     met); or, where every plan that reaches puts it in the trunk, (None, the
-    goal, `own`: how near the first came, its `plan` and its `goal`, None)."""
+    goal, `own`: how near the first came, its `plan` and its `goal`, None).
+    `passed`: a list each posture a plan's swing passed over is added to."""
     # ...on the robot as it reads itself standing, the other arm where it is
     # and this one's answer nearest it as it is (#627)
     sm = self._planner_model()
@@ -1698,8 +1703,14 @@ class Reach:
     kw = {"lean": lean, "arms": self._arms(but=side), "start": self.q_cmd[side]}
     judged = swing and self.seen is not None and len(self.seen) > 0
 
+    def judged_by(g: HandGoal, found) -> dict | None:
+      met = self._swing(side, found, g, lean)
+      if met is not None and passed is not None and tuple(found[0]) not in passed:
+        passed.append(tuple(float(v) for v in found[0]))
+      return met
+
     def judge(g: HandGoal) -> dict | None:
-      return {"judge": lambda found: self._swing(side, found, g, lean)} if judged else None
+      return {"judge": lambda found: judged_by(g, found)} if judged else None
     own: dict = {}
     swung = judge(goal)
     plan_ = plan(side, goal, sm, approach=approach, postures=postures, own=own, swing=swung, **kw)
@@ -2267,7 +2278,8 @@ class Reach:
     the least bent of the postures its reach may take that puts its goal in
     reach -- with its slack, else at full stretch, as `plan` chooses -- is
     the one it holds, or none is, or it has looked `LOOKS` times. Else that
-    posture is taken, never one it has left this reach, and it looks again
+    posture is taken, never one it has left this reach (nor one its plan
+    passed over for its swing, #747), and it looks again
     once there; its hand waits at its pre-grasp meanwhile (`looking`). ⚠
     EITHER WAY: the table's cup is reached by an arm over the top, which leant
     the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
