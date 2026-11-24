@@ -64,7 +64,8 @@ from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_
                                      STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
                                      STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
-from pluggybot.humanoid.reach import LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS
+from pluggybot.humanoid.reach import (CARRY_PRESSED_SHARE, LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS,
+                                      PRESSED_ASK_N)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
@@ -544,6 +545,19 @@ SPOT_SIDE_TOP_DEG, SPOT_SIDE_BOTTOM_DEG = _spot_side_deg(1), _spot_side_deg(-1)
 #: the number a block's tag is known by, and 52.7 would read 53
 #: (`test_no_hand_verb_knows_the_chest`).
 SPOT_SIDE_BOTTOM_TENS = 10 * math.floor(SPOT_SIDE_BOTTOM_DEG / 10)
+#: ...and no bow of `spot`'s -- asked, or held short by #717's room -- takes
+#: in anything that stood beside the standing picture higher than this over
+#: the floor, m (#728's option 2): bowed, the head comes forward as it turns
+#: down, and at a counter's height the picture's sides draw in 4-10 deg at the
+#: bows it asks. Lower, near its bottom's corners, a bow takes in some of what
+#: stood beside and below it. On the robot's model of itself posed as each
+#: bow's statue, the highest that happens is 0.44 m: a test works it out there
+#: and fails unless this is that rounded up to a tenth. ⚠ The statue's, its
+#: weight over the soles' middle (0.436 with the stand's 1.2 cm lean); the
+#: live head stands 1-2 cm behind it, and flown, nothing beside the picture
+#: came in at a counter's height (SimNotes, "A tag beside `spot`'s picture,
+#: and its bows").
+SPOT_BOW_SIDE_UNDER_M = 0.5
 #: ...the picture's top over the floor IN THE STANCE FRAME, m, where the
 #: robot reads every place: at x = 0 (the camera's height carried back to the
 #: soles' middle, 4.5 cm behind it), falling this much a metre of x; and how
@@ -651,9 +665,11 @@ def _spot(life, args: dict) -> Routine:
   if seen is None:
     forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660) and its sides
-    # (#728), and short: History's run line drops whole a false test's reason
-    # past what its run leaves, about 307 characters less the procedure's
-    # name and the line's digits (#629; tests/test_watch.py pins the fit)
+    # (#728: past them no bow takes in a tag higher than
+    # `SPOT_BOW_SIDE_UNDER_M`), and short: History's run line drops whole a
+    # false test's reason past what its run leaves, about 307 characters less
+    # the procedure's name and the line's digits (#629; tests/test_watch.py
+    # pins the fit)
     top = (f"tag {int(tag)} is not in your colour camera's picture from where you "
            "stand, or too near or too far to read: it shows nothing higher than "
            f"{SPOT_TOP_DEG:.0f} degrees below level")
@@ -1069,6 +1085,15 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                          "through your own body, so it did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
+#: ...and one that stopped short, by the rule its body says stopped it
+#: (`Body.hand_stopped`, #743), never both causes where it knows one;
+#: `REACH_WHY`'s where the body does not say.
+REACH_STOPPED_BY = {
+  "pushed": "your {hand} hand stopped short on its way in: it pushed on something before it "
+            "got there, {n:.0f} N",
+  "reach": "your {hand} hand stopped short on its way in: out of reach from how you truly stand",
+  "caught": "your {hand} hand stopped on its way out: it caught on something, which would have "
+            "tipped you toward it"}
 #: ...and one out of reach with the other hand holding something, whose grip
 #: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
 REACH_KEPT = ("your {other} hand is out holding something, so your body keeps the posture it "
@@ -1175,22 +1200,47 @@ def _arm_out(life, walk: str) -> dict | None:
           "reason": said.format(where=_where(kept), **kept)}
 
 
+def _feet(life) -> tuple:
+  """Where the feet stand as a verb begins (#746): the stance's heading as
+  believed -- the frame a place it reads is said in -- and the stance as
+  its legs alone reckon it (`Body.reckoned`)."""
+  return life.body.stance[2], life.body.reckoned
+
+
+def _feet_went(life, verb: str, began: tuple) -> None:
+  """Where the stance went while `verb` ran since `began` (`_feet`), its
+  readings (`axes.STANCE_SENSORS`): by the legs' reckoning -- a scan's or a
+  station's correction meanwhile is no move of the feet -- in the stance
+  frame it stood in before it, as a `step` says its own
+  (`HumanoidBody.step_routine`)."""
+  yaw, (x0, y0, h0) = began
+  x1, y1, h1 = life.body.reckoned
+  c, s = math.cos(yaw), math.sin(yaw)
+  _reports(life)[verb] = {"dx": c * (x1 - x0) + s * (y1 - y0),
+                          "dy": c * (y1 - y0) - s * (x1 - x0),
+                          "turn": math.remainder(h1 - h0, 2 * math.pi)}
+
+
 def _reach(life, args: dict) -> Routine:
   """A hand's grip point to (x, y, z), its fingers along (fx, fy, fz) and
   its jaws closing along (jx, jy, jz) -- or at whatever turn the arm finds,
   both left 0 -- out short of it, then in along the fingers' way. ok once
-  it holds there, or where its stop condition stopped it (#554)."""
+  it holds there, or where its stop condition stopped it (#554). Where the
+  feet went while it ran rides `reach.*`, however it ended (#746)."""
   hand = args["hand"]
   _stopped_reading(life, "reach", False)
   rot, bad = _grip_turn(life, args)
   if bad:
+    forget_readings(life, "reach")
     return {"ok": False, "reason": bad}
   place = _hand_place(life, args)
   guard = _guard(args)
+  began = _feet(life)
   (ok, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
     life, hand, guard, life.body.reach_routine(
       hand, place, rot, stiffness=float(args.get("stiffness", _STIFF.default)),
       patience=REACH_PATIENCE_S, refuse=True)))
+  _feet_went(life, "reach", began)
   why = "" if ok else life.body.hand_why(hand)
   _stopped_reading(life, "reach", why == UNTIL)
   said = _said(guard, stopped, why)
@@ -1212,7 +1262,12 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": False, "hand": hand, "why": why, "reason": REACH_KEPT.format(
       hand=hand, other=kept_by) + (TURNED_ELSE if turned() else ""), **said, "felt": felt}
   if why == "stopped short":
-    reason += _short_of(life, place, rot, felt)
+    cause = life.body.hand_stopped(hand) or {}
+    if cause.get("by") in REACH_STOPPED_BY:
+      reason = REACH_STOPPED_BY[cause["by"]].format(hand=hand, n=float(cause.get("n") or 0.0))
+    # ...caught on its way out, never on its line in: how far alone, nothing
+    # along or across fingers that had not begun their way in
+    reason += _short_of(life, place, None if cause.get("by") == "caught" else rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
@@ -1249,6 +1304,8 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
             "held back": "your {hand} hand was held back short of it: what it holds or "
                          "pushes on stopped it",
             "feet moved": "your feet moved under the force, so it stopped there",
+            # ...a carry whose grip it began with was lost on its way (#742)
+            "let go": "your {hand} hand's grip let go of what it held on the way",
             "not out": "your {hand} hand is not out: `reach` with it first",
             "fell": "you fell on the way, and let go",
             "out of time": "your {hand} hand did not get there in time"}
@@ -1256,6 +1313,12 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
 #: option 2).
 MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture you are in: "
              "your {other} hand is out holding something, so your body keeps it")
+#: ...and one out of reach whose hand, holding nothing, read a load as a
+#: posture would have come (#699 on a carry: `reach.CARRY_PRESSED_SHARE` of
+#: `reach.PRESSED_ASK_N`, its line).
+MOVE_LOADED = ("your {hand} hand could reach no further that way from the posture you are in: "
+               f"it holds nothing and read a push of more than "
+               f"{CARRY_PRESSED_SHARE * PRESSED_ASK_N:.0f} N, so your body keeps it")
 
 
 def _hand_report(life, hand: str, rep: dict) -> dict:
@@ -1265,6 +1328,12 @@ def _hand_report(life, hand: str, rep: dict) -> dict:
     out["by"] = [round(v, 4) for v in axes.in_stance(life, (rep["dx"], rep["dy"], rep["dz"]),
                                                       point=False)]
   return out
+
+
+def _on_its_grip(guard, hand: str) -> bool:
+  """Whether a move's stop condition is `hand`'s own grip lost: its
+  `<hand>.held` read below a number a lost grip's 0 is below."""
+  return guard is not None and guard[0] == f"{hand}.held" and guard[1] == "below" and guard[2] > 0.0
 
 
 def _move_hand(life, args: dict) -> Routine:
@@ -1294,6 +1363,12 @@ def _move_hand(life, args: dict) -> Routine:
       hand, end, stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
       patience=HAND_PATIENCE_S + (2.0 * length / speed if places else 0.0),
       path=places or None, turns=turns, verb=True)))
+  if rep.get("why") == "let go" and stopped is None and _on_its_grip(guard, hand):
+    # ...a stop condition on this hand's own grip is the grip's own word: the
+    # body ended the carry the tick its grip read lost, before the
+    # condition's next read could (#742's review), so it is said as that stop
+    rep = {**rep, "why": UNTIL}
+    stopped = {"read": 0.0, "s": felt[-1]["t"] if felt else float(rep.get("seconds") or 0.0)}
   _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
@@ -1304,6 +1379,9 @@ def _move_hand(life, args: dict) -> Routine:
   if kept_by and life.body.hand_reaches(hand, end, rot):
     # ...where another posture would reach its end (#719)
     return {"ok": False, **out, **said, "reason": MOVE_KEPT.format(hand=hand, other=kept_by)}
+  if rep.get("why") == "out of reach" and rep.get("loaded") and life.body.hand_reaches(hand, end, rot):
+    # ...or its hand, holding nothing, read a load (#699)
+    return {"ok": False, **out, **said, "reason": MOVE_LOADED.format(hand=hand)}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 
@@ -1319,10 +1397,11 @@ def _pull(life, args: dict) -> Routine:
   with its whole force and not moving), its grip lets go, or it can reach
   no further -- or its stop condition stops it (#554) -- then it holds
   there. How far it went, the hardest it pushed, the way it was going at its
-  end and whether it ended held fast ride `pull.*`. ok unless the hand was
-  not out, the way is all 0 or it fell -- or `lang` refused an argument
-  first -- and its text says so (#650: a served robot is shown no step's
-  `why`, only what it reads)."""
+  end, whether it ended held fast by what it pulls or out of reach, and
+  whether one of its arm's joints read on its stop as it stopped (#744)
+  ride `pull.*`. ok unless the hand was not out, the way is all 0 or it
+  fell -- or `lang` refused an argument first -- and its text says so
+  (#650: a served robot is shown no step's `why`, only what it reads)."""
   from pluggybot.procedure import axes
   hand = args["hand"]
   _stopped_reading(life, "pull", False)
@@ -1346,9 +1425,14 @@ def _pull(life, args: dict) -> Routine:
     return {"ok": False, **out,
             "reason": MOVE_WHY.get(rep["why"], "the pull did not begin").format(hand=hand)}
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
+  # ...held fast by what it pulls, never at its own arm's stop (#744: a lid
+  # held at the robot's own wrist's end read as at its open stop)
+  stop = bool(rep.get("stops"))
   _reports(life)["pull"] = {"moved": float(rep.get("moved", 0.0)),
                             "force": float(rep.get("force") or 0.0),
-                            "held": 1.0 if rep.get("why") == "held fast" else 0.0,
+                            "held": 1.0 if rep.get("why") == "held fast" and not stop else 0.0,
+                            "reach": 1.0 if rep.get("why") == "out of reach" else 0.0,
+                            "joint_end": 1.0 if stop else 0.0,
                             "dx": way[0], "dy": way[1], "dz": way[2]}
   return {"ok": True, **out}
 
@@ -1459,9 +1543,12 @@ WITHDRAW_WHY = {"fell": "you fell on the way home",
 
 def _withdraw(life, args: dict) -> Routine:
   """ok once the arm is home, by its drivers (`Body.release_routine`), its
-  gripper opened first (#669)."""
+  gripper opened first (#669); where the feet went while it ran rides
+  `withdraw.*` (#746)."""
   hand = args["hand"]
+  began = _feet(life)
   why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand, refuse=True))
+  _feet_went(life, "withdraw", began)
   if why == "home":
     return {"ok": True, "hand": hand, "felt": felt}
   kept = life.body.hand_kept(hand) if why == "kept off" else None
@@ -1610,7 +1697,10 @@ HANDS_VERBS: dict[str, Verb] = {
                f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level, "
                f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where your head faces "
                f"at its top and more than {SPOT_SIDE_BOTTOM_TENS} at its bottom, and bowing only "
-               "takes it lower. With your trunk square to your feet, a thing at x in your "
+               "takes it lower: none of `spot`'s bows brings in a tag beside the picture if the "
+               f"tag stands higher than {SPOT_BOW_SIDE_UNDER_M:g} m over the floor, and turning "
+               "swings the picture the way you turn. With your trunk square to your feet, a "
+               "thing at x in your "
                "stance frame is in the picture only if it stands lower than "
                f"({SPOT_TOP_AT_FEET_M:.2f} - {SPOT_TOP_DROP:.2f} x) m over the floor, and a tag "
                "reads only with the whole of it inside the picture: the lower a tag is, the "
@@ -1650,7 +1740,10 @@ HANDS_VERBS: dict[str, Verb] = {
                 "place (`left.x` and the rest) says where it is. Its way out, and its way "
                 "home from there, keep clear of the body of another robot standing near you: "
                 "where no way does, your arm does not move, and it reads false saying where "
-                "that robot stands"),
+                "that robot stands. The posture you take can move and turn your feet: where "
+                "they went while it ran rides `reach.*` (`reach.dx` ahead, `reach.dy` left, m, "
+                "and `reach.turn`, rad), in the stance frame you stood in before it, however "
+                "it ended"),
   "via": Verb("via", {"hand": _HAND, **_HAND_AT, **_TURN}, _via,
               "add the point (x, y, z) to your hand's path, the grip turned there to "
               "(fx, fy, fz) and (jx, jy, jz) where given as for `reach`; nothing moves "
@@ -1682,8 +1775,10 @@ HANDS_VERBS: dict[str, Verb] = {
                "reach no further; then it holds there. While your other hand is out holding "
                "something, your body keeps the posture it is in. Standing, your body holds a pull of "
                f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
-               "that. How far it went, the hardest it pushed, whether it ended held fast and "
-               "the way it was going at its end ride `pull.*`, unless it reads false; ok unless "
+               "that. How far it went, the hardest it pushed, whether it ended held fast by what "
+               "it pulls or could reach no further, whether one of your arm's joints was at "
+               "the end of its range as it stopped and the way it was going at its end ride "
+               "`pull.*`, unless it reads false; ok unless "
                "an argument was refused, your hand was not out, (dx, dy, dz) are all 0 or you "
                "fell: whatever else stopped it, held fast against something too, it is still "
                "ok, and `pull.moved` says how far it went"),
@@ -1740,7 +1835,8 @@ HANDS_VERBS: dict[str, Verb] = {
                    "on a counter's top -- " + HELD_SAID + ", pressing on nothing, and it reads "
                    "false saying so. Its way home keeps clear of the body of another robot standing near "
                    "you: where no way does, your gripper stays as it is and your hand where it "
-                   "is, and it reads false saying where that robot stands"),
+                   "is, and it reads false saying where that robot stands. Where your feet went "
+                   "while it ran rides `withdraw.*`, as a reach's rides `reach.*`"),
 }
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...
@@ -1801,7 +1897,7 @@ def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
   return WorldFacts(bounds=(-1e3, -1e3, 1e3, 1e3), axes=axes.BODY_AXES["humanoid"],
                     sensors=(axes.HAND_SENSORS + (axes.WATCH_SENSORS if watching else ())
                              + axes.PULL_SENSORS
-                             + (axes.STEP_SENSORS if step else ())
+                             + (axes.STEP_SENSORS if step else ()) + axes.STANCE_SENSORS
                              + (axes.MEASURE_SENSORS if measure else ())
                              + (axes.STOPPED_SENSORS if guarded else ())),
                     verbs=("wait", "move") + hands + (MEASURE_VERBS if measure else ()),
@@ -1951,10 +2047,13 @@ def _until_down_routine(life, routine: Routine) -> Routine:
       routine.close()
       raise
     except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      if dead(life):
+        body.forgo_owed()                  # ...the step it died in: gone on, closed unbooked
       exc, sent = e, None
       continue
     if dead(life):
       routine.close()
+      body.forgo_owed()                    # ...the step it died in, closed unbooked (#749)
       return None, "died"
 
 

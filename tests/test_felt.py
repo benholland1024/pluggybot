@@ -170,6 +170,18 @@ def test_a_hand_at_work_standing_is_read_off_the_whole_body(phase):
   assert r.force["right"][0] == 1.0
 
 
+def test_a_hand_read_off_the_whole_bodys_balance_is_said_closed():
+  """#699 on a carry: a carry reads its open hand's load only where the whole body's balance closed
+  (`Reach.closed`) -- where it did not, the arm's own estimate, taken as still, stands as `force` (in
+  free air, as the body crouched, bowed and turned at once, 430 N) and is no load there."""
+  r = _feeling("carry", standing=True)
+  assert r.closed == {"left": True, "right": False} and r.force["left"][0] == 2.0
+  r = _feeling("carry", standing=True, felt=None)
+  assert r.closed == {"left": False, "right": False} and r.force["left"][0] == 1.0
+  r = _feeling("carry", standing=False)
+  assert r.closed == {"left": False, "right": False} and r.force["left"][0] == 1.0
+
+
 def test_the_whole_body_is_handed_the_torques_less_a_turning_arms_friction():
   """The arm's friction, calibrated, comes off where a joint turns before
   the balance reads its row, as the arm's own reading takes it off."""

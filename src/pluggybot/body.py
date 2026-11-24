@@ -180,6 +180,13 @@ class Body(abc.ABC):
 
   @property
   @abc.abstractmethod
+  def last_hooks(self) -> list:
+    """...and those run after every one of them, whenever a step hook was
+    hung (#749): where the world is saved (`continuation.Keeper`), after
+    every reading of the step it saves."""
+
+  @property
+  @abc.abstractmethod
   def stepper(self):
     """What steps this body's physics (`tick.run`, `tick.run_many`):
     `apply(command)` before the world steps, `after_step()` after,
@@ -198,6 +205,23 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def restore_kept(self, state: dict, arrays: dict) -> bool:
     """Put `kept_state` back; True if its map fitted this build."""
+
+  @abc.abstractmethod
+  def book_owed(self) -> bool:
+    """The bookkeeping a routine stepping this body does after a step's
+    hooks -- all of it (a humanoid's `_after_step`: the walking look, the
+    depth frame's fold, the scan, the contacts' step) -- done now for the
+    step the world last stepped, where the save it was restored from was
+    taken inside that step's hooks with it still owed (#749,
+    `continuation.restore`) -- else nothing. True where it was owed."""
+
+  @abc.abstractmethod
+  def forgo_owed(self) -> None:
+    """The step the world last stepped is booked by nobody: the routine
+    stepping this body was closed at it, a death or a stand-up having
+    landed in its hooks (`steps._until_down_routine`,
+    `HubLifecycle._until_stood_up_routine`). A save from here on -- a run's
+    end at that step -- owes nothing of it (#749)."""
 
   @abc.abstractmethod
   def close(self) -> None:
@@ -767,7 +791,8 @@ class Body(abc.ABC):
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
     -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
-    "fell", "feet moved", "out of time"), in
+    "let go" -- a `verb`'s, a grip it began with lost on its way, ended
+    where the hand is (#742) -- "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
     procedure's, whose posture the other hand's grip keeps (#719), never
@@ -777,12 +802,22 @@ class Body(abc.ABC):
   def hand_why(self, side: str) -> str:
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
-    (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
+    (it stopped on its way: in, pushing on something or out of reach as the
+    body truly stood; out, caught on something -- `hand_stopped` says
+    which), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
     `hand_kept`), "own body" (#722: every way out would pass through its
     own trunk, so nothing moved), "fell", "out of time" -- or "" where it
     held (#493)."""
+
+  @abc.abstractmethod
+  def hand_stopped(self, side: str) -> dict | None:
+    """What stopped a hand's last `reach_routine` on its way, where
+    `hand_why` says "stopped short", by the rule that did (#743): `by`
+    "pushed" (on its way in, the force it read at the hand past its line;
+    `n`, N, that reading), "reach" (on its way in, out of reach from how
+    the body truly stood) or "caught" (on its way out, what its arm read
+    would have tipped the body toward the hand) -- else None."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -861,8 +896,10 @@ class Body(abc.ABC):
     moved", "out of time"), in how long,
     how far the hand went (`moved`) and along its way (`along`), where it
     ended up from where it began (believed world frame, m), the way the hand
-    was going at its end (`direction`, a unit vector: what it held allowed)
-    and the hardest it pushed along its way (`force`, N). `verb`: as
+    was going at its end (`direction`, a unit vector: what it held allowed),
+    the hardest it pushed along its way (`force`, N) and its arm's joints
+    its drivers read on their stop as it ended (`stops`, by name: #744, held
+    fast there is its own arm's hold, never what it pulls). `verb`: as
     `move_hand_routine`'s."""
 
   @property
@@ -872,6 +909,16 @@ class Body(abc.ABC):
     hands' work is put in -- the humanoid's between its soles (#507), a
     body with no hand its own pose -- what a procedure's hand verbs say
     their places in (#493)."""
+
+  @property
+  @abc.abstractmethod
+  def reckoned(self) -> tuple[float, float, float]:
+    """Its STANCE by its legs' own reckoning, (x, y, heading): `stance` less
+    every correction from outside that reckoning (a scan match, a
+    station's look), which moves the belief and never the feet -- so only
+    how it moves means anything: where the feet went while a verb ran
+    (#746: `reach.*`, `withdraw.*`, as a `step` measures its own walk). It
+    reads nothing afresh."""
 
   # ---- posture and rest ----------------------------------------------------
 
@@ -970,6 +1017,8 @@ class _StubStepper:
   def after_step(self) -> None:
     for hook in self.body.step_hooks:
       hook()
+    for hook in self.body.last_hooks:
+      hook()
 
   def step(self, command) -> None:
     self.apply(command)
@@ -1013,6 +1062,7 @@ class StubBody(Body):
     self._model, self._data = model, data
     self.handle = handle
     self._hooks: list = []
+    self._last_hooks: list = []
     self._stepper = _StubStepper(self)
     self.x, self.y, self.theta = (float(v) for v in pose)
     gx0, gy0, gx1, gy1 = grid_bounds
@@ -1074,6 +1124,9 @@ class StubBody(Body):
     self.watched: list = []
     self.sight: dict | None = None
     self._why: dict[str, str] = {}
+    #: ...and what a test says stopped a hand's reach on its way (#743,
+    #: `hand_stopped`'s shape)
+    self.stopped: dict[str, dict] = {}
     self.forgot = 0
     #: ...what moved its belief (a test puts records in), the fixtures it
     #: was lost at, and whether a search finds one (a test sets it)
@@ -1105,6 +1158,7 @@ class StubBody(Body):
   model = property(lambda self: self._model)
   data = property(lambda self: self._data)
   step_hooks = property(lambda self: self._hooks)
+  last_hooks = property(lambda self: self._last_hooks)
   stepper = property(lambda self: self._stepper)
 
   def run(self, routine, name=""):
@@ -1118,6 +1172,12 @@ class StubBody(Body):
     self.x, self.y, self.theta = state["pose"]
     self.places.restore_kept(state.get("places"))
     return False
+
+  def book_owed(self) -> bool:
+    return False                          # it books nothing after a step
+
+  def forgo_owed(self) -> None:
+    pass
 
   def close(self) -> None:
     pass
@@ -1463,6 +1523,10 @@ class StubBody(Body):
     put `out_of_reach`."""
     return self._why.get(side, "")
 
+  def hand_stopped(self, side) -> dict | None:
+    """What a test put `stopped`: no reach of a stub's stops on its way."""
+    return self.stopped.get(side)
+
   def hand_kept(self, side) -> dict | None:
     """No other robot's body in any arm's way: none."""
     return None
@@ -1500,17 +1564,22 @@ class StubBody(Body):
     self.pulled.append((side, tuple(direction), float(limit_n), float(distance_m), bool(give)))
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "along": 0.0, "dx": 0.0,
-              "dy": 0.0, "dz": 0.0, "direction": list(direction), "force": 0.0}
+              "dy": 0.0, "dz": 0.0, "direction": list(direction), "force": 0.0, "stops": []}
     d = np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
     to = np.asarray(self.hand_at(side), dtype=float) + float(distance_m) * d
     return {"why": "distance", **self._carried(side, to), "along": float(distance_m),
-            "direction": [float(v) for v in d], "force": 0.0}
+            "direction": [float(v) for v in d], "force": 0.0, "stops": []}
     yield
 
   @property
   def stance(self):
     return self.pose
+
+  @property
+  def reckoned(self):
+    """`stance`: nothing corrects a stub's belief."""
+    return self.stance
 
   def stand_routine(self):
     self.resting = False

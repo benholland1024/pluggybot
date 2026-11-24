@@ -303,6 +303,32 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   from where that step began and keeps the result only if it lands on the
   saved state bit for bit; otherwise (no step kept, an input changed after
   it) it forwards the saved instant, as before.
+- **...and that step's bookkeeping done on it** (`Body.book_owed`, #749).
+  The keeper saves inside a step's hooks, and a routine books the step
+  after them when it resumes (`Navigator._after_step`: the walking look, the
+  depth frame's fold, the scan). Saved on a step whose scan was due, the
+  world came back with that scan untaken; the restored process took it a
+  step late, and every scan after it, each scheduled off the last, so the
+  belief, the map and the camera's layer parted from the world flown
+  straight through -- about one keeper save in 50, and every one that fell
+  on a charge's first step, the plug-in having taken no scan for 1.7 s.
+  Every routine that books its steps now yields them through one door
+  (`Navigator._booked_routine`), which says so; from the step's hooks until
+  it is booked the step is owed, a stop thrown in at the yield leaving it
+  owed (a run's end, a stop while paused), and the save keeps that per
+  robot. The restore books it once the step is stepped again. A save from
+  before it owes nothing and comes back as it always did. And no save is
+  taken on a step a death or a stand-up landed in (`Keeper.landed`): a
+  routine it lands in may be closed there, unbooked, once the hooks are
+  done -- a procedure's verb on a death, a long routine on a stand-up --
+  and saved, the restore would book a step the world never did; the keeper
+  saves, or stops, a step later, and the routine closed there owes nothing
+  (`Body.forgo_owed`), so a run's end right after it -- `Keeper.finish`
+  saves whatever a body is doing, and is never deferred -- does not book it
+  either. The keeper's own
+  hook runs after every step hook, whenever one was hung
+  (`Body.last_hooks`): hung among them, it saved before a hand job's watch,
+  hung at the job's claim, had read the step.
 - **Sim time continues.** Every absolute stamp keeps its meaning: the
   survival clock, the unminded clock, a dead robot's stand-up timer, an
   offer's deadline (the board loads without rebasing). `max_sim_time` is

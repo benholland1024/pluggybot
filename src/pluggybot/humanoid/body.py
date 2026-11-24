@@ -566,6 +566,10 @@ class HumanoidBody(Body):
     return self.mission.step_hooks
 
   @property
+  def last_hooks(self) -> list:
+    return self.mission.last_hooks
+
+  @property
   def stepper(self):
     return self.mission.stepper
 
@@ -581,6 +585,12 @@ class HumanoidBody(Body):
     if "legs" not in state:
       return False                      # saved before a humanoid kept any
     return self.mission.restore_kept(state, arrays)
+
+  def book_owed(self) -> bool:
+    return self.mission.book_owed()
+
+  def forgo_owed(self) -> None:
+    self.mission._owed = False
 
   @property
   def working(self) -> bool:
@@ -624,6 +634,20 @@ class HumanoidBody(Body):
     c, s = math.cos(syaw), math.sin(syaw)
     px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
     return x - (c * px - s * py), y - (s * px + c * py), syaw
+
+  @property
+  def reckoned(self) -> tuple[float, float, float]:
+    """Its stance by its legs' own reckoning (#746): `stance` less every
+    correction from outside it -- a scan match, a station's look -- summed
+    (`StanceOdometry.corrected`), as a step's walk is measured (`_by_legs`).
+    ⚠ NEVER THE PELVIS'S PLACE OVER THE FEET TURNED BY THE SUMMED TURN: the
+    odometry moves the pelvis in the believed heading, and so turned, a bow
+    read as the feet moving. A turn corrected while a verb runs leaves that
+    place turned by it, at most the place times the turn (mm). Off the
+    odometry's state as it last ticked: nothing read afresh."""
+    x, y, yaw = self.stance
+    c = self.mission.odo.corrected
+    return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
 
   def to_stance(self, p) -> np.ndarray:
     """A believed world point in its stance frame."""
@@ -886,6 +910,10 @@ class HumanoidBody(Body):
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
+
+  def hand_stopped(self, side) -> dict | None:
+    stopped = self.reach.stopped[side] if self._why.get(side) == "stopped short" else None
+    return None if stopped is None else dict(stopped)
 
   def hand_kept(self, side) -> dict | None:
     return self._kept.get(side)
@@ -1257,7 +1285,8 @@ class HumanoidBody(Body):
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
     if not self.reach.pull(side, d, limit_n, distance_m, speed, give, verb=verb):
-      rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
+      # ...nothing moved: no stop of its arm's read as this pull's (#744)
+      rep = {**(self.reach.report[side] or {}), "why": "out of reach", "stops": []}
     else:
       rep = yield from self._held_routine(side, patience)
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
@@ -1275,7 +1304,8 @@ class HumanoidBody(Body):
                          "moved": round(n, 4), "along": round(float(rep.get("went", disp @ d)), 4),
                          "dx": float(disp[0]), "dy": float(disp[1]), "dz": float(disp[2]),
                          "direction": [float(v) for v in way],
-                         "force": round(float(rep.get("force") or 0.0), 2)})
+                         "force": round(float(rep.get("force") or 0.0), 2),
+                         "stops": list(rep.get("stops") or ())})
 
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.sensed_force[side]
@@ -1865,6 +1895,7 @@ class HumanoidBody(Body):
       self.forget_world()
     elif self.mission.matcher is not None:
       self.mission.matcher.anchored()
+      self.mission.matcher.relay()
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
                                      moved=True, dropped=dropped, station=self.mission.station)

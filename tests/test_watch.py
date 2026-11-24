@@ -210,7 +210,8 @@ def test_a_spot_that_sees_nothing_says_which_camera_did_not_and_where_its_pictur
   """#660: `spot`'s refusal, as `watch`'s, names the colour camera it read,
   never the head camera, and the top of its picture, which no bow raises:
   "from where you stand" alone sent a robot off to stand elsewhere for a tag
-  above that picture. #728: and its sides, which no bow widens: told the
+  above that picture. #728: and its sides, past which no bow takes in a tag
+  higher than `SPOT_BOW_SIDE_UNDER_M`: told the
   top alone, a robot turned 32-36 deg from square, its door's lever 48-52
   deg from where its head faced, read every refusal as the top edge's and
   called that edge "stance-dependent". The numbers are `spot`'s text's
@@ -269,7 +270,7 @@ def _crowded(case: str) -> tuple[str, dict]:
   each crowded another way."""
   def read(line, verb, reason):
     return {"verb": verb, "line": line, "ok": False, "tested": True, "reason": reason}
-  why = "your right hand stopped short on its way: out of reach from how you truly stand"
+  why = "your right hand stopped short on its way in: out of reach from how you truly stand"
   if case == "its own":
     return "p", {"ok": True, "completed": 5, "steps": [read(4, "measure", "m" * 120), _refused()]}
   if case == "another test's":
@@ -451,13 +452,13 @@ def test_no_reader_of_a_step_is_shown_its_shorter_form():
     "division by zero)"]),
   ("reach_far", {"ok": True, "completed": 9, "total": 9, "locals": {"a": 1.5, "b": 2.0},
                  "steps": [{"verb": "reach", "line": 10 + k, "ok": False, "tested": True,
-                            "reason": "your right hand stopped short on its way: out of reach "
-                                      "from how you truly stand, or pushing on something"}
+                            "reason": "your right hand stopped short on its way in: it pushed "
+                                      "on something before it got there, 52 N"}
                            for k in range(4)]},
    ["ran the procedure reach_far to its end (9 steps; 4 tests read false -- line 10, reach: your "
-    "right hand stopped short on its way: out of reach from how you truly stand, or pushing on "
-    "something; line 11, reach: your right hand stopped short on its way: out of reach from how "
-    "you truly stand, or pushing on something (+2 more)) -- it ended with a = 1.5, b = 2"]),
+    "right hand stopped short on its way in: it pushed on something before it got there, 52 N; "
+    "line 11, reach: your right hand stopped short on its way in: it pushed on something before "
+    "it got there, 52 N (+2 more)) -- it ended with a = 1.5, b = 2"]),
   ("door_try", {"ok": False, "completed": 7, "total": 9, "failedAt": 6,
                 "locals": {"lx": 0.61, "ly": -0.2}, "steps": [
     {"verb": "step", "line": 3, "ok": False, "tested": True,

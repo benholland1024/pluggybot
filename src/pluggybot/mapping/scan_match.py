@@ -270,15 +270,42 @@ TURNED_NEAR_M = 0.5
 #: body past the search's window").
 FALLEN_NEAR_M = 2.0
 FALLEN_LOOKS = 6
-#: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
-#: the belief in its frame to millimetres (`anchored`), the next
-#: ANCHORED_SCANS scans that go into the map are laid at that belief,
-#: unmatched. MEASURED: a robot come home lost had laid a copy of the living
-#: room 0.9 m askew; anchored on the dock, matching against the copy pulled
-#: it 0.62 m back into it as it backed off. 30 is the undock's own back-out
-#: (0.9 m at 0.3 m/s, ten scans a second), and a wall clamped at +5 is
-#: floor after 14 misses.
+#: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the station's
+#: fix has put the belief in its frame (`anchored`, `HumanoidBody._fix_at`),
+#: the next ANCHORED_SCANS scans that go into the map are laid at that
+#: belief, unmatched -- the region the fix's relay forgot first (#741). The
+#: quadrupeds' measured why: a robot come home lost had laid a copy of the
+#: living room 0.9 m askew, and anchored on the dock, matching against the
+#: copy pulled it 0.62 m back into it as it backed off. 30, ten a second, is
+#: 3 s, and a wall clamped at +5 is floor after 14 misses. ⚠ LAID AS THEY
+#: COME, never held to FUSE_S (#741): held, the window lasted 146 s docked,
+#: and the legs' reckoning, unmatched through it, carried a re-docked belief
+#: 3 cm, the region laid afresh along it (3.4-4.5 cm after); a window of the
+#: relay's one scan instead slid the fits 3 cm along the lobby against walls
+#: one scan thick (SimNotes, "A station's fix that keeps the map lays again
+#: what it sees").
 ANCHORED_SCANS = 30
+#: ...and the relay forgets no further than this past the end of each
+#: bearing, m: what lies behind a wall the scan saw is never laid again from
+#: there, and a copy behind a fresh wall pulls nothing (#741's review: as far
+#: round as the fix's reach, up to 1.7 m, it cleared the rooms beyond).
+RELAY_BEHIND_M = 0.15
+
+
+def relay_keeps(free_from):
+  """Per bearing of a scan, how near a wall the relay keeps (#741,
+  `OccupancyGrid.forget_seen`'s `keep_near`), m: nearer than both the band's
+  `free_from` -- its rays pass over what is lower there, and `update` clears
+  no wall -- and the fit's MATCH_MIN_M, where a copy pulls nothing; between
+  the two, behind the robot out to 2.8 m, a copy kept pulled the synthetic
+  lobby's belief 1.2 cm, so it goes, and a low thing there with it. ⚠ BUT
+  EVERY WALL ON A BEARING THE BAND CLEARS NONE OF (inf: bowed past
+  `CLEARS_TILT_RAD`, or behind another robot nearer than the room): forgotten
+  there, `update` would lay it floor (#741's second review)."""
+  if free_from is None:
+    return None
+  free_from = np.asarray(free_from, dtype=float)
+  return np.where(np.isinf(free_from), np.inf, np.minimum(free_from, MATCH_MIN_M))
 #: A scan is fused only once the pose has moved this far or turned this
 #: much since the last one fused, or FUSE_S has passed. MEASURED: docked for
 #: 388 s, every scan fused at a pose jittering by a millimetre walked the
@@ -453,6 +480,8 @@ class ScanMatcher:
     self.pending: tuple[float, float, float] | None = None
     #: Scans still to be laid at an anchor's belief, unmatched (`anchored`).
     self.anchoring = 0
+    #: The next scan laid goes in over what it sees forgotten first (`relay`).
+    self.relaying = False
     #: Scans before a doubted or slid fit may be searched again (DOUBT_EVERY).
     self.doubt_wait = 0
     #: Wide searches left at every heading since a fall (`fell`), and what
@@ -521,10 +550,11 @@ class ScanMatcher:
 
   def fuses(self, match: Match, t: float) -> bool:
     """Whether the scan just matched goes into the map: its verdict allows
-    it, and the robot has moved since the last one fused (FUSE_*)."""
+    it, and the robot has moved since the last one fused (FUSE_*) -- or it
+    is an anchor's (`anchored`), laid as it comes."""
     if not match.fuse:
       return False
-    if self.fused_pose is None or t - self.fused_t >= FUSE_S:
+    if self.fused_pose is None or self.anchoring or t - self.fused_t >= FUSE_S:
       return True
     x, y, th = match.pose
     fx, fy, fth = self.fused_pose
@@ -545,6 +575,26 @@ class ScanMatcher:
     self._settled()
     if on:
       self.lost_run, self.pending, self.fused_pose = 0, None, None
+    else:
+      self.relaying = False
+
+  def relay(self) -> None:
+    """A fix put the belief right and kept the map (issue #741): the region
+    round it holds the offset of the belief that laid it, and once the
+    anchor's window closes its fits take the belief back there. So the next
+    scan laid goes in over the cells it looks across forgotten first -- out
+    to each bearing's end and `RELAY_BEHIND_M` past it, where a copy of what
+    it sees lies (`OccupancyGrid.forget_seen`) -- and the window lays them
+    afresh. MEASURED: kept, the lobby's copy took a re-docked belief back to
+    10-11 cm within 3 minutes of the fix (SimNotes, "A station's fix that
+    keeps the map lays again what it sees")."""
+    self.relaying = True
+
+  def relaid(self) -> None:
+    """The scan `relay` asked for was laid: the field goes with the cells
+    it was computed from."""
+    self.relaying = False
+    self.at = None
 
   def fell(self) -> None:
     """The robot is up from a fall (issue #690): until a scan fits, its next
@@ -558,6 +608,10 @@ class ScanMatcher:
     self.lost_run, self.pending = 0, None
     self._settled()
     self.looks_left = FALLEN_LOOKS
+    # ...and an anchor's window and its relay are over: laid unmatched at a
+    # belief the get-up moved, they lay the room again where it is not
+    # (#741's review)
+    self.anchoring, self.relaying = 0, False
 
   @property
   def fallen(self) -> bool:
@@ -1125,6 +1179,7 @@ class ScanMatcher:
     self.fused_pose, self.fused_t = None, -math.inf
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
+    self.relaying = False
     self.doubt_wait = 0
     self.turned_left, self.turned_seen, self.turned_from = 0, None, None
     self._settled()
@@ -1139,8 +1194,8 @@ class ScanMatcher:
              "fusedT": None if self.fused_pose is None else self.fused_t,
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring, "doubtWait": self.doubt_wait,
-             "turnedLeft": self.turned_left,
+             "anchoring": self.anchoring, "relay": self.relaying,
+             "doubtWait": self.doubt_wait, "turnedLeft": self.turned_left,
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
              "turnedFrom": None if self.turned_from is None else list(self.turned_from),
              "looksLeft": self.looks_left, "widerWait": self.wider_wait,
@@ -1160,6 +1215,10 @@ class ScanMatcher:
     pending = state.get("pending")
     self.pending = None if pending is None else tuple(float(v) for v in pending)
     self.anchoring = int(state.get("anchoring", 0))
+    # ...a save from the relay's first form kept its reach (`relayM`, m), > 0
+    # while one was pending
+    self.relaying = (bool(state["relay"]) if "relay" in state
+                     else float(state.get("relayM") or 0.0) > 0.0)
     self.doubt_wait = int(state.get("doubtWait", 0))
     self.turned_left = int(state.get("turnedLeft", 0))
     seen = state.get("turnedSeen")
