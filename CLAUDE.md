@@ -1138,7 +1138,7 @@ save a filmstrip PNG named after the script.
   `quadruped-final`, and #563 brings one back.
 - **The hands in a procedure, and graded practice** (#493;
   `procedure/steps.py` `HANDS_VERBS` and `language(facts)`,
-  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` /
+  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` / `STANCE_SENSORS` /
   `BODY_AXES["humanoid"]`; `mind/practice.py`, `evaluation/practice.py`,
   `scripts/practice.py`): the vocabulary as stated priors -- `spot`,
   `measure`, `reach`, `via`, `move_hand`, `pull`, `close_hand`,
@@ -1306,7 +1306,10 @@ save a filmstrip PNG named after the script.
   FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home, or a
   hand that holds carried, a turn on the spot and a walk on the walking policy, its report
-  where the stance went in the frame before (`step.*`) -- ⚠ ITS LEGS, AND
+  where the stance went in the frame before (`step.*`; and while a `reach` or
+  a `withdraw` ran, `reach.*` and `withdraw.*`, #746: a posture swivelled
+  Luca's feet 15-26 deg, by its legs' reckoning, `Body.reckoned`, nothing
+  read afresh) -- ⚠ ITS LEGS, AND
   EVERY WALK'S, GO BACK TO THE STANDING POLICY ONLY ONCE BOTH SOLES HAVE READ
   PLANTED `PLANTED_S` (0.1 s) RUNNING (#740; `HumanoidMission.
   to_stand_routine`, `odometry.PlantedRun`; SimNotes, "The step's hand-back
@@ -1375,7 +1378,12 @@ save a filmstrip PNG named after the script.
   `tests/test_hands.py`): an argument refused, a hand not out, a way all 0,
   a fall -- held fast it is ok, and `pull.held` says so, a served robot
   being shown no step's `why` -- and `spot` and `watch` say they read a
-  block's face seen most square-on. ⚠ `spot` AND `watch` SAY WHICH CAMERA
+  block's face seen most square-on. ⚠ `pull.held` IS WHAT IT PULLS: HELD
+  FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.joint_end` (#744;
+  `Reach._on_stops`, `JOINT_END_RAD` off `Reach.sensed`, never read afresh;
+  `tests/test_readings.py`): held at its own wrist's end, Luca read a lid's
+  open stop; and out of reach is `pull.reach` (what it moved, Observatory.md,
+  the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
   them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):
