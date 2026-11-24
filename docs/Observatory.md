@@ -10,6 +10,55 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A station's fix that keeps the map lays again what the robot sees (#741's option 3, Y3, `loop-741`) — opens when this PR is deployed
+
+**What the robots read** is unmoved: the prompt `bb1e3d07…` (70,506
+characters, 17 sections) and the session host's hello, byte for byte; no
+History line is new or reworded, and the narrated "BELIEF fixed by my
+charging station: moved … m and … deg" is as it was. A `drift` row of a
+station fix that kept the map carries `relayM`, the wire's alone.
+
+**The change** (`HumanoidBody._fix_at`, `RELAY_PAST_M`, `ScanMatcher.relay`,
+`relay_keeps`, `OccupancyGrid.forget_seen`; SimNotes, "A station's fix that
+keeps the map lays again what it sees"). A station's look that moves the
+belief past `FIX_TOL` (10 cm or 2 deg) and short of the matcher's search kept
+the map, whose region round the station holds the offset of the belief that
+laid it: once the anchor's window closed (30 scans, 146 s docked) the fits
+took the belief back to it -- 3-14 cm north at every such dock at the lobby
+on the weekend's maps. Now the scan laid next after such a fix goes in over
+what it looks across forgotten first -- every cell from the sensor out to
+each bearing's end, filled between its rays and up to 0.15 m past it (the
+fix's reach, armed as `relayM`, widens nothing under that bound), nor any
+wall nearer than its bearing's
+`free_from` and 1 m or on a bearing that clears none -- and the
+anchor's window lays it afresh from the belief put right, its 30 scans laid
+as they come, ten a second: THE WINDOW IS 3 S where it was 146 s docked (its
+scans held to one every 5 s, the legs' reckoning unmatched through it). Both
+fixes that keep the map do so: the dock's look at a charge's start and the
+lost search's, where the robot walks on from its fix and its window's scans
+were laid as they came before too. Up from a fall, the window is over and a
+relay still to come dropped (#681 left the window open).
+
+**What the period is for.**
+- **The acceptance**: a dock whose fix kept the map (`fixed`, `dropped`
+  false, `relayM` set) holds its belief within a few cm through the charge,
+  its creep included -- the docked samples' `errorM` -- against the
+  weekend's 3-14 cm north once each window closed (re-docked on the saves of
+  11-22 and 11-23: 0.3-2.6 cm at the median, 5.0 at most).
+- **What it costs**: what the robot cannot see from where it was fixed is
+  unknown until it is seen again, and the planner plans through it at
+  `UNKNOWN_COST`: at the lobby's station a region of 27.5 m², of which 3.7
+  m² read unknown to the planner as the window closes and 1.2 m² ten minutes
+  on.
+- **What it leaves**: a fix of under 10 cm is still no fix, so a copy that
+  close stays (the 11-23 save's lobby, 3.5-5.7 cm north: #741's option 2);
+  what the relay keeps holds copies, so a walk from a re-laid lobby meets the
+  storeroom's (on the 11-22 save's map it arrived at the counter 33-37 cm north, the
+  base's 32-38: #681's class) and, back at the lobby, the lobby's own (13 cm,
+  the base's 12: the walls it keeps within 1 m of the dock); the still walk
+  where no fix fires (#741's third box, option 4's); and work at the counter
+  (about 8 cm a try, #681's comment of 11-23).
+
 ### A pull says out of reach and its own arm's stop apart from held fast, and a reach and a withdraw say where the feet went (#744, #746, Y2, `loop-readings`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `bb1e3d07…` (70,506
