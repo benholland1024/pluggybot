@@ -2757,13 +2757,12 @@ save a filmstrip PNG named after the script.
   `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (as far round as the
   fix's reach, the lobby's relay forgot 928 walls behind what it saw, never
   laid again from there; under the bound the reach, `relayM`, 0.40 m at
-  least, widens nothing), ⚠ AND NO WALL
-  NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
-  CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
-  `update` lays it floor (the house's couch behind a robot the lost search
-  fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
-  head's panels leave free_from, it goes -- open, round 3. The price, kept: a
-  robot that walks away and back meets the lobby's copy again, 13 cm). ⚠ THE WINDOW'S
+  least, widens nothing), ⚠ AND NO WALL ON A BEARING THAT CLEARS NONE
+  (`relay_keeps`: bowed, or behind another robot): forgotten, `update` lays
+  it floor. ⚠ ELSEWHERE IT KEEPS NONE, nearer than `free_from` too, where
+  the rays pass over a low thing (the house's couch behind a robot the lost
+  search fixes): kept within 1 m, the copy round the dock took a robot that
+  walked away and back to the lobby's copy again, 13 cm. ⚠ THE WINDOW'S
   SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
   it lasted 146 s docked and the legs carried a belief 3 cm through it, the
   region laid along it; a window of one scan slid the fits 3 cm along the

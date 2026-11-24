@@ -28,9 +28,7 @@ took the belief back to it -- 3-14 cm north at every such dock at the lobby
 on the weekend's maps. Now the scan laid next after such a fix goes in over
 what it looks across forgotten first -- every cell from the sensor out to
 each bearing's end, filled between its rays and up to 0.15 m past it (the
-fix's reach, armed as `relayM`, widens nothing under that bound), nor any
-wall nearer than its bearing's
-`free_from` and 1 m or on a bearing that clears none -- and the
+fix's reach, armed as `relayM`, widens nothing under that bound), nor any wall on a bearing that clears none -- and the
 anchor's window lays it afresh from the belief put right, its 30 scans laid
 as they come, ten a second: THE WINDOW IS 3 S where it was 146 s docked (its
 scans held to one every 5 s, the legs' reckoning unmatched through it). Both

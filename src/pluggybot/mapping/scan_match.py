@@ -294,18 +294,18 @@ RELAY_BEHIND_M = 0.15
 
 def relay_keeps(free_from):
   """Per bearing of a scan, how near a wall the relay keeps (#741,
-  `OccupancyGrid.forget_seen`'s `keep_near`), m: nearer than both the band's
-  `free_from` -- its rays pass over what is lower there, and `update` clears
-  no wall -- and the fit's MATCH_MIN_M, where a copy pulls nothing; between
-  the two, behind the robot out to 2.8 m, a copy kept pulled the synthetic
-  lobby's belief 1.2 cm, so it goes, and a low thing there with it. ⚠ BUT
-  EVERY WALL ON A BEARING THE BAND CLEARS NONE OF (inf: bowed past
-  `CLEARS_TILT_RAD`, or behind another robot nearer than the room): forgotten
-  there, `update` would lay it floor (#741's second review)."""
+  `OccupancyGrid.forget_seen`'s `keep_near`), m: EVERY WALL ON A BEARING THE
+  BAND CLEARS NONE OF (inf: bowed past `CLEARS_TILT_RAD`, or behind another
+  robot nearer than the room) -- forgotten there, `update` would lay it
+  floor (#741's second review) -- and none elsewhere, nearer than its
+  `free_from` too (#741's option (b), for Ben): kept within 1 m, the copy's
+  walls round the dock took a robot that walked away and back to the
+  lobby's copy again (13 cm); forgotten, a low thing the rays pass over
+  goes with them (the house's couch behind a robot the lost search fixes)."""
   if free_from is None:
     return None
   free_from = np.asarray(free_from, dtype=float)
-  return np.where(np.isinf(free_from), np.inf, np.minimum(free_from, MATCH_MIN_M))
+  return np.where(np.isinf(free_from), np.inf, 0.0)
 #: A scan is fused only once the pose has moved this far or turned this
 #: much since the last one fused, or FUSE_S has passed. MEASURED: docked for
 #: 388 s, every scan fused at a pose jittering by a millimetre walked the

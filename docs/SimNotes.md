@@ -11702,12 +11702,13 @@ there, and a copy behind a fresh wall pulls nothing). Under that bound the
 reach widens nothing: every reach is 0.40 m or more, and the lobby's regions
 were 27.4-27.7 m² for reaches of 0.46-1.01 m (uncapped, 45.8-65.4), so what
 goes is what the scan looks across, filled between its rays, and up to 0.15
-m past each end. It keeps a wall nearer than both its
-bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
-rays pass over what is lower and `update` clears no wall, so a low thing
-mapped from afar stays, and the fit takes no return there anyway. On a
-bearing that clears none (the scan bowed past 30 deg, or behind another
-robot) it keeps every wall: forgotten, `update` laid it floor. The anchor's
+m past each end. On a bearing that clears none (the scan bowed past 30
+deg, or behind another robot) it keeps every wall: forgotten, `update` laid
+it floor. Elsewhere it keeps none, a wall nearer than the bearing's
+`free_from` among them, where the scan's rays pass over what is lower and
+`update` clears no wall (`loop-741c`, #741's option (b) for Ben): kept within
+1 m, the copy's walls round the dock took a robot that walked away and back
+to the lobby's copy again (below, the near keep's numbers). The anchor's
 30 scans then lay the region from the belief put right, each as it comes. A
 bearing the scan does not carry (another robot's, the robot's own body) is
 looked across by none of it. The relay is kept state (`relayM`); a warp or a

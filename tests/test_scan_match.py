@@ -2387,28 +2387,29 @@ def _on_bearing(m, scan, k, at_m):
   return m.grid.world_to_cell(ox + at_m * math.cos(a), oy + at_m * math.sin(a))
 
 
-def test_a_relay_keeps_a_wall_nearer_than_its_scan_can_clear_one(house):
-  # #741's review: near the robot the band's rays pass over what is lower
-  # than them (`free_from`), and `update` clears no wall there -- a low thing
-  # mapped from afar. The relay forgets none either where the fit reads no
-  # point (`MATCH_MIN_M`): forgotten first, the scan it laid would have laid
-  # it floor.
+def test_a_relay_forgets_a_wall_nearer_than_its_scan_can_clear_one(house):
+  # #741's third review: near the robot the band's rays pass over what is
+  # lower than them (`free_from`), and `update` clears no wall there. Kept
+  # there, the copy's walls round the station held the lobby's offset, and a
+  # robot that walked off and came back stood 13 cm off again on it: so the
+  # relay forgets them too, and the scan it lays lays them floor -- a low
+  # thing mapped from afar with them (the house's couch behind a robot the
+  # lost search fixes; SimNotes).
   def mark(m, scan):
     k = int(np.argmin(np.where(np.isfinite(scan.free_from), np.abs(scan.angles), np.inf)))
     cell = _on_bearing(m, scan, k, 0.5 * min(scan.free_from[k], sm.MATCH_MIN_M))
     m.grid.grid[cell[1], cell[0]] = 3.0
     return [cell]
   (near,) = _relayed(house, mark)
-  assert near > 0.0, "a wall nearer than the scan clears one was laid floor"
+  assert near <= 0.0, "a wall nearer than the scan clears one was kept"
 
 
 def test_relay_keeps_every_wall_on_a_bearing_its_scan_clears_none_of():
   # #741's second review: a bearing the band clears no wall on (`free_from`
   # inf: bowed past CLEARS_TILT_RAD, or behind another robot nearer than the
-  # room) keeps every wall; elsewhere the relay keeps a wall nearer than
-  # both its free_from and the fit's MATCH_MIN_M.
+  # room) keeps every wall; and (its third) every other bearing keeps none.
   got = sm.relay_keeps(np.array([np.inf, 0.6, 2.8]))
-  assert got[0] == np.inf and got[1] == 0.6 and got[2] == sm.MATCH_MIN_M
+  assert got[0] == np.inf and got[1] == 0.0 and got[2] == 0.0
 
 
 def test_a_relay_on_a_bowed_scan_forgets_no_wall_its_rays_cannot_clear(house):
