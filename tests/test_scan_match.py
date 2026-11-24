@@ -2140,18 +2140,74 @@ def test_an_anchor_lays_the_room_again_over_a_copy_laid_askew():
   assert math.hypot(pose[0] - at[0], pose[1] - at[1]) > 0.3
 
 
+#: A copy laid askew by a belief a station's fix then moves back, short of
+#: the matcher's search (`ASKEW_M`): the fix keeps the map (#741).
+_NEAR_ASKEW = (0.35, -0.25, math.radians(2.0))
+
+
+def _backed_off(window, relay):
+  """`_back_off` over the room with `_NEAR_ASKEW`'s copy in it, the anchor's
+  window `window` scans long and its first scan laid over what it sees
+  forgotten where `relay` is given, as `Navigator._scan_step` lays it: how
+  far the belief ends from the body."""
+  rng = np.random.default_rng(31)
+  g = OccupancyGrid(-2, -2, 8, 6, 0.05)
+  for _ in range(30):
+    p = (rng.uniform(1.5, 4.5), rng.uniform(1.0, 3.0), rng.uniform(-3, 3))
+    laid = (p[0] + _NEAR_ASKEW[0], p[1] + _NEAR_ASKEW[1], p[2] + _NEAR_ASKEW[2])
+    g.update(laid, ANGLES, cast(ROOM, p, rng), 8.0, origin=(0.0, 0.0))
+  m = sm.ScanMatcher(g)
+  m.anchored()
+  m.anchoring = window
+  if relay:
+    m.relay(relay)
+  rng, pose = np.random.default_rng(32), TRUE
+  for k in range(sm.ANCHORED_SCANS + 10):
+    at = (TRUE[0] - 0.03 * k * math.cos(TRUE[2]), TRUE[1] - 0.03 * k * math.sin(TRUE[2]), TRUE[2])
+    ranges = cast(ROOM, at, rng)
+    pose = m.match(at, ANGLES, ranges).pose
+    if m.fuses(m.last, 0.1 * k):
+      if m.relay_m:
+        g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m)
+        m.relaid()
+      g.update(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0))
+      m.fused(pose, 0.1 * k)
+  return math.hypot(pose[0] - at[0], pose[1] - at[1])
+
+
+def test_a_relays_one_scan_window_takes_no_belief_onto_a_copy_within_the_fixs_reach():
+  # #741: a fix that keeps the map has one scan of window, the one its relay
+  # lays -- what the anchor's 30 scans were for (#422: a robot backing off
+  # the dock matched into a copy laid askew) the relay does by forgetting
+  # what that scan sees and every cell within the fix's reach of it, where
+  # a copy of what it sees lies. Backed off 1.2 m matched from the second
+  # scan on, the belief holds as the 30 scans held it.
+  moved = math.hypot(*_NEAR_ASKEW[:2])
+  reach = moved + abs(_NEAR_ASKEW[2]) * sm.MATCH_RANGE_M + 0.30
+  assert _backed_off(sm.ANCHORED_SCANS, None) < 0.02, "the premise: the 30 scans hold it"
+  assert _backed_off(sm.ANCHORED_SCANS, reach) < 0.02
+  # ...the premise of the forget: one scan of window, nothing forgotten,
+  # and the copy takes the belief
+  assert _backed_off(1, None) > 0.2
+
+
 def test_a_restart_keeps_an_anchors_window(room):
   m = sm.ScanMatcher(room)
   m.anchored()
   m.fused(TRUE, 0.0)
-  m.relay(0.42)
   state, arrays = m.kept_state()
   n = sm.ScanMatcher(room)
   n.restore_kept(state, arrays)
   assert n.anchoring == sm.ANCHORED_SCANS - 1
   assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
-  # ...and the region its next scan lays afresh (#741)
-  assert n.relay_m == 0.42
+  # ...and the region its next scan lays afresh, that scan its window (#741)
+  m.anchored()
+  m.relay(0.42)
+  assert m.anchoring == 1
+  state, arrays = m.kept_state()
+  n = sm.ScanMatcher(room)
+  n.restore_kept(state, arrays)
+  assert n.relay_m == 0.42 and n.anchoring == 1
   n.anchored(on=False)
   assert n.relay_m == 0.0, "a warp kept the region its fix asked laid afresh"
   m.forget()
@@ -2231,9 +2287,9 @@ def test_the_stations_look_alone_opens_the_window(house):
   assert m.matcher.anchoring == 0, "the start opened the window"
   assert body._fix_at(s) is None and m.matcher.anchoring == 0, "a look that agrees"
   body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))     # the belief 0.36 m off
-  assert m.matcher.anchoring == sm.ANCHORED_SCANS
-  # ...and its region laid afresh as far round as the fix moved it, and
-  # RELAY_PAST_M more (#741)
+  # ...its window the one scan that lays its region afresh, as far round as
+  # the fix moved it and RELAY_PAST_M more (#741)
+  assert m.matcher.anchoring == 1
   assert m.matcher.relay_m == pytest.approx(math.hypot(0.3, 0.2) + RELAY_PAST_M)
   body.start_at(*m.pose)                                   # ...and a stand-up
   assert m.matcher.anchoring == 0, "a stand-up kept the station's window"

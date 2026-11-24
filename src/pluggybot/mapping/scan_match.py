@@ -557,8 +557,13 @@ class ScanMatcher:
     anchor's window closes its fits take the belief back there. So the next
     scan laid goes in over the cells it looks across, and those within
     `round_m` of them -- where a copy of what it sees lies -- forgotten
-    first (`OccupancyGrid.forget_seen`), and the window lays them afresh."""
+    first (`OccupancyGrid.forget_seen`), at the belief put right, and that
+    scan is the window: the next is matched against the region it laid.
+    ⚠ NOT THE WHOLE WINDOW: laid unmatched for its 30 scans docked (146 s),
+    the legs' reckoning carried a belief 3 cm and the region was laid along
+    it, where matched it held within 1.1 cm."""
     self.relay_m = float(round_m)
+    self.anchoring = min(self.anchoring, 1)
 
   def relaid(self) -> None:
     """The scan `relay` asked for was laid: the field goes with the cells
