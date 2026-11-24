@@ -2788,8 +2788,10 @@ save a filmstrip PNG named after the script.
   CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
   `update` lays it floor (the house's couch behind a robot the lost search
   fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
-  head's panels leave free_from, it goes -- open, round 3. The price, kept: a
-  robot that walks away and back meets the lobby's copy again, 13 cm). ⚠ THE WINDOW'S
+  head's panels leave free_from, it goes: Rowan's dock of 11-22 replayed laid
+  7-12 of its cells floor, and no walk went through them; Ben's to weigh. The
+  price, kept: a robot that walks away and back meets the lobby's copy
+  again, 13 cm). ⚠ THE WINDOW'S
   SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
   it lasted 146 s docked and the legs carried a belief 3 cm through it, the
   region laid along it; a window of one scan slid the fits 3 cm along the
