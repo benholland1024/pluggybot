@@ -2579,8 +2579,9 @@ def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads()
   above, and the next one."""
   pull = " ".join(st.HANDS_VERBS["pull"].doc.split())
   assert "ok when it pulled" not in pull
-  assert ("whether it ended held fast and the way it was going at its end ride `pull.*`, "
-          "unless it reads false") in pull
+  assert ("whether it ended held fast by what it pulls or could reach no further, whether "
+          "one of your arm's joints was at the end of its range as it stopped and the way it "
+          "was going at its end ride `pull.*`, unless it reads false") in pull
   assert ("ok unless an argument was refused, your hand was not out, (dx, dy, dz) are all 0 "
           "or you fell") in pull
   assert "whatever else stopped it, held fast against something too, it is still ok" in pull
@@ -2594,7 +2595,7 @@ def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads()
   told = " ".join(mp.system_prompt(st.hand_facts()).split())
   for doc in (pull, spot, watch):
     assert doc in told
-  assert "1 if the last `pull` ended held fast, as your hand felt it" in told
+  assert "1 if the last `pull` ended held fast by what it pulls, as your hand felt it" in told
 
 
 def _standing():

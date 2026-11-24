@@ -636,6 +636,20 @@ class HumanoidBody(Body):
     px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
     return x - (c * px - s * py), y - (s * px + c * py), syaw
 
+  @property
+  def reckoned(self) -> tuple[float, float, float]:
+    """Its stance by its legs' own reckoning (#746): `stance` less every
+    correction from outside it -- a scan match, a station's look -- summed
+    (`StanceOdometry.corrected`), as a step's walk is measured (`_by_legs`).
+    ⚠ NEVER THE PELVIS'S PLACE OVER THE FEET TURNED BY THE SUMMED TURN: the
+    odometry moves the pelvis in the believed heading, and so turned, a bow
+    read as the feet moving. A turn corrected while a verb runs leaves that
+    place turned by it, at most the place times the turn (mm). Off the
+    odometry's state as it last ticked: nothing read afresh."""
+    x, y, yaw = self.stance
+    c = self.mission.odo.corrected
+    return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
+
   def to_stance(self, p) -> np.ndarray:
     """A believed world point in its stance frame."""
     x, y, yaw = self.stance
@@ -1272,7 +1286,8 @@ class HumanoidBody(Body):
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
     if not self.reach.pull(side, d, limit_n, distance_m, speed, give, verb=verb):
-      rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
+      # ...nothing moved: no stop of its arm's read as this pull's (#744)
+      rep = {**(self.reach.report[side] or {}), "why": "out of reach", "stops": []}
     else:
       rep = yield from self._held_routine(side, patience)
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
@@ -1290,7 +1305,8 @@ class HumanoidBody(Body):
                          "moved": round(n, 4), "along": round(float(rep.get("went", disp @ d)), 4),
                          "dx": float(disp[0]), "dy": float(disp[1]), "dz": float(disp[2]),
                          "direction": [float(v) for v in way],
-                         "force": round(float(rep.get("force") or 0.0), 2)})
+                         "force": round(float(rep.get("force") or 0.0), 2),
+                         "stops": list(rep.get("stops") or ())})
 
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.sensed_force[side]
