@@ -557,7 +557,7 @@ def test_a_posture_is_given_up_where_the_hand_reads_a_load_while_it_comes():
 CARRY_LINE = rc.CARRY_PRESSED_SHARE * rc.PRESSED_ASK_N
 
 
-def _carrying(read=(0.0, 0.0, 0.0), grips=False, verb=True, start=(0.0, 0.0, 0.0)):
+def _carrying_open(read=(0.0, 0.0, 0.0), grips=False, verb=True, start=(0.0, 0.0, 0.0)):
   """A bare reach's left hand out at `H`, carried 5 cm up (`carry`), as a
   procedure's verb where `verb`, reading `read` as it is asked, holding
   something where `grips`; `start` the posture its plan finds for the end."""
@@ -589,7 +589,7 @@ def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_read
   # its first posture: across its way, along it -- the one it holds, re-asked
   for share, grips, verb, takes in ((0.9, False, True, True), (1.1, False, True, False),
                                     (1.1, True, True, True), (1.1, False, False, True)):
-    r = _carrying(share * CARRY_LINE * way, grips, verb, start=(0.0, 0.15, 0.0))
+    r = _carrying_open(share * CARRY_LINE * way, grips, verb, start=(0.0, 0.15, 0.0))
     assert r.postures[-1] == ((0.0, 0.15, 0.0) if takes else (0.0, 0.0, 0.0)), (share, grips, verb)
     assert ("postured" in r.pulls["left"]) is takes
     assert r.pulls["left"].get("loaded", False) is not takes
@@ -597,7 +597,7 @@ def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_read
   # posture reading light, none reading a load
   for share, grips, verb, takes in ((0.9, False, True, True), (1.1, False, True, False),
                                     (1.1, True, True, True), (1.1, False, False, True)):
-    r = _carrying(grips=grips, verb=verb)
+    r = _carrying_open(grips=grips, verb=verb)
     r.pulls["left"]["fixed"] = False
     r.force["left"] = share * CARRY_LINE * np.array([0.0, 0.0, -1.0])
     r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
@@ -610,7 +610,7 @@ def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_read
     assert ((0.0, 0.3, 0.0) in r.postures) is takes, (share, grips, verb)
   # ...and how it ends says it read a load: its words, where another posture
   # would have reached (`steps.MOVE_LOADED`)
-  r = _carrying(1.1 * CARRY_LINE * way)
+  r = _carrying_open(1.1 * CARRY_LINE * way)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.BLOCKED_M, 0.0)
   for _ in range(int((rc.SETTLE_S + rc.BLOCKED_S) / DT) + 3):
@@ -618,7 +618,7 @@ def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_read
       break
     r._held("left", DT, H, np.eye(3))
   assert r.report["left"]["why"] == "out of reach" and r.report["left"]["loaded"]
-  r = _carrying(0.9 * CARRY_LINE * way)
+  r = _carrying_open(0.9 * CARRY_LINE * way)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.BLOCKED_M, 0.0)
   for _ in range(int((rc.SETTLE_S + rc.BLOCKED_S) / DT) + 3):
@@ -639,7 +639,7 @@ def test_a_carry_refused_a_posture_for_a_load_takes_one_as_soon_as_it_reads_ligh
     r.postures.append((height, pitch, waist))
     r.posture = np.array([height, pitch, waist])
 
-  r = _carrying()
+  r = _carrying_open()
   r.hold_posture = hold
   r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
@@ -652,7 +652,7 @@ def test_a_carry_refused_a_posture_for_a_load_takes_one_as_soon_as_it_reads_ligh
   assert r.postures[-1] == (0.0, 0.3, 0.0) and "loaded" not in r.pulls["left"]
   # ...refused at its ask, then taken reading light: out of reach from there
   # says what it always said
-  r = _carrying(1.1 * CARRY_LINE * np.array([0.0, 1.0, 0.0]), start=(0.0, 0.15, 0.0))
+  r = _carrying_open(1.1 * CARRY_LINE * np.array([0.0, 1.0, 0.0]), start=(0.0, 0.15, 0.0))
   r.hold_posture = hold
   assert r.pulls["left"]["loaded"]
   r.force["left"] = np.zeros(3)
@@ -730,7 +730,7 @@ def test_a_loaded_carry_asks_where_the_body_is_and_refuses_an_end_no_posture_rea
     assert not ok and r.postures == [] and r.report["left"]["why"] == "out of reach"
     assert r.report["left"]["moved"] == 0.0 and r.phase["left"] == "hold"
   # a replan decided reading light, whatever it finds, withheld nothing for a load
-  r = _carrying()
+  r = _carrying_open()
   r.pulls["left"]["fixed"] = False
   r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: None
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
@@ -752,7 +752,7 @@ def test_a_carrys_posture_is_given_up_where_its_open_hand_reads_a_load_while_it_
   way, got_to = np.array([0.0, 0.0, -1.0]), (-0.05, 0.1, 0.0)
 
   def carrying(grips=False, verb=True):
-    r = _carrying(grips=grips, verb=verb, start=(0.0, 0.15, 0.0))
+    r = _carrying_open(grips=grips, verb=verb, start=(0.0, 0.15, 0.0))
     assert r.postures == [(0.0, 0.15, 0.0)]
     assert r.pulls["left"].get("began") == ((0.0, 0.0, 0.0) if verb and not grips else None)
     r.posture_now = lambda: np.array(got_to)
@@ -868,6 +868,48 @@ def test_a_pull_that_loses_its_grip_ends_where_the_hand_is():
   # ...and a pull pushes with some force
   with pytest.raises(ValueError):
     _pulling(way, force=0.0)
+
+
+def _carrying(end, held=False, verb=True):
+  """`_pulling`'s hand CARRIED toward `end` instead (`carry`, a
+  `move_hand`'s), a procedure's (`verb`) or the loop's own, holding
+  something where `held`."""
+  r = _bare_reach()
+  _out_hand(r, H, np.eye(3))
+  r.phase["left"], r.pulls["left"] = "hold", None
+  r.force = {s: np.zeros(3) for s in hm.SIDES}
+  r.grip_now = lambda side: (H.copy(), np.eye(3))
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: tuple(
+    float(v) for v in r.posture)
+  r.grippers["left"].holding = held
+  # ...and its arm reaching every command: the rule here is the carry's grip
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  assert r.carry("left", end, verb=verb)
+  return r
+
+
+def test_a_procedures_carry_that_loses_its_grip_ends_where_the_hand_is():
+  """#742: a cube procedure's jaws shut on its board's front edge read held,
+  and the carry to the mat slid them off it on the way up -- carried on, the
+  empty hand "arrived", 16 carries of 16 at the weekend's live draws. A
+  procedure's carry (`verb`) that began with its gripper reading held ends
+  where that grip is lost, as a pull does (`_pulled`): "let go", held where
+  the hand is. ⚠ Never one that began holding nothing, nor the loop's own
+  (a charge's plug carried to its port), whose carries are as before."""
+  up = np.array([0.0, 0.0, 1.0])
+  r = _carrying(H + 0.1 * up, held=True)
+  for k in range(1, 4):
+    r._held("left", DT, H + 0.01 * k * up, np.eye(3))
+  assert r.pulls["left"] is not None and r.phase["left"] == "carry"
+  r.grippers["left"].holding = False
+  r._held("left", DT, H + 0.04 * up, np.eye(3))
+  assert r.pulls["left"] is None and r.report["left"]["why"] == "let go"
+  assert r.phase["left"] == "hold" and r.cmd["left"].pos == pytest.approx(H + 0.04 * up)
+  for held, verb in ((False, True), (True, False)):
+    r = _carrying(H + 0.1 * up, held=held, verb=verb)
+    r.grippers["left"].holding = False
+    r._held("left", DT, H + 0.01 * up, np.eye(3))
+    assert r.pulls["left"] is not None and r.phase["left"] == "carry", (held, verb)
 
 
 def test_a_held_hand_going_on_takes_another_posture_from_its_arm_as_it_is(monkeypatch):

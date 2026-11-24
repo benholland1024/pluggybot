@@ -341,7 +341,12 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or the force it reads (below) a push on its way in --
-  unstopped, an arm pushed the robot over. ⚠ ON ITS WAY OUT, THE TICK WHAT
+  unstopped, an arm pushed the robot over. ⚠ AND SAYS WHICH RULE STOPPED IT,
+  JUDGED ON THE RUN BEHIND THE STOP (#743; `Reach.stopped`, `_pushes`,
+  `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
+  the push where it held at least half the run, at its hardest, else out of
+  reach -- on the stop's tick alone, a last dip or a lone spike named the
+  other. ⚠ ON ITS WAY OUT, THE TICK WHAT
   IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
   (`POSTURE_TOL`), ONCE IT HAS FOR `OUT_TIP_S` (0.03 s) RUNNING -- its pull
@@ -1139,7 +1144,7 @@ save a filmstrip PNG named after the script.
   `quadruped-final`, and #563 brings one back.
 - **The hands in a procedure, and graded practice** (#493;
   `procedure/steps.py` `HANDS_VERBS` and `language(facts)`,
-  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` /
+  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` / `STANCE_SENSORS` /
   `BODY_AXES["humanoid"]`; `mind/practice.py`, `evaluation/practice.py`,
   `scripts/practice.py`): the vocabulary as stated priors -- `spot`,
   `measure`, `reach`, `via`, `move_hand`, `pull`, `close_hand`,
@@ -1248,8 +1253,15 @@ save a filmstrip PNG named after the script.
   turn giving to what it holds ⚠ BUT NEVER ABOUT THE JAWS' LINE (a lid's
   weight turned a freely giving wrist 70 deg down and out of reach on 4
   chests of 8); a grip it began with lost ending it where the hand is;
-  going on where the arm misses, ANOTHER posture from the arm as it is,
-  never one it has left (`posture_for(onward=, past=)`). `close_hand(force)`
+  going on where the arm misses, ANOTHER posture from the
+  arm as it is, never one it has left (`posture_for(onward=, past=)`). ⚠ A
+  PROCEDURE'S `move_hand` ENDS WHERE A GRIP IT BEGAN WITH IS LOST TOO, READ
+  FALSE, "let go" (#742; `Reach._held`, its `verb`; never the loop's own, a
+  charge's plug): carried on, jaws slid off a board's edge and the empty
+  hand "arrived", 16 carries of 16. ⚠ BUT ONE WHOSE STOP CONDITION IS ITS OWN
+  GRIP (`until="right.held", below=...`) ENDS AS THAT CONDITION'S STOP, ok
+  (`steps._on_its_grip`): the rule reads the grip inside the physics step and
+  the condition between steps, so aligned, the rule always came first. `close_hand(force)`
   takes the Dex1-1's 5-120 N, `held` against half of what its drive pushes
   at the gap it reads (`arms.pushes`, #646: under 2 cm a hard squeeze's
   spring stalls short of the force, and against half the force the plate's
@@ -1300,7 +1312,10 @@ save a filmstrip PNG named after the script.
   FEET's move is `step`
   (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home, or a
   hand that holds carried, a turn on the spot and a walk on the walking policy, its report
-  where the stance went in the frame before (`step.*`) -- ⚠ ITS LEGS, AND
+  where the stance went in the frame before (`step.*`; and while a `reach` or
+  a `withdraw` ran, `reach.*` and `withdraw.*`, #746: a posture swivelled
+  Luca's feet 15-26 deg, by its legs' reckoning, `Body.reckoned`, nothing
+  read afresh) -- ⚠ ITS LEGS, AND
   EVERY WALK'S, GO BACK TO THE STANDING POLICY ONLY ONCE BOTH SOLES HAVE READ
   PLANTED `PLANTED_S` (0.1 s) RUNNING (#740; `HumanoidMission.
   to_stand_routine`, `odometry.PlantedRun`; SimNotes, "The step's hand-back
@@ -1369,7 +1384,12 @@ save a filmstrip PNG named after the script.
   `tests/test_hands.py`): an argument refused, a hand not out, a way all 0,
   a fall -- held fast it is ok, and `pull.held` says so, a served robot
   being shown no step's `why` -- and `spot` and `watch` say they read a
-  block's face seen most square-on. ⚠ `spot` AND `watch` SAY WHICH CAMERA
+  block's face seen most square-on. ⚠ `pull.held` IS WHAT IT PULLS: HELD
+  FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.joint_end` (#744;
+  `Reach._on_stops`, `JOINT_END_RAD` off `Reach.sensed`, never read afresh;
+  `tests/test_readings.py`): held at its own wrist's end, Luca read a lid's
+  open stop; and out of reach is `pull.reach` (what it moved, Observatory.md,
+  the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
   them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):

@@ -10271,9 +10271,9 @@ moment of the world's push on the hand about the level line through the
 stance's middle that tips the robot over its soles' edge toward the hand
 -- `blocked`, the body in the posture it has got to (`halt`), the arm held
 where its drivers read its joints, never at the command it drove on to. It
-says what a reach stopped on its way always said ("stopped short ... or
-pushing on something"), and its `withdraw` backs out along its fingers as
-any hand that is out does.
+says so ("stopped on its way out: it caught on something, which would have
+tipped you toward it", #743), and its `withdraw` backs out along its fingers
+as any hand that is out does.
 - *Not any push, nor a pull alone.* Our own references' ways out press on
   something in 57 of their 304 at the hands check's set-outs 0-31 (the
   counter, a drawer's top, the door's top, the chest's knob) and press on.
@@ -11678,6 +11678,72 @@ searched; and a station truly empty out of sight, or with a dead robot by
 its seat, is a robot lost, searched at once, as before. ⚠ The report is the other robot's
 own word, read as its reported pose is: a robot whose port says nothing
 holds nothing by this rule.
+
+## What a pull and a reach read of the body (issues #744, #746)
+
+A `pull` said how far it went, the hardest it pushed, the way it was going
+and whether it ended held fast; a `reach` said nothing of the feet. X5's
+flights of the weekend's chest procedures (the loop of 11-23) showed what
+that hid: held fast at the robot's own wrist's stop read as a lid at its
+open stop, out of reach read as nothing at all, and a posture swivelled the
+feet 15-26 deg under a reach while the words said "a little". The body knew
+each, and now reads it (`pull.joint_end`, `pull.reach`, `pull.held` with
+none of its arm's joints at an end; `reach.*`, `withdraw.*`).
+
+**A joint at its end** (`Reach._on_stops`, `JOINT_END_RAD`). The arm's solve
+keeps every commanded joint `RANGE_MARGIN` (0.05 rad) inside its range, so
+a joint whose driver reads it at an end was pushed there: a lid's knob
+rolling the wrist as the lid rose. MuJoCo's limit is soft, and pressed, a
+joint sits past it. X5's chest flights flown again with every arm joint's
+true and read distance to its end beside its limit's force (`fly_y2.py`):
+at the ends of 1,096 pulls of 104 flights, all 640 joints pressing their
+limit sat past it, up to 47 mrad, at 0.01-14 N m (234 of them under 1 N m,
+the line X5 counted by), and their drivers read them at most 2 mrad inside
+their end. At 5 mrad (`JOINT_END_RAD`) every one of them reads at its end,
+and 118 joints pressing nothing do too, each truly within 7 mrad of it; per
+pull, 567 read at an end with a joint pressing, 75 with none pressing, 454
+neither, and none missed. The whole body's force reading's `STOP_RAD` (20
+mrad), the first margin tried, counted 476 joints pressing nothing, a
+shoulder's yaw up to 21 mrad short of its end among them (178 pulls with
+none pressing). A tighter margin buys nothing a procedure reads: at 2 mrad,
+as at 5, the two held-fast pulls that read `pull.held` 0 with nothing
+pressing had a shoulder's yaw truly 0.5-0.6 mrad from its end. Nor does the
+driver's torque tell a pressing joint from one near its end pressing
+nothing (#744's second review): at all 237 joints pressing their limit at
+the ends of 467 pulls of 8 flights, the reported torque pointed AWAY from
+the end -- the motor resists the push onto its stop -- as it did at the
+near ones pressing nothing. The joint is read off `Reach.sensed`, the
+drivers' replies as the arm's loop last read them: read afresh, a reading
+draws noise and moves the flight.
+
+**Where the feet went** (`Body.reckoned`, `steps._feet_went`). The stance
+less every correction from outside the legs' reckoning (a scan match, a
+station's look), summed, from a verb's start to its end, turned into the
+stance frame the robot stood in as it began: the reckoning a step measures
+its walk by. A posture carrying the pelvis over planted feet moves it not
+at all, however large the corrections summed since boot; a turn corrected
+while the verb runs leaves the pelvis's place over the feet turned by it,
+at most that place times the turn (mm). The corrections come off the
+stance, never off the pelvis before its place is turned: the odometry moves
+the pelvis in the believed heading, and turned by the summed turn, a 16 cm
+bow at 90 deg corrected since boot read as the feet moving 0.23 m.
+Against the soles' own place and heading over the 120 chest flights, 246
+reaches (40 turning the soles past 5 deg, 15 past 15, 26.2 at most) and 220
+withdraws: the turn within 0.42 deg of the soles' own (0.11 at the median),
+the move within 2 cm at the 90th percentile -- the turn off the IMU, the move
+off the planted foot, so a sole that SLIDES is a move the reckoning never
+sees: past 15 deg of a reach's turn it read the soles' middle 1 cm short to
+5 cm long, and one withdraw that swivelled them 26.6 deg about a sliding sole
+read 0.3 cm of a true 11.4, as the belief did.
+
+**A reading moves what a procedure decides.** No decision of the body reads
+these, and our references fly as before, but a robot's own procedure that
+reads `pull.held` reads 0 at a pull held fast at its own arm's end. Luca's
+`chest_open3` ends its lift on two such readings running: on the old
+meaning its lift stopped at the wrist's end, and on the new one it pulls on:
+at the weekend's live draws, 11 of its 72 chest flights part there, and the
+lid, lifted higher, came down fast in 10 of them (Observatory.md, the period
+of #744 and #746, has the counts).
 
 ## Debugging workflow that worked
 

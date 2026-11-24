@@ -137,7 +137,7 @@ PASSED = {"topDeg": 63.8, "downRadS": 0.51, "tiltDeg": 2.8, "falls": 0,
   ({"holdS": 4.0}, "not the 5 s"),
   ({"elapsedS": 301.0}, "301 s after the start, past the 300 s the job allows"),
   ({"topDeg": 50.0}, "rose to 50 deg, short of the 57"),
-  ({"downRadS": 1.4}, "let fall, not lowered"),
+  ({"downRadS": 1.4}, "came down at 1.4 rad/s while open (no faster than 1.0)"),
   ({"touchedDuringHold": ["pad_l"]}, "pad_l still touched"),
   ({"angleDeg": 8.0}, "8 deg open"),
 ])
@@ -145,6 +145,21 @@ def test_each_criterion_fails_for_its_own_reason(change, why):
   ok, metrics, reason = lid.eval_lid(PASSED | change)
   assert not ok and why in reason, reason
   assert "3.89" not in reason and "catch" not in reason
+
+
+#: What a lid that came down too fast while open is told, after its speed.
+CAME_DOWN = "rad/s while open (no faster than 1.0)"
+
+
+def test_a_lid_that_came_down_fast_is_told_the_measured_part_alone():
+  """#745: "-- let fall, not lowered" named a cause the grader never checks:
+  of the 23 such lids flown at the weekend's live draws, 8 came down with
+  both pads still on the knob (a rebound off its open stop, a swing on the
+  drop handle's pin, a lift that ran out of reach), and Luca read the reason
+  as its lowering's fault. The reason says what was measured, against the
+  line; the criterion is Ben's as written."""
+  ok, _, reason = lid.eval_lid(PASSED | {"topDeg": 90.0, "downRadS": 2.4})
+  assert not ok and reason == f"opened to 90 deg, but it came down at 2.4 {CAME_DOWN}", reason
 
 
 def test_a_number_is_judged_as_measured_and_only_shown_rounded():
@@ -201,7 +216,7 @@ def test_a_lid_let_fall_from_open_fails_even_shut_and_caught():
   so only the trajectory tells -- criterion 2, read every step."""
   row = run(lift(down_to=None))
   v = row["verdict"]
-  assert not v["ok"] and "let fall" in v["reason"], v["reason"]
+  assert not v["ok"] and CAME_DOWN in v["reason"], v["reason"]
   assert v["metrics"]["caught"] and v["metrics"]["downRadS"] > 2.5
 
 
@@ -211,7 +226,7 @@ def test_a_lid_let_go_two_degrees_over_the_shut_line_was_let_fall(chest):
   shut line, a lid crosses it faster than `LOWER_RAD_S` -- a lowering that
   stops short is a drop."""
   row = run(lift(down_to=lid.SHUT_RAD + math.radians(2.0)), chest=chest)
-  assert not row["verdict"]["ok"] and "let fall" in row["verdict"]["reason"]
+  assert not row["verdict"]["ok"] and CAME_DOWN in row["verdict"]["reason"]
   ok = run(lift(down_to=lid.SHUT_RAD - math.radians(0.5)), chest=chest)
   assert ok["verdict"]["ok"], ok["verdict"]["reason"]
 
@@ -225,7 +240,7 @@ def test_a_lid_pushed_past_upright_and_let_go_is_left_open():
 
 
 def test_lowered_too_fast_is_let_fall_and_just_under_the_line_is_lowered():
-  assert "let fall" in run(lift(down_rate=1.3))["verdict"]["reason"]
+  assert CAME_DOWN in run(lift(down_rate=1.3))["verdict"]["reason"]
   assert run(lift(down_rate=0.85))["verdict"]["ok"]
 
 

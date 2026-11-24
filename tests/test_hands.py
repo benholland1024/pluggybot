@@ -188,18 +188,54 @@ def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
 
     def hand_why(self, side):
       return "stopped short"
-  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n', Short(*_bare()))
+  body = Short(*_bare())
+  body.stopped["left"] = {"by": "reach"}
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n', body)
   step = ran["steps"][-1]
   assert not step["ok"] and step["why"] == "stopped short"
   # ...and how far from where it was asked its grip was (#711): at its side
-  assert step["reason"].startswith(st.REACH_WHY["stopped short"].format(hand="left") + "; as it")
+  assert step["reason"].startswith(st.REACH_STOPPED_BY["reach"].format(hand="left") + "; as it")
+
+
+@pytest.mark.parametrize("by, said", [
+  ({"by": "pushed", "n": 52.4},
+   "your right hand stopped short on its way in: it pushed on something before it got there, 52 N"),
+  ({"by": "reach"}, "your right hand stopped short on its way in: out of reach from how you truly "
+                    "stand"),
+  ({"by": "caught"}, "your right hand stopped on its way out: it caught on something, which would "
+                     "have tipped you toward it"),
+  (None, "your right hand stopped short on its way: out of reach from how you truly stand, or "
+         "pushing on something")])
+def test_a_reach_that_stopped_short_says_the_cause_its_body_knows(by, said):
+  """#743: a reach that stopped short said "out of reach from how you truly
+  stand, or pushing on something", though its body knew which rule stopped
+  it -- and at the cube Luca read a push on its board (129 of its 140 stops
+  the force) as a stance too close, and stepped back. It says the rule its
+  body says stopped it (`Body.hand_stopped`): a push on its way in and the
+  force it read, out of reach on its way in, or caught on its way out --
+  each no longer than the words before -- then how far its grip was; both,
+  as before, where the body does not say."""
+  class Short(StubBody):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, refuse=False):
+      return False
+      yield
+
+    def hand_why(self, side):
+      return "stopped short"
+  body = Short(*_bare())
+  if by is not None:
+    body.stopped["right"] = by
+  step = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n', body)["steps"][-1]
+  assert not step["ok"] and step["why"] == "stopped short"
+  assert step["reason"].startswith(said + "; as it stopped, its grip was "), step["reason"]
+  assert len(said) <= len(st.REACH_WHY["stopped short"].format(hand="right"))
 
 
 class _Held(StubBody):
   """A stub whose reach ends `short` m back along the fingers asked and
   `aside` m to its left, its hand reading `push` N along them -- or, `holds`
-  False, stopped short."""
-  short, push, holds, aside = 0.0, 0.0, True, 0.0
+  False, stopped short by that push, or by the rule `cause` names (#743)."""
+  short, push, holds, aside, cause = 0.0, 0.0, True, 0.0, "pushed"
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None, refuse=False):
@@ -209,6 +245,9 @@ class _Held(StubBody):
                              + [0.0, self.aside, 0.0])
     self._fingers = fingers
     self._why[side] = "" if self.holds else "stopped short"
+    if not self.holds:
+      self.stopped[side] = ({"by": "pushed", "n": self.push} if self.cause == "pushed"
+                            else {"by": self.cause})
     return self.holds
     yield
 
@@ -231,31 +270,48 @@ def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stoppe
   """#711, #710: a reach that stopped short on its way -- a pad pressing on
   the cube's board at 60-95 N as it went in -- says how far short its grip
   was as it stopped, back along its fingers, wherever the robot stands; one
-  asked no turn, its fingers' way the arm's to find, how far from it."""
+  asked no turn, its fingers' way the arm's to find, how far from it -- its
+  push said first, at the force it read (#743)."""
+  pushed = "your right hand stopped short on its way in: it pushed on something before it got there, 45 N"
+  assert st.REACH_STOPPED_BY["pushed"].format(hand="right", n=45.0) == pushed
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
     step = _fly(ABOVE, _held(0.054, 45.0, holds=False, pose=pose))["steps"][-1]
     assert not step["ok"] and step["why"] == "stopped short"
-    assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
-                              + "; as it stopped, its grip was 5.4 cm from where you asked -- 5.4 "
-                              "cm back along its fingers and 0.0 cm across them")
+    assert step["reason"] == (pushed + "; as it stopped, its grip was 5.4 cm from where you asked "
+                              "-- 5.4 cm back along its fingers and 0.0 cm across them")
   # ...and one asked no turn, how far from where it was asked
   step = _fly('def a():\n    reach("right", 0.3, -0.05, 0.79)\n',
               _held(0.054, 45.0, holds=False))["steps"][-1]
-  assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
-                            + "; as it stopped, its grip was 5.4 cm from where you asked")
+  assert step["reason"] == pushed + "; as it stopped, its grip was 5.4 cm from where you asked"
   # ...and one held off across its fingers says so too (#711's reviews: a pad
   # caught on an edge and deflected 4 cm said nothing; 5 cm back and 3.5
   # aside said the 5 alone)
   body = _held(0.005, 45.0, holds=False)
   body.aside = 0.04
   step = _fly(ABOVE, body)["steps"][-1]
-  assert step["reason"] == (st.REACH_WHY["stopped short"].format(hand="right")
-                            + "; as it stopped, its grip was 4.0 cm from where you asked -- 0.5 "
-                            "cm back along its fingers and 4.0 cm across them")
+  assert step["reason"] == (pushed + "; as it stopped, its grip was 4.0 cm from where you asked "
+                            "-- 0.5 cm back along its fingers and 4.0 cm across them")
   body = _held(0.05, 45.0, holds=False)
   body.aside = 0.035
   assert _fly(ABOVE, body)["steps"][-1]["reason"].endswith(
     "was 6.1 cm from where you asked -- 5.0 cm back along its fingers and 3.5 cm across them")
+
+
+def test_a_hand_caught_on_its_way_out_says_how_far_and_nothing_of_its_fingers():
+  """#743's review: a hand caught on its way out never began its line in,
+  so asked a turn, it says how far its grip was from where it was asked and
+  nothing along or across fingers that had not begun their way -- where one
+  stopped on its line in says both (#711)."""
+  body = _held(0.054, 45.0, holds=False)
+  body.cause = "caught"
+  assert _fly(ABOVE, body)["steps"][-1]["reason"] == (
+    st.REACH_STOPPED_BY["caught"].format(hand="right")
+    + "; as it stopped, its grip was 5.4 cm from where you asked")
+  body = _held(0.054, 45.0, holds=False)
+  body.cause = "reach"
+  assert _fly(ABOVE, body)["steps"][-1]["reason"] == (
+    st.REACH_STOPPED_BY["reach"].format(hand="right") + "; as it stopped, its grip was 5.4 cm "
+    "from where you asked -- 5.4 cm back along its fingers and 0.0 cm across them")
 
 
 def test_a_reach_that_holds_claims_nothing_of_what_its_fingers_met():
@@ -486,6 +542,9 @@ def _bare_reach():
   r.q_to = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
+  # ...nor a hand stopped on its way, nor a run behind a stop (#743)
+  r.stopped = {s: None for s in hm.SIDES}
+  r._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}
@@ -1640,6 +1699,108 @@ def test_a_transient_past_the_line_while_the_body_takes_its_posture_walks_on():
   assert r.phase["left"] == "blocked"
 
 
+def _coming_in(miss, push):
+  """`_walking_out`'s left hand on its LINE IN instead (`approach`), 10 cm
+  short of its goal, its own solve missing its command by `miss`, m, and
+  its arm reading `push` N, as every loop of the body's reads it (`force`)."""
+  from pluggybot.humanoid.arms import HandGoal
+  r, rc = _walking_out("approach")
+  r.cmd["left"] = HandGoal(np.array([0.35, 0.30, 0.90]), np.eye(3), 0.5)
+  r.goal["left"] = HandGoal(np.array([0.45, 0.30, 0.90]), np.eye(3), 0.5)
+  r.self_model.solve = lambda side, pos, rot=None, iters=None: (r.q_cmd[side].copy(), miss, 0.0)
+  r.feel(np.array([-push, 0.0, 0.0]))
+  return r, rc
+
+
+@pytest.mark.parametrize("miss, push, said", [
+  (0.002, 52.0, {"by": "pushed", "n": 52.0}),     # a pad pressing on the cube's board
+  (0.05, 10.0, {"by": "reach"}),                  # out of reach from how it truly stands
+  (0.05, 52.0, {"by": "pushed", "n": 52.0})])     # both: its push said
+def test_a_hand_stopped_on_its_way_keeps_the_rule_that_stopped_it(miss, push, said):
+  """#743: one sentence said all three of `Reach`'s stops on a hand's way --
+  "out of reach from how you truly stand, or pushing on something" -- and
+  Luca took a push on the cube's board for a stance too close. The stop
+  keeps the rule that made it (`stopped`, which `Body.hand_stopped` says): on
+  its way in, held `BLOCKED_S` past the force line (`BLOCKED_N`) -- the force
+  read, its push said where its own solve missed too -- or past its solve's
+  miss (`BLOCKED_M`) alone; on its way out, caught (`_struck`, #708). A stop
+  condition's stop is none of them, and a new reach forgets the last."""
+  r, rc = _coming_in(miss, push)
+  ticks = round(rc.BLOCKED_S / 0.01)
+  for _ in range(ticks - 1):
+    r._update(0.01)
+    assert r.phase["left"] == "approach" and r.stopped["left"] is None
+  r._update(0.01)
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == said
+  # ...caught on its way out (#708)
+  r, rc = _walking_out()
+  r.posture = r.posture_now()
+  r.feel(1.05 * rc.OUT_TIP_NM / 0.9 * np.array([-0.8, -0.6, 0.0]))
+  r._update(0.01)
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "caught"}
+  # ...a stop condition's, none (#554: its body says "until")
+  for phase in ("approach", "move"):
+    r, rc = _coming_in(miss, push) if phase == "approach" else _walking_out()
+    assert r.halt("left", "until") and r.phase["left"] == "blocked"
+    assert r.stopped["left"] is None
+  # ...and a new reach forgets the last, whatever it does
+  from pluggybot.humanoid.arms import HandGoal
+  r.stopped["left"] = said
+  r._planned = lambda side, goal, approach, postures, flip: (None, goal, None)
+  assert not r.reach("left", HandGoal(np.array([0.45, 0.30, 0.90]), None, 1.0))
+  assert r.stopped["left"] is None
+
+
+def test_a_stop_on_its_way_in_says_the_cause_that_held_through_its_run():
+  """#743's review: a stop's cause is judged on the run of ticks behind it
+  (`_pushes`), never its last tick alone: a hand that pushed at 45-50 N for
+  most of the run, its solve missing too, and read 28 N on its last tick is
+  told it pushed, at the hardest it read; one out of reach the whole run
+  that read a lone spike past the force line on its last is told out of
+  reach; and a run a clean tick broke counts afresh."""
+  r, rc = _coming_in(0.05, 0.0)
+  ticks = round(rc.BLOCKED_S / 0.01)
+
+  def fly(steps):
+    for miss, f in steps:
+      r.self_model.solve = lambda side, pos, rot=None, iters=None, m=miss: (r.q_cmd[side].copy(), m, 0.0)
+      r.feel(np.array([-f, 0.0, 0.0]))
+      r._update(0.01)
+  fly([(0.05, 45.0 + 2.5 * (k % 3)) for k in range(ticks - 1)] + [(0.05, 28.0)])
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "pushed", "n": 50.0}
+  r, rc = _coming_in(0.05, 0.0)
+  fly([(0.05, 10.0)] * (ticks - 1) + [(0.05, 41.0)])
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "reach"}
+  # ...14 pushed ticks, a clean one, then 7 pushed and 8 out of reach: the
+  # stop's own run pushed 7 of its 15 (counted on from the first, 21 of 29)
+  r, rc = _coming_in(0.0, 0.0)
+  fly([(0.0, 45.0)] * (ticks - 1) + [(0.0, 5.0)])
+  assert r.phase["left"] == "approach"
+  fly([(0.05, 45.0)] * 7 + [(0.05, 10.0)] * 8)
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "reach"}
+
+
+def test_the_humanoids_hand_stopped_is_its_reachs_own_rule_where_it_stopped_short():
+  """#743, through `Body`: `hand_stopped` is the rule `Reach` kept, and only
+  where the reach routine ended "stopped short" -- one that holds says none,
+  whatever an earlier stop left."""
+  import mujoco
+  from pluggybot.body import body_for
+  from test_humanoid_body import _Sent
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  for end, why, said in (("blocked", "stopped short", {"by": "pushed", "n": 41.0}),
+                         ("hold", "", None)):
+    reach = _Sent(end)
+    reach.stopped = {"left": {"by": "pushed", "n": 41.0}, "right": None}
+    body.mission.reach = reach
+    assert body.run(body.reach_routine("left", (0.4, 0.2, 0.9))) is (end == "hold")
+    assert body.hand_why("left") == why and body.hand_stopped("left") == said
+
+
 def _walking_home(phase="home", watch=True):
   """`_walking_out`'s left arm on its way HOME instead, in joint space, its
   command ahead of where its drivers read it, the hand out to the robot's
@@ -2156,6 +2317,73 @@ def test_a_pull_that_reads_false_leaves_no_reading_of_its_own():
   assert ran["steps"][-1]["reason"] == "pull.held has no reading: your last `pull` failed", ran
 
 
+class _LetGo(StubBody):
+  """A stub whose every carry ends where its grip read lost (`Reach._held`'s
+  "let go"), at once: before any stop condition reads -- the phases of the
+  carry's rule and its condition aligned -- each carry's `verb` kept."""
+
+  def __init__(self, *a, **kw):
+    super().__init__(*a, **kw)
+    self.verbs = []
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0, path=None,
+                        turns=None, verb=False):
+    self.verbs.append(verb)
+    return {"why": "let go", "seconds": 0.4, "moved": 0.02, "dx": 0.0, "dy": 0.0, "dz": 0.02}
+    yield
+
+
+def test_a_carry_whose_grip_let_go_on_its_way_reads_false_and_says_so():
+  """#742: a `move_hand` whose jaws slid off the board's edge they had shut
+  on carried an empty hand on and read ok, "arrived" (16 carries of 16 at
+  the weekend's live draws), and Luca believed the cube was on the mat. A
+  procedure's carry ends where a grip it began with lets go, as a pull does
+  (`Reach._held`, "let go"): it reads false, an `if`'s test going on and a
+  statement ending the run, and says so in History's words. Its body is
+  asked as a procedure's (`verb`), whose carry the rule is."""
+  body = _LetGo(*_bare())
+  said = "your right hand's grip let go of what it held on the way"
+  assert st.MOVE_WHY["let go"].format(hand="right") == said
+  ran = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n    close_hand("right")\n    n = 0\n'
+             '    if not move_hand("right", 0.3, -0.2, 0.95):\n        n = 1\n'
+             '    move_hand("right", 0.3, -0.1, 0.95)\n    n = 2\n', body)
+  assert body.verbs == [True, True]
+  tested, failed = ran["steps"][-2], ran["steps"][-1]
+  assert (tested["ok"], tested["reason"], tested.get("tested")) == (False, said, True), tested
+  assert not ran["ok"] and ran["failedAt"] == failed["i"] and failed["reason"] == said, ran
+  assert ran["locals"] == {"n": 1.0}, "the test went on, the statement ended the run"
+  [history] = lc.procedure_outcome("a", ran)
+  assert history.startswith(f"the procedure a did not finish -- it stopped at line 7, move_hand: "
+                            f"{said} ("), history
+  assert f"1 test read false -- line 5, move_hand: {said}" in history, history
+
+
+@pytest.mark.parametrize("until, stops", [
+  ('until="right.held", below=0.5', True),
+  ('until="right.held", below=1', True),
+  ('until="right.z", above=2.0', False),
+  ('until="left.held", below=0.5', False),
+  ('until="right.held", above=0.5', False)])
+def test_a_carry_whose_stop_condition_is_its_own_grip_stops_on_it(until, stops):
+  """#742's review: a `move_hand` guarded on its own grip (`until=
+  "right.held", below=0.5`) stopped on it, ok and `move_hand.stopped` 1; the
+  carry's rule reads the same grip inside the physics step and its condition
+  between steps, so where their phases align the rule ended it first, and
+  it read false. Ended "let go" under a condition on its own hand's grip
+  lost, it is that condition's stop; under any other, or none, still false."""
+  ran = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n    close_hand("right")\n    s = 2\n'
+             f'    if move_hand("right", 0.3, -0.2, 0.95, {until}):\n        s = read("move_hand.stopped")\n',
+             _LetGo(*_bare()))
+  step = ran["steps"][-1]
+  assert step["verb"] == "move_hand" and step["ok"] is stops, step
+  if stops:
+    assert step["why"] == "until" and ran["locals"]["s"] == 1.0, ran
+    assert step["until"] == f"right.held read 0 (below {until.rsplit('=', 1)[1]}) 0.00 s in", step
+  else:
+    assert step["why"] == "let go" and "until" not in step and ran["locals"]["s"] == 2.0, ran
+    assert step["reason"] == "your right hand's grip let go of what it held on the way", step
+
+
 @pytest.mark.parametrize("verb", ["reach", "pull"])
 def test_a_hand_verb_that_fell_ends_the_run_though_an_if_tests_it(verb):
   """#671 (Luca, 11-08 15:29): `chest_free4`'s reach inside an `if` fell,
@@ -2353,8 +2581,9 @@ def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads()
   above, and the next one."""
   pull = " ".join(st.HANDS_VERBS["pull"].doc.split())
   assert "ok when it pulled" not in pull
-  assert ("whether it ended held fast and the way it was going at its end ride `pull.*`, "
-          "unless it reads false") in pull
+  assert ("whether it ended held fast by what it pulls or could reach no further, whether "
+          "one of your arm's joints was at the end of its range as it stopped and the way it "
+          "was going at its end ride `pull.*`, unless it reads false") in pull
   assert ("ok unless an argument was refused, your hand was not out, (dx, dy, dz) are all 0 "
           "or you fell") in pull
   assert "whatever else stopped it, held fast against something too, it is still ok" in pull
@@ -2368,7 +2597,7 @@ def test_pull_says_when_it_reads_false_and_spot_which_face_of_a_block_it_reads()
   told = " ".join(mp.system_prompt(st.hand_facts()).split())
   for doc in (pull, spot, watch):
     assert doc in told
-  assert "1 if the last `pull` ended held fast, as your hand felt it" in told
+  assert "1 if the last `pull` ended held fast by what it pulls, as your hand felt it" in told
 
 
 def _standing():

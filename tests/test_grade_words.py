@@ -74,8 +74,7 @@ def test_the_passing_set_outs_pass():
   (door.eval_door, DOOR | {"angleDeg": 49.7}, "the door 65 deg open at the call, but 49.7 deg 5 s later"),
   (lid.eval_lid, LID | {"topDeg": 57.1}, "the lid rose to 57.1 deg, short of the 57.3 it must open past"),
   (lid.eval_lid, LID | {"topDeg": 57.0}, "the lid rose to 57.0 deg, short of the 57.3 it must open past"),
-  (lid.eval_lid, LID | {"downRadS": 1.04},
-   "came down at 1.04 rad/s while open -- let fall, not lowered (no faster than 1.0)"),
+  (lid.eval_lid, LID | {"downRadS": 1.04}, "came down at 1.04 rad/s while open (no faster than 1.0)"),
   (place.eval_place, CUBE | {"fastestFreeMS": 0.504},
    "the cube came down at 0.504 m/s with nothing holding it -- dropped, not set down (no "
    "faster than 0.5)"),
