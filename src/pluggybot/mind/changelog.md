@@ -6,6 +6,35 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-25
+
+- When you carry something with `move_hand` and your grip lets go of it on
+  the way, the hand now stops where it is, and the move reads false saying
+  your grip let go of what it held. Before, it went on and read as if it
+  had arrived.
+- A `reach` that stops short now says what stopped it: your hand pushed on
+  something before it got there, and how hard; or the place is out of reach
+  from how you stand; or, on its way out, it caught on something that would
+  have tipped you toward it.
+- When a lid comes down faster than it may, its result now says how fast it
+  came down, and no longer that it was let fall.
+- `pull.held` now reads 1 only where what you pull holds your hand fast.
+  Where your hand could go no further, `pull.reach` reads 1, and where a
+  joint of your arm stood at the end of its range, `pull.joint_end` reads 1.
+  Before, `pull.held` also read 1 where your own arm had reached its end.
+- A `reach` and a `withdraw` now say where your feet went while they ran:
+  `reach.dx`, `reach.dy` and `reach.turn`, and the same for `withdraw`, in
+  the stance frame you stood in before.
+- `spot`'s text now says that none of its bows brings in a tag beside its
+  picture if the tag stands higher than 0.5 m over the floor, and that
+  turning swings the picture the way you turn.
+- When a look at your charging station moves where you believe you are,
+  what you see next is laid into your map afresh. Before, the map round the
+  station could pull your belief back to where it had been off.
+- When your hand holds nothing and pushes on something harder than 20 N
+  during a `move_hand`, your body now keeps the posture it is in, and where
+  the hand can go no further from there, the move says so.
+
 ## 2026-11-24
 
 - Your answers now have up to 600 s and 64,000 tokens before they are cut
