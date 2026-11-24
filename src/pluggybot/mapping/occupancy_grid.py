@@ -199,15 +199,10 @@ class OccupancyGrid:
     bearing of the scan's lies within a degree of it, from the scan's origin
     out to that bearing's end (`max_range` where it brought nothing back)
     and `behind_m` past it, judged at the cell's middle -- so the cell a ray
-    ends in is one only where `behind_m` reaches its middle -- (the grid's
-    window, as a pair of slices, and the mask over it), or None. A bearing
-    the scan does not carry is looked across by none of it."""
-    cone = self._cone(pose, angles, ranges, max_range, origin, behind_m)
-    return None if cone is None else (cone[0], cone[3])
-
-  def _cone(self, pose, angles, ranges, max_range, origin, behind_m):
-    """`seen_by`'s window, each of its cells' distance from the sensor and
-    nearest bearing (`_bearing_of`), and the mask; or None."""
+    ends in is one only where `behind_m` reaches its middle. A bearing the
+    scan does not carry is looked across by none of it. (The grid's window,
+    as a pair of slices; each of its cells' distance from the sensor and
+    nearest bearing, `_bearing_of`'s; and the mask over it), or None."""
     px, py, theta = pose
     fwd, left = origin
     ox = px + fwd * math.cos(theta) - left * math.sin(theta)
@@ -254,7 +249,7 @@ class OccupancyGrid:
     again (issue #741: `ScanMatcher.relay`): how many of them held
     evidence. A cell that held a wall nearer than `keep_near` (m, per
     bearing; the caller's: `scan_match.relay_keeps`) is kept."""
-    cone = self._cone(pose, angles, ranges, max_range, origin, behind_m)
+    cone = self.seen_by(pose, angles, ranges, max_range, origin, behind_m)
     if cone is None:
       return 0
     region, dist, k, seen = cone

@@ -79,8 +79,9 @@ the map, whose region round the station holds the offset of the belief that
 laid it: once the anchor's window closed (30 scans, 146 s docked) the fits
 took the belief back to it -- 3-14 cm north at every such dock at the lobby
 on the weekend's maps. Now the scan laid next after such a fix goes in over
-what it looks across forgotten first -- every cell from the sensor out to
-each bearing's end, filled between its rays and up to 0.15 m past it, nor any
+what it looks across forgotten first -- every cell whose nearest bearing of
+that scan's lies within a degree of it, out to that bearing's end and up to
+0.15 m past it, nor any
 wall nearer than its bearing's
 `free_from` and 1 m or on a bearing that clears none -- and the
 anchor's window lays it afresh from the belief put right, its 30 scans laid
@@ -93,7 +94,8 @@ relay still to come dropped (#681 left the window open).
 
 **What the period is for.**
 - **The acceptance**: a dock whose fix kept the map (`fixed`, `dropped`
-  false: every such fix lays the map again) holds its belief within a few cm through the charge,
+  false: every such fix of a served robot, which always matches its scans,
+  lays the map again) holds its belief within a few cm through the charge,
   its creep included -- the docked samples' `errorM` -- against the
   weekend's 3-14 cm north once each window closed (re-docked on the saves of
   11-22 and 11-23: 0.3-2.6 cm at the median, 5.0 at most).

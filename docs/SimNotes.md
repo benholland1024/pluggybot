@@ -11782,18 +11782,10 @@ map -- the only call in the code that opens an anchor's window -- arms a
 relay. The next scan laid goes in over what it looks across forgotten first:
 every cell whose nearest bearing of that scan's lies within a degree of it,
 from the sensor out to that bearing's end (`max_range` where nothing came
-back) and no more than 0.15 m past it. The first form grew the cells the
-rays crossed by a reach -- what the fix moved the belief, its turn at the
-LIDAR's 8 m, and the fit's own reach (0.30 m) more, where a copy of what the
-robot sees may lie -- and uncapped, the lobby's relay forgot 7,294 cells
-more, 928 of them walls, all behind what its scan met: what lies behind a
-wall the scan met is never laid again from there, and a copy behind a fresh
-wall pulls nothing. Under the 0.15 m bound every reach from 0.30 m on forgot
-the same cells (every reach was 0.40 m or more; the lobby's regions were
-27.4-27.7 m² for reaches of 0.46-1.01 m, uncapped 45.8-65.4), so the reach
-is gone (#741's open points, the loop of 11-24b: on 40 random scans with
-bearings missing and on every relay scan of the census below, the region
-the reach made and the cone are the same cells). It keeps a wall nearer than both its
+back) and no more than 0.15 m past it, judged at the cell's middle (uncapped,
+the lobby's relay forgot 7,294 cells more, 928 of them walls, all behind
+what its scan met: what lies behind a wall the scan met is never laid again
+from there, and a copy behind a fresh wall pulls nothing). It keeps a wall nearer than both its
 bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
 rays pass over what is lower and `update` clears no wall, so a low thing
 mapped from afar stays, and the fit takes no return there anyway. On a

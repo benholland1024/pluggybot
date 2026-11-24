@@ -941,7 +941,8 @@ only record of it was the box's log. One event type is new:
   - `fixed`: `fixture` (`dock` / `rack` / `station`, a humanoid's), `moved`, `dropped` (the map went
     too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
     / `seat`); a humanoid's station fix that kept the map (`dropped` false)
-    lays again what its next scan sees -- every one does, pluggybot #741;
+    lays again what its next scan sees -- every one of a robot that matches
+    its scans, as the served ones do, pluggybot #741;
   - `lost`: `fixture`;
   - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
     where one was found its `fixture` and whether it `dropped` the map;
