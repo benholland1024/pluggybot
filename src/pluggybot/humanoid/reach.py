@@ -2819,7 +2819,10 @@ class Reach:
         and not st.get("held_here")):
       self.hold_posture(*st["began"])
       st["postured"], st["given"], st["backing"], st["loaded"] = st["t"], True, True, True
-    elif st.get("backing") and not (settling and loaded):
+    elif st.get("backing") and not (settling and loaded and self.closed[side]):
+      # ...backing off only while a command that closes reads the load: on the
+      # mean held through ones that did not, a body rising out of a deep bow
+      # was walked all the way back into it, and fell later in its run
       if settling:
         self.hold_posture(*self.posture_now())
       st["backing"] = False

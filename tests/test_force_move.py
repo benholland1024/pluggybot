@@ -953,6 +953,28 @@ def test_a_load_withheld_at_the_ask_is_held_through_commands_that_do_not_close()
     assert r.postures == [(0.0, 0.3, 0.0), (-0.1, 0.5, 0.0)], turns
 
 
+
+def test_a_carrys_back_off_goes_on_only_while_a_command_that_closes_reads_the_load():
+  """The bar of 11-24 (hc door_31): a give-up as the body rose out of a deep bow and turn, then the balance
+  stopped closing, and the mean -- held as it was -- kept the back-off going: the body was walked all the way
+  back into the bow it had begun in, and the run fell 28 s later. A back-off goes on only while a command
+  whose balance closes reads the load; one that does not close, as one that reads light, ends it where the
+  body has got to."""
+  way, got_to = np.array([0.0, 0.0, -1.0]), (-0.05, 0.1, 0.0)
+  for closes_after, backing in ((False, False), (True, True)):
+    r = _carrying_open(start=(0.0, 0.15, 0.0))
+    r.posture_now = lambda: np.array(got_to)
+    r._posture_held = lambda: False             # ...its posture coming
+    r.force["left"] = 1.5 * CARRY_LINE * way
+    r._held("left", DT, H, np.eye(3))
+    assert r.pulls["left"]["backing"] and r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)]
+    r.closed["left"] = closes_after
+    r._held("left", DT, H, np.eye(3))
+    assert r.pulls["left"]["backing"] is backing, closes_after
+    assert r.postures == ([(0.0, 0.15, 0.0), (0.0, 0.0, 0.0)] if backing
+                          else [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0), got_to]), closes_after
+
+
 def _asked_loaded(now, turns=None, read=1.1, reach=None):
   """A bare reach's left hand out at `H`, an open hand reading `read` times
   the carry's line as a carry 5 cm up is asked (a procedure's), the body
