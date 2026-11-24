@@ -11820,23 +11820,17 @@ held 0.4 (1.0) without them.*
   leaves"): alone, its fixes keep the map and the region takes the belief
   back as the base's did.
 
-**The rule as built** (`HumanoidBody._fix_at`, `RELAY_PAST_M`,
-`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by`
-/ `forget_seen`, `Navigator._scan_step`). A station fix that moves the belief
-and keeps the map -- the only call in the code that opens an anchor's window
--- arms a relay with a reach: what it moved the belief, its turn at the
-LIDAR's 8 m, and the fit's own reach (0.30 m) more, where a copy of what the
-robot sees may lie. The next scan laid goes in over what it looks across
-forgotten first: every cell from the sensor out to each bearing's end
-(`max_range` where nothing came back), and every cell within the reach of
-one, but none more than 0.15 m past the end of its bearing (uncapped, the
-lobby's relay forgot 7,294 cells more, 928 of them walls, all behind what its
-scan met: what lies behind a wall the scan met is never laid again from
-there, and a copy behind a fresh wall pulls nothing). Under that bound the
-reach widens nothing: every reach is 0.40 m or more, and the lobby's regions
-were 27.4-27.7 m² for reaches of 0.46-1.01 m (uncapped, 45.8-65.4), so what
-goes is what the scan looks across, filled between its rays, and up to 0.15
-m past each end. It keeps a wall nearer than both its
+**The rule as built** (`HumanoidBody._fix_at`, `ScanMatcher.relay`,
+`RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by` / `forget_seen`,
+`Navigator._scan_step`). A station fix that moves the belief and keeps the
+map -- the only call in the code that opens an anchor's window -- arms a
+relay. The next scan laid goes in over what it looks across forgotten first:
+every cell whose nearest bearing of that scan's lies within a degree of it,
+from the sensor out to that bearing's end (`max_range` where nothing came
+back) and no more than 0.15 m past it, judged at the cell's middle (uncapped,
+the lobby's relay forgot 7,294 cells more, 928 of them walls, all behind
+what its scan met: what lies behind a wall the scan met is never laid again
+from there, and a copy behind a fresh wall pulls nothing). It keeps a wall nearer than both its
 bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
 rays pass over what is lower and `update` clears no wall, so a low thing
 mapped from afar stays, and the fit takes no return there anyway. On a
@@ -11844,9 +11838,9 @@ bearing that clears none (the scan bowed past 30 deg, or behind another
 robot) it keeps every wall: forgotten, `update` laid it floor. The anchor's
 30 scans then lay the region from the belief put right, each as it comes. A
 bearing the scan does not carry (another robot's, the robot's own body) is
-looked across by none of it. The relay is kept state (`relayM`); a warp or a
-map forgotten cancels it and closes the window; of two fixes before its scan,
-the larger reach; a fix past the matcher's search drops the map as before
+looked across by none of it. The relay is kept state (`relay`); a warp or a
+map forgotten cancels it and closes the window; a fix past the matcher's
+search drops the map as before
 and arms none. It reaches both fixes that keep the map: the dock's look at a
 charge's start (`anchor_at_dock`) and the lost search's
 (`_near_station_routine`).
@@ -11864,7 +11858,7 @@ its relay's scan: nothing is laid again, and the closed window hands the
 right belief back to the copy, as #681 measured (0.2-0.45 m).
 
 **What it forgets, and what of the copy it removes** (the lobby, a fix of
-0.15 m, a reach of 0.46 m). The region is 11,016 cells (27.5 m²), 969 of
+0.15 m). The region is 11,016 cells (27.5 m²), 969 of
 them walls; the 161 walls nearer than 1 m are kept and the other 10,853 cells
 that held evidence forgotten. The copy, read by its own offset (an old wall
 that lies where a wall the window laid again would lie moved 10.0 cm west
@@ -11920,7 +11914,7 @@ path), the pair's recording and #572's probe.
   panels leave free from 2.63 m), and a cell or two at the edges of each
   station's own box; past 1 m it keeps none, and from the house station's
   standoff and lost-fix poses the couch's part 1.3-2.6 m behind is laid floor
-  (435-843 of its points, at 2.5 cm; open, #741's third review). Uncapped, it planned through what it forgot (1 walk-off
+  (435-843 of its points, at 2.5 cm; counted below). Uncapped, it planned through what it forgot (1 walk-off
   of its 8, the 11-23 save's lobby to the lab: 2 plans through 6 cells that held
   walls; none as built), and on a map whose copies lie elsewhere it would
   empty the rooms next door for nothing. Which to give up is #681's to weigh.
@@ -11931,6 +11925,67 @@ path), the pair's recording and #572's probe.
   heading turning 2.4 deg); option 3 cannot act there (no fix), and option 4
   held it at 13.1 cm for the hour (`loop-741b`).
 - Work at the counter (about 8 cm a try, #681's comment of 11-23).
+
+**#741's open points, counted on the served day** (Z2, the loop of 11-24b;
+`~/pluggybot-training/loop-1124b/z2-741d/`: `c/census.py`, `c/truth.py`,
+`c/z2_scene.py`). Every station fix that keeps the map arms the relay: the
+weekend's wakes of 11-21 and 11-22 made 8 (7 at the lobby, among them Luca's
+lost search's 1.04 m out, and Rowan's dock at the house of 11-22 17:51,
+which moved the belief 0.26 m), five wake days 10. Each was replayed on the
+live saves of 11-22 and 11-23 (`world.npz` alone; Luca's or Rowan's map,
+re-docked from the standoff with the belief set off as that fix found it),
+beside fresh maps laid through a belief set off at all three stations and
+`station_spike.py --lost`'s 50 starts: the relay as built beside the relay
+off with its region counted where it would have forgotten (the shadow),
+counted against the world's own geometry laid on the robot's grid (to
+measure only), on one pod.
+- *A thin wall met at a graze* (point 1). Over the 11 served relays that
+  fired, the relay had laid 223 cells of the true walls floor as the window
+  closed, the shadow 21 -- at the house, the station's own wall seen along
+  its length -- but ten minutes on 155 against the shadow's 162: the
+  shadow's belief, held on the copy, lays its scans 10 cm off and wears them
+  away too. Over all 23 relays, fresh maps among them, 399 and 321 against
+  71 and 240. No plan went through a forgotten cell, and none across a wall
+  of the world, in 10 walk-offs (7 after a dock whose fix kept the map),
+  each flown four ways; their arrivals, as built against the shadow, nearer
+  on 11 legs, further on 8, within 0.5 cm on 13 (p = 0.65).
+- *A low thing behind the robot* (point 2). At the replay of Rowan's dock the
+  house's couch read floor to the planner in 7 cells as the window closed
+  and 12 ten minutes on (the shadow none), at every house relay on the live
+  maps 3-7 and 4-12, at a fresh map's dock there 81 (the couch and the bed),
+  and at the lost search's 24 relays on fresh maps there 18-67 each (the
+  couch 588 and the bed 436 in all, against the shadow's 158); the lobby one
+  cell, the mall none. Walked past the couch after the served dock, no plan
+  went through those cells (the rest of the couch and its inflation still
+  barred the way); arrivals 2.1 and 0.4 cm, the shadow's 4.4 and 3.9; every
+  lost start docked either way.
+- *The moot reach* (point 3): on all 346 relay scans counted, the region the
+  reach made and the bare cone were the same cells; it is gone (above).
+- *A bowed relay* (point 4) never came: every relay scan was upright (held
+  pitch 0, tilt 3.3 deg at most); in 4 of the 24 lost relays one bearing
+  read no `free_from`, the robot's own body hiding it.
+- *A fall in the window* (point 5): none of the 10 kept fixes of five wake
+  days had a fall within ten minutes of it. K10's scene each way (the lost
+  scene 2 m out, shoved 0.5, 1 or 2 s after the fix, four offsets): 10 of
+  12 cells the same all four ways (no fix, or no stand within 60 s); in
+  #681's own (0.5 m, 1 s) the window closed with the relay ended 1.1 cm off
+  and plugged in, left open with it 129 cm, closed with no relay 49 cm, open
+  with none -- the base before #741 -- 128 cm; at 2 s, 0.4, 78, 0.5 and 49.
+- *Tried, each against a rule written before its rows*. A forgotten wall
+  held at `OCC_THRESH` (0.5) rather than 0 keeps `update`'s protections, and
+  at the served relays laid 37 cells of the true walls floor instead of 223
+  and no low cell, but a copy so held is re-walled by one stray return (0.5
+  + 0.85): ten minutes on they held 831 copy cells against 357, and docked
+  at the lobby on the 11-22 save read 2.7-9.4 cm at the median where as
+  built held 0.3-3.9 (a hair of 0.001 the same, 9.0 at worst). Keeping,
+  besides the near keep, every wall nearer than its bearing's `free_from`
+  that lies more than the fix's reach short of that bearing's end -- a low
+  thing under the rays, never a copy of what the scan sees -- halved the
+  couch (the served dock 3 and 7 cells; the lost relays 772 against 1030)
+  and docked as well at the house, kept 26-43 copy cells where as built
+  kept 9-18 (the shadow 92-113), and laid one cell of the true walls more
+  than as built at the served dock; it was not flown at the lobby. Neither
+  is built: what to give up is Ben's.
 
 **What is true now.** A station fix that keeps the map forgets what its next
 scan looks across, filled between its rays and up to 0.15 m past each end,

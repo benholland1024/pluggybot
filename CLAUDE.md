@@ -2782,22 +2782,23 @@ save a filmstrip PNG named after the script.
   (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
   robot 0.6 m back into it; `start_at` closes the window. ⚠ ONLY A FIX
   THAT KEEPS THE MAP OPENS ONE, AND IT LAYS AGAIN WHAT ITS NEXT SCAN SEES
-  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`, `RELAY_PAST_M`;
-  SimNotes, "A station's fix that keeps the map lays again what it sees"):
-  every cell from the sensor to each bearing's end, filled between the rays,
-  forgotten before that scan is laid -- kept, the region round the station held the
+  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`; SimNotes, "A
+  station's fix that keeps the map lays again what it sees"): every cell
+  whose nearest bearing of that scan's lies within a degree of it, out to
+  that bearing's end, forgotten before the scan is laid -- kept, the region round the station held the
   offset of the belief that laid it and took the belief back as the window
   closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
-  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (as far round as the
-  fix's reach, the lobby's relay forgot 928 walls behind what it saw, never
-  laid again from there; under the bound the reach, `relayM`, 0.40 m at
-  least, widens nothing), ⚠ AND NO WALL
+  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (uncapped, the lobby's
+  relay forgot 928 walls behind what it saw, never laid again from there),
+  ⚠ AND NO WALL
   NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
   CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
   `update` lays it floor (the house's couch behind a robot the lost search
   fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
-  head's panels leave free_from, it goes -- open, round 3. The price, kept: a
-  robot that walks away and back meets the lobby's copy again, 13 cm). ⚠ THE WINDOW'S
+  head's panels leave free_from, it goes: Rowan's dock of 11-22 replayed laid
+  7-12 of its cells floor, and no walk went through them; Ben's to weigh. The
+  price, kept: a robot that walks away and back meets the lobby's copy
+  again, 13 cm). ⚠ THE WINDOW'S
   SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
   it lasted 146 s docked and the legs carried a belief 3 cm through it, the
   region laid along it; a window of one scan slid the fits 3 cm along the
