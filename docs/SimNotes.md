@@ -11792,14 +11792,20 @@ true stance after each verb. What flying took:
   13 of 32 over the tour (none). Round 2's, frozen at 66ba56fa, beside it on
   the merged tree on one pod: over the tour's draws 0-31 12 of 32 (one fall;
   the first's 13, none) -- short of the bar's 24, and no gain -- and at the
-  check's set-outs 0-31 19 of 32 (two falls; 18, one). It was
+  check's set-outs 0-31 19 of 32 (two falls; 18, one); held out, on 32
+  draws sealed by 66ba56fa on a second pod, 19 of 32 at the check (one
+  fall; the first's 20, none) and 16 of 32 over the tour (two falls; 12,
+  none) -- the lost looks there 1 against 11, the reaches out of reach 6
+  against 4, the drops 3 against 1. It was
   chosen, by a rule written before their rows, as the best of eight
   variants flown on the check's set-outs 200-263 and the tour's draws
   300-315 (50 of 80, three falls; the first's 47, three): its dev lead did
-  not carry to the bar's draws. Its bar falls: two in its recovery step
-  back, carrying, 0.43-0.46 m out after the label squaring had turned the
-  label out of the picture, one in its landing move after a press that let
-  go on the upper board.
+  not carry to the bar's draws. Of its nine falls over the dev tour, the
+  bar and the pool, six came in its recovery step back, carrying, 0.40-0.46
+  m out, the label lost after a squaring turn or a step, two in the
+  withdraw from the upper board after it had
+  set down without the step its board needed (from 0.42 m, and 0.55), and
+  one in its landing move after a press that let go.
 
 ## A station's fix that keeps the map lays again what it sees (issue #741)
 
