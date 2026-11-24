@@ -767,7 +767,8 @@ class Body(abc.ABC):
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
     -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
-    "fell", "feet moved", "out of time"), in
+    "let go" -- a `verb`'s, a grip it began with lost on its way, ended
+    where the hand is (#742) -- "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
     procedure's, whose posture the other hand's grip keeps (#719), never
@@ -783,6 +784,15 @@ class Body(abc.ABC):
     `hand_kept`), "own body" (#722: every way out would pass through its
     own trunk, so nothing moved), "fell", "out of time" -- or "" where it
     held (#493)."""
+
+  @abc.abstractmethod
+  def hand_stopped(self, side: str) -> dict | None:
+    """What stopped a hand's last `reach_routine` on its way, where
+    `hand_why` says "stopped short", by the rule that did (#743): `by`
+    "pushed" (on its way in, the force it read at the hand past its line;
+    `n`, N, that reading), "reach" (on its way in, out of reach from how
+    the body truly stood) or "caught" (on its way out, what its arm read
+    would have tipped the body toward the hand) -- else None."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -1074,6 +1084,9 @@ class StubBody(Body):
     self.watched: list = []
     self.sight: dict | None = None
     self._why: dict[str, str] = {}
+    #: ...and what a test says stopped a hand's reach on its way (#743,
+    #: `hand_stopped`'s shape)
+    self.stopped: dict[str, dict] = {}
     self.forgot = 0
     #: ...what moved its belief (a test puts records in), the fixtures it
     #: was lost at, and whether a search finds one (a test sets it)
@@ -1462,6 +1475,10 @@ class StubBody(Body):
     """Never short -- every reach holds at once -- but with a hand a test
     put `out_of_reach`."""
     return self._why.get(side, "")
+
+  def hand_stopped(self, side) -> dict | None:
+    """What a test put `stopped`: no reach of a stub's stops on its way."""
+    return self.stopped.get(side)
 
   def hand_kept(self, side) -> dict | None:
     """No other robot's body in any arm's way: none."""

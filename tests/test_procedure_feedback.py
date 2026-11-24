@@ -140,7 +140,7 @@ def test_tests_that_read_false_are_said_line_by_line_within_historys_cap():
                   "measure (3 times): no flat top seen round (1, 0) from where you stand; "
                   "line 8, an expression (in grip): division by zero)")
   # ...past the room, the lines left over counted, and the whole within it
-  long = [read(10 + k, "reach", "your right hand stopped short on its way: " + "x" * 60)
+  long = [read(10 + k, "reach", "your right hand stopped short on its way in: " + "x" * 57)
           for k in range(9)]
   [line] = lc.procedure_outcome("p", {"ok": True, "completed": 9, "total": 9, "steps": long})
   assert len(line) <= room and line.endswith(" more))"), line

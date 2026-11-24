@@ -887,6 +887,10 @@ class HumanoidBody(Body):
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
 
+  def hand_stopped(self, side) -> dict | None:
+    stopped = self.reach.stopped[side] if self._why.get(side) == "stopped short" else None
+    return None if stopped is None else dict(stopped)
+
   def hand_kept(self, side) -> dict | None:
     return self._kept.get(side)
 

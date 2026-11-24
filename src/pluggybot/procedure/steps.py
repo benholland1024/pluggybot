@@ -1069,6 +1069,16 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                          "through your own body, so it did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
+#: ...and one that stopped short, by the rule its body says stopped it
+#: (`Body.hand_stopped`, #743): told "out of reach ... or pushing", Luca
+#: read a push on the cube's board as a stance too close and stepped back.
+#: `REACH_WHY`'s where the body does not say.
+REACH_STOPPED = {
+  "pushed": "your {hand} hand stopped short on its way in: it pushed on something before it "
+            "got there, {n:.0f} N",
+  "reach": "your {hand} hand stopped short on its way in: out of reach from how you truly stand",
+  "caught": "your {hand} hand stopped on its way out: it caught on something, which would have "
+            "tipped you toward it"}
 #: ...and one out of reach with the other hand holding something, whose grip
 #: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
 REACH_KEPT = ("your {other} hand is out holding something, so your body keeps the posture it "
@@ -1212,6 +1222,9 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": False, "hand": hand, "why": why, "reason": REACH_KEPT.format(
       hand=hand, other=kept_by) + (TURNED_ELSE if turned() else ""), **said, "felt": felt}
   if why == "stopped short":
+    stopped = life.body.hand_stopped(hand) or {}
+    if stopped.get("by") in REACH_STOPPED:
+      reason = REACH_STOPPED[stopped["by"]].format(hand=hand, n=float(stopped.get("n") or 0.0))
     reason += _short_of(life, place, rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
@@ -1249,6 +1262,8 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
             "held back": "your {hand} hand was held back short of it: what it holds or "
                          "pushes on stopped it",
             "feet moved": "your feet moved under the force, so it stopped there",
+            # ...a carry whose grip it began with was lost on its way (#742)
+            "let go": "your {hand} hand's grip let go of what it held on the way",
             "not out": "your {hand} hand is not out: `reach` with it first",
             "fell": "you fell on the way, and let go",
             "out of time": "your {hand} hand did not get there in time"}
