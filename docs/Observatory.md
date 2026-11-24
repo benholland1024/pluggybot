@@ -38,14 +38,17 @@ are unmoved byte for byte, and no verb's text changes. Three sentences do:
 **What a deployed robot does** changes in one place (#742): that carry ends
 where its grip reads lost, the hand held where it is, as a pull's does, so
 a `move_hand` written as a statement ends the run there and one an `if`
-tests reads false and the run goes on. The loop's own carries (a charge's
-plug, to the port and to the cup) are as before.
+tests reads false and the run goes on. A carry whose stop condition is its
+own hand's grip (`until="right.held", below=0.5`) still ends as that
+condition's stop and reads ok. The loop's own carries (a charge's plug, to
+the port and to the cup) are as before.
 
-**The change** (`Reach._held`, `Reach.carry`'s `verb`; `Reach.stopped`,
-`Body.hand_stopped`; `steps.REACH_STOPPED`, `steps.MOVE_WHY["let go"]`;
-`challenge/lid.py`). The grip a carry began with is the pull's own reading,
-the gripper's `held()` as the move is asked. A stop on a hand's line in
-says the push where both its rules held at once.
+**The change** (`Reach._held`, `Reach.carry`'s `verb`, `steps._on_its_grip`;
+`Reach.stopped`, `Reach._pushes`, `Body.hand_stopped`; `steps.REACH_STOPPED`,
+`steps.MOVE_WHY["let go"]`; `challenge/lid.py`). The grip a carry began with
+is the pull's own reading, the gripper's `held()` as the move is asked. A
+stop on a hand's line in says the push where the push held at least half of
+the run of ticks behind the stop, at the hardest it read, else out of reach.
 
 **Why** (the loop of 11-23's X5: the weekend's own cube and chest
 procedures flown at their live draws). Every cube grip that read held had
