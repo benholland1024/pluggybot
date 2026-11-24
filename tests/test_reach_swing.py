@@ -47,11 +47,13 @@ def _floor():
   return reach
 
 
-def _face(x, y0=-0.6, y1=0.6, z0=0.1, z1=0.70):
+def _face(x, turn=0.0, y0=-0.6, y1=0.6, z0=0.1, z1=0.68):
   """A counter's face as the memory gives it (`ArmsMemory.faces`), x m ahead
-  of the stance: 2 cm voxels, its top's row left out."""
-  ys, zs = np.arange(y0, y1 + 1e-9, 0.02), np.arange(z0, z1 + 1e-9, 0.02)
-  return np.array([[x, y, z] for y in ys for z in zs])
+  of the stance along its facing, the stance turned `turn` deg to its right
+  of square: 2 cm voxels, its top's own 3 cm left out."""
+  t = math.radians(turn)
+  ss, zs = np.arange(y0, y1 + 1e-9, 0.02), np.arange(z0, z1 + 1e-9, 0.02)
+  return np.array([[x / math.cos(t) - s * math.sin(t), s * math.cos(t), z] for s in ss for z in zs])
 
 
 @pytest.fixture(scope="module")
@@ -132,28 +134,49 @@ def test_with_nothing_seen_a_procedures_plan_is_todays_bit_for_bit(floor):
 
 
 def test_a_posture_whose_swing_meets_a_face_it_saw_is_passed_over(floor):
-  """The premise: across the body from the stand the plan turns the waist,
-  and with a counter's face 0.24 m ahead the turn carries the hand into it.
-  Behind the hand's goal, 0.40 m ahead, the face is met by no posture; at
-  0.24 m one is passed over, and the next that keeps clear is taken."""
+  """The premise: 7 cm across the body from the stand the plan crouches, and
+  with a counter's face 0.15 m ahead, the stance turned 20 deg to its right
+  of square as the robots stood at the cube (#747), the crouch carries the
+  hanging hand into it; that posture is passed over, and the next that
+  keeps clear is taken. Behind the goal, 0.40 m ahead, nothing changes."""
   goal = HandGoal(np.array([0.30, -0.07, 0.80]), None, 0.5)
-  today = floor._planned("left", goal, rc.APPROACH_M, rc.REACH_POSTURES, True)[0]
-  assert floor._planned("left", goal, rc.APPROACH_M, rc.REACH_POSTURES, True)[0][0] == today[0]
-  far = _plan(floor, "left", goal, _face(0.40))
+  postures = rc.REACH_POSTURES[:12]
+  today = floor._planned("left", goal, rc.APPROACH_M, postures, True)[0]
+  far = _plan(floor, "left", goal, _face(0.40, 20), postures)
   assert far[0][0] == today[0] and far[3] is None
-  floor.seen = _face(0.24)
+  face = _face(0.15, 20)
+  floor.seen = face
   try:
     met = floor._swing("left", today, goal, floor._lean())
   finally:
     floor.seen = None
-  assert met is not None and met["side"] == "left", met
-  near = _plan(floor, "left", goal, _face(0.24))
+  assert met is not None and met["side"] == "left" and met["m"] < rc.SWING_CLEAR_M, met
+  near = _plan(floor, "left", goal, face, postures)
   assert near[0] is not None and near[0][0] != today[0] and near[3] is None
-  floor.seen = _face(0.24)
+  floor.seen = face
   try:
     assert floor._swing("left", near[0], goal, floor._lean()) is None
   finally:
     floor.seen = None
+
+
+def test_a_look_takes_no_posture_its_plan_passed_over():
+  """The plan's passed-over postures are ones its look has left (`left`):
+  taken back by the look with the hand held at its pre-grasp, the 0.55 bow
+  the plan passed over went down in the approach (#747's census, d225 w0
+  y15). The loop's own reach passes over nothing."""
+  reach = _floor()
+  goal = HandGoal(np.array([0.30, -0.07, 0.80]), None, 0.5)
+  postures = rc.REACH_POSTURES[:12]
+  reach.seen = _face(0.15, 20)
+  assert reach.reach("left", goal, postures=postures, verb=True)
+  passed = list(reach.left["left"])
+  assert passed and tuple(reach.posture) not in passed
+  assert reach.seen_at["left"] is reach.seen
+  floor = _floor()
+  floor.seen = _face(0.15, 20)
+  assert floor.reach("left", goal, postures=postures, verb=False)
+  assert floor.left["left"] == [] and floor.seen_at["left"] is None
 
 
 def test_where_every_posture_swings_into_what_it_saw_a_procedures_reach_moves_nothing():
@@ -161,42 +184,71 @@ def test_where_every_posture_swings_into_what_it_saw_a_procedures_reach_moves_no
   near and where; the loop's own reach -- a charge's -- never judged, goes."""
   reach = _floor()
   postures = rc.REACH_POSTURES[:12]
-  reach.seen = _face(0.18)
+  reach.seen = _face(0.15, 20)
   posture, phase = reach.posture.copy(), dict(reach.phase)
   assert not reach.reach("left", ACROSS, postures=postures, verb=True)
   assert reach.phase == phase and np.array_equal(reach.posture, posture)
   said = reach.swung["left"]
   assert said["side"] == "left" and said["part"] in rc.ARM_PARTS and said["m"] < rc.SWING_CLEAR_M
-  assert said["at"][0] == pytest.approx(0.18)
+  assert any(np.allclose(said["at"], p, atol=1e-3) for p in _face(0.15, 20))
   assert reach.reach("left", ACROSS, postures=postures, verb=False)
   assert reach.swung["left"] is None
 
 
-def test_a_part_begun_nearer_than_the_clearance_goes_no_nearer(floor):
-  """A hand hanging by a face as the reach begins (Y6: the left gripper
-  resting on the counter at 7-10 N) may stay as near: met only where it goes
-  nearer than it began, less `SWING_SLACK_M` -- here voxels a few mm under
-  the hanging hand, which a reach to its own side lifts away from."""
+def _hand_parts(floor):
+  """The hanging left hand's parts as the reach begins (`swing_parts`), the
+  body as it reads itself, its arms where they are commanded."""
   sm = rc.swing_model()
   floor._pose(floor.q_cmd)
   sm.q = floor.self_model.q.copy()
   sm.d.qpos[:] = floor.self_model.d.qpos
   mujoco.mj_kinematics(sm.m, sm.d)
-  parts = rc.swing_parts(sm, ("left",))
-  c = np.mean([p[3] for p in parts], axis=0)
-  g = np.stack(np.meshgrid(np.arange(-0.1, 0.1, 0.005), np.arange(-0.1, 0.1, 0.005),
-                           np.arange(-0.2, 0.0, 0.005), indexing="ij"), axis=-1).reshape(-1, 3) + c
-  gap = np.min([rc.part_gap(g, p) for p in parts], axis=0)
-  low = min(float(p[3][2]) for p in parts)
-  under = g[(gap > 0.003) & (gap < 0.008) & (g[:, 2] < low - 0.02)]
-  assert len(under) > 20 and np.min([rc.part_gap(under, p) for p in parts]) < rc.SWING_CLEAR_M, \
-    "the premise: begun within the clearance"
+  return [p for p in rc.swing_parts(sm, ("left",)) if p[1] == "gripper"][0]
+
+
+def _around(part, lo, hi):
+  """Points a few cm round a part whose gap to it lies in (lo, hi), m."""
+  g = np.stack(np.meshgrid(*(np.arange(-0.08, 0.08, 0.004),) * 3, indexing="ij"),
+               axis=-1).reshape(-1, 3) + part[3]
+  gap = rc.part_gap(g, part)
+  return g[(gap > lo) & (gap < hi)]
+
+
+def test_a_part_begun_further_in_than_the_clearance_goes_no_further(floor, monkeypatch):
+  """A hand hanging on a face as the reach begins (Y6: the left gripper
+  resting on the counter at 7-10 N) may stay as far in: met only where it
+  goes further than it began, less `SWING_SLACK_M`. Its swing held still
+  (the clock's commands all where they are), voxels 7-12 mm into its
+  gripper are no meeting; a crouch of 10 cm carries it 3-6 cm into voxels
+  under it."""
+  gripper = _hand_parts(floor)
   today = floor._planned("left", OWN_SIDE, rc.APPROACH_M, rc.REACH_POSTURES, True)[0]
-  floor.seen = under
+  inside = _around(gripper, -0.012, -0.007)
+  assert len(inside) > 20 and rc.SWING_CLEAR_M > -0.007, "the premise: begun further in"
+
+  def still(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT):
+    return [(k * every, float(shown[0]), float(shown[1]), float(w), np.asarray(q0, dtype=float))
+            for k in range(3)]
+  monkeypatch.setattr(rc, "swing_clock", still)
+  floor.seen = inside
   try:
     assert floor._swing("left", today, OWN_SIDE, floor._lean()) is None
   finally:
     floor.seen = None
+  # ...and carried further in: a crouch, the arm where it hangs
+  under = _around(gripper, 0.03, 0.06)
+  under = under[under[:, 2] < gripper[3][2] - 0.03]
+
+  def crouch(shown, posture, w, ws, q0, ways, tick, every=rc.SWING_DT):
+    return [(k * every, float(shown[0]) - 0.1 * k / 4, float(shown[1]), float(w),
+             np.asarray(q0, dtype=float)) for k in range(5)]
+  monkeypatch.setattr(rc, "swing_clock", crouch)
+  floor.seen = under
+  try:
+    met = floor._swing("left", ((-0.1, 0.0, 0.0), *today[1:]), OWN_SIDE, floor._lean())
+  finally:
+    floor.seen = None
+  assert met is not None and met["side"] == "left" and met["m"] < rc.SWING_CLEAR_M, met
 
 
 def test_the_work_round_the_goal_is_no_face(floor):
@@ -229,7 +281,7 @@ def test_the_swing_is_judged_on_the_robots_model_of_itself_never_the_simulators_
     stand.step()
     reach.step()
     mujoco.mj_step(model, data)
-  reach.seen = _face(0.18)
+  reach.seen = _face(0.15, 20)
   spy.read.clear()
   assert not reach.reach("left", ACROSS, postures=rc.REACH_POSTURES[:12], verb=True)
   assert reach.swung["left"] is not None, "the premise: judged and refused"

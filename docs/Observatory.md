@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A procedure's reach takes no posture whose swing meets what its depth camera saw (#747's option 1, Z3, `loop-747`) — opens when this PR is deployed
+
+**What the robots read** moves by one refusal's words: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) and the session host's hello
+`9dcf6202` are byte for byte as they were (the release's, with #728's
+sentence in: the period of #744, #746 and #728, below), and `reach`'s text
+is unchanged. A `reach` whose every posture would swing an arm into what
+the robot's depth camera saw -- which went before and pressed or fell --
+now reads false, nothing moved: "every posture that puts your left hand
+there would swing your left fingers into something your depth camera saw
+0.24 m in front of your feet and 0.66 m up, so your arm did not move", and,
+where the other hand's plan keeps clear, "; your right hand could reach it
+as asked" (180 and 221 characters: a run's History line ending there with
+three short locals, 361 of the 384 a line leaves past its stamp). A draft
+for Ben.
+
+**The change** (`Reach._swing`, `swing_clock`, `plan`'s `swing`,
+`mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
+counter"). A procedure's reach plans each posture's swing -- the body
+walked to it on the standing policy's, the waist's and the arm's own
+clocks while the arm walks out to its pre-grasp -- on the robot's model of
+itself against a new memory of what its depth camera saw at the arms'
+heights (walked in, a counter's face to a centimetre; placed up close,
+none of it), and passes over a posture that would bring a part of either
+arm more than 5 mm into a face; where every one would, nothing moves. A
+look's second posture is judged too, and takes none its plan passed over.
+The loop's own reach (a charge's) is never judged.
+
+**What the period is for.**
+- **The acceptance**: fewer falls inside a `reach` at a counter (a `fall`
+  row whose `at` names a `reach`), and the refusals counted (a run line
+  ending "swing ... so your arm did not move"): what the robots do with
+  them -- the other hand, a step back, or the same reach again.
+- **What it costs**: [THE BARS]. A refusal searches every posture: 6.2-6.6
+  s of the physics thread on the dev box, where an out-of-reach refusal
+  takes 0.03 s and a passing plan 40 ms more than today.
+- **What it misses**: a face never seen from about 0.33 m or further (a
+  robot that turned to it up close), a thing moved since it was seen, a
+  thin board seen only from above, and the legs.
+
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 
 **What the robots read** moves by one History sentence: by this change, the

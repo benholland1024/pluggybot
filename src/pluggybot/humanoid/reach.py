@@ -1379,10 +1379,9 @@ def swing_parts(sm: SelfModel, sides) -> list[tuple]:
   """Each arm's solid parts as posed (`ARM_PARTS`): (side, part, capsule,
   centre, its frame, half-sizes)."""
   m, d = sm.m, sm.d
-  ids = sm.statues.get("swingParts")
+  ids = getattr(sm, "swing_ids", None)
   if ids is None:
-    ids = sm.statues["swingParts"] = {
-      s: [(p, m.geom(f"{s}_{p}").id) for p in ARM_PARTS] for s in hm.SIDES}
+    ids = sm.swing_ids = {s: [(p, m.geom(f"{s}_{p}").id) for p in ARM_PARTS] for s in hm.SIDES}
   out = []
   for side in sides:
     for part, g in ids[side]:
@@ -1550,6 +1549,9 @@ class Reach:
     #: against, which its look judges a posture's swing against too (`_look`);
     #: None for the loop's own.
     self.seen_at: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
+    #: ...and what a swing is judged against, kept for the set it was built
+    #: on and the goal (`_seen_tree`): the set itself, held, never its id.
+    self._tree_seen, self._tree_key, self._tree = None, None, (None, None)
     #: ...and, by side, the way home the last judgment found clear and the
     #: arm it began from (`home_clear`): the way `_go_home` then takes.
     self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
@@ -1843,7 +1845,7 @@ class Reach:
     seen = self.seen if seen is None else seen
     # ...the very set it was built on, held: an id freed could be another's
     key = tuple(np.asarray(goal.pos, dtype=float).round(6))
-    if getattr(self, "_tree_seen", None) is not seen or self._tree_key != key:
+    if self._tree_seen is not seen or self._tree_key != key:
       self._tree_seen = seen
       g = np.asarray(goal.pos, dtype=float)
       work = ((np.hypot(seen[:, 0] - g[0], seen[:, 1] - g[1]) <= SWING_WORK_M)

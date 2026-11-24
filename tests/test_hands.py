@@ -548,6 +548,7 @@ def _bare_reach():
   # ...nor what its depth camera saw where its arms swing, nor a swing refused (#747)
   r.seen, r.swung = None, {s: None for s in hm.SIDES}
   r.seen_at = {s: None for s in hm.SIDES}
+  r._tree_seen, r._tree_key, r._tree = None, None, (None, None)
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}
@@ -1751,7 +1752,7 @@ def test_a_hand_stopped_on_its_way_keeps_the_rule_that_stopped_it(miss, push, sa
   # ...and a new reach forgets the last, whatever it does
   from pluggybot.humanoid.arms import HandGoal
   r.stopped["left"] = said
-  r._planned = lambda side, goal, approach, postures, flip, swing=False: (None, goal, None, None)
+  r._planned = lambda side, goal, approach, postures, flip, **kw: (None, goal, None, None)
   assert not r.reach("left", HandGoal(np.array([0.45, 0.30, 0.90]), None, 1.0))
   assert r.stopped["left"] is None
 
