@@ -404,6 +404,15 @@ def test_a_step_its_routine_books_after_the_hooks_is_owed_that_and_a_save_keeps_
       walk.throw(MissionAborted("stop_when"))
     a.run(a.settle_routine(m.model.opt.timestep))
     assert owed[-1] is False, "a step owed by one a stop was thrown into, never stepped"
+    stale, walk = m._nav_routine(0.0, 0.0), m._nav_routine(0.0, 0.0)
+    next(stale)                        # ...a stale command, never stepped,
+    command = next(walk)               # and the one stepped next, whose step it is:
+    stale.close()                      # the stale one closed (or collected) meanwhile
+    a.stepper.step(command)
+    assert owed[-1] is True, "a stale routine's close disarmed the one whose step it was"
+    with pytest.raises(StopIteration):
+      next(walk)                       # ...which books it
+    assert not m._owed
 
     def stop():
       kept.append(m.kept_state())

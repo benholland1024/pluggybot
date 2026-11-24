@@ -461,11 +461,11 @@ class Navigator:
     self.seen_t: dict[str, float] = {}
     self.step_count = 0
     #: THE STEP'S BOOKKEEPING AFTER ITS HOOKS (#749, `_after_step`): a
-    #: routine that books its steps says so as it yields one
+    #: routine that books its steps arms its own token as it yields one
     #: (`_booked_routine`), and from that step's hooks until it is booked the
     #: step is owed it -- what a save taken inside the hooks keeps, and a
     #: restore books (`book_owed`)
-    self._booking = False
+    self._booking: object | None = None
     self._owed = False
     self.collision_steps = 0
     #: This robot's geoms, root and subtree: what another robot's sensors
@@ -526,7 +526,7 @@ class Navigator:
   # ---- the seam (issue #58) ------------------------------------------------
 
   def _on_step(self) -> None:
-    self._owed, self._booking = self._booking, False
+    self._owed, self._booking = self._booking is not None, None
     for hook in self.step_hooks:
       hook()
     for hook in self.last_hooks:
@@ -605,20 +605,19 @@ class Navigator:
   def _booked_routine(self, command) -> Routine:
     """One physics step of `command`, booked after its hooks (`_after_step`)
     when the driver resumes: every routine that books its steps steps them
-    here (#749). From the step's hooks until it is booked, the step is owed
-    it (`_owed`) -- and a stop raised in the hooks, thrown in at the yield,
-    leaves it owed: had the world gone on, this would have booked it. ⚠ So
-    does a close: a run's end closes a robot waiting in its hold at its
-    yield (`tick.run_many`), a hold that would have booked the step. ⚠ But
-    a close, or anything thrown in, takes back what it said of a step not
-    yet stepped: a wrapper that closes it at its next command, unforwarded
-    (a fall's, a stand-up's), or another robot's hook raising before this
-    one's own hooks ran, left the next step stepped owed."""
-    self._booking = True
+    here (#749; Webserver.md). From the step's hooks until it is booked, the
+    step is owed (`_owed`), and still owed where a stop or a close comes in
+    at the yield (had the world gone on, this would have booked it; the
+    wrappers that would have closed it say so, `forgo_owed`). ⚠ What comes
+    in at a command not yet stepped takes back its own token alone: a stale
+    one's close or collection never disarms another's."""
+    mine = object()
+    self._booking = mine
     try:
       yield command
     except BaseException:
-      self._booking = False
+      if self._booking is mine:
+        self._booking = None
       raise
     self._after_step()
 
