@@ -341,10 +341,9 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or the force it reads (below) a push on its way in --
-  unstopped, an arm pushed the robot over. ⚠ AND SAYS WHICH RULE STOPPED IT
-  (#743; `Reach.stopped`, `Body.hand_stopped`, `steps.REACH_STOPPED`): told
-  "out of reach ... or pushing", Luca read a push on the cube's board as a
-  stance too close. ⚠ JUDGED ON THE RUN BEHIND THE STOP (`Reach._pushes`):
+  unstopped, an arm pushed the robot over. ⚠ AND SAYS WHICH RULE STOPPED IT,
+  JUDGED ON THE RUN BEHIND THE STOP (#743; `Reach.stopped`, `_pushes`,
+  `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
   the push where it held at least half the run, at its hardest, else out of
   reach -- on the stop's tick alone, a last dip or a lone spike named the
   other. ⚠ ON ITS WAY OUT, THE TICK WHAT
@@ -1247,16 +1246,16 @@ save a filmstrip PNG named after the script.
   its way (`give` 1) or holding its line and turn (`give` 0: hybrid); its
   turn giving to what it holds ⚠ BUT NEVER ABOUT THE JAWS' LINE (a lid's
   weight turned a freely giving wrist 70 deg down and out of reach on 4
-  chests of 8); a grip it began with lost ending it where the hand is --
-  ⚠ AND A PROCEDURE'S `move_hand` TOO, READ FALSE, "let go" (#742;
-  `Reach._held`, its `verb`; never the loop's own, a charge's plug):
-  carried on, jaws slid off a board's edge and the empty hand "arrived",
-  16 carries of 16 -- ⚠ BUT ONE WHOSE STOP CONDITION IS ITS OWN GRIP
-  (`until="right.held", below=...`) ENDS AS THAT CONDITION'S STOP, ok
-  (`steps._on_its_grip`): the rule reads the grip inside the physics step and
-  the condition between steps, so aligned, the rule always came first;
+  chests of 8); a grip it began with lost ending it where the hand is;
   going on where the arm misses, ANOTHER posture from the
-  arm as it is, never one it has left (`posture_for(onward=, past=)`). `close_hand(force)`
+  arm as it is, never one it has left (`posture_for(onward=, past=)`). ⚠ A
+  PROCEDURE'S `move_hand` ENDS WHERE A GRIP IT BEGAN WITH IS LOST TOO, READ
+  FALSE, "let go" (#742; `Reach._held`, its `verb`; never the loop's own, a
+  charge's plug): carried on, jaws slid off a board's edge and the empty
+  hand "arrived", 16 carries of 16. ⚠ BUT ONE WHOSE STOP CONDITION IS ITS OWN
+  GRIP (`until="right.held", below=...`) ENDS AS THAT CONDITION'S STOP, ok
+  (`steps._on_its_grip`): the rule reads the grip inside the physics step and
+  the condition between steps, so aligned, the rule always came first. `close_hand(force)`
   takes the Dex1-1's 5-120 N, `held` against half of what its drive pushes
   at the gap it reads (`arms.pushes`, #646: under 2 cm a hard squeeze's
   spring stalls short of the force, and against half the force the plate's

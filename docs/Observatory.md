@@ -44,7 +44,7 @@ condition's stop and reads ok. The loop's own carries (a charge's plug, to
 the port and to the cup) are as before.
 
 **The change** (`Reach._held`, `Reach.carry`'s `verb`, `steps._on_its_grip`;
-`Reach.stopped`, `Reach._pushes`, `Body.hand_stopped`; `steps.REACH_STOPPED`,
+`Reach.stopped`, `Reach._pushes`, `Body.hand_stopped`; `steps.REACH_STOPPED_BY`,
 `steps.MOVE_WHY["let go"]`; `challenge/lid.py`). The grip a carry began with
 is the pull's own reading, the gripper's `held()` as the move is asked. A
 stop on a hand's line in says the push where the push held at least half of

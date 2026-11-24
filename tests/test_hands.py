@@ -194,7 +194,7 @@ def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
   step = ran["steps"][-1]
   assert not step["ok"] and step["why"] == "stopped short"
   # ...and how far from where it was asked its grip was (#711): at its side
-  assert step["reason"].startswith(st.REACH_STOPPED["reach"].format(hand="left") + "; as it")
+  assert step["reason"].startswith(st.REACH_STOPPED_BY["reach"].format(hand="left") + "; as it")
 
 
 @pytest.mark.parametrize("by, said", [
@@ -234,8 +234,8 @@ def test_a_reach_that_stopped_short_says_the_cause_its_body_knows(by, said):
 class _Held(StubBody):
   """A stub whose reach ends `short` m back along the fingers asked and
   `aside` m to its left, its hand reading `push` N along them -- or, `holds`
-  False, stopped short by that push (#743)."""
-  short, push, holds, aside = 0.0, 0.0, True, 0.0
+  False, stopped short by that push, or by the rule `cause` names (#743)."""
+  short, push, holds, aside, cause = 0.0, 0.0, True, 0.0, "pushed"
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None, refuse=False):
@@ -246,7 +246,8 @@ class _Held(StubBody):
     self._fingers = fingers
     self._why[side] = "" if self.holds else "stopped short"
     if not self.holds:
-      self.stopped[side] = {"by": "pushed", "n": self.push}
+      self.stopped[side] = ({"by": "pushed", "n": self.push} if self.cause == "pushed"
+                            else {"by": self.cause})
     return self.holds
     yield
 
@@ -272,7 +273,7 @@ def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stoppe
   asked no turn, its fingers' way the arm's to find, how far from it -- its
   push said first, at the force it read (#743)."""
   pushed = "your right hand stopped short on its way in: it pushed on something before it got there, 45 N"
-  assert st.REACH_STOPPED["pushed"].format(hand="right", n=45.0) == pushed
+  assert st.REACH_STOPPED_BY["pushed"].format(hand="right", n=45.0) == pushed
   for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
     step = _fly(ABOVE, _held(0.054, 45.0, holds=False, pose=pose))["steps"][-1]
     assert not step["ok"] and step["why"] == "stopped short"
@@ -294,6 +295,23 @@ def test_a_reach_that_stopped_short_says_how_far_short_its_grip_was_as_it_stoppe
   body.aside = 0.035
   assert _fly(ABOVE, body)["steps"][-1]["reason"].endswith(
     "was 6.1 cm from where you asked -- 5.0 cm back along its fingers and 3.5 cm across them")
+
+
+def test_a_hand_caught_on_its_way_out_says_how_far_and_nothing_of_its_fingers():
+  """#743's review: a hand caught on its way out never began its line in,
+  so asked a turn, it says how far its grip was from where it was asked and
+  nothing along or across fingers that had not begun their way -- where one
+  stopped on its line in says both (#711)."""
+  body = _held(0.054, 45.0, holds=False)
+  body.cause = "caught"
+  assert _fly(ABOVE, body)["steps"][-1]["reason"] == (
+    st.REACH_STOPPED_BY["caught"].format(hand="right")
+    + "; as it stopped, its grip was 5.4 cm from where you asked")
+  body = _held(0.054, 45.0, holds=False)
+  body.cause = "reach"
+  assert _fly(ABOVE, body)["steps"][-1]["reason"] == (
+    st.REACH_STOPPED_BY["reach"].format(hand="right") + "; as it stopped, its grip was 5.4 cm "
+    "from where you asked -- 5.4 cm back along its fingers and 0.0 cm across them")
 
 
 def test_a_reach_that_holds_claims_nothing_of_what_its_fingers_met():

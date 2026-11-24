@@ -1070,10 +1070,9 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one that stopped short, by the rule its body says stopped it
-#: (`Body.hand_stopped`, #743): told "out of reach ... or pushing", Luca
-#: read a push on the cube's board as a stance too close and stepped back.
+#: (`Body.hand_stopped`, #743), never both causes where it knows one;
 #: `REACH_WHY`'s where the body does not say.
-REACH_STOPPED = {
+REACH_STOPPED_BY = {
   "pushed": "your {hand} hand stopped short on its way in: it pushed on something before it "
             "got there, {n:.0f} N",
   "reach": "your {hand} hand stopped short on its way in: out of reach from how you truly stand",
@@ -1223,9 +1222,11 @@ def _reach(life, args: dict) -> Routine:
       hand=hand, other=kept_by) + (TURNED_ELSE if turned() else ""), **said, "felt": felt}
   if why == "stopped short":
     cause = life.body.hand_stopped(hand) or {}
-    if cause.get("by") in REACH_STOPPED:
-      reason = REACH_STOPPED[cause["by"]].format(hand=hand, n=float(cause.get("n") or 0.0))
-    reason += _short_of(life, place, rot, felt)
+    if cause.get("by") in REACH_STOPPED_BY:
+      reason = REACH_STOPPED_BY[cause["by"]].format(hand=hand, n=float(cause.get("n") or 0.0))
+    # ...caught on its way out, never on its line in: how far alone, nothing
+    # along or across fingers that had not begun their way in
+    reason += _short_of(life, place, None if cause.get("by") == "caught" else rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
