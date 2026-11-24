@@ -778,8 +778,9 @@ class Body(abc.ABC):
   def hand_why(self, side: str) -> str:
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
-    (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "until" (`stop_hand` stopped it), "kept off" (#678:
+    (it stopped on its way: in, pushing on something or out of reach as the
+    body truly stood; out, caught on something -- `hand_stopped` says
+    which), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
     `hand_kept`), "own body" (#722: every way out would pass through its
     own trunk, so nothing moved), "fell", "out of time" -- or "" where it

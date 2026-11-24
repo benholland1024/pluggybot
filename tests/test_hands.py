@@ -524,8 +524,9 @@ def _bare_reach():
   r.q_to = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
   r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
-  # ...nor a hand stopped on its way (#743)
+  # ...nor a hand stopped on its way, nor a run behind a stop (#743)
   r.stopped = {s: None for s in hm.SIDES}
+  r._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}
@@ -1730,6 +1731,35 @@ def test_a_hand_stopped_on_its_way_keeps_the_rule_that_stopped_it(miss, push, sa
   assert r.stopped["left"] is None
 
 
+def test_a_stop_on_its_way_in_says_the_cause_that_held_through_its_run():
+  """#743's review: a stop's cause is judged on the run of ticks behind it
+  (`_pushes`), never its last tick alone: a hand that pushed at 45-50 N for
+  most of the run, its solve missing too, and read 28 N on its last tick is
+  told it pushed, at the hardest it read; one out of reach the whole run
+  that read a lone spike past the force line on its last is told out of
+  reach; and a run a clean tick broke counts afresh."""
+  r, rc = _coming_in(0.05, 0.0)
+  ticks = round(rc.BLOCKED_S / 0.01)
+
+  def fly(steps):
+    for miss, f in steps:
+      r.self_model.solve = lambda side, pos, rot=None, iters=None, m=miss: (r.q_cmd[side].copy(), m, 0.0)
+      r.feel(np.array([-f, 0.0, 0.0]))
+      r._update(0.01)
+  fly([(0.05, 45.0 + 2.5 * (k % 3)) for k in range(ticks - 1)] + [(0.05, 28.0)])
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "pushed", "n": 50.0}
+  r, rc = _coming_in(0.05, 0.0)
+  fly([(0.05, 10.0)] * (ticks - 1) + [(0.05, 41.0)])
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "reach"}
+  # ...14 pushed ticks, a clean one, then 7 pushed and 8 out of reach: the
+  # stop's own run pushed 7 of its 15 (counted on from the first, 21 of 29)
+  r, rc = _coming_in(0.0, 0.0)
+  fly([(0.0, 45.0)] * (ticks - 1) + [(0.0, 5.0)])
+  assert r.phase["left"] == "approach"
+  fly([(0.05, 45.0)] * 7 + [(0.05, 10.0)] * 8)
+  assert r.phase["left"] == "blocked" and r.stopped["left"] == {"by": "reach"}
+
+
 def test_the_humanoids_hand_stopped_is_its_reachs_own_rule_where_it_stopped_short():
   """#743, through `Body`: `hand_stopped` is the rule `Reach` kept, and only
   where the reach routine ended "stopped short" -- one that holds says none,
@@ -2267,6 +2297,22 @@ def test_a_pull_that_reads_false_leaves_no_reading_of_its_own():
   assert ran["steps"][-1]["reason"] == "pull.held has no reading: your last `pull` failed", ran
 
 
+class _LetGo(StubBody):
+  """A stub whose every carry ends where its grip read lost (`Reach._held`'s
+  "let go"), at once: before any stop condition reads -- the phases of the
+  carry's rule and its condition aligned -- each carry's `verb` kept."""
+
+  def __init__(self, *a, **kw):
+    super().__init__(*a, **kw)
+    self.verbs = []
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0, path=None,
+                        turns=None, verb=False):
+    self.verbs.append(verb)
+    return {"why": "let go", "seconds": 0.4, "moved": 0.02, "dx": 0.0, "dy": 0.0, "dz": 0.02}
+    yield
+
+
 def test_a_carry_whose_grip_let_go_on_its_way_reads_false_and_says_so():
   """#742: a `move_hand` whose jaws slid off the board's edge they had shut
   on carried an empty hand on and read ok, "arrived" (16 carries of 16 at
@@ -2275,14 +2321,7 @@ def test_a_carry_whose_grip_let_go_on_its_way_reads_false_and_says_so():
   (`Reach._held`, "let go"): it reads false, an `if`'s test going on and a
   statement ending the run, and says so in History's words. Its body is
   asked as a procedure's (`verb`), whose carry the rule is."""
-  class LetGo(StubBody):
-    def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0, path=None,
-                          turns=None, verb=False):
-      self.verbs.append(verb)
-      return {"why": "let go", "seconds": 0.4, "moved": 0.02, "dx": 0.0, "dy": 0.0, "dz": 0.02}
-      yield
-  body = LetGo(*_bare())
-  body.verbs = []
+  body = _LetGo(*_bare())
   said = "your right hand's grip let go of what it held on the way"
   assert st.MOVE_WHY["let go"].format(hand="right") == said
   ran = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n    close_hand("right")\n    n = 0\n'
@@ -2297,6 +2336,32 @@ def test_a_carry_whose_grip_let_go_on_its_way_reads_false_and_says_so():
   assert history.startswith(f"the procedure a did not finish -- it stopped at line 7, move_hand: "
                             f"{said} ("), history
   assert f"1 test read false -- line 5, move_hand: {said}" in history, history
+
+
+@pytest.mark.parametrize("until, stops", [
+  ('until="right.held", below=0.5', True),
+  ('until="right.held", below=1', True),
+  ('until="right.z", above=2.0', False),
+  ('until="left.held", below=0.5', False),
+  ('until="right.held", above=0.5', False)])
+def test_a_carry_whose_stop_condition_is_its_own_grip_stops_on_it(until, stops):
+  """#742's review: a `move_hand` guarded on its own grip (`until=
+  "right.held", below=0.5`) stopped on it, ok and `move_hand.stopped` 1; the
+  carry's rule reads the same grip inside the physics step and its condition
+  between steps, so where their phases align the rule ended it first, and
+  it read false. Ended "let go" under a condition on its own hand's grip
+  lost, it is that condition's stop; under any other, or none, still false."""
+  ran = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n    close_hand("right")\n    s = 2\n'
+             f'    if move_hand("right", 0.3, -0.2, 0.95, {until}):\n        s = read("move_hand.stopped")\n',
+             _LetGo(*_bare()))
+  step = ran["steps"][-1]
+  assert step["verb"] == "move_hand" and step["ok"] is stops, step
+  if stops:
+    assert step["why"] == "until" and ran["locals"]["s"] == 1.0, ran
+    assert step["until"] == f"right.held read 0 (below {until.rsplit('=', 1)[1]}) 0.00 s in", step
+  else:
+    assert step["why"] == "let go" and "until" not in step and ran["locals"]["s"] == 2.0, ran
+    assert step["reason"] == "your right hand's grip let go of what it held on the way", step
 
 
 @pytest.mark.parametrize("verb", ["reach", "pull"])

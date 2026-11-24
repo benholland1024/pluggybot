@@ -1281,10 +1281,16 @@ class Reach:
     self._off = {s: 0.0 for s in hm.SIDES}
     #: ...and what stopped each hand's last reach on its way (`blocked`), by
     #: the rule that did (#743): `by` "pushed" (on its way in, its force past
-    #: `BLOCKED_N`; `n` that reading, N), "reach" (on its way in, its own solve
-    #: past `BLOCKED_M` off its command) or "caught" (on its way out,
+    #: `BLOCKED_N`; `n` the hardest it read, N), "reach" (on its way in, its own
+    #: solve past `BLOCKED_M` off its command) or "caught" (on its way out,
     #: `_struck`); None where none stopped it so. Words alone read it.
     self.stopped: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: ...and of the run of ticks behind a stop on its way in (`_off`), how
+    #: many pushed, how many in all, and the hardest push read, N: the push
+    #: is said where it held at least half the run (#743's review: judged on
+    #: the stop's tick alone, a push's last dip or a lone spike named the
+    #: other cause).
+    self._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
     #: ...and how long its way out's reading has tipped the body past the
     #: line, running (`OUT_TIP_S`).
     self._tip = {s: 0.0 for s in hm.SIDES}
@@ -3021,11 +3027,18 @@ class Reach:
         pushing = float(np.linalg.norm(self.force[s]))
         pushed = phase == "approach" and pushing > BLOCKED_N
         off = phase != "retreat" and not waiting and (ep > BLOCKED_M or pushed)
+        if off:
+          # ...the run behind a stop, counted afresh wherever `_off` begins again
+          n_push, n_all, hardest = (0, 0, 0.0) if self._off[s] == 0.0 else self._pushes[s]
+          self._pushes[s] = (n_push + pushed, n_all + 1, max(hardest, pushing) if pushed else hardest)
         self._off[s] = self._off[s] + dt if off else 0.0
         if self._off[s] >= BLOCKED_S:
           # Stopped where it was last commanded: the goal is out of its reach,
-          # or the hand pushes on something -- said by the push where both
-          self.stopped[s] = {"by": "pushed", "n": pushing} if pushed else {"by": "reach"}
+          # or the hand pushes on something -- the push said where it held at
+          # least half the run, both or not (`_pushes`)
+          n_push, n_all, hardest = self._pushes[s]
+          self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
+                             else {"by": "reach"})
           self.cmd[s] = held
           q, ep, _ = sm.solve(s, held.pos, held.rot)
           self.phase[s], there = "blocked", False

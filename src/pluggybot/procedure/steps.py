@@ -1222,9 +1222,9 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": False, "hand": hand, "why": why, "reason": REACH_KEPT.format(
       hand=hand, other=kept_by) + (TURNED_ELSE if turned() else ""), **said, "felt": felt}
   if why == "stopped short":
-    stopped = life.body.hand_stopped(hand) or {}
-    if stopped.get("by") in REACH_STOPPED:
-      reason = REACH_STOPPED[stopped["by"]].format(hand=hand, n=float(stopped.get("n") or 0.0))
+    cause = life.body.hand_stopped(hand) or {}
+    if cause.get("by") in REACH_STOPPED:
+      reason = REACH_STOPPED[cause["by"]].format(hand=hand, n=float(cause.get("n") or 0.0))
     reason += _short_of(life, place, rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
@@ -1282,6 +1282,12 @@ def _hand_report(life, hand: str, rep: dict) -> dict:
   return out
 
 
+def _on_its_grip(guard, hand: str) -> bool:
+  """Whether a move's stop condition is `hand`'s own grip lost: its
+  `<hand>.held` read below a number a lost grip's 0 is below."""
+  return guard is not None and guard[0] == f"{hand}.held" and guard[1] == "below" and guard[2] > 0.0
+
+
 def _move_hand(life, args: dict) -> Routine:
   """A hand that is out carried to (x, y, z) at `speed`, m/s, at
   `stiffness`, its turn kept -- or turned to the one given as `reach`
@@ -1309,6 +1315,12 @@ def _move_hand(life, args: dict) -> Routine:
       hand, end, stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
       patience=HAND_PATIENCE_S + (2.0 * length / speed if places else 0.0),
       path=places or None, turns=turns, verb=True)))
+  if rep.get("why") == "let go" and stopped is None and _on_its_grip(guard, hand):
+    # ...a stop condition on this hand's own grip is the grip's own word: the
+    # body ended the carry the tick its grip read lost, before the
+    # condition's next read could (#742's review), so it is said as that stop
+    rep = {**rep, "why": UNTIL}
+    stopped = {"read": 0.0, "s": felt[-1]["t"] if felt else float(rep.get("seconds") or 0.0)}
   _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
