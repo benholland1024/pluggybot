@@ -11665,10 +11665,10 @@ stance frame the robot stood in as it began: the reckoning a step measures
 its walk by. A posture carrying the pelvis over planted feet moves it not
 at all, however large the corrections summed since boot; a turn corrected
 while the verb runs leaves the pelvis's place over the feet turned by it,
-at most that place times the turn (mm). The "exact" form review round 1
-asked for, the corrections taken off the pelvis before its place was turned
-by the summed turn, read a posture as the feet moving -- a 16 cm bow at 90
-deg of turn corrected since boot as 0.23 m -- and review round 2 took it out.
+at most that place times the turn (mm). The corrections come off the
+stance, never off the pelvis before its place is turned: the odometry moves
+the pelvis in the believed heading, and turned by the summed turn, a 16 cm
+bow at 90 deg corrected since boot read as the feet moving 0.23 m.
 Against the soles' own place and heading over the 120 chest flights, 246
 reaches (40 turning the soles past 5 deg, 15 past 15, 26.2 at most) and 220
 withdraws: the turn within 0.42 deg of the soles' own (0.11 at the median),
