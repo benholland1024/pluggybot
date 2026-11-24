@@ -29,7 +29,8 @@ on the weekend's maps. Now the scan laid next after such a fix goes in over
 what it looks across forgotten first -- every cell from the sensor out to
 each bearing's end, and within the fix's own reach of one (what it moved the
 belief, its turn at the LIDAR's 8 m, and 0.30 m more), but none more than
-0.15 m behind what the scan met and no wall its rays cannot clear -- and the
+0.15 m behind what the scan met, nor any wall nearer than its bearing's
+`free_from` and 1 m or on a bearing that clears none -- and the
 anchor's window lays it afresh from the belief put right, its 30 scans laid
 as they come, ten a second: THE WINDOW IS 3 S where it was 146 s docked (its
 scans held to one every 5 s, the legs' reckoning unmatched through it). Both
