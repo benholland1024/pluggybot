@@ -491,17 +491,54 @@ def test_a_step_is_booked_after_its_hooks_through_one_door():
   as owing nothing and a restore leaves that step's scan untaken (#749): so
   `_after_step` is called by that one routine, and by `book_owed`, which
   books what a save said was owed, and by nothing else."""
-  import ast
   from pathlib import Path
   import pluggybot
   callers = []
   for path in sorted(Path(pluggybot.__file__).parent.rglob("*.py")):
-    for fn in ast.walk(ast.parse(path.read_text())):
-      if isinstance(fn, ast.FunctionDef):
-        callers += [fn.name for node in ast.walk(fn)
-                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "_after_step"]
+    callers += _calls_of(path.read_text(), "_after_step")
   assert sorted(callers) == ["_booked_routine", "book_owed"]
+
+
+def _calls_of(source: str, attr: str) -> list[str]:
+  """Every call of `.<attr>(...)` in `source`, by the function it is in --
+  a `def`, an `async def`, a lambda (`<lambda>`) or none (`<module>`)."""
+  import ast
+  found: list[str] = []
+
+  class Visit(ast.NodeVisitor):
+    def __init__(self):
+      self.inside = ["<module>"]
+
+    def _in(self, node, name):
+      self.inside.append(name)
+      self.generic_visit(node)
+      self.inside.pop()
+
+    def visit_FunctionDef(self, node):
+      self._in(node, node.name)
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_Lambda(self, node):
+      self._in(node, "<lambda>")
+
+    def visit_Call(self, node):
+      if isinstance(node.func, ast.Attribute) and node.func.attr == attr:
+        found.append(self.inside[-1])
+      self.generic_visit(node)
+  Visit().visit(ast.parse(source))
+  return found
+
+
+def test_the_booking_fence_finds_a_call_wherever_it_is():
+  """...the fence reads every call, its own function's name or none: a
+  booking from a lambda, an `async def` or a module's top level is read,
+  never walked past (#749's review)."""
+  source = ("hook = lambda m: m._after_step()\n"
+            "async def later(m):\n  m._after_step()\n"
+            "def outer(m):\n  def inner():\n    m._after_step()\n  return inner\n"
+            "m._after_step()\n")
+  assert sorted(_calls_of(source, "_after_step")) == ["<lambda>", "<module>", "inner", "later"]
 
 
 def test_a_restore_books_what_a_robot_owed_after_the_step_it_steps_again(tmp_path, monkeypatch):
