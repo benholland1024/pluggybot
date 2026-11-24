@@ -629,13 +629,12 @@ class HumanoidBody(Body):
   def reckoned(self) -> tuple[float, float, float]:
     """Its stance by its legs' own reckoning (#746): `stance` less every
     correction from outside it -- a scan match, a station's look -- summed
-    (`StanceOdometry.corrected`), as a step's walk is measured (`_by_legs`):
-    a posture's move of the pelvis over planted feet moves it not at all,
-    however large the corrections summed (#744's second review: the pelvis's
-    place turned by the summed turn read a bow as the feet moving), and a
-    turn corrected while a verb runs leaves that place turned by it, at most
-    the place times the turn (mm). Off the odometry's state as it last
-    ticked: nothing read afresh."""
+    (`StanceOdometry.corrected`), as a step's walk is measured (`_by_legs`).
+    ⚠ NEVER THE PELVIS'S PLACE OVER THE FEET TURNED BY THE SUMMED TURN: the
+    odometry moves the pelvis in the believed heading, and so turned, a bow
+    read as the feet moving. A turn corrected while a verb runs leaves that
+    place turned by it, at most the place times the turn (mm). Off the
+    odometry's state as it last ticked: nothing read afresh."""
     x, y, yaw = self.stance
     c = self.mission.odo.corrected
     return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
