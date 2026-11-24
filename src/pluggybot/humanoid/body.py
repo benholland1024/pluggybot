@@ -566,6 +566,10 @@ class HumanoidBody(Body):
     return self.mission.step_hooks
 
   @property
+  def last_hooks(self) -> list:
+    return self.mission.last_hooks
+
+  @property
   def stepper(self):
     return self.mission.stepper
 
@@ -581,6 +585,9 @@ class HumanoidBody(Body):
     if "legs" not in state:
       return False                      # saved before a humanoid kept any
     return self.mission.restore_kept(state, arrays)
+
+  def book_owed(self) -> bool:
+    return self.mission.book_owed()
 
   @property
   def working(self) -> bool:

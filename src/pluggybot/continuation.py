@@ -39,7 +39,9 @@ with, a step behind its `qpos`, and everything between two steps reads it.
 Forwarded fresh at the saved instant instead, a restore parted wherever the
 walking policy decided on its first step (one save in ten); so a save
 carries where that step began (`LastStep`) and a restore steps it again
-(`replay`).
+(`replay`) -- ⚠ and does that step's bookkeeping after its hooks, where a
+routine still owed it (#749, `Body.book_owed`): the keeper saves inside
+them, and a scan due there came back a step late, and every scan after it.
 """
 
 from __future__ import annotations
@@ -588,6 +590,10 @@ def restore(lives, snap: Snapshot) -> dict:
     # hold their gains again: they live in the model, and are its input
     matched["replayed"] = replay(first.model, first.data, snap.meta["physics"],
                                  snap.arrays)
+    # ...and that step's bookkeeping after its hooks, where a routine still
+    # owed it (#749, `Body.book_owed`): the keeper saves inside them, and a
+    # scan due there came back a step late, and every scan after it
+    matched["booked"] = [life.root for life in lives if life.body.book_owed()]
     # ...and a robot saved lying inside the other, from before the pair
     # collided (issue #455), put clear before a step throws them apart
     matched["unclipped"] = [life.root for life in lives[1:] if life.unclip()]
@@ -634,8 +640,12 @@ class Keeper:
   On the LAST robot's hooks: one world, one save, and a pair's step runs
   every robot's bookkeeping in order (`tick.run_many`), the world's
   activities with the first -- hooked on the first, the second robot was
-  saved a step behind its own body. ⚠ A STOP IS RAISED ON THE SEAM, never
-  from a signal handler:
+  saved a step behind its own body. ⚠ AFTER EVERY STEP HOOK, whenever one
+  is hung (`Body.last_hooks`, #749): among them, a save came before a hand
+  job's watch hung at its claim, and lost that step's reading. ⚠ STILL
+  INSIDE THE STEP: a routine's own bookkeeping after it (a humanoid's
+  scan) is kept owed and done by the restore (`Body.book_owed`). ⚠ A STOP
+  IS RAISED ON THE SEAM, never from a signal handler:
   a SIGTERM lands between any two bytecodes -- inside a ledger write, half
   way through a death -- and a state saved from there is half one thing.
   `request_stop` only sets a flag; the next step boundary raises
@@ -673,7 +683,7 @@ class Keeper:
     self.last_step = LastStep(self.lives[0])
     for life in self.lives:
       life.continuing = True
-    self.lives[-1].body.step_hooks.append(self.step_hook)
+    self.lives[-1].body.last_hooks.append(self.step_hook)
 
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the

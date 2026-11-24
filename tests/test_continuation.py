@@ -263,6 +263,58 @@ def test_a_restored_humanoid_steps_on_exactly_as_if_nothing_had_stopped(tmp_path
   assert np.array_equal(back.near_field.height, life.near_field.height, equal_nan=True)
 
 
+def _walked(mission, steps: int):
+  for _ in range(steps):
+    yield from mission._nav_routine(0.5, 0.3)
+
+
+def _scans(life) -> list[float]:
+  """Every scan its LIDAR takes from here, by the time it was taken."""
+  m, times = life.body.mission, []
+  scan = m._scan
+  m._scan = lambda: times.append(float(life.data.time)) or scan()
+  return times
+
+
+def test_a_save_on_a_step_whose_scan_is_still_to_come_resumes_on_that_step(tmp_path):
+  """The keeper saves inside a step's hooks, and a walk's step does its
+  bookkeeping after them (`_after_step`): its look, the depth frame's fold
+  and its scan. Saved on a step whose scan was due, the world came back
+  with that scan untaken, the restored process took it a step late -- and
+  every scan after it, each scheduled off the last -- and the belief, the
+  map and the camera's layer parted from the world flown straight through:
+  one keeper save in 50 (#749). A step a routine still owes its bookkeeping
+  is saved so, and the restore does it on the step it steps again
+  (`Body.book_owed`)."""
+  life = _humanoid(tmp_path, near_field=True)
+  start = world_config(HUMANOID_HOME)["start"]
+  life.body.start_at(*start)
+  m = life.body.mission
+  path = tmp_path / "world.npz"
+  keeper = continuation.Keeper([life], path, every_s=1e9)
+  m.run(_walked(m, 100))
+  t0, scans = float(life.data.time), _scans(life)
+  keeper._next = m._next_scan                  # ...the step its scan is due
+  m.run(_walked(m, 150))
+  snap = continuation.read(path)
+  assert keeper.saves == 1 and snap.t in scans, "saved on a step whose scan was due"
+
+  back = _humanoid(tmp_path, near_field=True)
+  back.begin(start)
+  again = _scans(back)
+  continuation.restore([back], snap)
+  b = back.body.mission
+  b.run(_walked(b, 150 - round((snap.t - t0) / m.model.opt.timestep)))
+  assert back.data.time == life.data.time
+  assert again == [t for t in scans if t >= snap.t], "scanned a step late"
+  assert b._next_scan == m._next_scan
+  assert np.array_equal(back.data.qpos, life.data.qpos)
+  assert back.body.pose == life.body.pose
+  assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
+  assert np.array_equal(b.low, m.low)
+  assert np.array_equal(back.near_field.height, life.near_field.height, equal_nan=True)
+
+
 def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was():
   """The parity rule where the robot's model of itself is posed: its
   LIDAR's band is laid at the height and the waist's turn its odometry's
@@ -319,6 +371,91 @@ def test_what_a_restored_humanoid_places_its_senses_through_comes_back_as_it_was
   finally:
     for body in (a, b, c):
       body.close()
+
+
+def test_a_step_its_routine_books_after_the_hooks_is_owed_that_and_a_save_keeps_it():
+  """What a save taken inside a step's hooks cannot see (#749): whether
+  the routine stepping the body books the step after them (`_after_step`:
+  the walking look, the depth frame's fold, the scan). A walk's step owes
+  it from its hooks until it is booked; a step no routine books (a hand's
+  settle) owes none; a stop raised in the hooks, thrown into the routine,
+  leaves it owed -- what a run's end saves. The save keeps it, and a
+  restore books it once (`book_owed`), as the routine would have: the scan
+  its time had come for, taken at the saved instant. ⚠ A save from before
+  it owes nothing, and its due scan waits for the next step booked, as it
+  always did."""
+  a, b, c = body_for(*_floor()), body_for(*_floor()), body_for(*_floor())
+  try:
+    m = a.mission
+    owed, kept = [], []
+    a.step_hooks.append(lambda: owed.append(m._owed))
+    a.run(m._nav_routine(0.0, 0.0))
+    assert owed == [True] and not m._owed, "a walk's step is owed its bookkeeping until booked"
+    a.run(a.settle_routine(m.model.opt.timestep))
+    assert owed == [True, False] and not m._owed, "a step no routine books owes none"
+
+    def stop():
+      kept.append(m.kept_state())
+      raise MissionAborted("stopping: SIGTERM")
+    a.step_hooks.append(stop)
+    m._next_scan = 0.0                              # ...its scan's time has come
+    with pytest.raises(MissionAborted):
+      a.run(m._nav_routine(0.0, 0.0))
+    state, arrays = (json.loads(json.dumps(kept[0][0])), kept[0][1])
+    assert m._owed and state["owed"], "a stop in the hooks leaves the step owed, and saved so"
+    assert a.book_owed() and not a.book_owed() and m._next_scan > 0.0
+    for body in (b, c):
+      body.data.time = a.data.time                  # ...as the restore puts the clock back
+    b.mission.restore_kept(state, arrays)
+    assert b.book_owed() and not b.book_owed(), "booked once"
+    assert b.mission._next_scan == m._next_scan, "the scan the step owed, taken at the saved instant"
+    c.mission.restore_kept({k: v for k, v in state.items() if k != "owed"}, arrays)
+    assert not c.book_owed() and c.mission._next_scan == 0.0, \
+      "a save from before the rule owes nothing: its due scan waits for the next step booked"
+  finally:
+    for body in (a, b, c):
+      body.close()
+
+
+def test_a_step_is_booked_after_its_hooks_through_one_door():
+  """Every routine that books its steps says so before it yields
+  (`Navigator._booked_routine`), or a save inside a step's hooks reads it
+  as owing nothing and a restore leaves that step's scan untaken (#749): so
+  `_after_step` is called by that one routine, and by `book_owed`, which
+  books what a save said was owed, and by nothing else."""
+  import ast
+  from pathlib import Path
+  import pluggybot
+  callers = []
+  for path in sorted(Path(pluggybot.__file__).parent.rglob("*.py")):
+    for fn in ast.walk(ast.parse(path.read_text())):
+      if isinstance(fn, ast.FunctionDef):
+        callers += [fn.name for node in ast.walk(fn)
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "_after_step"]
+  assert sorted(callers) == ["_booked_routine", "book_owed"]
+
+
+def test_a_restore_books_what_a_robot_owed_after_the_step_it_steps_again(tmp_path, monkeypatch):
+  """`continuation.restore` books each robot's owed step (`Body.book_owed`)
+  once the step the save was taken after is stepped again (`replay`): the
+  world it reads is the one the routine read after the hooks. Never where
+  the bodies are not put back: a changed world starts its robots afresh."""
+  life = _stub(tmp_path)
+  snap = _saved(life, tmp_path)
+  order: list = []
+  replay = continuation.replay
+  monkeypatch.setattr(continuation, "replay",
+                      lambda *a: order.append("replay") or replay(*a))
+  for world, want in ((life.world_fingerprint, ["replay", "booked"]), ("another", [])):
+    back = _stub(tmp_path)
+    back.body.book_owed = lambda: order.append("booked") or True
+    back.begin(world_config(HUMANOID_HOME)["start"])
+    snap.meta["fingerprint"] = world
+    order.clear()
+    got = continuation.restore([back], snap)
+    assert order == want
+    assert got.get("booked", []) == ([back.root] if want else [])
 
 
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):
@@ -890,6 +1027,25 @@ def test_a_save_waits_out_a_get_up_part_way(tmp_path):
   assert keeper.saves >= 1
 
 
+def test_a_hook_hung_on_the_seam_after_the_keeper_has_read_the_step_it_saves(tmp_path):
+  """A hand job's watch is hung on the seam at the job's claim
+  (`HubLifecycle._watch_job`), long after the keeper's hook: hooked after
+  it, a save was taken before that step's reading -- the most the drawer
+  was out, the fastest, the worst tilt -- and the restored watch read on
+  from the next (#749's shape, outside `_after_step`). The keeper's hook
+  runs after every step hook, whenever one is hung (`Body.last_hooks`)."""
+  life = _stub(tmp_path)
+  keeper = continuation.Keeper([life], tmp_path / "world.npz", every_s=1e9)
+  read: list[float] = []
+  life.body.step_hooks.append(lambda: read.append(float(life.data.time)))
+  saved: list = []
+  save = keeper.save
+  keeper.save = lambda: saved.append(list(read)) or save()
+  keeper._next = 0.0
+  _hold(life, life.model.opt.timestep)
+  assert saved == [[float(life.data.time)]], "saved before the step's last hook read it"
+
+
 def _carried_on(life, tmp_path, resumes: int = 0):
   """A save on the volume, carried on from as a start does (`load`, which
   counts it): the file and the snapshot `load` handed back."""
@@ -1239,8 +1395,8 @@ def test_a_pair_is_saved_after_every_robots_step_not_between_them(tmp_path):
   from pluggybot.pair import build_pair
   lives = build_pair(HUMANOID_HOME)
   keeper = continuation.Keeper(lives, tmp_path / "world.npz")
-  assert keeper.step_hook in lives[-1].body.step_hooks
-  assert keeper.step_hook not in lives[0].body.step_hooks
+  assert keeper.step_hook in lives[-1].body.last_hooks
+  assert keeper.step_hook not in lives[0].body.last_hooks + lives[0].body.step_hooks
   assert all(life.continuing for life in lives)
 
 
