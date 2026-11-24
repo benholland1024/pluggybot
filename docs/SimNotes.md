@@ -7569,7 +7569,9 @@ forward move pushes a near point out further. Which wins is a matter of height.
   against the standing picture's sides): nothing that stood beside the
   standing picture -- at its side, or at a corner above or below it -- comes
   into a bowed one higher than 0.41 m over the floor at 0.05 rad, 0.44 at
-  0.45 (0.436 with the stand's 1.2 cm lean). At a counter's height the bowed
+  0.45 (0.436 with the stand's 1.2 cm lean); bowed from a crouch, the camera
+  lower, lower still (0.18 m from the deepest a posture holds, the stand's
+  the highest every centimetre between). At a counter's height the bowed
   picture's side draws IN, 4-10 deg of bearing at the bows `spot` asks and
   0.3-0.9 at a 0.05 one. Lower, near the bottom's corners, a bow takes in
   some of what stood beside and below it: on the floor, what stood up to 2.8

@@ -12,9 +12,11 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 
-**What the robots read** moves by one History sentence: the prompt
-`790b89b6…` (71,972 characters, 17 sections) and the session host's hello
-`4e057ff0` are byte for byte as they were. A `move_hand` that ends out of
+**What the robots read** moves by one History sentence: by this change, the
+prompt `790b89b6…` (71,972 characters, 17 sections) and the session host's
+hello `4e057ff0` are byte for byte as they were (the release's, with
+#728's sentence in, are `264ac7f6…` and `9dcf6202`: the period of #744,
+#746 and #728, below). A `move_hand` that ends out of
 reach because its hand -- holding nothing -- read a push past 20 N, where
 another posture would have reached, said "your left hand could reach no
 further that way from any posture you hold", which would no longer be

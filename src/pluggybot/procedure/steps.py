@@ -662,9 +662,11 @@ def _spot(life, args: dict) -> Routine:
   if seen is None:
     forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660) and its sides
-    # (#728), and short: History's run line drops whole a false test's reason
-    # past what its run leaves, about 307 characters less the procedure's
-    # name and the line's digits (#629; tests/test_watch.py pins the fit)
+    # (#728: past them no bow takes in a tag higher than
+    # `SPOT_BOW_SIDE_UNDER_M`), and short: History's run line drops whole a
+    # false test's reason past what its run leaves, about 307 characters less
+    # the procedure's name and the line's digits (#629; tests/test_watch.py
+    # pins the fit)
     top = (f"tag {int(tag)} is not in your colour camera's picture from where you "
            "stand, or too near or too far to read: it shows nothing higher than "
            f"{SPOT_TOP_DEG:.0f} degrees below level")
