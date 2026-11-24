@@ -942,8 +942,6 @@ def plan(side: str, goal: HandGoal, model: SelfModel | None = None,
           return found
         if "met" not in swing:
           swing.update(met=met, plan=found)
-        if not SWING_SEARCH:
-          return None
         continue
       if first is None:
         first = (found, got[2])
@@ -1299,11 +1297,9 @@ SWING_WORK_M, SWING_WORK_UNDER_M = 0.15, 0.10
 SWING_MOST_S = 10.0
 #: The arm's command is judged this far behind the waist's and the posture's,
 #: s: walking out it lags its command (Y6: 0.41 rad out where its command was
-#: 0.64 at 0.64 s), the waist's drive its own by a few hundredths.
+#: 0.64 at 0.64 s), the waist's drive its own by a few hundredths -- judged
+#: on time, two waist turns the model kept clear pressed the face.
 SWING_ARM_LAG_S = 0.2
-#: Whether a plan whose swing meets what it saw is passed over for the next
-#: (True) or the reach refused there (False): the experiment's two arms.
-SWING_SEARCH = True
 
 
 def swing_clock(shown, posture, waist, waist_speed, q0, ways, tick: float,
@@ -1607,9 +1603,10 @@ class Reach:
     the trunk, a `verb`'s moves nothing (`own` says how near the first came),
     and the loop's own takes that one. ⚠ A `verb`'S POSTURE KEEPS ITS ARMS
     OFF WHAT ITS DEPTH CAMERA SAW AS THE ARM SETS OFF (#747, `_swing`): a plan
-    whose swing would bring either arm within `SWING_CLEAR_M` of it is
-    passed over, and where every one would, nothing moves (`swung` says
-    what the first would have met). ⚠ NO OTHER POSTURE
+    whose swing would bring a part of either arm past `SWING_CLEAR_M` into it
+    is passed over -- and the one taken then is the one its hand goes in
+    from, its look taking none -- and where every one would, nothing moves
+    (`swung` says what the first would have met). ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
     `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
     (a charge's)."""
@@ -2291,8 +2288,7 @@ class Reach:
     the least bent of the postures its reach may take that puts its goal in
     reach -- with its slack, else at full stretch, as `plan` chooses -- is
     the one it holds, or none is, or it has looked `LOOKS` times. Else that
-    posture is taken, never one it has left this reach (nor one its plan
-    passed over for its swing, #747), and it looks again
+    posture is taken, never one it has left this reach, and it looks again
     once there; its hand waits at its pre-grasp meanwhile (`looking`). ⚠
     EITHER WAY: the table's cup is reached by an arm over the top, which leant
     the policy 1.5 cm forward where a natural arm leans it 1.1 back, so its
@@ -2306,7 +2302,11 @@ class Reach:
     it, the least bent that reaches is taken all the same. ⚠ A PROCEDURE'S
     LOOK PASSES OVER A POSTURE WHOSE SWING, THE HAND HELD AT ITS PRE-GRASP,
     WOULD BRING AN ARM INTO WHAT ITS DEPTH CAMERA SAW (#747, `_swing`'s
-    `hold`): never taken, not even so -- with none, the one it holds."""
+    `hold`): never taken, not even so -- with none, the one it holds. ⚠ AND
+    ONE WHOSE PLAN PASSED OVER A POSTURE FOR ITS SWING TAKES NONE (`reach`):
+    taking back what the plan passed over, or going on to the deepest bows,
+    whose trunk and head no swing judges, a look fell 3-5 times in 128 such
+    reaches where the base fell twice (#747's census)."""
     if self.looks[side] >= LOOKS or self.kept_by[side]:
       return True
     self.looks[side] += 1
