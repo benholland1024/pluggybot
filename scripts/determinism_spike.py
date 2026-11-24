@@ -145,12 +145,22 @@ def child(cfg: dict, trace_path: Path) -> None:
       last = continuation.LastStep(life)
       life.body.last_hooks.append(last.hook)
 
+      seen: list = [None]
+
+      def landed() -> bool:
+        # ...nor on a step a death or a stand-up landed in, as the keeper
+        # (`Keeper.landed`): read every step
+        now = (None if life.dead is None else id(life.dead), len(life.resets))
+        changed, seen[0] = seen[0] is not None and now != seen[0], now
+        return changed
+
       def save_here(in_step: bool = False):
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
+        fresh = in_step and landed()
         if (d.time >= float(cfg["saveAt"])
             and life.body.posture not in continuation.MOVING_POSTURES
-            and not (in_step and (d.time < life.body.mission._next_scan
+            and not (in_step and (fresh or d.time < life.body.mission._next_scan
                                   or continuation._mid_move(life)))):
           continuation.write(continuation.capture([life], life.world_fingerprint,
                                                   last_step=last),
@@ -346,8 +356,8 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = Fal
   a = [r for r in load(out / "straight.trace.jsonl") if r["t"] > saved]
   b = [r for r in load(out / "resumed.trace.jsonl") if r["t"] > saved]
   rep = first_divergence(a, b)
-  print(f"saved {'inside the hooks of the step' if in_step else 'at the day loop'}'s pass"
-        f" at t={saved}; traces in {out}")
+  where = "inside the hooks of the step" if in_step else "at the day loop's pass"
+  print(f"saved {where} at t={saved}; traces in {out}")
   # ...and what it sensed: a look the straight day never took moves no
   # joint, and every restore took one until the last look was kept
   sensed = first_perception_difference(a, b)
@@ -410,6 +420,8 @@ def main() -> int:
   if args.compare:
     compare(sorted(Path(args.compare).glob("*.trace.jsonl")))
     return 0
+  if args.in_step and args.resume_at is None:
+    ap.error("--in-step places --resume-at's save")
   if args.pair and args.resume_at is not None:
     # the pair's child has no save hook: three flights, then no `saved` row
     ap.error("--resume-at flies one robot's day, not --pair")

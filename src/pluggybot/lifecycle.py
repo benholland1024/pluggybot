@@ -7285,6 +7285,8 @@ class HubLifecycle:
         routine.close()
         raise
       except BaseException as e:  # noqa: BLE001 -- the routine's, as `yield from`
+        if len(self.resets) != since:
+          self.body.forgo_owed()             # ...its step: gone on, closed unbooked
         exc = e
         continue
       if len(self.resets) != since:          # ...or on the step just driven

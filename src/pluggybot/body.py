@@ -209,11 +209,11 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def book_owed(self) -> bool:
     """The bookkeeping a routine stepping this body does after a step's
-    hooks (a humanoid's: the walking look, the depth frame's fold, the
-    scan), done now for the step the world last stepped, where the save it
-    was restored from was taken inside that step's hooks with it still
-    owed (#749, `continuation.restore`) -- else nothing. True where it was
-    owed."""
+    hooks -- all of it (a humanoid's `_after_step`: the walking look, the
+    depth frame's fold, the scan, the contacts' step) -- done now for the
+    step the world last stepped, where the save it was restored from was
+    taken inside that step's hooks with it still owed (#749,
+    `continuation.restore`) -- else nothing. True where it was owed."""
 
   @abc.abstractmethod
   def forgo_owed(self) -> None:

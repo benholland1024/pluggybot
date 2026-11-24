@@ -434,7 +434,8 @@ def test_a_step_a_death_or_a_stand_up_closed_its_routine_at_owes_nothing(tmp_pat
   lands (`_until_stood_up_routine`), that step booked by nobody: a save
   after it -- a run's end right there -- kept it owed, and the restore
   booked a step the world never did (#749's review). Closed so, it owes
-  nothing (`Body.forgo_owed`)."""
+  nothing (`Body.forgo_owed`) -- nor where a stop raised in the same hooks
+  (a stop while paused, at once) is thrown in before they could close it."""
   from pluggybot.lifecycle import STOOD_UP
   from pluggybot.procedure.steps import _until_down_routine
   life = _humanoid(tmp_path)
@@ -442,21 +443,37 @@ def test_a_step_a_death_or_a_stand_up_closed_its_routine_at_owes_nothing(tmp_pat
   m = life.body.mission
   n = [0]
 
-  def third_step(land):
+  def third_step(land, stop=False):
     n[0] = 0
 
     def hook():
       n[0] += 1
       if n[0] == 3:
         land()
+        if stop:
+          raise MissionAborted("stopping: SIGTERM")
     return hook
-  life.body.step_hooks.append(third_step(lambda: setattr(life, "dead", {"cause": "flat"})))
+  death = lambda: setattr(life, "dead", {"cause": "flat"})  # noqa: E731
+  standing = lambda: life.resets.append({"t": 0.0})  # noqa: E731
+  life.body.step_hooks.append(third_step(death))
   assert life.body.run(_until_down_routine(life, m._drive_routine(0.1, 0.0, 0.0))) == (None, "died")
   assert n[0] == 3 and not m._owed, "the step it died in, closed unbooked, still owed"
   life.dead = None
-  life.body.step_hooks[-1] = third_step(lambda: life.resets.append({"t": 0.0}))
+  life.body.step_hooks[-1] = third_step(standing)
   assert life.body.run(life._until_stood_up_routine(m._drive_routine(0.1, 0.0, 0.0))) is STOOD_UP
   assert n[0] == 3 and not m._owed, "the step it stood up in, closed unbooked, still owed"
+  for land, wrapped in ((death, lambda r: _until_down_routine(life, r)),
+                        (standing, life._until_stood_up_routine)):
+    life.dead = None
+    life.body.step_hooks[-1] = third_step(land, stop=True)
+    with pytest.raises(MissionAborted):
+      life.body.run(wrapped(m._drive_routine(0.1, 0.0, 0.0)))
+    assert n[0] == 3 and not m._owed, "a stop thrown in at that step left it owed"
+  life.dead = None
+  life.body.step_hooks[-1] = third_step(lambda: None, stop=True)
+  with pytest.raises(MissionAborted):
+    life.body.run(_until_down_routine(life, m._drive_routine(0.1, 0.0, 0.0)))
+  assert m._owed, "...where nothing landed, the stop leaves the step owed, as it was"
 
 
 def test_a_step_is_booked_after_its_hooks_through_one_door():
