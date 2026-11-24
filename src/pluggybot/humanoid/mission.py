@@ -422,6 +422,20 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
+  def faces(self, pose, corrected) -> np.ndarray:
+    """`near`'s, less the highest of each column: what stands at a face. ⚠
+    THE TOP OF WHAT STANDS THERE IS NO FACE: a hand comes down over a
+    counter's top, a board on it or a table's, to the work it reaches for."""
+    pts = self.near(pose, corrected)
+    if not len(pts):
+      return pts
+    v = np.round(self.pts / ARMS_VOX_M).astype(np.int64) + (1 << 20)
+    column = (v[:, 0] << 21) | v[:, 1]
+    order = np.lexsort((-v[:, 2], column))
+    top = np.zeros(len(v), dtype=bool)
+    top[order[np.r_[True, column[order][1:] != column[order][:-1]]]] = True
+    return pts[~top]
+
   def kept_state(self) -> tuple[dict, dict]:
     return ({"seen": None if self.seen is None else [float(v) for v in self.seen]},
             {"armsPts": self.pts, "armsT": self.t})
@@ -1422,12 +1436,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.swing.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing)
 
   def arms_seen(self) -> np.ndarray:
-    """What its depth camera has seen where its arms swing (`ArmsMemory`),
-    where its belief has it now: voxels (n, 3) in its stance frame, z over
-    the floor -- placed from its pelvis along its heading through its
+    """What its depth camera has seen where its arms swing (`ArmsMemory`) at a
+    face, never a top (`ArmsMemory.faces`), where its belief has it now:
+    voxels (n, 3) in its stance frame, z over the floor -- placed from its
+    pelvis along its heading through its
     odometry's model of itself, as a look's bow places its LIDAR's returns
     (`HumanoidBody.bow_room`)."""
-    pts = self.swing.near(self.pose, self.odo.corrected)
+    pts = self.swing.faces(self.pose, self.odo.corrected)
     if not len(pts):
       return np.zeros((0, 3))
     sm = self.odo.sm

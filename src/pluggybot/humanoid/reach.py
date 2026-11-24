@@ -1278,8 +1278,11 @@ def _dips(sm: SelfModel, side: str, q0, at, ahead: float):
 #: (`swing_clock`), sampled this often, s...
 SWING_DT = 0.05
 #: ...each part of either arm kept this far, m, from what its depth camera
-#: saw where its arms swing (`mission.ArmsMemory`, a voxel's middle)...
+#: saw where its arms swing (`mission.ArmsMemory`, a voxel's middle) -- or,
+#: begun nearer, no nearer than it began less this, m (a hand hanging on a
+#: counter's face as the reach begins: #722's form)...
 SWING_CLEAR_M = 0.02
+SWING_SLACK_M = 0.005
 #: ...but what lies within this of its goal, m: what it reaches for and what
 #: that stands on.
 SWING_WORK_M = 0.08
@@ -1762,23 +1765,38 @@ class Reach:
       d.qpos[arm[other]] = self.q_cmd[other]
       mujoco.mj_kinematics(sm.m, d)
       parts.append((t, swing_parts(sm, (side, other))))
-    # ...each part against what lies within its own reach as it swings
+    # ...each part against what lies within its own reach as it swings: its
+    # gap as the swing begins, and its least (when, and to what)
     flat = [(t, part) for t, ps in parts for part in ps]
     centres = np.array([part[3] for _, part in flat])
     radii = np.array([float(np.linalg.norm(part[5])) + SWING_CLEAR_M for _, part in flat])
-    near = None
+    began: dict = {}
+    least: dict = {}
     for (t, part), idx in zip(flat, tree.query_ball_point(centres, radii)):
-      if not idx:
-        continue
-      cand = pts[idx]
-      gap = part_gap(cand, part)
-      k = int(np.argmin(gap))
-      if near is None or gap[k] < near[0]:
-        near = (float(gap[k]), t, part[0], part[1], cand[k])
-    if near is None or near[0] >= SWING_CLEAR_M:
+      key = (part[0], part[1])
+      g, at = math.inf, None
+      if idx:
+        cand = pts[idx]
+        gap = part_gap(cand, part)
+        k = int(np.argmin(gap))
+        g, at = float(gap[k]), cand[k]
+      if t == 0.0:
+        began[key] = g
+      if key not in least or g < least[key][0]:
+        least[key] = (g, t, at)
+    # ...the part that comes nearest past what it may: `SWING_CLEAR_M`, or,
+    # begun nearer, where it began less `SWING_SLACK_M`
+    worst = None
+    for key, (g, t, at) in least.items():
+      b0 = began.get(key, math.inf)
+      need = SWING_CLEAR_M if b0 >= SWING_CLEAR_M else b0 - SWING_SLACK_M
+      if g < need and (worst is None or need - g > worst[0]):
+        worst = (need - g, key, g, t, at, b0)
+    if worst is None:
       return None
-    m, t, s, name, at = near
+    _, (s, name), m, t, at, b0 = worst
     return {"arm": "this" if s == side else "other", "side": s, "part": name, "m": round(m, 3),
+            "began": None if b0 == math.inf else round(b0, 3),
             "at": [round(float(v), 3) for v in at], "t": round(t, 2)}
 
   def _seen_tree(self, goal: HandGoal):
