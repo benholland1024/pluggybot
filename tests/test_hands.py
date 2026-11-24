@@ -547,6 +547,7 @@ def _bare_reach():
   r._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
   # ...nor what its depth camera saw where its arms swing, nor a swing refused (#747)
   r.seen, r.swung = None, {s: None for s in hm.SIDES}
+  r.seen_at = {s: None for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}

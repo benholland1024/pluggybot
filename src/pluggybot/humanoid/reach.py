@@ -1277,15 +1277,17 @@ def _dips(sm: SelfModel, side: str, q0, at, ahead: float):
 #: arm walks out its way to the pre-grasp, on the commands' own clocks
 #: (`swing_clock`), sampled this often, s...
 SWING_DT = 0.05
-#: ...no part of either arm passing nearer than this, m, to what its depth
+#: ...no part of either arm passing further than this, m, into what its depth
 #: camera saw at a face where its arms swing (`mission.ArmsMemory`, a voxel's
-#: middle) -- or, begun nearer, no nearer than it began less this, m (#722's
-#: form). MEASURED over 800 reaches walked in to the storeroom's counter
-#: (#747's census): the 20 left-hand plans that fell as the posture was taken
-#: carried a forearm 1.8-3.4 cm through the face as the robot's model of
-#: itself has it, the 393 right-hand ones that pressed nothing none through
-#: -- where kept 1 cm off, 99 of those were refused, and 2 cm, 128.
-SWING_CLEAR_M = 0.0
+#: middle), negative: through it -- walked in, the camera places a counter's
+#: face 4-7 mm nearer than it stands -- or, begun further in, no further than
+#: it began less this, m (#722's form). MEASURED over 800 reaches walked in to
+#: the storeroom's counter (#747's census): the 26 left-hand plans that fell
+#: carried a part 1.6-3.4 cm into the face as the robot's model of itself has
+#: it; of the 393 right-hand ones that pressed nothing, 7 came 0.05-0.46 cm
+#: in -- their whole search took a 0.8 rad bow with the waist turned 60 deg
+#: -- and kept 1 cm off, 99 would have been passed over.
+SWING_CLEAR_M = -0.005
 SWING_SLACK_M = 0.005
 #: ...but what lies within this of its goal across, m, and from this under it
 #: up: what it reaches for and what that stands on -- a cube on its board
@@ -1544,6 +1546,10 @@ class Reach:
     #: `_swing`), else None.
     self.seen: np.ndarray | None = None
     self.swung: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: ...and, by side, what a procedure's reach under way was planned
+    #: against, which its look judges a posture's swing against too (`_look`);
+    #: None for the loop's own.
+    self.seen_at: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
     #: ...and, by side, the way home the last judgment found clear and the
     #: arm it began from (`home_clear`): the way `_go_home` then takes.
     self.judged_home: dict[str, tuple | None] = {s: None for s in hm.SIDES}
@@ -1639,6 +1645,7 @@ class Reach:
     self.q_to[side] = self.outs[side].pop(0)
     self.allowed[side] = [tuple(float(v) for v in p_) for p_ in postures]
     self.left[side], self.looks[side], self.looking[side] = [], 0, False
+    self.seen_at[side] = self.seen if verb else None
     self.phase[side] = "move"
     # ...a way home it cut short is over: no later rest reads it held
     self.homing[side] = False
@@ -1716,7 +1723,8 @@ class Reach:
       return None, goal, None, dict(swung["met"])
     return None, goal, own or None, None
 
-  def _swing(self, side: str, found, goal: HandGoal, lean: "Lean | None") -> dict | None:
+  def _swing(self, side: str, found, goal: HandGoal, lean: "Lean | None", seen=None,
+             hold: HandGoal | None = None) -> dict | None:
     """What a plan's swing would meet (#747; `SWING_*`): its posture walked
     from where the body reads itself to the plan's while `side`'s arm walks
     out its way to the pre-grasp, on the commands' clocks (`swing_clock`) --
@@ -1724,14 +1732,17 @@ class Reach:
     commanded) and the plan's statue, balanced as the plan balanced it, the
     waist and the arms where their commands are -- and each part of either
     arm against what its depth camera saw where its arms swing (`seen`),
-    less what lies within `SWING_WORK_M` of the goal. None where every part
+    less the work round its goal (`_seen_tree`). None where every part
     keeps `SWING_CLEAR_M` off all of it, else the nearest: the arm (`arm`:
     this one's side, or the other's), its part, how near, m, where it was
-    seen, its stance frame, and how long after the arm set off, s."""
-    seen = self.seen
+    seen, its stance frame, and how long after the arm set off, s. `seen`:
+    another than `seen`'s; `hold`: a pre-grasp its arm holds its grip at,
+    solved there sample by sample, as the body takes the posture a look
+    chose (`_look`), no way out walked."""
+    seen = self.seen if seen is None else seen
     if seen is None or not len(seen):
       return None
-    tree, pts = self._seen_tree(goal)
+    tree, pts = self._seen_tree(goal, seen)
     if tree is None:
       return None
     posture, q_pre = found[0], np.asarray(found[1], dtype=float)
@@ -1746,7 +1757,8 @@ class Reach:
       mujoco.mj_kinematics(sm.m, sm.d)
     # ...the way out the reach takes with nobody by (`way_out`'s `_picked`)
     as_it_stands()
-    ways, _ = self._picked(sm, side, self.q_cmd[side].copy(), q_pre, out=True)
+    ways = [] if hold is not None else self._picked(sm, side, self.q_cmd[side].copy(), q_pre,
+                                                    out=True)[0]
     as_it_stands()
     a = sm.d.qpos.copy()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
@@ -1758,7 +1770,7 @@ class Reach:
                         self.every * self.m.opt.timestep)
     waist = sm.qadr[sm.waist]
     arm = {s: sm.qadr[sm.arm[s]] for s in hm.SIDES}
-    parts = []
+    parts, held = [], None
     for t, h, p, w, q in clock:
       fh, fp = _progress(h, shown[0], posture[0]), _progress(p, shown[1], posture[1])
       fw = _progress(w, w0, posture[2])
@@ -1772,6 +1784,10 @@ class Reach:
       d.qpos[arm[side]] = q
       d.qpos[arm[other]] = self.q_cmd[other]
       mujoco.mj_kinematics(sm.m, d)
+      if hold is not None:
+        # ...its grip held where it waits, solved from where the last sample left it
+        sm.q[sm.arm[side]] = held if parts else self.q_cmd[side]
+        held, _, _ = sm.solve(side, hold.pos, hold.rot)
       parts.append((t, swing_parts(sm, (side, other))))
     # ...each part against what lies within its own reach as it swings: its
     # gap as the swing begins, and its least (when, and to what)
@@ -1807,18 +1823,21 @@ class Reach:
             "began": None if b0 == math.inf else round(b0, 3),
             "at": [round(float(v), 3) for v in at], "t": round(t, 2)}
 
-  def _seen_tree(self, goal: HandGoal):
+  def _seen_tree(self, goal: HandGoal, seen=None):
     """What it saw where its arms swing (`seen`) less the work round `goal`
     (`SWING_WORK_M` across, from `SWING_WORK_UNDER_M` under it up), and a k-d
     tree over it -- kept while `seen` and the goal's place are those it was
     built for; (None, None) for none."""
     from scipy.spatial import cKDTree
-    key = (id(self.seen), tuple(np.asarray(goal.pos, dtype=float).round(6)))
-    if getattr(self, "_tree_key", None) != key:
+    seen = self.seen if seen is None else seen
+    # ...the very set it was built on, held: an id freed could be another's
+    key = tuple(np.asarray(goal.pos, dtype=float).round(6))
+    if getattr(self, "_tree_seen", None) is not seen or self._tree_key != key:
+      self._tree_seen = seen
       g = np.asarray(goal.pos, dtype=float)
-      work = ((np.hypot(self.seen[:, 0] - g[0], self.seen[:, 1] - g[1]) <= SWING_WORK_M)
-              & (self.seen[:, 2] >= g[2] - SWING_WORK_UNDER_M))
-      pts = self.seen[~work]
+      work = ((np.hypot(seen[:, 0] - g[0], seen[:, 1] - g[1]) <= SWING_WORK_M)
+              & (seen[:, 2] >= g[2] - SWING_WORK_UNDER_M))
+      pts = seen[~work]
       self._tree_key, self._tree = key, ((cKDTree(pts), pts) if len(pts) else (None, None))
     return self._tree
 
@@ -2259,7 +2278,10 @@ class Reach:
     the one it holds the hand is at its pre-grasp already (judged there too,
     a look crouched over a plan 0.3 mm into the torso). Never for another
     seed's arm: the hand goes in from where it is. With none that keeps off
-    it, the least bent that reaches is taken all the same."""
+    it, the least bent that reaches is taken all the same. ⚠ A PROCEDURE'S
+    LOOK PASSES OVER A POSTURE WHOSE SWING, THE HAND HELD AT ITS PRE-GRASP,
+    WOULD BRING AN ARM INTO WHAT ITS DEPTH CAMERA SAW (#747, `_swing`'s
+    `hold`): never taken, not even so -- with none, the one it holds."""
     if self.looks[side] >= LOOKS or self.kept_by[side]:
       return True
     self.looks[side] += 1
@@ -2270,6 +2292,7 @@ class Reach:
     lean, arms = self._lean(), self._arms()
     here = tuple(float(v) for v in self.posture)
     gone = {tuple(float(v) for v in p_) for p_ in self.left[side]}
+    seen = self.seen_at[side]
     chosen = first = None
     for slack in (True, False):
       for posture in (tuple(float(v) for v in p_) for p_ in self.allowed[side]):
@@ -2279,8 +2302,12 @@ class Reach:
         got = _reached(sm, side, posture, q0, goal, pre, slack, lean, arms, self.q_cmd[side])
         if got is None:
           continue
-        first = first or posture
         q_pre, q = got[:2]
+        if (seen is not None and posture != here
+            and self._swing(side, (posture, q_pre, q, slack), goal, lean, seen=seen,
+                            hold=self.cmd[side]) is not None):
+          continue
+        first = first or posture
         if (in_trunk(side, q) if posture == here else in_trunk(side, q_pre, q)) is None:
           chosen = posture
           break
