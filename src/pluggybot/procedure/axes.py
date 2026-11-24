@@ -344,11 +344,12 @@ HUMANOID_JOINTS = _humanoid_axes()
 #: Each body's own axes, present whatever it holds.
 BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: ...and the reports of a pull (#493, the force move #525): how far it
-#: went, the hardest it pushed, whether it ended held fast by what it pulls
-#: (#650: until it, nothing a served robot reads told that from out of
-#: reach), out of reach (#744: Rowan asked which), or with one of its own
-#: arm's joints on its stop (#744: held fast there, Luca read the lid's open
-#: stop), and the way the hand was going at its end.
+#: went, the hardest it pushed, whether it ended held fast (#650: until it,
+#: nothing a served robot reads told that from out of reach), out of reach
+#: (#744: Rowan asked which), whether one of its own arm's joints was on its
+#: stop (#744: held fast there, Luca read the lid's open stop) -- `held` as it
+#: was, so a procedure that reads it runs as before (#744's additive form) --
+#: and the way the hand was going at its end.
 PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.reach", "pull.joint_end",
                 "pull.dx", "pull.dy", "pull.dz")
 SENSORS["pull.moved"] = Sensor(
@@ -359,8 +360,9 @@ SENSORS["pull.force"] = Sensor(
   "the hardest the last `pull` pushed along its way, N, as your hand felt it")
 SENSORS["pull.held"] = Sensor(
   "pull.held", lambda life: reported("pull", "held", life),
-  "1 if the last `pull` ended held fast by what it pulls, as your hand felt it -- none of "
-  "your arm's joints at the end of its range -- 0 if something else stopped it")
+  "1 if the last `pull` ended held fast, as your hand felt it -- by what it pulls, or by one "
+  "of your arm's joints at the end of its range, where `pull.joint_end` reads 1 too -- 0 if "
+  "something else stopped it")
 SENSORS["pull.reach"] = Sensor(
   "pull.reach", lambda life: reported("pull", "reach", life),
   "1 if the last `pull` stopped because your hand could reach no further that way, 0 if "

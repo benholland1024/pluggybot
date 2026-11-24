@@ -11667,10 +11667,10 @@ sees: past 15 deg of a reach's turn it read the soles' middle 1 cm short to
 read 0.3 cm of a true 11.4, as the belief did.
 
 **A reading moves what a procedure decides.** No decision of the body reads
-these, and our references fly as before, but a robot's own procedure that
-reads `pull.held` reads 0 at a pull held fast at its own arm's end. Luca's
-`chest_open3` ends its lift on two such readings running: on the old
-meaning its lift stopped at the wrist's end, and on the new one it pulls on:
+these, and our references fly as before. Read as `loop-readings`' option 1
+has it -- `pull.held` 0 at a pull held fast at its own arm's end -- Luca's
+`chest_open3`, which ends its lift on two such readings running, pulls on
+past its wrist's end (the additive form keeps `pull.held` as it was):
 at the weekend's live draws, 11 of its 72 chest flights part there, and the
 lid, lifted higher, came down fast in 10 of them (Observatory.md, the period
 of #744 and #746, has the counts).

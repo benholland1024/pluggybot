@@ -1378,13 +1378,14 @@ save a filmstrip PNG named after the script.
   `tests/test_hands.py`): an argument refused, a hand not out, a way all 0,
   a fall -- held fast it is ok, and `pull.held` says so, a served robot
   being shown no step's `why` -- and `spot` and `watch` say they read a
-  block's face seen most square-on. ⚠ `pull.held` IS WHAT IT PULLS: HELD
-  FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.joint_end` (#744;
-  `Reach._on_stops`, `JOINT_END_RAD` off `Reach.sensed`, never read afresh;
-  `tests/test_readings.py`): held at its own wrist's end, Luca read a lid's
-  open stop; and out of reach is `pull.reach`. ⚠ A KEPT PROCEDURE THAT READS
-  `pull.held` GOES ANOTHER WAY THERE (Luca's `chest_open3` lifts on past its
-  wrist's end; Observatory.md, the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
+  block's face seen most square-on. ⚠ `pull.held` IS ANY HELD FAST, AS IT
+  WAS, AND `pull.joint_end` SAYS ONE OF ITS ARM'S JOINTS WAS AT ITS END
+  (#744's additive form; `Reach._on_stops`, `JOINT_END_RAD` off
+  `Reach.sensed`, never read afresh; `tests/test_readings.py`): held at its
+  own wrist's end, Luca read a lid's open stop -- and a kept procedure that
+  reads `pull.held` runs as it did (read as option 1 has it, Luca's
+  `chest_open3` lifted on past its wrist's end; Observatory.md); out of reach
+  is `pull.reach`. ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
   them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):

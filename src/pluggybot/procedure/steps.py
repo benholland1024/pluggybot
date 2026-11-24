@@ -1372,9 +1372,8 @@ def _pull(life, args: dict) -> Routine:
   with its whole force and not moving), its grip lets go, or it can reach
   no further -- or its stop condition stops it (#554) -- then it holds
   there. How far it went, the hardest it pushed, the way it was going at its
-  end, whether it ended held fast by what it pulls or out of reach, and
-  whether one of its arm's joints read on its stop as it stopped (#744)
-  ride `pull.*`. ok unless the hand was not out, the way is all 0 or it
+  end, whether it ended held fast or out of reach, and whether one of its
+  arm's joints read on its stop as it stopped (#744) ride `pull.*`. ok unless the hand was not out, the way is all 0 or it
   fell -- or `lang` refused an argument first -- and its text says so
   (#650: a served robot is shown no step's `why`, only what it reads)."""
   from pluggybot.procedure import axes
@@ -1400,12 +1399,13 @@ def _pull(life, args: dict) -> Routine:
     return {"ok": False, **out,
             "reason": MOVE_WHY.get(rep["why"], "the pull did not begin").format(hand=hand)}
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
-  # ...held fast by what it pulls, never at its own arm's stop (#744: a lid
-  # held at the robot's own wrist's end read as at its open stop)
+  # ...held fast, by what it pulls or at its own arm's stop -- `joint_end`
+  # says which (#744's additive form: a procedure that reads `held` runs as
+  # before)
   stop = bool(rep.get("stops"))
   _reports(life)["pull"] = {"moved": float(rep.get("moved", 0.0)),
                             "force": float(rep.get("force") or 0.0),
-                            "held": 1.0 if rep.get("why") == "held fast" and not stop else 0.0,
+                            "held": 1.0 if rep.get("why") == "held fast" else 0.0,
                             "reach": 1.0 if rep.get("why") == "out of reach" else 0.0,
                             "joint_end": 1.0 if stop else 0.0,
                             "dx": way[0], "dy": way[1], "dz": way[2]}
@@ -1747,10 +1747,10 @@ HANDS_VERBS: dict[str, Verb] = {
                "reach no further; then it holds there. While your other hand is out holding "
                "something, your body keeps the posture it is in. Standing, your body holds a pull of "
                f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
-               "that. How far it went, the hardest it pushed, whether it ended held fast by what "
-               "it pulls or could reach no further, whether one of your arm's joints was at "
-               "the end of its range as it stopped and the way it was going at its end ride "
-               "`pull.*`, unless it reads false; ok unless "
+               "that. How far it went, the hardest it pushed, whether it ended held fast or could "
+               "reach no further, whether one of your arm's joints was at the end of its range "
+               "as it stopped and the way it was going at its end ride `pull.*`, unless it "
+               "reads false; ok unless "
                "an argument was refused, your hand was not out, (dx, dy, dz) are all 0 or you "
                "fell: whatever else stopped it, held fast against something too, it is still "
                "ok, and `pull.moved` says how far it went"),

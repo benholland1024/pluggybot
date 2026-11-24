@@ -10,24 +10,26 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A pull says out of reach and its own arm's stop apart from held fast, and a reach and a withdraw say where the feet went (#744, #746, Y2, `loop-readings`) — opens when this PR is deployed
+### A pull says out of reach and where its own arm is at an end, and a reach and a withdraw say where the feet went (#744's additive form, #746, Y2, `loop-readings-b`) — opens when this PR is deployed
 
 **What the robots read** moves on purpose: the prompt `bb1e3d07…` (70,506
-characters, 17 sections) becomes `790b89b6…` (71,972 characters, 17
+characters, 17 sections) becomes `ef7abe04…` (71,997 characters, 17
 sections), one section moved, PROCEDURES YOU MAY WRITE; the session host's
-hello `a61b6376` becomes `4e057ff0` (three verbs' texts, eight sensors
-more, `pull.held`'s words). No History line is new or reworded. The
+hello `a61b6376` becomes `86c797b8` (three verbs' texts, eight sensors
+more, `pull.held`'s words). This is #744's ADDITIVE form, Ben's choice
+against `loop-readings`' option 1: `pull.held` reads as it did. No History line is new or reworded. The
 sentences, each a draft for Ben:
 - `pull`'s text, BEFORE: "How far it went, the hardest it pushed, whether
   it ended held fast and the way it was going at its end ride `pull.*`,
   unless it reads false"; AFTER: "How far it went, the hardest it pushed,
-  whether it ended held fast by what it pulls or could reach no further,
-  whether one of your arm's joints was at the end of its range as it stopped
-  and the way it was going at its end ride `pull.*`, unless it reads false".
+  whether it ended held fast or could reach no further, whether one of your
+  arm's joints was at the end of its range as it stopped and the way it was
+  going at its end ride `pull.*`, unless it reads false".
 - `pull.held`, BEFORE: "1 if the last `pull` ended held fast, as your hand
   felt it, 0 if something else stopped it"; AFTER: "1 if the last `pull`
-  ended held fast by what it pulls, as your hand felt it -- none of your
-  arm's joints at the end of its range -- 0 if something else stopped it".
+  ended held fast, as your hand felt it -- by what it pulls, or by one of
+  your arm's joints at the end of its range, where `pull.joint_end` reads 1
+  too -- 0 if something else stopped it". It reads as before.
 - New, `pull.reach`: "1 if the last `pull` stopped because your hand could
   reach no further that way, 0 if something else stopped it"; and
   `pull.joint_end`: "1 if one of your arm's joints read at the end of its
@@ -47,11 +49,10 @@ sentences, each a draft for Ben:
 - YOUR BODY's "taking a posture to reach can move them a little" is
   unchanged: #746's option 1 was not taken.
 
-**What a deployed robot does.** Its body, nothing new: no reading feeds a
-decision of the body's, and our references fly as before. But a robot's OWN
-procedure that reads `pull.held` reads 0 where it read 1, at a pull held
-fast with one of its arm's joints at an end, and goes another way there
-(below).
+**What a deployed robot does**: nothing new. No reading feeds a decision of
+the body's, `pull.held` reads as it did, so a robot's own procedure that
+reads it goes as it did, and only one that reads a new reading can go
+another way.
 
 **The change** (`Reach._on_stops`, the pull's report's `stops` through
 `Body.pull_routine`, `steps._pull`; `Body.reckoned`, `steps._feet` and
@@ -61,7 +62,7 @@ mrad) of an end of the range its model of itself gives, or past it -- the
 arm's solve keeps every commanded joint 0.05 rad inside its range, so a
 joint read there was pushed onto its stop -- off `Reach.sensed`, never read
 afresh. `pull.held` is held fast with none of them, `pull.joint_end` any of
-them whatever ended the pull, `pull.reach` out of reach. A reach's and a withdraw's feet are the stance
+them whatever ended the pull, `pull.reach` out of reach; `pull.held` any held fast, as before. A reach's and a withdraw's feet are the stance
 under the believed pelvis less every correction from outside the legs'
 reckoning (`Body.reckoned`), from the verb's start to its end, in the stance
 frame it stood in before, however it ended; a reach refused before it ran
@@ -87,9 +88,10 @@ process, fa842927 beside the branch).
   `pull.held` read as before; `pull.joint_end` read 1 at 30 pulls, none held
   fast.
 - **The robots' own procedures that read `pull.held`**, at their live draws
-  (X5's 120 chest flights, W1's 64 door flights), beside the branch's final
-  code: 184 flights, 172 identical by end state and path. The 12 that part
-  each part at the verb right after the
+  (X5's 120 chest flights, W1's 64 door flights), beside `loop-readings`'
+  option 1 (here `pull.held` reads as on the base at every pull, so these
+  fly as the base by construction): 184 flights, 172 identical by end state
+  and path. The 12 that part each part at the verb right after the
   second pull in a row that ended held fast at its own arm's end (the base
   reads `pull.held` 1 there and ends its lift; the branch reads 0, with
   `pull.joint_end` 1, and pulls again): Luca's `chest_open3` (64 flights)
@@ -118,8 +120,7 @@ process, fa842927 beside the branch).
 **What to read on the live rows.**
 - A procedure that reads `pull.joint_end` or `pull.reach`, and whether a
   robot told so turns its grip or reaches from elsewhere.
-- Luca's kept chest procedure, whose lift reads `pull.held`: it no longer
-  ends at its wrist's stop.
+- Luca's kept chest procedure, whose lift reads `pull.held`: as before.
 - A procedure that reads `reach.*` or `withdraw.*` and turns a place read
   before by it, as `step`'s text shows.
 

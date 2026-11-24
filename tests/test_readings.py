@@ -48,7 +48,7 @@ READ_PULL = ('    h = read("pull.held")\n    r = read("pull.reach")\n'
   ("held fast", (), 1.0, 0.0, 0.0),
   # ...held at its own wrist's stop (#744: 144 of X5's 159 held-fast lifts;
   # Luca took two running for the lid's open stop)
-  ("held fast", ("wrist_roll",), 0.0, 0.0, 1.0),
+  ("held fast", ("wrist_roll",), 1.0, 0.0, 1.0),
   # ...out of reach (Rowan asked which it was: budget or reach)
   ("out of reach", (), 0.0, 1.0, 0.0),
   ("out of reach", ("wrist_roll", "shoulder_yaw"), 0.0, 1.0, 1.0),
@@ -62,9 +62,10 @@ def test_a_pull_reads_why_it_stopped_and_its_own_arms_stop_apart(why, stops, hel
   """#744: a pull out of reach read like one gone its distance but for
   `pull.moved`, and one held at the robot's own wrist stop read `pull.held`
   1, as a lid at its open stop does. `pull.reach` reads 1 where it could
-  reach no further; `pull.held` 1 only where it was held fast with none of
-  its arm's joints on its stop -- what it pulls held it; `pull.joint_end` 1
-  where one was, whatever stopped it. Every such pull still reads ok
+  reach no further; `pull.held` 1 where it was held fast, as before (#744's
+  additive form: a procedure that reads it runs as it did); `pull.joint_end`
+  1 where one of its arm's joints was at its end, whatever stopped it, so
+  held fast at its own stop reads both. Every such pull still reads ok
   (#650)."""
   body = _PullEnds(*_bare())
   body.ends = (why, stops)
