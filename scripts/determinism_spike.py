@@ -157,15 +157,19 @@ def child(cfg: dict, trace_path: Path) -> None:
       def save_here(in_step: bool = False):
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
+        # ...and in a step, only one a routine still owes its bookkeeping,
+        # its scan due: what the restore must book (#749)
         fresh = in_step and landed()
+        mi = life.body.mission
         if (d.time >= float(cfg["saveAt"])
             and life.body.posture not in continuation.MOVING_POSTURES
-            and not (in_step and (fresh or d.time < life.body.mission._next_scan
+            and not (in_step and (fresh or not mi._owed or d.time < mi._next_scan
                                   or continuation._mid_move(life)))):
           continuation.write(continuation.capture([life], life.world_fingerprint,
                                                   last_step=last),
                              cfg["worldState"])
-          log(k="saved", t=round(float(d.time), 4), inStep=in_step)
+          log(k="saved", t=round(float(d.time), 4), inStep=in_step,
+              owed=bool(mi._owed) if in_step else None)
           raise MissionAborted("saved")
       if cfg.get("inStep"):
         life.body.last_hooks.append(lambda: save_here(in_step=True))
