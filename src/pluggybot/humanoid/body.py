@@ -224,10 +224,12 @@ FIX_TOL_RAD = math.radians(2.0)
 ASKEW_M = SEARCH_M
 ASKEW_RAD = SEARCH_RAD
 #: ⚠ A FIX THAT KEEPS THE MAP LAYS AGAIN WHAT ITS NEXT SCAN SEES (#741,
-#: `ScanMatcher.relay`): from the sensor out to each bearing's end, and
-#: within the fix's own reach of it -- what it moved the belief, its turn at
-#: the LIDAR's reach, and the fit's own reach more, where a copy of what it
-#: sees may lie -- forgotten, and that scan laid at the belief put right.
+#: `ScanMatcher.relay`): from the sensor out to each bearing's end, filled
+#: between the rays and up to `RELAY_BEHIND_M` past it, forgotten, and that
+#: scan laid at the belief put right. The reach armed -- what the fix moved
+#: the belief, its turn at the LIDAR's reach, and the fit's own reach more --
+#: is 0.40 m at least, and under that bound widens nothing (#741's third
+#: review: the lobby's regions 27.4-27.7 m2 for reaches of 0.46-1.01 m).
 #: MEASURED (SimNotes, "A station's fix that keeps the map lays again what
 #: it sees"): kept, the lobby's copy took a re-docked belief back to 10-11
 #: cm within 3 minutes of the fix.

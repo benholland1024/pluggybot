@@ -11698,7 +11698,11 @@ forgotten first: every cell from the sensor out to each bearing's end
 one, but none more than 0.15 m past the end of its bearing (uncapped, the
 lobby's relay forgot 7,294 cells more, 928 of them walls, all behind what its
 scan met: what lies behind a wall the scan met is never laid again from
-there, and a copy behind a fresh wall pulls nothing). It keeps a wall nearer than both its
+there, and a copy behind a fresh wall pulls nothing). Under that bound the
+reach widens nothing: every reach is 0.40 m or more, and the lobby's regions
+were 27.4-27.7 m² for reaches of 0.46-1.01 m (uncapped, 45.8-65.4), so what
+goes is what the scan looks across, filled between its rays, and up to 0.15
+m past each end. It keeps a wall nearer than both its
 bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
 rays pass over what is lower and `update` clears no wall, so a low thing
 mapped from afar stays, and the fit takes no return there anyway. On a
@@ -11793,9 +11797,10 @@ path), the pair's recording and #572's probe.
 - Work at the counter (about 8 cm a try, #681's comment of 11-23).
 
 **What is true now.** A station fix that keeps the map forgets what its next
-scan looks across, round it as far as the fix's own reach and no further than
-0.15 m behind what it met, keeping the walls its rays cannot clear, and lays
-the anchor's 30 scans from the belief put right as they come: re-docked on
+scan looks across, filled between its rays and up to 0.15 m past each end,
+keeping the walls within 1 m its rays cannot clear and every wall on a
+bearing that clears none, and lays the anchor's 30 scans from the belief put
+right as they come: re-docked on
 the live maps of 11-22 and 11-23, 0.3-2.6 cm at the median and 5.0 at most
 where the base went back to 3-19 cm -- though a robot that walks away and back
 meets the lobby's copy again, 13 cm; a flight with no such fix is the base's,

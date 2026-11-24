@@ -54,13 +54,15 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
-### 0.21.0, additive: a station fix that kept the map says how far round it laid the map again (`relayM`, pluggybot #741)
+### 0.21.0, additive: a station fix that kept the map says the reach it laid the map again within (`relayM`, pluggybot #741)
 
 A `drift` row whose `why` is `fixed`, a humanoid's at its station, that kept
-the map (`dropped` false) carries `relayM`, m: how far round what its next
-scan sees that scan forgot the map before it was laid again, from the belief
-put right (never more than 0.15 m behind what the scan met). A fix that
-dropped the map, or a dock's, carries none.
+the map (`dropped` false) carries `relayM`, m: the reach the fix armed --
+what it moved the belief, its turn at 8 m, and 0.30 m more -- round what its
+next scan sees, which that scan forgot before it was laid again from the
+belief put right. What is forgotten never runs more than 0.15 m past what
+the scan met, and a reach (0.40 m at least) widens nothing under that bound.
+A fix that dropped the map, or a dock's, carries none.
 
 ```jsonc
 {"type": "drift", "t": 333864.7, "robot": "pluggybot", "why": "fixed",
@@ -960,9 +962,10 @@ only record of it was the box's log. One event type is new:
     `posture`, `state`;
   - `fixed`: `fixture` (`dock` / `rack` / `station`, a humanoid's), `moved`, `dropped` (the map went
     too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
-    / `seat`); a humanoid's that kept the map, `relayM` (how far round what
-    its next scan sees that scan forgot the map and laid it again, pluggybot
-    #741);
+    / `seat`); a humanoid's that kept the map, `relayM` (the reach it armed
+    round what its next scan sees, that scan forgetting the map there and
+    laying it again; never more than 0.15 m past what the scan met, which
+    every reach passes, pluggybot #741);
   - `lost`: `fixture`;
   - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
     where one was found its `fixture` and whether it `dropped` the map;

@@ -585,7 +585,9 @@ class ScanMatcher:
     anchor's window closes its fits take the belief back there. So the next
     scan laid goes in over the cells it looks across, and those within
     `round_m` of them -- where a copy of what it sees lies -- forgotten
-    first (`OccupancyGrid.forget_seen`), and the window lays them afresh.
+    first (`OccupancyGrid.forget_seen`), and the window lays them afresh --
+    none further than `RELAY_BEHIND_M` past a bearing's end, a bound every
+    fix's reach (0.40 m at least) runs past, so the reach widens nothing.
     Two fixes before that scan: the larger reach."""
     self.relay_m = max(self.relay_m, float(round_m))
 
