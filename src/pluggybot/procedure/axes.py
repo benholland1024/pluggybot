@@ -349,8 +349,8 @@ BODY_AXES = {"humanoid": HUMANOID_JOINTS}
 #: reach), out of reach (#744: Rowan asked which), or with one of its own
 #: arm's joints on its stop (#744: held fast there, Luca read the lid's open
 #: stop), and the way the hand was going at its end.
-PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.reach", "pull.stop", "pull.dx",
-                "pull.dy", "pull.dz")
+PULL_SENSORS = ("pull.moved", "pull.force", "pull.held", "pull.reach", "pull.joint_end",
+                "pull.dx", "pull.dy", "pull.dz")
 SENSORS["pull.moved"] = Sensor(
   "pull.moved", lambda life: reported("pull", "moved", life),
   "how far the last `pull` took the hand from where it began, m")
@@ -365,8 +365,8 @@ SENSORS["pull.reach"] = Sensor(
   "pull.reach", lambda life: reported("pull", "reach", life),
   "1 if the last `pull` stopped because your hand could reach no further that way, 0 if "
   "something else stopped it")
-SENSORS["pull.stop"] = Sensor(
-  "pull.stop", lambda life: reported("pull", "stop", life),
+SENSORS["pull.joint_end"] = Sensor(
+  "pull.joint_end", lambda life: reported("pull", "joint_end", life),
   "1 if one of your arm's joints read at the end of its range as the last `pull` stopped -- "
   "that joint turns no further that way, so your own arm can hold your hand there as fast "
   "as what it pulls -- 0 if none did")

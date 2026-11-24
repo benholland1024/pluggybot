@@ -1407,7 +1407,7 @@ def _pull(life, args: dict) -> Routine:
                             "force": float(rep.get("force") or 0.0),
                             "held": 1.0 if rep.get("why") == "held fast" and not stop else 0.0,
                             "reach": 1.0 if rep.get("why") == "out of reach" else 0.0,
-                            "stop": 1.0 if stop else 0.0,
+                            "joint_end": 1.0 if stop else 0.0,
                             "dx": way[0], "dy": way[1], "dz": way[2]}
   return {"ok": True, **out}
 

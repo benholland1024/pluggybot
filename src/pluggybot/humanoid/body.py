@@ -616,7 +616,10 @@ class HumanoidBody(Body):
     """Where it believes its stance is, (x, y, heading): its pelvis where it
     believes it, less where its legs' encoders put the pelvis over its feet
     (its odometry's model of itself, posed every tick)."""
-    x, y, yaw = self.mission.pose
+    return self._stance_of(*self.mission.pose)
+
+  def _stance_of(self, x: float, y: float, yaw: float) -> tuple[float, float, float]:
+    """The stance under a pelvis at (x, y) facing `yaw`, as `stance` puts it."""
     sm = self.mission.odo.sm
     rot = np.zeros(9)
     mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
@@ -627,13 +630,15 @@ class HumanoidBody(Body):
 
   @property
   def reckoned(self) -> tuple[float, float, float]:
-    """Its stance by its legs' own reckoning (#746): `stance` less every
-    correction from outside it -- a scan match, a station's look -- summed
-    (`StanceOdometry.corrected`), as a step's walk is measured (`_by_legs`).
-    Off the odometry's state as it last ticked: nothing read afresh."""
-    x, y, yaw = self.stance
+    """Its stance by its legs' own reckoning (#746): the stance under its
+    pelvis as the belief has it less every correction from outside that
+    reckoning -- a scan match, a station's look -- summed
+    (`StanceOdometry.corrected`), the pelvis's place over its feet turned
+    with it; as a step's walk is measured (`_by_legs`). Off the odometry's
+    state as it last ticked: nothing read afresh."""
+    x, y, yaw = self.mission.pose
     c = self.mission.odo.corrected
-    return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
+    return self._stance_of(x - float(c[0]), y - float(c[1]), yaw - float(c[2]))
 
   def to_stance(self, p) -> np.ndarray:
     """A believed world point in its stance frame."""

@@ -1379,7 +1379,7 @@ save a filmstrip PNG named after the script.
   a fall -- held fast it is ok, and `pull.held` says so, a served robot
   being shown no step's `why` -- and `spot` and `watch` say they read a
   block's face seen most square-on. ⚠ `pull.held` IS WHAT IT PULLS: HELD
-  FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.stop` (#744;
+  FAST WITH ONE OF ITS ARM'S JOINTS ON ITS STOP IS `pull.joint_end` (#744;
   `Reach._on_stops`, `arms.STOP_RAD` off `Reach.sensed`, never read afresh;
   `tests/test_readings.py`): held at its own wrist's end, Luca read a lid's
   open stop; and out of reach is `pull.reach`. ⚠ `spot` AND `watch` SAY WHICH CAMERA

@@ -1,6 +1,6 @@
 """What the robots read of a pull and a reach (#744, #746): why a `pull`
 stopped -- `pull.reach` where it could reach no further, `pull.held` only
-where what it pulls held the hand, `pull.stop` where one of its arm's own
+where what it pulls held the hand, `pull.joint_end` where one of its arm's own
 joints read at the end of its range as it stopped -- and where the feet
 went while a `reach` or a `withdraw` ran (`reach.*`, `withdraw.*`), in the
 stance frame they began in, as a `step`'s are. Each rule pinned on the stub
@@ -41,7 +41,7 @@ class _PullEnds(StubBody):
 
 
 READ_PULL = ('    h = read("pull.held")\n    r = read("pull.reach")\n'
-             '    s = read("pull.stop")\n')
+             '    s = read("pull.joint_end")\n')
 
 
 @pytest.mark.parametrize("why, stops, held, reach, stop", [
@@ -63,7 +63,7 @@ def test_a_pull_reads_why_it_stopped_and_its_own_arms_stop_apart(why, stops, hel
   `pull.moved`, and one held at the robot's own wrist stop read `pull.held`
   1, as a lid at its open stop does. `pull.reach` reads 1 where it could
   reach no further; `pull.held` 1 only where it was held fast with none of
-  its arm's joints on its stop -- what it pulls held it; `pull.stop` 1
+  its arm's joints on its stop -- what it pulls held it; `pull.joint_end` 1
   where one was, whatever stopped it. Every such pull still reads ok
   (#650)."""
   body = _PullEnds(*_bare())
@@ -80,11 +80,11 @@ def test_a_pull_that_reads_false_leaves_none_of_its_new_readings():
   body = _PullEnds(*_bare())
   body.ends = [("held fast", ("wrist_roll",)), ("not out", ())]
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 1, 10, 0.1)\n'
-             '    was = read("pull.stop")\n'
+             '    was = read("pull.joint_end")\n'
              '    if not pull("left", 0, 0, 1, 10, 0.1):\n        p = 0\n'
-             '    s = read("pull.stop")\n', body)
+             '    s = read("pull.joint_end")\n', body)
   assert ran["locals"]["was"] == 1.0, ran
-  assert ran["steps"][-1]["reason"] == "pull.stop has no reading: your last `pull` failed", ran
+  assert ran["steps"][-1]["reason"] == "pull.joint_end has no reading: your last `pull` failed", ran
   ran = _fly('def a():\n    wait(0)\n    r = read("pull.reach")\n')
   assert ran["steps"][-1]["reason"] == "pull.reach has no reading: `pull` has not run", ran
 
@@ -303,24 +303,29 @@ def test_a_reach_refused_before_it_ran_leaves_no_reading_of_the_feet():
 def test_the_humanoids_feet_are_reckoned_by_its_legs_never_by_a_correction():
   """A scan match or a station's look moves the belief, and with it
   `stance`: no move of the feet. `reckoned` is the stance by the legs' own
-  reckoning -- the belief less every correction from outside it, as a
-  `step` measures its walk (`_by_legs`) -- so a correction moves it not at
-  all (its place but for the pelvis's few cm over the feet turned)."""
+  reckoning -- the stance under the believed pelvis less every correction
+  from outside it, the pelvis's place over the feet turned with it (#744's
+  review: taken off the stance alone, a turn's correction moved it by that
+  place times the turn) -- so a correction moves it not at all."""
   body = _floor_body()
+  # ...its pelvis 12 cm ahead of its feet's middle and 5 to their left, as
+  # in a bow the odometry's model of itself has it
+  body.mission.odo.sm.d.qpos[0:2] += (0.12, 0.05)
   s0, r0 = body.stance, body.reckoned
+  assert s0 == r0
   x, y, yaw = body.mission.pose
-  body.mission.odo.correct(x + 0.12, y - 0.07, yaw + 0.03)
+  body.mission.odo.correct(x + 0.12, y - 0.07, yaw + 0.3)
   s1, r1 = body.stance, body.reckoned
-  assert math.hypot(s1[0] - s0[0], s1[1] - s0[1]) > 0.1 and s1[2] - s0[2] == pytest.approx(0.03)
-  assert r1[:2] == pytest.approx(r0[:2], abs=3e-3) and r1[2] == pytest.approx(r0[2], abs=1e-12)
+  assert math.hypot(s1[0] - s0[0], s1[1] - s0[1]) > 0.1 and s1[2] - s0[2] == pytest.approx(0.3)
+  assert r1 == pytest.approx(r0, abs=1e-12)
 
 
 def test_the_robot_is_told_its_new_readings():
   """Every reading a served robot and a practicing mind may read is in its
   facts, with its words (`axes.SENSORS`)."""
   facts = st.hand_facts()
-  for name in ("pull.reach", "pull.stop", "reach.dx", "reach.dy", "reach.turn",
+  for name in ("pull.reach", "pull.joint_end", "reach.dx", "reach.dy", "reach.turn",
                "withdraw.dx", "withdraw.dy", "withdraw.turn"):
     assert name in facts.sensors and name in st.served_hand_facts().sensors
     assert axes.SENSORS[name].doc
-  assert set(axes.PULL_SENSORS) >= {"pull.held", "pull.reach", "pull.stop"}
+  assert set(axes.PULL_SENSORS) >= {"pull.held", "pull.reach", "pull.joint_end"}
