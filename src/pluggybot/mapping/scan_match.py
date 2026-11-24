@@ -286,9 +286,6 @@ ANCHORED_SCANS = 30
 FUSE_M = 0.01
 FUSE_RAD = math.radians(0.5)
 FUSE_S = 5.0
-#: Whether a robot standing still lays a scan every FUSE_S outside an
-#: anchor's window (#741's option 4: False, none).
-STILL_LAYS = False
 
 NO_STEP = (0.0, 0.0, 0.0)
 #: The verdicts that move the pose, and those whose scan may be fused
@@ -530,9 +527,7 @@ class ScanMatcher:
     it, and the robot has moved since the last one fused (FUSE_*)."""
     if not match.fuse:
       return False
-    if self.fused_pose is None:
-      return True
-    if t - self.fused_t >= FUSE_S and (self.anchoring or STILL_LAYS):
+    if self.fused_pose is None or t - self.fused_t >= FUSE_S:
       return True
     x, y, th = match.pose
     fx, fy, fth = self.fused_pose

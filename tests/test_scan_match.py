@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from pluggybot.mapping import scan_match as sm
-from pluggybot.mapping.occupancy_grid import OccupancyGrid
+from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
 
 ANGLES = np.linspace(-math.pi, math.pi, 360, endpoint=False)
 
@@ -2118,11 +2118,77 @@ def test_a_restart_keeps_an_anchors_window(room):
   m = sm.ScanMatcher(room)
   m.anchored()
   m.fused(TRUE, 0.0)
+  m.relay(0.42)
   state, arrays = m.kept_state()
   n = sm.ScanMatcher(room)
   n.restore_kept(state, arrays)
   assert n.anchoring == sm.ANCHORED_SCANS - 1
   assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
+  # ...and the region its next scan lays afresh (#741)
+  assert n.relay_m == 0.42
+  n.anchored(on=False)
+  assert n.relay_m == 0.0, "a warp kept the region its fix asked laid afresh"
+  m.forget()
+  assert m.relay_m == 0.0
+
+
+#: A hall like the research center's lobby: 3 m by 12 m, doors off it.
+_HALL = ([(0.013, 0.021, 3.013, 0.021), (3.013, 12.021, 0.013, 12.021),
+          (3.013, 0.021, 3.013, 2.5), (3.013, 3.5, 3.013, 8.5), (3.013, 9.5, 3.013, 12.021),
+          (0.013, 0.021, 0.013, 6.0), (0.013, 7.0, 0.013, 12.021),
+          (3.013, 3.5, 6.0, 3.5), (3.013, 2.5, 6.0, 2.5), (3.013, 8.5, 6.0, 8.5),
+          (3.013, 9.5, 6.0, 9.5)])
+#: ...docked at its south end, facing the station's wall; and the copy its
+#: map holds, laid through a belief this far off (the lobby's of 11-21:
+#: 10 cm west and 8.3 cm north).
+_DOCK = (1.5, 0.75, -math.pi / 2)
+_LAID_OFF = (-0.10, 0.083)
+
+
+def _docked(relay):
+  """The hall mapped through beliefs `_LAID_OFF` off, the robot docked and
+  the belief put right (`anchored`, and `relay` if given), then its scans
+  matched and laid as `Navigator._scan_step` lays them -- a scan every
+  FUSE_S through the anchor's window, every LIDAR period after it, for
+  20 s: the belief, east and north of the truth."""
+  rng = np.random.default_rng(1)
+  g = OccupancyGrid(-1, -1, 7, 13, 0.05)
+  for _ in range(40):
+    p = (rng.uniform(0.4, 2.6), rng.uniform(0.6, 11.4), rng.uniform(-3, 3))
+    for _ in range(3):
+      g.update((p[0] + _LAID_OFF[0], p[1] + _LAID_OFF[1], p[2]), ANGLES, cast(_HALL, p, rng),
+               8.0, origin=(0.0, 0.0), free_from=BAND_FF, graze_m=GRAZE_M)
+  m = sm.ScanMatcher(g)
+  m.anchored()
+  if relay:
+    m.relay(relay)
+  pose, t, after = _DOCK, 0.0, 0
+  while m.anchoring or after < 200:
+    after += 0 if m.anchoring else 1
+    t += sm.FUSE_S if m.anchoring else 0.1
+    ranges = cast(_HALL, _DOCK, rng)
+    pose = m.match(pose, ANGLES, ranges).pose
+    if m.fuses(m.last, t):
+      if m.relay_m:
+        g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m)
+        m.relaid()
+      g.update(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), free_from=BAND_FF, graze_m=GRAZE_M)
+      m.fused(pose, t)
+  return pose[0] - _DOCK[0], pose[1] - _DOCK[1]
+
+
+def test_a_fix_that_keeps_the_map_lays_again_what_it_sees_and_its_copy_takes_nothing_back():
+  # #741: a station's fix puts the belief right and keeps the map, whose
+  # region round the station holds the offset of the belief that laid it;
+  # the anchor's window lays its scans at the belief put right, but a copy
+  # it cannot overwrite -- walls met at a graze, the far side of what it
+  # sees -- takes the belief back once the fits resume. Laid over what it
+  # sees forgotten first (`relay`), the region holds the belief.
+  east, north = _docked(math.hypot(*_LAID_OFF) + 0.3)
+  assert math.hypot(east, north) < 0.012, (east, north)
+  # ...the premise: laid over the copy, the fits take it back toward it
+  east, north = _docked(0.0)
+  assert east < -0.015 and north > 0.015, (east, north)
 
 
 def test_the_stations_look_alone_opens_the_window(house):
@@ -2133,14 +2199,63 @@ def test_the_stations_look_alone_opens_the_window(house):
   # belief; a look that moves the belief does, and a stand-up there closes
   # the window a death at the station left.
   from pluggybot.body import RackPose
+  from pluggybot.humanoid.body import RELAY_PAST_M
   body = _humanoid(house)
   m, s = body.mission, body._station
   assert m.matcher.anchoring == 0, "the start opened the window"
   assert body._fix_at(s) is None and m.matcher.anchoring == 0, "a look that agrees"
   body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))     # the belief 0.36 m off
   assert m.matcher.anchoring == sm.ANCHORED_SCANS
+  # ...and its region laid afresh as far round as the fix moved it, and
+  # RELAY_PAST_M more (#741)
+  assert m.matcher.relay_m == pytest.approx(math.hypot(0.3, 0.2) + RELAY_PAST_M)
   body.start_at(*m.pose)                                   # ...and a stand-up
   assert m.matcher.anchoring == 0, "a stand-up kept the station's window"
+  assert m.matcher.relay_m == 0.0, "a stand-up kept the region its fix asked laid afresh"
+  body.close()
+
+
+def test_a_fix_that_turned_the_belief_lays_afresh_as_far_as_its_turn_moved_what_it_sees(house):
+  # ...its turn too, at the LIDAR's reach: 3 deg swings a wall 8 m off 42 cm
+  from pluggybot.body import RackPose
+  from pluggybot.humanoid.body import RELAY_PAST_M
+  body = _humanoid(house)
+  m, s = body.mission, body._station
+  x, y, _ = m.pose
+  fix = body._fix_at(RackPose(s.x, s.y, s.yaw + math.radians(3.0)))
+  moved = math.hypot(m.pose[0] - x, m.pose[1] - y)
+  assert fix["relayM"] == round(m.matcher.relay_m, 2)
+  assert m.matcher.relay_m == pytest.approx(
+    moved + math.radians(3.0) * sm.MATCH_RANGE_M + RELAY_PAST_M, abs=1e-6)
+  body.close()
+
+
+def test_the_scan_laid_after_a_fix_goes_in_over_what_it_sees_forgotten_once(house):
+  # #741's one line of wiring: the next scan `_scan_step` lays after a fix
+  # that kept the map forgets what it looks across first (the rule is pinned
+  # above and in test_occupancy_mapping.py), and only that one.
+  from pluggybot.body import RackPose
+  from pluggybot.perception.lidar import LIDAR_PERIOD
+  body = _humanoid(house)
+  m, s = body.mission, body._station
+  calls = []
+  forget, update = m.grid.forget_seen, m.grid.update
+  m.grid.forget_seen = lambda *a, **kw: (calls.append(("forget", kw.get("round_m"))),
+                                         forget(*a, **kw))[1]
+  m.grid.update = lambda *a, **kw: (calls.append(("update",)), update(*a, **kw))[1]
+  m._scan_step()
+  assert calls == [("update",)], "a scan with no fix behind it forgot something"
+  body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))
+  asked = m.matcher.relay_m
+  calls.clear()
+  m.data.time += LIDAR_PERIOD
+  m._scan_step()
+  assert calls == [("forget", asked), ("update",)]
+  assert m.matcher.relay_m == 0.0 and m.matcher.at is None
+  calls.clear()
+  m.data.time += sm.FUSE_S
+  m._scan_step()
+  assert calls == [("update",)]
   body.close()
 
 
