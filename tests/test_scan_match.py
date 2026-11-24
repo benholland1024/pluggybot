@@ -1802,17 +1802,20 @@ def test_not_up_from_a_fall_a_find_stands_whatever_the_wide_search_holds(counter
   assert not looks and m.pending is None
 
 
-def test_a_fall_leaves_an_anchors_window_as_it_was(counter):
-  # Measured both ways (docs/SimNotes.md, "A get-up moves the body past the
-  # search's window"), and neither right: shoved a second after a station's
-  # fix, the open window laid 19 scans unmatched 1.25 m off the body; closed
-  # at the fall, it handed a right belief to the askew map the fix had just
-  # corrected. The anchor outranks the map, as it did.
+def test_a_fall_closes_an_anchors_window_and_its_relay(counter):
+  # #741's review: shoved a second after a station's fix, an open window laid
+  # 19 scans unmatched 1.25 m off the body (#681, docs/SimNotes.md, "A get-up
+  # moves the body past the search's window"); closed then, it handed a right
+  # belief back to the askew map the fix had corrected -- which the fix's
+  # relay now forgets at the next scan laid, so the window closes at a fall,
+  # and a relay still pending goes with it: it would forget the room round a
+  # belief the get-up moved.
   m = sm.ScanMatcher(counter)
   m.anchored()
+  m.relay(0.5)
   m.fell()
-  assert m.anchoring == sm.ANCHORED_SCANS and m.fallen
-  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why == "anchored"
+  assert m.anchoring == 0 and m.relay_m == 0.0 and m.fallen
+  assert m.match(BESIDE, ANGLES, cast(COUNTER, STOOD, np.random.default_rng(43))).why != "anchored"
 
 
 # ---- a robot up from a fall, its heading turned (issue #690) -----------------
@@ -2173,7 +2176,8 @@ def _backed_off(window, relay):
     pose = m.match(at, ANGLES, ranges).pose
     if m.fuses(m.last, 0.1 * k):
       if m.relay_m:
-        g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m)
+        g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m,
+                      behind_m=sm.RELAY_BEHIND_M)
         m.relaid()
       g.update(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0))
       m.fused(pose, 0.1 * k)
@@ -2211,10 +2215,13 @@ def test_only_a_fix_that_keeps_the_map_opens_an_anchors_window_and_it_relays():
       if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
         continue
       for node in ast.walk(fn):
-        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "anchored"
-            and not any(k.arg == "on" and isinstance(k.value, ast.Constant)
-                        and k.value.value is False for k in node.keywords)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "anchored"):
+          continue
+        on = [k.value for k in node.keywords if k.arg == "on"] + node.args[:1]
+        assert all(isinstance(v, ast.Constant) for v in on), (
+          f"{path.name}:{node.lineno}: an anchor's window opened or closed by a computed value")
+        if not any(v.value is False for v in on):
           relays = [n for n in ast.walk(fn) if isinstance(n, ast.Call)
                     and isinstance(n.func, ast.Attribute) and n.func.attr == "relay"]
           opens.append((path.name, fn.name, len(relays)))
@@ -2241,6 +2248,10 @@ def test_a_restart_keeps_an_anchors_window(room):
   assert n.relay_m == 0.0, "a warp kept the region its fix asked laid afresh"
   m.forget()
   assert m.relay_m == 0.0
+  # ...and of two fixes before the scan that lays it, the larger reach
+  m.relay(0.8)
+  m.relay(0.32)
+  assert m.relay_m == 0.8
 
 
 #: A hall like the research center's lobby: 3 m by 12 m, doors off it.
@@ -2281,7 +2292,8 @@ def _docked(relay):
     pose = m.match(pose, ANGLES, ranges).pose
     if m.fuses(m.last, t):
       if m.relay_m:
-        g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m)
+        g.forget_seen(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), round_m=m.relay_m,
+                      behind_m=sm.RELAY_BEHIND_M, free_from=np.minimum(BAND_FF, sm.MATCH_MIN_M))
         m.relaid()
       g.update(pose, ANGLES, ranges, 8.0, origin=(0.0, 0.0), free_from=BAND_FF, graze_m=GRAZE_M)
       m.fused(pose, t)
@@ -2324,6 +2336,71 @@ def test_the_stations_look_alone_opens_the_window(house):
   assert m.matcher.anchoring == 0, "a stand-up kept the station's window"
   assert m.matcher.relay_m == 0.0, "a stand-up kept the region its fix asked laid afresh"
   body.close()
+
+
+def _relayed(house, mark):
+  """The humanoid standing in its house, its map laid, a station fix that
+  keeps the map, and the scan `_scan_step` lays next -- `mark(m, scan)`
+  setting cells of the map first, the band it will lay in hand: the map
+  after that scan."""
+  from pluggybot.body import RackPose
+  from pluggybot.perception.lidar import LIDAR_PERIOD
+  body = _humanoid(house)
+  m, s = body.mission, body._station
+  m._scan_step()
+  body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))
+  assert m.matcher.relay_m > 0.0, "the premise: a relay pending"
+  marked = mark(m, m._scan())
+  m.data.time += LIDAR_PERIOD
+  m._scan_step()
+  assert m.matcher.relay_m == 0.0, "the relay's scan was laid"
+  out = [float(m.grid.grid[iy, ix]) for ix, iy in marked]
+  body.close()
+  return out
+
+
+def _on_bearing(m, scan, k, at_m):
+  """The grid cell `at_m` from the scan's origin along its `k`th bearing, as
+  the belief lays it."""
+  x, y, th = m.pose
+  fwd, left = scan.origin
+  ox, oy = x + fwd * math.cos(th) - left * math.sin(th), y + fwd * math.sin(th) + left * math.cos(th)
+  a = th + scan.angles[k]
+  return m.grid.world_to_cell(ox + at_m * math.cos(a), oy + at_m * math.sin(a))
+
+
+def test_a_relay_keeps_a_wall_nearer_than_its_scan_can_clear_one(house):
+  # #741's review: near the robot the band's rays pass over what is lower
+  # than them (`free_from`), and `update` clears no wall there -- a low thing
+  # mapped from afar. The relay forgets none either where the fit reads no
+  # point (`MATCH_MIN_M`): forgotten first, the scan it laid would have laid
+  # it floor.
+  def mark(m, scan):
+    k = int(np.argmin(np.where(np.isfinite(scan.free_from), np.abs(scan.angles), np.inf)))
+    cell = _on_bearing(m, scan, k, 0.5 * min(scan.free_from[k], sm.MATCH_MIN_M))
+    m.grid.grid[cell[1], cell[0]] = 3.0
+    return [cell]
+  (near,) = _relayed(house, mark)
+  assert near > 0.0, "a wall nearer than the scan clears one was laid floor"
+
+
+def test_a_relay_forgets_nothing_far_behind_what_its_scan_met(house):
+  # #741's review: what lies behind a wall the scan saw is never laid again
+  # from where the robot stands, and a copy behind a fresh wall pulls
+  # nothing; forgotten as far round as the fix's reach (up to 1.7 m), the
+  # rooms beyond lost their maps. No further than RELAY_BEHIND_M past each
+  # bearing's end.
+  past = 0.40                       # past RELAY_BEHIND_M, inside the fix's reach
+
+  def mark(m, scan):
+    assert sm.RELAY_BEHIND_M < past < m.matcher.relay_m
+    hits = np.flatnonzero(scan.ranges < 4.0)
+    k = int(hits[np.argmin(np.abs(scan.angles[hits]))])
+    behind = _on_bearing(m, scan, k, float(scan.ranges[k]) + past)
+    m.grid.grid[behind[1], behind[0]] = 3.0
+    return [behind]
+  (behind,) = _relayed(house, mark)
+  assert behind == 3.0, "a cell behind what the scan met was forgotten"
 
 
 def test_a_fix_that_turned_the_belief_lays_afresh_as_far_as_its_turn_moved_what_it_sees(house):

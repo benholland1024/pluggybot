@@ -270,21 +270,26 @@ TURNED_NEAR_M = 0.5
 #: body past the search's window").
 FALLEN_NEAR_M = 2.0
 FALLEN_LOOKS = 6
-#: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
-#: the belief in its frame to millimetres (`anchored`), the next
-#: ANCHORED_SCANS scans that go into the map are laid at that belief,
-#: unmatched. MEASURED: a robot come home lost had laid a copy of the living
-#: room 0.9 m askew; anchored on the dock, matching against the copy pulled
-#: it 0.62 m back into it as it backed off. 30 is the undock's own back-out
-#: (0.9 m at 0.3 m/s, ten scans a second), and a wall clamped at +5 is
-#: floor after 14 misses. ⚠ ...LAID AS THEY COME, ten a second, never held
-#: to FUSE_S (#741): held, the window lasted 146 s docked, and the legs'
-#: reckoning, unmatched through it, carried a re-docked belief 3 cm, the
-#: region laid afresh along it (3.4-4.5 cm after); a window of the relay's
-#: one scan instead slid the fits 3 cm along the lobby against walls one scan
-#: thick (SimNotes, "A station's fix that keeps the map lays again what it
-#: sees").
+#: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the station's
+#: fix has put the belief in its frame (`anchored`, `HumanoidBody._fix_at`),
+#: the next ANCHORED_SCANS scans that go into the map are laid at that
+#: belief, unmatched -- the region the fix's relay forgot first (#741). The
+#: quadrupeds' measured why: a robot come home lost had laid a copy of the
+#: living room 0.9 m askew, and anchored on the dock, matching against the
+#: copy pulled it 0.62 m back into it as it backed off. 30, ten a second, is
+#: 3 s, and a wall clamped at +5 is floor after 14 misses. ⚠ LAID AS THEY
+#: COME, never held to FUSE_S (#741): held, the window lasted 146 s docked,
+#: and the legs' reckoning, unmatched through it, carried a re-docked belief
+#: 3 cm, the region laid afresh along it (3.4-4.5 cm after); a window of the
+#: relay's one scan instead slid the fits 3 cm along the lobby against walls
+#: one scan thick (SimNotes, "A station's fix that keeps the map lays again
+#: what it sees").
 ANCHORED_SCANS = 30
+#: ...and the relay forgets no further than this past the end of each
+#: bearing, m: what lies behind a wall the scan saw is never laid again from
+#: there, and a copy behind a fresh wall pulls nothing (#741's review: the
+#: reach, up to 1.7 m, cleared the rooms beyond).
+RELAY_BEHIND_M = 0.15
 #: A scan is fused only once the pose has moved this far or turned this
 #: much since the last one fused, or FUSE_S has passed. MEASURED: docked for
 #: 388 s, every scan fused at a pose jittering by a millimetre walked the
@@ -564,8 +569,9 @@ class ScanMatcher:
     anchor's window closes its fits take the belief back there. So the next
     scan laid goes in over the cells it looks across, and those within
     `round_m` of them -- where a copy of what it sees lies -- forgotten
-    first (`OccupancyGrid.forget_seen`), and the window lays them afresh."""
-    self.relay_m = float(round_m)
+    first (`OccupancyGrid.forget_seen`), and the window lays them afresh.
+    Two fixes before that scan: the larger reach."""
+    self.relay_m = max(self.relay_m, float(round_m))
 
   def relaid(self) -> None:
     """The scan `relay` asked for was laid: the field goes with the cells
@@ -585,6 +591,10 @@ class ScanMatcher:
     self.lost_run, self.pending = 0, None
     self._settled()
     self.looks_left = FALLEN_LOOKS
+    # ...and an anchor's window and its relay are over: laid unmatched at a
+    # belief the get-up moved, they lay the room again where it is not
+    # (#741's review)
+    self.anchoring, self.relay_m = 0, 0.0
 
   @property
   def fallen(self) -> bool:

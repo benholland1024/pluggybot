@@ -36,7 +36,8 @@ from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
-from pluggybot.mapping.scan_match import ACCEPTED, REFUSED, ScanMatcher
+from pluggybot.mapping.scan_match import (ACCEPTED, MATCH_MIN_M, REFUSED, RELAY_BEHIND_M,
+                                          ScanMatcher)
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
@@ -623,9 +624,14 @@ class Navigator:
         m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
           if m is not None and self.matcher.relay_m:
-            # ...laid over what it sees forgotten (#741, `ScanMatcher.relay`)
+            # ...laid over what it sees forgotten (#741, `ScanMatcher.relay`),
+            # but a wall nearer than the scan clears one AND than the fit
+            # reads a point (`MATCH_MIN_M`): there a copy pulls nothing, and a
+            # low thing kept from afar stays (between, a copy would pull)
+            near = None if free_from is None else np.minimum(free_from, MATCH_MIN_M)
             self.grid.forget_seen(self.pose, angles, ranges, self.lidar.max_range,
-                                  origin=origin, round_m=self.matcher.relay_m)
+                                  origin=origin, round_m=self.matcher.relay_m,
+                                  behind_m=RELAY_BEHIND_M, free_from=near)
             self.matcher.relaid()
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                            origin=origin, free_from=free_from, graze_m=GRAZE_M)

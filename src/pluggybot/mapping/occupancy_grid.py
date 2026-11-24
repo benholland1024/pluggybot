@@ -196,12 +196,13 @@ class OccupancyGrid:
     np.clip(self.grid, -5.0, 5.0, out=self.grid)
 
   def seen_by(self, pose, angles, ranges, max_range, origin=(0.03, 0.03),
-              round_m: float = 0.0):
+              round_m: float = 0.0, behind_m: float | None = None):
     """The cells a scan from `pose` looks across -- from its origin out to
     each bearing's end, `max_range` where it brought nothing back -- and the
-    cells within `round_m` of one: (the grid's window, as a pair of slices,
-    and the mask over it), or None. A bearing the scan does not carry is
-    looked across by none of it."""
+    cells within `round_m` of one, but none further than `behind_m` past the
+    end of the bearing it lies on (None: no such bound): (the grid's window,
+    as a pair of slices, and the mask over it), or None. A bearing the scan
+    does not carry is looked across by none of it."""
     px, py, theta = pose
     fwd, left = origin
     ox = px + fwd * math.cos(theta) - left * math.sin(theta)
@@ -229,17 +230,52 @@ class OccupancyGrid:
     seen[iys[inside], ixs[inside]] = True
     if round_m > 0.0:
       seen = ndimage.distance_transform_edt(~seen) * res <= round_m
+    if behind_m is not None:
+      dist, k = self._bearing_of((slice(y0, y1), slice(x0, x1)), ox, oy, theta, angles)
+      seen &= (k >= 0) & (dist <= np.where(k >= 0, ranges[k], 0.0) + behind_m)
     return (slice(y0, y1), slice(x0, x1)), seen
 
+  def _bearing_of(self, window, ox, oy, theta, angles):
+    """Each cell of `window`: its distance from the sensor at (`ox`, `oy`),
+    m, and the index into `angles` (bearings from `theta`) of the one
+    nearest its own, -1 where none lies within a degree of it."""
+    res = self.resolution
+    ys = self.y_min + (np.arange(window[0].start, window[0].stop) + 0.5) * res - oy
+    xs = self.x_min + (np.arange(window[1].start, window[1].stop) + 0.5) * res - ox
+    dist = np.hypot(xs[None, :], ys[:, None])
+    rel = np.mod(np.arctan2(ys[:, None], xs[None, :]) - theta + math.pi, 2 * math.pi) - math.pi
+    rays = np.mod(angles + math.pi, 2 * math.pi) - math.pi
+    order = np.argsort(rays, kind="stable")
+    ring = rays[order]
+    i = np.searchsorted(ring, rel)
+    lo, hi = (i - 1) % ring.size, i % ring.size
+    gap_lo = np.abs(np.mod(rel - ring[lo] + math.pi, 2 * math.pi) - math.pi)
+    gap_hi = np.abs(np.mod(rel - ring[hi] + math.pi, 2 * math.pi) - math.pi)
+    near = np.where(gap_lo <= gap_hi, lo, hi)
+    gap = np.minimum(gap_lo, gap_hi)
+    return dist, np.where(gap <= math.radians(1.0), order[near], -1)
+
   def forget_seen(self, pose, angles, ranges, max_range, origin=(0.03, 0.03),
-                  round_m: float = 0.0) -> int:
+                  round_m: float = 0.0, behind_m: float | None = None,
+                  free_from=None) -> int:
     """`seen_by`'s cells back to unknown, for the scan laid next to lay
     again (issue #741: `ScanMatcher.relay`): how many of them held
-    evidence."""
-    region = self.seen_by(pose, angles, ranges, max_range, origin, round_m)
+    evidence. ⚠ BUT A CELL THAT HELD A WALL NEARER THAN ITS BEARING'S
+    `free_from` IS KEPT: that scan's rays pass over what is lower there, and
+    `update` clears none of the walls it holds (a low thing mapped from afar);
+    forgotten first, it would be laid floor."""
+    region = self.seen_by(pose, angles, ranges, max_range, origin, round_m, behind_m)
     if region is None:
       return 0
     window, seen = self.grid[region[0]], region[1]
+    if free_from is not None:
+      px, py, theta = pose
+      fwd, left = origin
+      ox = px + fwd * math.cos(theta) - left * math.sin(theta)
+      oy = py + fwd * math.sin(theta) + left * math.cos(theta)
+      dist, k = self._bearing_of(region[0], ox, oy, theta, np.asarray(angles, dtype=float))
+      near = np.where(k >= 0, np.asarray(free_from, dtype=float)[k], 0.0)
+      seen = seen & ~((window > 0.0) & (k >= 0) & (dist < near))
     held = int(np.count_nonzero(window[seen]))
     window[seen] = 0.0
     return held
