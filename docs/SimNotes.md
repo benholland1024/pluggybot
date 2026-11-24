@@ -10214,9 +10214,9 @@ moment of the world's push on the hand about the level line through the
 stance's middle that tips the robot over its soles' edge toward the hand
 -- `blocked`, the body in the posture it has got to (`halt`), the arm held
 where its drivers read its joints, never at the command it drove on to. It
-says what a reach stopped on its way always said ("stopped short ... or
-pushing on something"), and its `withdraw` backs out along its fingers as
-any hand that is out does.
+says so ("stopped on its way out: it caught on something, which would have
+tipped you toward it", #743), and its `withdraw` backs out along its fingers
+as any hand that is out does.
 - *Not any push, nor a pull alone.* Our own references' ways out press on
   something in 57 of their 304 at the hands check's set-outs 0-31 (the
   counter, a drawer's top, the door's top, the chest's knob) and press on.
@@ -11784,7 +11784,9 @@ path), the pair's recording and #572's probe.
   three stations' fix poses, the house's couch (top 0.50 m), 0.73-1.0 m
   behind a robot the lost search fixes 1.6 m out (there the head's back
   panels leave free from 2.63 m), and a cell or two at the edges of each
-  station's own box. Uncapped, it planned through what it forgot (1 walk-off
+  station's own box; past 1 m it keeps none, and from the house station's
+  standoff and lost-fix poses the couch's part 1.3-2.6 m behind is laid floor
+  (435-843 of its points, at 2.5 cm; open, #741's third review). Uncapped, it planned through what it forgot (1 walk-off
   of its 8, the 11-23 save's lobby to the lab: 2 plans through 6 cells that held
   walls; none as built), and on a map whose copies lie elsewhere it would
   empty the rooms next door for nothing. Which to give up is #681's to weigh.

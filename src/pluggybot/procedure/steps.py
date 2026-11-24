@@ -1069,6 +1069,15 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                          "through your own body, so it did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
+#: ...and one that stopped short, by the rule its body says stopped it
+#: (`Body.hand_stopped`, #743), never both causes where it knows one;
+#: `REACH_WHY`'s where the body does not say.
+REACH_STOPPED_BY = {
+  "pushed": "your {hand} hand stopped short on its way in: it pushed on something before it "
+            "got there, {n:.0f} N",
+  "reach": "your {hand} hand stopped short on its way in: out of reach from how you truly stand",
+  "caught": "your {hand} hand stopped on its way out: it caught on something, which would have "
+            "tipped you toward it"}
 #: ...and one out of reach with the other hand holding something, whose grip
 #: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
 REACH_KEPT = ("your {other} hand is out holding something, so your body keeps the posture it "
@@ -1212,7 +1221,12 @@ def _reach(life, args: dict) -> Routine:
     return {"ok": False, "hand": hand, "why": why, "reason": REACH_KEPT.format(
       hand=hand, other=kept_by) + (TURNED_ELSE if turned() else ""), **said, "felt": felt}
   if why == "stopped short":
-    reason += _short_of(life, place, rot, felt)
+    cause = life.body.hand_stopped(hand) or {}
+    if cause.get("by") in REACH_STOPPED_BY:
+      reason = REACH_STOPPED_BY[cause["by"]].format(hand=hand, n=float(cause.get("n") or 0.0))
+    # ...caught on its way out, never on its line in: how far alone, nothing
+    # along or across fingers that had not begun their way in
+    reason += _short_of(life, place, None if cause.get("by") == "caught" else rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
@@ -1249,6 +1263,8 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
             "held back": "your {hand} hand was held back short of it: what it holds or "
                          "pushes on stopped it",
             "feet moved": "your feet moved under the force, so it stopped there",
+            # ...a carry whose grip it began with was lost on its way (#742)
+            "let go": "your {hand} hand's grip let go of what it held on the way",
             "not out": "your {hand} hand is not out: `reach` with it first",
             "fell": "you fell on the way, and let go",
             "out of time": "your {hand} hand did not get there in time"}
@@ -1265,6 +1281,12 @@ def _hand_report(life, hand: str, rep: dict) -> dict:
     out["by"] = [round(v, 4) for v in axes.in_stance(life, (rep["dx"], rep["dy"], rep["dz"]),
                                                       point=False)]
   return out
+
+
+def _on_its_grip(guard, hand: str) -> bool:
+  """Whether a move's stop condition is `hand`'s own grip lost: its
+  `<hand>.held` read below a number a lost grip's 0 is below."""
+  return guard is not None and guard[0] == f"{hand}.held" and guard[1] == "below" and guard[2] > 0.0
 
 
 def _move_hand(life, args: dict) -> Routine:
@@ -1294,6 +1316,12 @@ def _move_hand(life, args: dict) -> Routine:
       hand, end, stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
       patience=HAND_PATIENCE_S + (2.0 * length / speed if places else 0.0),
       path=places or None, turns=turns, verb=True)))
+  if rep.get("why") == "let go" and stopped is None and _on_its_grip(guard, hand):
+    # ...a stop condition on this hand's own grip is the grip's own word: the
+    # body ended the carry the tick its grip read lost, before the
+    # condition's next read could (#742's review), so it is said as that stop
+    rep = {**rep, "why": UNTIL}
+    stopped = {"read": 0.0, "s": felt[-1]["t"] if felt else float(rep.get("seconds") or 0.0)}
   _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
