@@ -12133,14 +12133,24 @@ each acted on, the sim time to the verdict moved by a median of 0.1 s (W) and
 ... from where you asked") read the hand a tick after the stop: on the flights
 S acted on, 22 of 26 said the same and 4 moved by 0.1 cm and 1-2 N.
 
+**At the turn it was asked** (the review of 11-25's first round). S as flown
+put the turn its senses read -- the one the press had twisted the hand to --
+into the command and the goal, and a carry after keeps the command's turn
+(`carry`: never the one it sagged to, #493). The hand is now held where its
+senses put it at the turn the command had, as a carry stopped short is
+(`_end`), its arm solved there from where its drivers read it, which presses
+on nothing it met.
+
 **What is true now** (`Reach._eased_stop`, `_update`'s stop; `tests/
 test_hands.py`): a reach stopped on its way in by a push (`BLOCKED_N`, "it
-pushed on something") is held where its drivers read the arm, its command and
-its goal the grip its senses put it at as that command began -- as #708's
-catch on a way out is held (`_struck`) -- so a withdraw comes out back along
-those fingers from where the hand is, and a next reach's way out, a shut or a
-carry begins there too. A stop out of reach holds its command as before. No
-word moves: the stop's report reads the hand as it stopped.
+pushed on something") is held where the hand is -- its command and its goal
+the place its senses put the grip at as that command began, at the turn the
+command had (a reach asked none keeps none), the arm solved there from where
+its drivers read it, or the arm as read where that solve diverges -- so a
+withdraw comes out back along the asked fingers from where the hand is, and a
+next reach's way out, a shut or a carry begins there too. A stop out of reach
+holds its command as before. The stop's report reads the hand a tick after the
+stop, so its numbers can move by about 0.1 cm and 1-2 N where it is eased.
 
 ## Debugging workflow that worked
 

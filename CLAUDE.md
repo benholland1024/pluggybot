@@ -346,11 +346,13 @@ save a filmstrip PNG named after the script.
   `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
   the push where it held at least half the run, at its hardest, else out of
   reach -- on the stop's tick alone, a last dip or a lone spike named the
-  other. ⚠ STOPPED ON A PUSH, IT IS HELD WHERE ITS DRIVERS READ IT (#750;
-  `Reach._eased_stop`; SimNotes, "A hand stopped on a push, held where it
-  is"), pressing on nothing, whatever comes next: held at the command it
-  drove on to, a jaw pressed on a chest's bracket was dragged back over it
-  by the withdraw's line out at 30-57 N, and the robot went over. ⚠ ON ITS
+  other. ⚠ STOPPED ON A PUSH, IT IS HELD WHERE IT IS, AT THE TURN IT WAS
+  ASKED (#750; `Reach._eased_stop`; SimNotes, "A hand stopped on a push,
+  held where it is"), pressing on nothing, whatever comes next: held at the
+  command it drove on to, a jaw pressed on a chest's bracket was dragged
+  back over it by the withdraw's line out at 30-57 N, and the robot went
+  over; held at the turn the press twisted it to, a carry after keeps that
+  (`carry`, #493). ⚠ ON ITS
   WAY OUT, THE TICK WHAT IT READS WOULD TIP THE BODY TOWARD THE HAND PAST
   `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED

@@ -10,16 +10,17 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A hand stopped on a push is held where its drivers read it (#750, A2, `loop-750`) — opens when this PR is deployed
+### A hand stopped on a push is held where it is, at the turn it was asked (#750, A2, `loop-750`) — opens when this PR is deployed
 
 **What the robots read** does not move: the prompt `264ac7f6…` (72,130
 characters, 17 sections) and the session host's hello `9dcf6202` are byte
-for byte as they were. No History line's words change: a stopped reach still
-says how far from where it was asked its grip was as it stopped, read off the
-hand as it stopped (on the dev flights the form acted on, 22 of 26 said it
-word for word, 4 by 0.1 cm and 1-2 N), and `withdraw`'s "bring the hand back
-out along the way it went in" reads as true of a hand that comes back along
-its fingers from where it stopped.
+for byte as they were. No sentence changes, but a stopped reach's numbers
+can: it says how far from where it was asked its grip was as it stopped,
+read off the hand a tick after the stop, and where the stop is eased that
+reading can move by about 0.1 cm and its push by 1-2 N (on the dev flights
+the form acted on, 22 of 26 said it word for word). `withdraw`'s "bring the
+hand back out along the way it went in" reads as true of a hand that comes
+back along its fingers from where it stopped.
 
 **What changed in the world.** A reach that stops on its way in because its
 hand pushed on something ("it pushed on something before it got there")
@@ -28,10 +29,12 @@ it met, and whatever came next began from there: a withdraw's line out
 dragged it back across what it pressed (at the lid check's set-out 14 a jaw
 on a chest's bracket at 30-57 N rolled the robot 5 deg off its hand, and as
 it slipped off the robot went over), and so did a next reach's way out (the
-drawer check's set-out 12, the same fall). Such a hand is now held where its
-drivers read it, pressing on nothing, the moment it stops: a withdraw, a
-walk's or a step's hand-over, the next reach and the loop's own after a
-charge's reach all begin from where the hand is. A stop out of reach holds
+drawer check's set-out 12, the same fall). Such a hand is now held where it
+is, at the turn it was asked, pressing on nothing, the moment it stops: a
+withdraw, a walk's or a step's hand-over, the next reach, a carry and the
+loop's own after a charge's reach all begin from where the hand is. It reaches
+the robots' own procedures after every pushed stop: 65 of the weekend of
+11-21/22's 200 tries flown at their live draws have one. A stop out of reach holds
 its command as before.
 
 **What the period is for.**
