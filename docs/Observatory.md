@@ -486,8 +486,9 @@ over X5's 200 flights' run lines, 33 change and none grows (the longest 396
 byte for byte; no History line is new or reworded. A `step` whose legs went
 back to standing before both its soles read planted -- its settle's bound
 run out -- says `feetDown: false` in its report, a field the verb's text
-does not describe: a practice's report and the `procedure` event carry it;
-History, which says an ok step's report nowhere, does not.
+does not describe: a practice's report carries it; on the served world
+nothing records it, since the `procedure` event carries no step's report
+and History says an ok step's report nowhere.
 
 **The change** (`HumanoidMission.to_stand_routine`, `odometry.PlantedRun`;
 `DOWN_M` 4 mm, `STILL_M` 3 mm, `SPREAD_M` 15 mm, `PLANTED_S` 0.1 s,
