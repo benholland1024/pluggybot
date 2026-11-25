@@ -8133,16 +8133,19 @@ walk2 also veered toward it (above: 4-22 deg over 4 m).
 `step(carrying=)`, `carry_blind`, `CARRY_TASK`;
 `HumanoidMission._before_step`; `tests/test_carry.py`): while either hand is
 carried (`Reach.carried`), the walking policy is shown every arm joint it sees
--- both arms' six, never a gripper or the waist -- at its own default and
-still: the hanging pose the served arms rest at, which its scripted arms held
-half the time in training. The drivers are read as ever, the same draws (the
-standing policy shares them), so a flight with no hand carried is bit for bit
-as before. It is told at each policy step off the reach as it stands, so a
-restart carries it on and a stand-up's fresh reach ends it. A walker trained
-to carry (`Pluggy-Humanoid-Walk-Carry`, carry2, not served) is shown its arms
-as they are: it trained seeing them hold carry poses, and blinded it would
-lose what it learned to balance on. Built so, it equals carry_spike's
-`--blind-arms` and the loop's patch where both act, flight for flight.
+-- both arms' six, never a gripper or the waist, the other arm too even where
+it was left held as its way home was stopped (with one hand carried and the
+other held: none of the 4,944 walk verbs flown in the shelf's checks and the
+pass) -- at its own default and still: the hanging pose the served arms rest
+at, which its scripted arms held half the time in training. The drivers are
+read as ever, the same draws (the standing policy shares them), so a flight
+with no hand carried is bit for bit as before. It is told at each policy step
+off the reach as it stands, so a restart carries it on and a stand-up's fresh
+reach ends it. A walker trained to carry (`Pluggy-Humanoid-Walk-Carry`,
+carry2, not served) is shown its arms as they are: it trained seeing them hold
+carry poses, and blinded it would lose what it learned to balance on. Built
+so, it equals carry_spike's `--blind-arms` and the loop's patch where both
+act, flight for flight.
 
 **Measured** (one Vast pod, a Xeon E5-2699 v4, osmesa, Python 3.12;
 `loop-staging` 0505dfc1 against the cure; the shelf on `loop-736` 97bbc19c

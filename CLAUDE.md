@@ -1149,7 +1149,12 @@ save a filmstrip PNG named after the script.
   the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
   over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
   (round 5), held out 15, the carry walker 0 (each miss, and round 4's
-  reference read beside it: SimNotes).
+  reference read beside it: SimNotes) -- ⚠ and with walk2 shown its arms at
+  rest while it carries (#751's cure), 3 of 32 where the tree before laid 16
+  on one pod: its put-downs were tuned on a settle the seeing walker's
+  carried turns left, and land a constant 3-4 cm off, which a retune would
+  most likely take back (SimNotes, "The walker shown its arms at rest while
+  a hand is carried").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
