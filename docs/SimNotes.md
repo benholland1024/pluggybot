@@ -2338,7 +2338,7 @@ the same flights.
 Of the robots' own procedures that fall out of a bow, Luca's
 `door_final45` (two keys) and Rowan's `chest_run13` still fall, 0.04-0.08 s
 later, with the same verdicts; and on the base `chest_run13`'s early take
-(21 deg behind upright) ran the body about 2.9 m backward on its feet,
+(21 deg behind upright) ran the body 3.1 m backward on its feet,
 never down, leaving its belief 3.1 m off after 30 s and a look -- past the
 wide search's 2 m -- where read off the nearer it went down on its back,
 stood 3.6 s later about 1 m back, and its belief came back to 0.4 m (the

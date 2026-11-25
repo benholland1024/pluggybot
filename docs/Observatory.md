@@ -46,7 +46,7 @@ a bow (two tables', a drawer's); read off the nearer each still falls,
 pod: 615 of 736 and 4 falls on both trees, 3 flights moved (falls out of a
 bow, taken later, with the same verdicts), the other 733 identical. Of the
 robots' own procedures, Rowan's `chest_run13` (t_0746) shows the old take
-live: taken 21 deg behind upright, the get-up ran the body 2.9 m backward on
+live: taken 21 deg behind upright, the get-up ran the body 3.1 m backward on
 its feet and left its belief 3.1 m off; read off the nearer it went down,
 stood 1 m back, and its belief came back to 0.4 m.
 
