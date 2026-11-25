@@ -2327,7 +2327,22 @@ of a bow with the trunk nearer upright than it (two tables', from 43-46 deg
 bows with the trunk 5-10 deg in front of upright; a drawer's, from a 12 deg
 bow 21 deg behind it), the fourth from the stand; read off the nearer, each
 still falls, taken 0.06-0.24 s later with the trunk 37-39 deg behind
-upright, and gets the same verdict.
+upright, and gets the same verdict. Ben's bar on this rule, beside dc843dc0
+on one pod of another CPU type (a Xeon Gold 6140, where dc843dc0 itself
+reads 615 of 736 and 4 falls): 615 and 4 on both trees, 3 flights moved --
+each a fall out of a bow, two tables' and a drawer's, taken 0.06-0.18 s
+later with the same verdict -- and the other 733 the same flights by end
+state and path. The drift spike's 18 falls (from the stand, and walking) and
+C1's 24 keys of the 11-25 wake's door (every fall there from the stand) are
+the same flights.
+Of the robots' own procedures that fall out of a bow, Luca's
+`door_final45` (two keys) and Rowan's `chest_run13` still fall, 0.04-0.08 s
+later, with the same verdicts; and on the base `chest_run13`'s early take
+(21 deg behind upright) ran the body about 2.9 m backward on its feet,
+never down, leaving its belief 3.1 m off after 30 s and a look -- past the
+wide search's 2 m -- where read off the nearer it went down on its back,
+stood 3.6 s later about 1 m back, and its belief came back to 0.4 m (the
+doors' to 0.10 m on both trees).
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak

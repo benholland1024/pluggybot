@@ -42,7 +42,13 @@ in one; taken behind upright all nine went down on their backs and stood in
 shoves moved, each taken 0.08-0.24 s later, and every fall stood either way.
 On `loop-staging` dc843dc0 three of Ben's bar's four falls are takes out of
 a bow (two tables', a drawer's); read off the nearer each still falls,
-0.06-0.24 s later, with the same verdict.
+0.06-0.24 s later, with the same verdict. Ben's bar, beside dc843dc0 on one
+pod: 615 of 736 and 4 falls on both trees, 3 flights moved (falls out of a
+bow, taken later, with the same verdicts), the other 733 identical. Of the
+robots' own procedures, Rowan's `chest_run13` (t_0746) shows the old take
+live: taken 21 deg behind upright, the get-up ran the body 2.9 m backward on
+its feet and left its belief 3.1 m off; read off the nearer it went down,
+stood 1 m back, and its belief came back to 0.4 m.
 
 **To read.** The `fall` rows (#707): how far each get-up carried the body
 and how long it took (`movedM`, `seconds`), how many ended `stuck`, and what
