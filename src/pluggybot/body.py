@@ -180,6 +180,13 @@ class Body(abc.ABC):
 
   @property
   @abc.abstractmethod
+  def last_hooks(self) -> list:
+    """...and those run after every one of them, whenever a step hook was
+    hung (#749): where the world is saved (`continuation.Keeper`), after
+    every reading of the step it saves."""
+
+  @property
+  @abc.abstractmethod
   def stepper(self):
     """What steps this body's physics (`tick.run`, `tick.run_many`):
     `apply(command)` before the world steps, `after_step()` after,
@@ -198,6 +205,23 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def restore_kept(self, state: dict, arrays: dict) -> bool:
     """Put `kept_state` back; True if its map fitted this build."""
+
+  @abc.abstractmethod
+  def book_owed(self) -> bool:
+    """The bookkeeping a routine stepping this body does after a step's
+    hooks -- all of it (a humanoid's `_after_step`: the walking look, the
+    depth frame's fold, the scan, the contacts' step) -- done now for the
+    step the world last stepped, where the save it was restored from was
+    taken inside that step's hooks with it still owed (#749,
+    `continuation.restore`) -- else nothing. True where it was owed."""
+
+  @abc.abstractmethod
+  def forgo_owed(self) -> None:
+    """The step the world last stepped is booked by nobody: the routine
+    stepping this body was closed at it, a death or a stand-up having
+    landed in its hooks (`steps._until_down_routine`,
+    `HubLifecycle._until_stood_up_routine`). A save from here on -- a run's
+    end at that step -- owes nothing of it (#749)."""
 
   @abc.abstractmethod
   def close(self) -> None:
@@ -1003,6 +1027,8 @@ class _StubStepper:
   def after_step(self) -> None:
     for hook in self.body.step_hooks:
       hook()
+    for hook in self.body.last_hooks:
+      hook()
 
   def step(self, command) -> None:
     self.apply(command)
@@ -1046,6 +1072,7 @@ class StubBody(Body):
     self._model, self._data = model, data
     self.handle = handle
     self._hooks: list = []
+    self._last_hooks: list = []
     self._stepper = _StubStepper(self)
     self.x, self.y, self.theta = (float(v) for v in pose)
     gx0, gy0, gx1, gy1 = grid_bounds
@@ -1144,6 +1171,7 @@ class StubBody(Body):
   model = property(lambda self: self._model)
   data = property(lambda self: self._data)
   step_hooks = property(lambda self: self._hooks)
+  last_hooks = property(lambda self: self._last_hooks)
   stepper = property(lambda self: self._stepper)
 
   def run(self, routine, name=""):
@@ -1157,6 +1185,12 @@ class StubBody(Body):
     self.x, self.y, self.theta = state["pose"]
     self.places.restore_kept(state.get("places"))
     return False
+
+  def book_owed(self) -> bool:
+    return False                          # it books nothing after a step
+
+  def forgo_owed(self) -> None:
+    pass
 
   def close(self) -> None:
     pass

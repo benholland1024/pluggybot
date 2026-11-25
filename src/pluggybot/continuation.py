@@ -39,7 +39,9 @@ with, a step behind its `qpos`, and everything between two steps reads it.
 Forwarded fresh at the saved instant instead, a restore parted wherever the
 walking policy decided on its first step (one save in ten); so a save
 carries where that step began (`LastStep`) and a restore steps it again
-(`replay`).
+(`replay`) -- ⚠ and does that step's bookkeeping after its hooks, where a
+routine still owed it: the keeper saves inside them (#749, `Body.book_owed`;
+Webserver.md).
 """
 
 from __future__ import annotations
@@ -588,6 +590,9 @@ def restore(lives, snap: Snapshot) -> dict:
     # hold their gains again: they live in the model, and are its input
     matched["replayed"] = replay(first.model, first.data, snap.meta["physics"],
                                  snap.arrays)
+    # ...and that step's bookkeeping after its hooks, where a routine still
+    # owed it: the keeper saves inside them (#749, `Body.book_owed`)
+    matched["booked"] = [life.root for life in lives if life.body.book_owed()]
     # ...and a robot saved lying inside the other, from before the pair
     # collided (issue #455), put clear before a step throws them apart
     matched["unclipped"] = [life.root for life in lives[1:] if life.unclip()]
@@ -634,8 +639,11 @@ class Keeper:
   On the LAST robot's hooks: one world, one save, and a pair's step runs
   every robot's bookkeeping in order (`tick.run_many`), the world's
   activities with the first -- hooked on the first, the second robot was
-  saved a step behind its own body. ⚠ A STOP IS RAISED ON THE SEAM, never
-  from a signal handler:
+  saved a step behind its own body. ⚠ AFTER EVERY STEP HOOK, whenever one
+  is hung (`Body.last_hooks`), but STILL INSIDE THE STEP: a routine's own
+  bookkeeping after it is kept owed and done by the restore
+  (`Body.book_owed`; #749, Webserver.md). ⚠ A STOP IS RAISED ON THE SEAM,
+  never from a signal handler:
   a SIGTERM lands between any two bytecodes -- inside a ledger write, half
   way through a death -- and a state saved from there is half one thing.
   `request_stop` only sets a flag; the next step boundary raises
@@ -671,9 +679,23 @@ class Keeper:
     self.stopped_mid_move = False
     self._next: float | None = None
     self.last_step = LastStep(self.lives[0])
+    #: Each robot's death and stand-ups as the last step left them (`landed`)
+    self._seen: list | None = None
     for life in self.lives:
       life.continuing = True
-    self.lives[-1].body.step_hooks.append(self.step_hook)
+    self.lives[-1].body.last_hooks.append(self.step_hook)
+
+  def landed(self) -> bool:
+    """Did a death or a stand-up land in this step's hooks? Read every step.
+    A routine it lands in may be closed at the step, unbooked, once the
+    hooks are done (`steps._until_down_routine` on a death,
+    `HubLifecycle._until_stood_up_routine` on a stand-up), which a save
+    inside them cannot know: a step later, the routine has decided (#749)."""
+    now = [(None if life.dead is None else id(life.dead), len(life.resets))
+           for life in self.lives]
+    landed = self._seen is not None and now != self._seen
+    self._seen = now
+    return landed
 
   def busy(self) -> bool:
     """A robot mid stand-up is half stood up: its settle drive steps the
@@ -687,6 +709,7 @@ class Keeper:
 
   def step_hook(self) -> None:
     self.last_step.hook()                 # every step, busy or not: a save
+    landed = self.landed()                # ...and so is what landed in it
     if self.stop_requested and self.paused():
       # ...at once: waited out, a body mid-move would step on in a world
       # the operator stopped. Only the living count: a robot lying dead is
@@ -695,7 +718,7 @@ class Keeper:
       self.stopped_mid_move = any(_mid_move(life) for life in self.lives
                                   if life.dead is None)
       raise MissionAborted(f"stopping: {self.stop_requested}")
-    if self.busy():                       # after a busy stretch replays too
+    if self.busy() or landed:             # after a busy stretch replays too
       return
     if self.stop_requested:
       raise MissionAborted(f"stopping: {self.stop_requested}")

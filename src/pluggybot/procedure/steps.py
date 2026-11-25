@@ -2081,10 +2081,13 @@ def _until_down_routine(life, routine: Routine) -> Routine:
       routine.close()
       raise
     except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      if dead(life):
+        body.forgo_owed()                  # ...the step it died in: gone on, closed unbooked
       exc, sent = e, None
       continue
     if dead(life):
       routine.close()
+      body.forgo_owed()                    # ...the step it died in, closed unbooked (#749)
       return None, "died"
 
 

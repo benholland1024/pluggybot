@@ -736,8 +736,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     where nothing dies the same clock ends the run (`lifecycle.Stuck`,
     #684); a script with no lifecycle bounds its own run."""
     while self.legs == "getup":
-      yield STILL
-      self._after_step()
+      yield from self._booked_routine(STILL)
 
   def let_go_routine(self, sides: Iterable[str]) -> tick.Routine:
     """Each of `sides`' grippers its own command has not open
@@ -832,14 +831,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       while (any(p not in AT_EASE for p in self.reach.phase.values())
              or not all(self.reach.home_over(s) for s in hm.SIDES)
              or not self.stand.settled or not self.reach.waist_home()):
-        yield STILL
-        self._after_step()
+        yield from self._booked_routine(STILL)
       for _ in range(int(round(STAND_BACK_S / self.model.opt.timestep))):
         # ...a fall in it is the get-up's, waited out below
         if self.legs == "getup" or self.reach._posture_held():
           break
-        yield STILL
-        self._after_step()
+        yield from self._booked_routine(STILL)
     finally:
       self.reach.keep_out = []
     yield from self._getup_routine()
@@ -862,8 +859,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         for s in lifting:
           self.reach.stop(s, "out of time")
         break
-      yield STILL
-      self._after_step()
+      yield from self._booked_routine(STILL)
     if self.falls != falls:
       return {}
     return {s: q for s, q in carry.items()
@@ -910,9 +906,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         if float(self.data.time) - t0 >= ARM_WAIT_S:
           break
         for _ in range(int(round(ARM_LOOK_S / self.model.opt.timestep))):
-          yield STILL
           if nav:
-            self._after_step()
+            yield from self._booked_routine(STILL)
+          else:
+            yield STILL
           if self.falls != falls:
             break
         if self.falls != falls:
@@ -1019,8 +1016,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
         break
       if self._aside is not None:
         self._end_aside("its own move", STILL)
-      yield STILL
-      self._after_step()
+      yield from self._booked_routine(STILL)
       planted = run.read(self.odo.apart, self.odo.spread)
     if self.legs != "walk":
       if getup:
@@ -1042,8 +1038,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     cmd = command_for(vx, vy, w)
     if cmd != STILL and self.legs != "walk":
       yield from self.to_walk_routine()
-    yield cmd
-    self._after_step()
+    yield from self._booked_routine(cmd)
 
   def travel_routine(self, distance: float, v: float):
     """`distance` of believed travel along its heading at `v` (negative
@@ -1188,6 +1183,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
               None if memo[5] is None else list(memo[5])],
              "clocks": {"scan": self._next_scan, "backoff": self.backoff_until,
                         "walls": self._walls_t},
+             # ...and whether the step saved in is owed its bookkeeping
+             # after the hooks (#749): the keeper saves inside them
+             "owed": self._owed,
              "peerSeen": [self.peer_seen_m, self.peer_seen_t],
              # ...and who its LIDAR saw, and when (#675)
              "lidarSeen": [self.scanned_t, dict(self.seen_t)],
@@ -1284,6 +1282,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     clocks = state["clocks"]
     self._next_scan = float(clocks["scan"])
     self.backoff_until = float(clocks["backoff"])
+    # ...a save from before #749 owes nothing: its step's bookkeeping comes
+    # at the first step booked after the restore, as it always did
+    self._owed = bool(state.get("owed", False))
     self.peer_seen_m, self.peer_seen_t = state["peerSeen"]
     # ...a save from before #675 saw nobody: its next scan sees afresh
     scanned, seen = state.get("lidarSeen", [None, {}])

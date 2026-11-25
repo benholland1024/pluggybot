@@ -346,8 +346,17 @@ save a filmstrip PNG named after the script.
   `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
   the push where it held at least half the run, at its hardest, else out of
   reach -- on the stop's tick alone, a last dip or a lone spike named the
-  other. ⚠ ON ITS WAY OUT, THE TICK WHAT
-  IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
+  other. ⚠ STOPPED ON A PUSH, IT IS HELD WHERE IT IS, AT ITS COMMAND'S
+  TURN (#750; `Reach._eased_stop`; SimNotes, "A hand stopped on a push, held
+  where it is"), pressing on nothing, whatever comes next, its goal at the
+  reach's own turn (a withdraw out the way it went in): held at the command
+  it drove on to, a jaw pressed on a chest's bracket was dragged back over
+  it by the withdraw's line out at 30-57 N, and the robot went over; held
+  at the turn the press rolled it to, a carry after keeps that (`carry`,
+  #493) -- as it does where the arm cannot hold its command's turn there
+  (`REPLAN_M`, `REPLAN_ROT`) and is held as read. ⚠ ON ITS
+  WAY OUT, THE TICK WHAT IT READS WOULD TIP THE BODY TOWARD THE HAND PAST
+  `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
   (`POSTURE_TOL`), ONCE IT HAS FOR `OUT_TIP_S` (0.03 s) RUNNING -- its pull
   toward the body at the hand's height, less its press down at the hand's
@@ -2019,7 +2028,15 @@ save a filmstrip PNG named after the script.
   (without it a step parts by 1e-12), and the LAST STEP STEPPED AGAIN from
   where it began (#420; `LastStep`, `replay`): a running world's forward
   pass is a step behind its `qpos`, and one forwarded fresh parted at the
-  walking policy's first decision. A new piece of state that decides
+  walking policy's first decision. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
+  OWED IT AFTER THE HOOKS (`_after_step`: the look, the depth frame's fold,
+  the scan) BOOKED THERE (#749; `Body.book_owed`; Webserver.md): the keeper
+  saves inside a step's hooks, so every routine that books its steps yields
+  them through `Navigator._booked_routine` (a test reads every call of
+  `_after_step`), the keeper's hook is a `Body.last_hooks` one (after every
+  step hook, whenever hung), no save is taken on a step a death or a
+  stand-up landed in (`Keeper.landed`), and a routine they close there owes
+  nothing (`Body.forgo_owed`). A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up

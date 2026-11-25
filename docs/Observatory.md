@@ -74,6 +74,76 @@ too. The loop's own reach (a charge's) is never judged.
   for a prop's old face: one it moved within 0.55 m is kept up to that
   minute.
 
+### A hand stopped on a push is held where it is, at its command's turn (#750, A2, `loop-750`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No sentence changes, but a stopped reach's numbers
+can: it says how far from where it was asked its grip was as it stopped,
+read off the hand a tick after the stop, and where the stop is eased that
+reading can move by about 0.1 cm and its push by 1-2 N (on the dev flights
+the form acted on, 22 of 26 said it word for word). `withdraw`'s "bring the
+hand back out along the way it went in" reads as true of a hand that comes
+back along its fingers from where it stopped.
+
+**What changed in the world.** A reach that stops on its way in because its
+hand pushed on something ("it pushed on something before it got there")
+held its arm where it had driven on to, its spring pressing the hand on what
+it met, and whatever came next began from there: a withdraw's line out
+dragged it back across what it pressed (at the lid check's set-out 14 a jaw
+on a chest's bracket at 30-57 N rolled the robot 5 deg off its hand, and as
+it slipped off the robot went over), and so did a next reach's way out (the
+drawer check's set-out 12, the same fall). Such a hand is now held where it
+is, at its command's turn (as read where its arm cannot hold that turn
+there), pressing on nothing, the moment it stops: a
+withdraw, a walk's or a step's hand-over, the next reach, a carry and the
+loop's own after a charge's reach all begin from where the hand is, and a
+withdraw comes out along the way the hand went in (a reach asked no turn --
+the robots' own, nearly all -- straight back toward the body, as before). It
+reaches the robots' own procedures after every pushed stop: 65 of the weekend
+of 11-21/22's 200 tries flown at their live draws have one. A stop out of
+reach holds its command as before.
+
+**What the period is for.**
+- **The acceptance**: no fall in the verb after a `reach` that stopped short
+  because it "pushed on something" -- a `fall` row whose `at` names the
+  `withdraw`, `reach` or walk that came next.
+- **Offline, before it**: at the hands checks' set-outs 128-191, 26 of 320
+  flights acted on, falls 6 -> 3 and passes 248 -> 252; Ben's bar on the
+  final code, 58 of 736 acted on, falls 5 -> 4 and passes 609 -> 613, its
+  one new fall the base's own from the posture its next reach took; the
+  robots' own 200 tries, the same two passes and tries with a fall 3 -> 2
+  (SimNotes, "A hand stopped on a push, held where it is").
+
+### A restore books the step it steps again, and the keeper saves after every step hook (#749, Z6, `loop-749`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were.
+
+**What changed in the world.** What happens AT a restart, and nothing else:
+a day flown straight through is bit for bit the one before. Two things:
+
+- A save taken inside a step's hooks -- every keeper save, and a run's end
+  stopped by a signal or while paused -- keeps whether that step still
+  owed its bookkeeping after them (the walking look, the depth frame's fold
+  into the camera's layer, the LIDAR's scan), and the restore does it on
+  the step it steps again. Before, a save on a step whose scan was due
+  (about one keeper save in 50, and every one that fell on a charge's
+  first step) came back with that scan 2 ms late, and every scan after it,
+  and the belief, the map and the camera's layer parted at the last bits
+  from the world that never stopped. Nothing a robot reads was lost. A
+  save that falls on the step a death or a stand-up landed in is taken a
+  step later.
+- The keeper's hook runs after every step hook. A hand job's watch is hung
+  at the job's claim, after it: on the pair's second robot a save came
+  before the watch had read that step -- the most its prop moved, the
+  fastest, the worst tilt -- and the restored watch read on from the next.
+
+**What the period is for.** Expect nothing visible. It makes a restarted
+world's record replay as the world flown straight through, so a reading
+across a `mission resumed` can be checked bit for bit offline.
+
 ### A carry of a hand that holds nothing takes no posture while it reads past 20 N (#699 on a carry, X3 and Y4, `loop-699c`) — opens when this PR is deployed
 
 **What the robots read** moves by one History sentence: by this change, the
