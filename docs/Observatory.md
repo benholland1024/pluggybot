@@ -10,6 +10,70 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A procedure's reach takes no posture whose swing meets what its depth camera saw (#747's option 1, Z3, `loop-747`) — opens when this PR is deployed
+
+**What the robots read** moves by one refusal's words: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) and the session host's hello
+`9dcf6202` are byte for byte as they were (the release's, with #728's
+sentence in: the period of #744, #746 and #728, below), and `reach`'s text
+is unchanged. A `reach` whose every posture would swing an arm into what
+the robot's depth camera saw now reads false, nothing moved: "every posture
+that puts your left hand there would swing an arm into something your depth
+camera saw -- the first your left fingers, at x 0.24, y -0.11, z 0.66 in
+your stance frame -- so your arm did not move", and, where the other hand's
+plan keeps clear, "; your right hand could reach it as asked" (208 and 249
+characters: a run's History line ending there with three short locals, 340
+and 381 of the 384 a line leaves past its stamp). Kept in its posture by the
+other hand's grip (#719) it says so ("your right hand is out holding
+something, so your body keeps the posture it is in, and from it your left
+hand's way there would swing your left fingers into something your depth
+camera saw, at ...", 263), and a reach kept off another robot says of the
+other hand "; your right hand's every posture there would swing an arm
+into something your depth camera saw" where that is why. Before, the same
+reach went, and pressed the counter or fell. A draft for Ben.
+
+**The change** (`Reach._swing`, `swing_clock`, `plan`'s `swing`,
+`mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
+counter"). A procedure's reach plans each posture's swing -- the body
+walked to it on the standing policy's and the waist's own clocks while the
+arm walks out to its pre-grasp 0.2 s behind -- on the robot's model of
+itself against a new memory of what its depth camera saw at the arms'
+heights (walked in, a counter's face to a centimetre; placed up close,
+none of it), and passes over a posture that would bring a part of either
+arm more than 5 mm into a face; the one taken then is the one its hand
+goes in from, its look taking none, and where every one would, nothing
+moves. A look's second posture where nothing was passed over is judged
+too. The loop's own reach (a charge's) is never judged.
+
+**What the period is for.**
+- **The acceptance**: fewer falls inside a `reach` at a counter (a `fall`
+  row whose `at` names a `reach` or the `withdraw` after it), and the
+  refusals counted (a run line ending "...so your arm did not move"): what
+  the robots do with them -- the other hand, a step back, or the same
+  reach again. Walked in to the storeroom's counter (the census, 400 left
+  hands across the body), it fell once where the base fell 26.
+- **What it costs**: Ben's bar on the final code against loop-staging with
+  #750 and its fix (ec75d5ce), 617 of 736 passed (base 612) and 4 falls
+  (4), no job held out worse by more than one; the robots' own 200 live
+  tries, no pass lost and two of three tries with a fall shed; walked in,
+  falls 33 to 7, its one new fall the counter's top in a deep bow (below).
+  A refusal searches every posture:
+  6.2-6.6 s of the one physics thread on the dev box, where a plan out of
+  reach takes 0.03 s; and every plan a refusal's words ask (the other
+  hand's, and out of reach the grip turned another way) is judged too, each
+  as long again where its every posture swings; a passing plan 40 ms more;
+  the pair 1.45 % slower walking (the memory's fold).
+- **What it misses**: a face never seen from about 0.33 m or further (a
+  robot that turned to it up close), and one seen more than a minute
+  before, as its knees' memory forgets one: up close the camera sees the
+  top alone, so a later procedure's reach at the counter is judged on what
+  the minute before it saw (112 of the 200 live tries X5 flies began at the
+  counter; none of them fell on the base). A thing moved since it was seen,
+  a column's top 3 cm (a counter's front edge: the census's one new fall
+  caught it), the legs, the trunk and the head. And it may refuse a reach
+  for a prop's old face: one it moved within 0.55 m is kept up to that
+  minute.
+
 ### A hand stopped on a push is held where it is, at its command's turn (#750, A2, `loop-750`) — opens when this PR is deployed
 
 **What the robots read** does not move: the prompt `264ac7f6…` (72,130

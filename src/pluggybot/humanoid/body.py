@@ -876,6 +876,9 @@ class HumanoidBody(Body):
     self._why[side] = "out of reach"
     self._kept.pop(side, None)
     self.reach.keep_out = self.mission.keep_out(self.mission.look_round())
+    # ...a procedure's posture judged as it would swing its arms, against what
+    # its depth camera saw where they swing (#747)
+    self.reach.seen = self.mission.arms_seen() if verb else None
     try:
       if self.reach.reach(side, goal, postures=postures, flip=not follows, refuse=refuse,
                           verb=verb):
@@ -883,14 +886,18 @@ class HumanoidBody(Body):
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
       # -- the grip asked, never half a turn round: the path's turns are its
-      kept, own = self.reach.kept[side], self.reach.own[side]
+      kept, own, swung = self.reach.kept[side], self.reach.own[side], self.reach.swung[side]
       if (follows and self.reach.kept_by[side] is None
           and self.reach.reach(side, goal, flip=False, refuse=refuse, verb=verb)):
         return True
       kept, own = self.reach.kept[side] or kept, self.reach.own[side] or own
+      self.reach.swung[side] = self.reach.swung[side] or swung
       if own is not None and kept is None:
         # every way out passes through its own trunk (#722)
         self._why[side] = "own body"
+      if self.reach.swung[side] is not None and kept is None and own is None:
+        # every posture that puts it there swings an arm into what it saw (#747)
+        self._why[side] = "swing"
       if kept is not None:
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
@@ -907,6 +914,7 @@ class HumanoidBody(Body):
       return False
     finally:
       self.reach.keep_out = []
+      self.reach.seen = None
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
@@ -914,6 +922,10 @@ class HumanoidBody(Body):
   def hand_stopped(self, side) -> dict | None:
     stopped = self.reach.stopped[side] if self._why.get(side) == "stopped short" else None
     return None if stopped is None else dict(stopped)
+
+  def hand_swung(self, side) -> dict | None:
+    swung = self.reach.swung[side] if self._why.get(side) == "swing" else None
+    return None if swung is None else dict(swung)
 
   def hand_kept(self, side) -> dict | None:
     return self._kept.get(side)
@@ -1097,8 +1109,13 @@ class HumanoidBody(Body):
   def hand_reaches(self, side, pos, rot=None, verb=False) -> bool:
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     kept = self.reach.keeps(side, verb)
-    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0),
-                            **({} if kept is None else {"postures": (kept,)}))
+    # ...a procedure's judged as its reach would be, its swing too (#747)
+    self.reach.seen = self.mission.arms_seen() if verb else None
+    try:
+      return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0),
+                              **({} if kept is None else {"postures": (kept,)}))
+    finally:
+      self.reach.seen = None
 
   def _turns(self, rot):
     """A turn, or a list of them, the believed world frame's, in the stance

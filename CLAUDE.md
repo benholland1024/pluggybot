@@ -433,7 +433,26 @@ save a filmstrip PNG named after the script.
   look at the pre-grasp passes over a posture whose plan from the arm as it is
   lies in it: unjudged, three of the 11-15 wake's door reaches from the arm
   hanging pressed the torso at 23-52 N. ⚠ MuJoCo 3.10 reads two boxes apart as
-  0.0 at some poses (`reach.apart` reads them again). ⚠
+  0.0 at some poses (`reach.apart` reads them again). ⚠ A PROCEDURE'S PLAN IS
+  JUDGED AS IT SWINGS, AGAINST WHAT ITS DEPTH CAMERA SAW AT A FACE WHERE ITS
+  ARMS SWING (#747; `Reach._swing`, `swing_clock`, `plan`'s `swing`,
+  `mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
+  counter"): its posture walked on the commands' clocks while its arm walks
+  out `SWING_ARM_LAG_S` (0.2 s) behind them, every part of both arms no more
+  than `SWING_CLEAR_M` (5 mm) into a face -- a column's top `ARMS_TOP_M` deep
+  is none, nor the work round its goal -- else, begun further in, no
+  further; one that would is passed over, none and it moves nothing,
+  "swing" (`Body.hand_swung`): the census's left hand across the body, 400
+  reaches walked in, fell once where the base fell 26. ⚠ ONE IT PASSED OVER
+  FOR ITS SWING, ITS LOOK TAKES NO SECOND POSTURE: free, the look took back
+  what the plan passed over or went on to the deepest bows, whose trunk and
+  head no swing judges, and fell 3-5 times in 128 where the base fell 2. ⚠ IT
+  SEES ONLY WHAT ITS CAMERA SAW, AND FOR A MINUTE (`KNEE_S`): placed up
+  close, a counter's face is none (its picture ends 69 deg down), so a
+  flight that stands still with a bare `STILL` -- which steps no
+  `_after_step` -- judges nothing. ⚠ A refusal searches every posture,
+  6.2-6.6 s of the one physics thread, and each plan its words ask too (a
+  passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
