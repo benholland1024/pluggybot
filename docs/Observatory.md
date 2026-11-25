@@ -30,14 +30,19 @@ moves, to the bit. The death seam's topple (`HubLifecycle._chassis_tilt`:
 `down`, what the other robot keeps clear of, and the stuck clock) reads a
 bow so too. Ben's call of 11-25 on #724.
 
-**What it does.** A fall backward or sideways out of a bow is handed to the
-get-up later, and the body goes down before it gets up: in M12's lobby case
+**What it does.** A fall out of a bow whose trunk comes back toward upright
+-- shoved back, or sideways as the bow comes up (the bow table's left and
+right shoves moved as its back ones did; a roll off the bow alone is read as
+before) -- is handed to the get-up later, and the body goes down before it
+gets up: in M12's lobby case
 (flown on its own tree, 8edc3e54) the early take ran nine falls 1.6-2.7 m
 backward on their feet, into the wall behind in three and to a stuck death
 in one; taken behind upright all nine went down on their backs and stood in
-2.5-2.7 s, 1.0-1.1 m back. On `loop-staging` dc843dc0 three of Ben's bar's
-four falls are takes out of a bow (two tables', a drawer's); read off the
-nearer each still falls, 0.06-0.24 s later, with the same verdict.
+2.5-2.7 s, 1.0-1.1 m back. On a bare floor 24 of the bow table's 80 served
+shoves moved, each taken 0.08-0.24 s later, and every fall stood either way.
+On `loop-staging` dc843dc0 three of Ben's bar's four falls are takes out of
+a bow (two tables', a drawer's); read off the nearer each still falls,
+0.06-0.24 s later, with the same verdict.
 
 **To read.** The `fall` rows (#707): how far each get-up carried the body
 and how long it took (`movedM`, `seconds`), how many ended `stuck`, and what

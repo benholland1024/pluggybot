@@ -2258,30 +2258,33 @@ through `Body`, a low shelf (0.8 rad) and the floor (1.1 rad) each counted
 one and the get-up took the joints -- and the reach said it had arrived,
 because the stand-up's fresh reach hangs and `Reach.done` counts a hanging
 hand (and a hand stopped short) as done. The tip is read off the posture
-the legs hold now (`getup.tipped`, `Reach.held_pitch`: what the standing
+the legs hold -- and off upright where that is nearer, since #724 ("A fall
+backward out of a bow", below) -- (`getup.tipped`, `Reach.held_pitch`: what the standing
 policy is asked less the trim that ask carries, so exactly upright at the
 stand -- and no trim where the deepest bow's ask is held at the policy's
 range, or a stand's trim read the floor's held bow 2.3 deg tipped, not
 1.5; the walker's, upright): a bow's trunk follows its posture within
 2.5 deg going down and 1.5 coming up, and stage 5's 38 shoves from the
 stand come out row for row as before. From each posture a reach takes,
-shoved four ways at 10-45 N*s (`--fall`'s third table; on the standing
+shoved four ways at 10-45 N*s (`--fall`'s bow table; on the standing
 policy alone, graded by us, then as served; times from the shove; the
-waist's body and its standing policy, waist16, 11-13):
+waist's body, waist16 and getupwall14, as read since #724 -- `loop-watch2`
+on one Xeon Gold 6140 pod, 11-25):
 
-| posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, off upright | stood, served |
+| posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, #520's, off upright | stood, served |
 |---|---|---|---|---|---|
-| the stand | 10 of 16 | 7, 3 | 0.24-0.43 | 0 of 6, 0 | 10, 2.9-4.2 s |
-| -0.20 m, 0.55 rad | 8 of 16 | 6, 2 | 0.05-0.42 | 0 of 8, 0 | 8, 2.8-3.8 s |
-| -0.22 m, 0.80 rad | 8 of 16 | 6, 2 | 0.06-0.43 | 0 of 8, 8 | 8, 2.7-3.5 s |
-| -0.25 m, 0.95 rad | 8 of 16 | 6, 2 | 0.06-0.45 | 0 of 8, 8 | 8, 2.6-4.9 s |
-| -0.25 m, 1.10 rad | 8 of 16 | 6, 2 | 0.06-0.50 | 0 of 8, 8 | 8, 2.7-4.1 s |
+| the stand | 10 of 16 | 7, 3 | 0.24-0.43 | 0 of 6, 0, 0 | 10, 2.9-4.2 s |
+| -0.20 m, 0.55 rad | 8 of 16 | 6, 2 | 0.05-0.30 | 0 of 8, 0, 0 | 8, 2.9-3.8 s |
+| -0.22 m, 0.80 rad | 8 of 16 | 6, 2 | 0.06-0.27 | 0 of 8, 0, 8 | 8, 2.7-3.7 s |
+| -0.25 m, 0.95 rad | 8 of 16 | 6, 2 | 0.06-0.27 | 0 of 8, 0, 8 | 8, 2.7-3.9 s |
+| -0.25 m, 1.10 rad | 8 of 16 | 6, 2 | 0.06-0.26 | 0 of 8, 0, 8 | 8, 2.7-4.0 s |
 
-The most a shove it stood through tipped it past its posture was 7.2 deg.
+The most a shove it stood through tipped it past its posture and upright
+was 7.2 deg.
 ⚠ A forward fall from a bow folds at the knees, and THE COLLAPSE TAKES IT,
 0.05-0.08 s before they strike: lying on its face is only 27 deg past the
 deepest bow, so the tilt alone would never fire there. As served the head
-struck in 18 of the 42 falls at 0.3-7.0 m/s (getup3 15, at 0.7-6.0; on the
+struck in 19 of the 42 falls at 0.3-7.0 m/s (18 read off the bow alone; getup3 15, at 0.7-6.0; on the
 standing policy alone, in 35 at 0.5-8.1): the get-up's training tips its
 falling starts over from the stand, never from a bow. `reach_routine` says True only of a hand
 holding at its goal now, never on a stop or a fall, which ends it at once;
@@ -2312,6 +2315,13 @@ the other robot's fallen disc) reads a bow the same way: off the bow alone,
 a body upright under the floor's bow was `down` while its watch had it
 standing. A body propped back under a bow (say 30 deg behind upright against
 a wall) is no fall and not down, as from the stand (Ben's call of 11-25).
+From each posture a reach takes (the bow table above, beside dc843dc0 on
+one pod), 24 of the 80 served shoves moved -- back or sideways at 30-45
+N*s, out of each bow -- each taken 0.08-0.24 s later and still 0.23-0.53 s
+before the first part struck (0.34-0.79 s before); all 42 falls stood
+either way, none died, the LIDAR struck in the same 4 (none of the 24),
+and in the 24 the head struck in 8 at 2.1-4.7 m/s (7, at 1.4-5.1); every
+other `--fall` table came out row for row as before.
 On `loop-staging` dc843dc0 three of Ben's bar's four falls were taken out
 of a bow with the trunk nearer upright than it (two tables', from 43-46 deg
 bows with the trunk 5-10 deg in front of upright; a drawer's, from a 12 deg

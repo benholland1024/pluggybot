@@ -162,8 +162,9 @@ def tipped(gravity_b: np.ndarray, pitch: float) -> float:
 def tipped_past(gravity_b: np.ndarray, pitch: float) -> float:
   """How far the trunk has tipped past a bow pitched `pitch` forward and
   past upright both, rad (`FallWatch`): `tipped` off the nearer of the two,
-  so never more than off the bow. A posture leaning back (`pitch` <= 0) is
-  read off itself, to the bit -- at 0, the IMU's tilt."""
+  so never more than off the bow. A posture leaning back (`pitch` <= 0;
+  none a reach takes, `reach.POSTURES`) is read off itself, to the bit --
+  at 0, the IMU's tilt."""
   if pitch <= 0.0:
     return tipped(gravity_b, pitch)
   return min(tipped(gravity_b, pitch), tipped(gravity_b, 0.0))
