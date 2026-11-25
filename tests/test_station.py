@@ -1142,7 +1142,9 @@ def test_a_fix_drops_its_own_robots_map_and_never_the_others():
     for m in (mine, theirs):
       m.grid.grid[10, 10] = 5.0
       m.places.see(tag, s.x, s.y, float(data.time), 0.0)
-    fix = body._fix_at(RackPose(s.x + 0.3, s.y, s.yaw), window=True)
+    body._station_seen = RackPose(s.x + 0.3, s.y, s.yaw)
+    body.anchor_at_dock()
+    fix = body.belief_events[-1]
     assert fix["dropped"] and not mine.grid.grid.any() and len(mine.places) == 0
     assert mine.matcher.anchoring == sm.ANCHORED_SCANS
     assert theirs.grid.grid[10, 10] == 5.0 and theirs.places.get(tag) is not None

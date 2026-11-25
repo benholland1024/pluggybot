@@ -1015,7 +1015,8 @@ def test_a_restart_inside_a_fixs_window_carries_it_on(house):
   a = _humanoid(house)
   m, s = a.mission, a._station
   m._scan_step()
-  a._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw), window=True)
+  a._station_seen = RackPose(s.x + 0.3, s.y - 0.2, s.yaw)
+  a.anchor_at_dock()
   m.data.time += LIDAR_PERIOD
   m._scan_step()
   assert 0 < m.matcher.anchoring < sm.ANCHORED_SCANS, "the premise: inside the window"
@@ -2166,12 +2167,13 @@ def test_an_anchor_lays_the_room_again_over_a_copy_laid_askew():
 
 
 def test_only_a_fix_that_drops_the_map_opens_an_anchors_window():
-  # #681: the one call in the code that opens an anchor's window is a
-  # station's fix that moves the belief, which drops the map before it --
-  # laid unmatched over a kept map, its scans are a second room beside the
-  # first, the belief held to whichever the fits find nearer. The syntax
-  # tree read: every `anchored()` call but an `on=False` (a warp's close)
-  # is that one, a `forget_world()` statement before it in its own block.
+  # #681: the one call in the code that opens an anchor's window is the
+  # dock's, once its fix has moved the belief -- which drops the map: laid
+  # unmatched over a kept map, its scans are a second room beside the first,
+  # the belief held to whichever the fits find nearer -- and never the lost
+  # search's, which walks on at once. The syntax tree read: every
+  # `anchored()` call but an `on=False` (a warp's close) is that one, inside
+  # an `if` on what `_fix_at` returned.
   import ast
   from pathlib import Path
 
@@ -2182,16 +2184,10 @@ def test_only_a_fix_that_drops_the_map_opens_an_anchors_window():
     return [n for n in ast.walk(node) if isinstance(n, ast.Call)
             and isinstance(n.func, ast.Attribute) and n.func.attr == attr]
 
-  def dropped_first(fn, call):
-    for block in ast.walk(fn):
-      for field in ("body", "orelse", "finalbody"):
-        stmts = getattr(block, field, None)
-        if not isinstance(stmts, list):
-          continue
-        for k, stmt in enumerate(stmts):
-          if call in list(ast.walk(stmt)):
-            return any(isinstance(b, ast.Expr) and calls(b, "forget_world") for b in stmts[:k])
-    return False
+  def fixed_first(fn, call):
+    """The call sits in the body of an `if` whose test calls `_fix_at`."""
+    return any(isinstance(n, ast.If) and calls(n.test, "_fix_at")
+               and any(call in list(ast.walk(b)) for b in n.body) for n in ast.walk(fn))
 
   opens = []
   for path in sorted(src.rglob("*.py")):
@@ -2204,8 +2200,8 @@ def test_only_a_fix_that_drops_the_map_opens_an_anchors_window():
         assert all(isinstance(v, ast.Constant) for v in on), (
           f"{path.name}:{node.lineno}: an anchor's window opened or closed by a computed value")
         if not any(v.value is False for v in on):
-          opens.append((path.name, fn.name, dropped_first(fn, node)))
-  assert opens == [("body.py", "_fix_at", True)], opens
+          opens.append((path.name, fn.name, fixed_first(fn, node)))
+  assert opens == [("body.py", "anchor_at_dock", True)], opens
 
 
 def test_a_restart_keeps_an_anchors_window(room):

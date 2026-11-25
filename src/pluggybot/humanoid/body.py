@@ -1917,19 +1917,14 @@ class HumanoidBody(Body):
         return True, self._fix_at(seen)
     return False, None
 
-  def _fix_at(self, seen, window: bool = False) -> dict | None:
+  def _fix_at(self, seen) -> dict | None:
     """The belief put where the station, seen as `seen` (its frame in the
     believed world, `charge.look`), says it stands: the station is
     commissioned (`_station`), as the dock is (#476). Past `FIX_TOL_*` the
     belief moves, and the map laid on the old belief goes, its places with
-    it (`forget_world`, #681). ⚠ `window`, the dock's fix alone
-    (`anchor_at_dock`: plugged in, standing still), lays its next scans where
-    the station put it (`ScanMatcher.anchored`): standing still it lays none
-    on time alone, and docked its map would be one scan. NEVER THE LOST
-    SEARCH'S, which walks on at once: the window's scans were laid along the
-    legs' reckoning, and `station_spike.py --lost --far`'s docks ended
-    1.9-3.1 cm off at the median, 0.7 without. Its `fixed` record, `dropped`
-    at every move, or None where the look agreed with the belief."""
+    it (`forget_world`, #681); the dock's fix lays it afresh round the seat
+    (`anchor_at_dock`). Its `fixed` record, `dropped` at every move, or None
+    where the look agreed with the belief."""
     prior = self._station
     x, y, yaw = self.pose
     c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
@@ -1941,8 +1936,6 @@ class HumanoidBody(Body):
       return None
     self.mission._set_pose(tx, ty, tyaw)
     self.forget_world()
-    if window and self.mission.matcher is not None:
-      self.mission.matcher.anchored()
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
                                      moved=True, dropped=True, station=self.mission.station)
@@ -2032,11 +2025,19 @@ class HumanoidBody(Body):
 
   def anchor_at_dock(self) -> None:
     """The station fixes its belief as it charges (#476), off the look it
-    plugged in by (`_fix_at`), its window laying the map afresh from the seat:
-    a look in the frame the fix left is no look."""
+    plugged in by (`_fix_at`): a look in the frame the fix left is no look.
+    ⚠ A FIX THAT MOVED IT LAYS ITS NEXT SCANS WHERE THE STATION PUT IT, the
+    map it dropped laid afresh round the seat (`ScanMatcher.anchored`, #681):
+    plugged in and standing still it lays none on time alone, and its map
+    would be one scan. NEVER THE LOST SEARCH'S FIX, which walks on at once:
+    its window laid the legs' reckoning into the fresh map, and
+    `station_spike.py --lost --far`'s docks ended 1.9-3.1 cm off at the
+    median, 0.7 without."""
     if (self._station_seen is not None and self._station is not None
-        and self._fix_at(self._station_seen, window=True) is not None):
+        and self._fix_at(self._station_seen) is not None):
       self._station_seen = None
+      if self.mission.matcher is not None:
+        self.mission.matcher.anchored()
 
   def dock_hold_routine(self, seconds):
     return self.hold_routine(seconds)
