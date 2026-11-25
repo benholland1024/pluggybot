@@ -11055,8 +11055,9 @@ legs over, and a reach planned its way out from the rest.
   out of it, or asked only at a way home's end at the rest, an arm left held
   kept the robot bowed. An arm left held moves nothing, so the heading's
   hold (#593) comes as the robot stands (`_busy(still=True)`).
-- A withdraw ends there, "held"; a later withdraw or walk sends the arm home
-  again from where it is.
+- A withdraw ends there, "held"; a later withdraw sends the arm home again
+  from where it is, and every walk goes with it held (#753; below, "A held
+  arm a walk goes with").
 - A walk's hand-over waits for each arm's way home to be over by its drivers
   (`Reach.home_over`) -- at most `HELD_S` after its command reached the
   rest, and a raise and a second way home -- and goes with an arm left held,
@@ -11558,8 +11559,9 @@ body away from its hand past `HOME_TIP_NM` (15 N m) for `HOME_TIP_S` (0.2 s)
 running is held where its drivers read it, as a way home held at its rest
 is: pressing on nothing, raised `LIFT_M` and sent home again `LIFTS` times a
 way home (never with another robot by), then left where it is held; the walk goes
-with it held, its report saying so (`armHeld`), and the next withdraw or walk
-sends it home again, judged afresh from where it is held. Never a
+with it held, its report saying so (`armHeld`), and the next withdraw
+sends it home again, judged afresh from where it is held -- every walk goes
+with it (#753, below). Never a
 `withdraw`'s way home, whose word is the arm's: held so, the bar's door
 reference read "held" of a way home that dragged its jaw across the door's
 panel while the door gave, and a `withdraw` that reads false ends a run that
@@ -12308,6 +12310,91 @@ none fell among the reaches it judged clear. A column's top 3 cm, a
 counter's front edge among them, is no face. A way home, a carry and a pull are not judged. The
 statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
 the truth lags the commands: the census, not the model, set the clearance.
+
+## A held arm a walk goes with (issue #753, option 3: a draft for Ben)
+
+On 11-25 at 07:23 Luca went over backward in a `step(-0.15)` its own
+procedure (`door_final57`) took right after a `withdraw` read "your left arm
+did not get home: something holds it there" -- the wake's one fall. Flown at
+its live draw (t_0818's, 24 noise keys) on `loop-staging` dc843dc0 (the loop
+of 11-26, D1; `~/pluggybot-training/loop-1126/d1-753/`): the line-138
+withdraw left the left arm held in 12 keys and the step fell in 6 of them;
+at t_0810's draw 6 held, 2 fell.
+
+**Where the arm was held.** The robot stands turned 50-60 deg off the
+counter, so the storeroom counter runs along its LEFT side, and the left
+hand was out 0.37-0.55 m to that side, 14 cm past the counter's face. The
+withdraw's way home came down on the top and stalled; #693's raise (5 cm,
+3.5-4.3 cm reached) and a way home judged from its top: straight, it swept
+the hand 10 cm forward and 5-7 cm down, back onto the top; the second, the
+side way, rolled the arm out and up to 48 cm over the top and lowered it at
+its side straight back down onto it (116-162 N), and left it held 3.8 cm
+over the top. A way home is judged on the robot's model of itself, which
+holds no counter, and its dip is judged only ahead of the robot's front: a
+counter at its side lies under the side way's own lowering.
+
+**Why the step fell.** Its hand-over sent the held arm home from where it
+was held: the way home dragged the jaw 13 cm forward over the top at 140-190
+N, the stall clock at 0.26-0.29 s (of `STALL_S`'s 0.3) as the command
+reached its rest; at the rest, the arm still 0.4-0.6 rad behind pressed on
+toward it, and within 0.45 s -- before `HELD_S` read it held -- the trunk
+went over backward. The shove watch read nothing.
+
+**What did not hold.** "Luca's own raise freed 12 of 12" (the issue's
+reading): in the arm with the step replaced by Luca's own `move_hand` 10 cm
+up then `withdraw`, that `move_hand` is refused on every held key ("your
+left hand is not out": a held arm has no goal), so the run ends with the arm
+still held -- and passes because nothing sends it home. And Rowan's 20
+sidesteps after a withdraw that "did not get home" begin with the arm at
+REST (the withdraw began with the hand not out, its drivers reading it off
+its rest): no hand-over touches such an arm.
+
+**The options flown** (one Vast pod, a Xeon E5-2699 v4, osmesa, beside
+dc843dc0; the robot's own procedure at its live draw, X5's recorder and a
+per-tick arm trace; passes / falls at t_0818's 24 keys and t_0810's 8):
+- the base: 10 / 7 and 4 / 2 (8 of the falls in the step's hand-over);
+- Ben's option 2, the hand-over raising a held arm 10 cm before its judged
+  way home: 13 / 4 and 6 / 0 -- every raise came away (7.9-8.9 cm), but 10 of
+  the 12 judged ways home from the top came back down on the counter (70-188
+  N), were held by the shove watch, raised 5 cm, came down again and were
+  left held, so the walk went with them held; and it gained three falls the
+  base never had: k8 in its own hand-over (the straight way from the top
+  dragged the jaw over the top 0.5 rad behind its command and slid off the
+  edge as the command reached the rest: the arm snapped home and the trunk,
+  knocked 7.6 deg back, went over 1.5 s later, nothing touching), k1
+  standing in the `wait` after the step (the arm held out 0.52 m at its
+  side, off the counter, nothing touching: the trunk drifted back from 2.2 to
+  4.9 deg in 0.6 s and over), and k23 in its own next `withdraw` from where
+  the arm was held (the base's hand-over fall, moved there); at 15 cm the
+  same shape, 13 / 4;
+- option 1, a procedure's walk refusing: 10 / 7 and 5 / 1 -- the fall moved
+  to the robot's own next `withdraw` from the held pose (6 of 12);
+- option 3, the hand-over leaving a held arm where it is held: 16 / 1 and 6 /
+  0, the one fall (k22) a withdraw's on every tree. The step back drags the
+  jaw over the top at 57-117 N (15 N where the hand was off the counter),
+  the trunk within 2 deg, and the robot's next `withdraw` from where the
+  step left the hand came home in all 12: the drag had pulled the hand
+  toward the counter's edge.
+- Rowan's four draws, 32 keys: identical on every tree.
+
+**What is true now** (`HumanoidMission.to_walk_routine`, `_arms_wait_routine`,
+`Body.arm_kept`; `tests/test_humanoid_body.py`, `tests/test_arms_keep_off.py`):
+a walk's hand-over sends no arm a way home left held (`Reach.held`) home: its
+gripper opened as every hand-over's, it stays where it is held, pressing on
+nothing, and the walk goes with it, saying so (`armHeld`) -- every walk, the
+loop's own too, until a withdraw sends it home; nothing of its way home is
+waited for, and no walk is refused for it (#678's refusal is a hand a walk
+would bring home). The robots are told so (YOUR BODY: "...and so does every
+walk after it, until a `withdraw` sends it home again", where it said "...and
+a `withdraw` or the next walk sends it home again").
+
+**What it does not take.** An arm left held rides out at its side through
+every walk until a withdraw -- through a doorway, past the other robot, the
+loop's own charge walk and its dock -- and a robot with one is never at rest,
+so never asked aside. A robot standing with such an arm held out off the
+counter fell once in seven waits flown (option 2's k1, above). The robot's
+own `withdraw` from a held pose still drags the jaw, as the base's hand-over
+did (#693's second path, D4's).
 
 ## Debugging workflow that worked
 

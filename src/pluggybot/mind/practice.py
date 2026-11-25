@@ -199,9 +199,12 @@ WALK_LETS_GO = (" Before a `step` or any other walk moves your\n"
                 "false and says where that robot stands.") % {
   "lift": round(100 * CARRY_LIFT_M, 1), "force": CARRY_LIFT_N,
   # ...and an arm whose way home something holds (#693's family)
+  # ...and every walk after goes with it held too: sent home by the next
+  # walk's hand-over, a jaw on a counter's top dragged over it (#753)
   "held": textwrap.fill(f"An arm that something holds on its way home {HELD_SAID}, pressing on "
                         "nothing: the walk goes with it there and says so in its report "
-                        "(`armHeld`), and a `withdraw` or the next walk sends it home again.",
+                        "(`armHeld`), and so does every walk after it, until a `withdraw` sends "
+                        "it home again.",
                         76)}
 
 YOUR_BODY = """YOUR BODY

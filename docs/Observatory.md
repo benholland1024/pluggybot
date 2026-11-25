@@ -10,6 +10,45 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Every walk goes with an arm left held, until a withdraw sends it home (#753's option 3, D1, `loop-753b`) — a draft for Ben; opens when this PR is deployed
+
+**What the robots read** moves by one sentence of YOUR BODY, in the prompt
+and the session host's hello alike: the prompt `264ac7f6…` (72,130
+characters, 17 sections) becomes `0cfbab57…` (72,148, 17 sections), and the
+hello `9dcf6202` (sha1) becomes `addbf9af`, vendored at
+`protocol/hello.home_humanoid_counter.json` (the site re-vendors it at the
+release). BEFORE: "An arm that something holds on its way home is raised 5
+cm and sent home again, unless another robot stands near you, and still
+held, it stays where it is held, pressing on nothing: the walk goes with it
+there and says so in its report (`armHeld`), and a `withdraw` or the next
+walk sends it home again." AFTER: "...: the walk goes with it there and says
+so in its report (`armHeld`), and so does every walk after it, until a
+`withdraw` sends it home again." No History line moves: a walk that goes
+with an arm held reads ok, as it did, and says `armHeld` in its report, a
+field it already had.
+
+**The change** (`HumanoidMission.to_walk_routine`, `_arms_wait_routine`,
+`Body.arm_kept`; SimNotes, "A held arm a walk goes with"). A walk's
+hand-over sends no arm a way home left held home: it stays where it is held,
+pressing on nothing, and every walk goes with it until a withdraw sends it
+home; no walk is refused, and the loop's own never waits, for its way home.
+
+**Why** (#753). Luca's fall of 11-25 07:23: the step after a withdraw that
+left its arm held on the storeroom counter's top sent the arm home from
+there, the jaw dragged over the top, and the robot went over backward -- 6
+of the 12 held keys at that try's live draw on `loop-staging` dc843dc0.
+Ben's call was option 2, the hand-over raising the arm 10 cm first, on the
+reading that Luca's own 10 cm raise had freed 12 of 12; it had not (its
+`move_hand` was refused, the arm left held), and option 2 flown gained three
+falls the base never had.
+
+**Measured** (one pod beside `loop-staging` dc843dc0; SimNotes has it whole):
+- `door_final57` at t_0818's draw, 24 keys: 16 passes and 1 fall against the
+  base's 10 and 7; at t_0810's, 8 keys: 6 and 0 against 4 and 2; no key
+  gained a fall. Rowan's four draws, 32 keys: identical.
+- Option 2 (raise first): 13 / 4 and 6 / 0, three falls gained; option 1
+  (refuse): 10 / 7 and 5 / 1, the falls moved into the next withdraw.
+
 ### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
 
 **What the robots read** moves by one History line and one field of the

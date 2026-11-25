@@ -473,7 +473,13 @@ save a filmstrip PNG named after the script.
   rested with) -- left "rest" and pressed on toward it, a jaw on a counter's
   top tipped Rowan over backward inside a withdraw's 15 s wait; a withdraw
   ends there ("held"), and a walk's hand-over waits for it and goes with
-  an arm left held, its report saying so (`armHeld`). ⚠ A WALK'S
+  an arm left held, its report saying so (`armHeld`) -- ⚠ EVERY WALK GOES
+  WITH IT SO, NEVER SENDING IT HOME, UNTIL A WITHDRAW DOES (#753's option
+  3, a draft for Ben; `to_walk_routine`; SimNotes, "A held arm a walk goes
+  with"): sent home from where it was held by the next walk's hand-over, a
+  jaw on a counter's top dragged over it and the robot went over backward,
+  6 of 12 held arms at Luca's live draw of 11-25 -- nor is a walk refused,
+  or waited, for its way home (`Body.arm_kept`, `_arms_wait_routine`). ⚠ A WALK'S
   HAND-OVER'S WAY HOME IS HELD SO AT ONCE WHERE WHAT ITS ARM READS TIPS THE
   BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
   s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;

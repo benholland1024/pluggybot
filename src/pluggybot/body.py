@@ -878,8 +878,8 @@ class Body(abc.ABC):
     stall), and -- raised and sent home again `LIFTS` times where it could
     be, held again, or with another robot by, or its raise held too -- it
     was left there, pressing on nothing, part-way out it may be: out, until
-    a withdraw or a walk sends it home again. A walk goes with it as it is held and says so
-    (`steps._carried`'s `armHeld`)."""
+    a withdraw sends it home again. Every walk goes with it as it is held and
+    says so (`steps._carried`'s `armHeld`), sending it nowhere (#753)."""
 
   @abc.abstractmethod
   def stop_hand(self, side: str) -> bool:

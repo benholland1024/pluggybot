@@ -427,6 +427,47 @@ def test_a_walk_takes_the_legs_with_an_arm_held_as_it_is(monkeypatch):
   assert m.legs == "walk"
 
 
+def test_a_walks_hand_over_leaves_an_arm_left_held_where_it_is_held():
+  """#753 (Luca's fall of 11-25 07:23, flown at its live draw on ff2896af and
+  on `loop-staging`: 6 of 12 held arms fell in the step right after): the
+  hand-over sent an arm a withdraw had left held home from where it was held,
+  and a jaw on the counter's top dragged over it took the robot over
+  backward. Option 3 (a draft for Ben): it sends no arm left held home -- it
+  stays where it is held, and the walk goes with it -- while an arm out at
+  its work comes home as before."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), ("right",), log, lambda: float(body.data.time))
+  m.reach.phase["left"] = "held"
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk"
+  sent = [e[1] for e in log if e[0] == "retreat"]
+  assert "left" not in sent, "the hand-over sent an arm left held home"
+  assert sent == ["right"], "an arm out at its work no longer came home"
+  assert m.reach.phase["left"] == "held"
+
+
+def test_the_loops_own_walk_goes_with_an_arm_left_held_and_never_refuses():
+  """...every walk, the loop's own too (a charge's), never refusing nor
+  waiting for it: a charge that cannot walk is a death (Ben's call on #753).
+  Failing on a hand-over that refuses or waits while an arm is held (option
+  1 put on every walk)."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), (), log, lambda: float(body.data.time))
+  m.reach.phase["left"] = "held"
+
+  def bounded(steps):
+    if steps > 5000:
+      raise AssertionError("the loop's own walk waited on an arm left held")
+  m.reach.on_step = bounded
+  got = body.run(m.travel_routine(0.05, 0.3))
+  assert got in ("arrived", "timeout") and m.legs == "walk", got
+  assert m.reach.phase["left"] == "held"
+
+
 def test_a_walks_hand_over_has_its_ways_home_watched_for_a_shove_and_a_withdraw_never():
   """#693's live family: the 11-18 wake's falls in a `step` right after a pull
   toward the body came in the walk's hand-over, whose way home is held where

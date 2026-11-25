@@ -612,7 +612,8 @@ class HumanoidBody(Body):
     pose and its carry kept (`Reach.KEPT`): a carry lasts until a reach or a
     let-go, and saves held through it, a crash rolled the world back -- nor
     an arm left where its way home was held (`Reach.HELD_S`), its command
-    kept where it is held, which lasts until a withdraw or a walk."""
+    kept where it is held, which lasts until a withdraw (#753: a walk goes
+    with it)."""
     return any(p not in AT_EASE for p in self.reach.phase.values())
 
   def close(self) -> None:
@@ -949,7 +950,8 @@ class HumanoidBody(Body):
     # ...one look, and only with an arm out that a walk would move: a hand
     # home, or carried at its side already (#682), sweeps nothing
     arms = self.reach
-    out = [s for s in hm.SIDES if arms.phase[s] != "rest" and not arms.carried(s)]
+    # ...an arm left held among them goes nowhere at a walk (#753)
+    out = [s for s in hm.SIDES if arms.phase[s] not in ("rest", "held") and not arms.carried(s)]
     if not out:
       return None
     arms.keep_out = self.mission.keep_out(self.mission.look_round())

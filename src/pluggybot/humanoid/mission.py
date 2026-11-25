@@ -794,9 +794,15 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     holds nothing is (`_lift_routine`) -- ⚠ and waiting first,
     `ARM_WAIT_S` at most, while every way home, or to its carry pose, it
     has would meet another robot's body (`_arms_wait_routine`, #678): its
-    way then judged against the robot as its last look saw it. ⚠ A fall as
-    they came home went to the walker if its step was the one that settled
-    them (#520): the get-up stands it first."""
+    way then judged against the robot as its last look saw it. ⚠ AN ARM A
+    WAY HOME LEFT HELD (`Reach.held`) STAYS WHERE IT IS HELD, its gripper
+    opened, and the walk goes with it, saying so (`armHeld`), every walk
+    until a withdraw sends it home (#753's option 3; SimNotes, "A held arm
+    a walk goes with"): sent home from where it was held, a jaw on a
+    counter's top dragged over it and the robot went over backward, 6 of
+    12 held arms at Luca's live draw of 11-25. ⚠ A fall as they came home
+    went to the walker if its step was the one that settled them (#520):
+    the get-up stands it first."""
     yield from self._getup_routine()
     if self.legs == "walk":
       return
@@ -807,7 +813,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       for s in hm.SIDES:
         if s in carry:
           self.reach.carry_q[s] = carry[s]
-      yield from self._arms_wait_routine()
+      # ...an arm left held among them never goes home at a walk (#753's
+      # option 3, below): nothing of its way home is waited for
+      yield from self._arms_wait_routine([s for s in hm.SIDES if self.reach.phase[s] != "held"])
       yield from self._getup_routine()
       if not (yield from self.let_go_routine([s for s in hm.SIDES if s not in carry
                                                and self.reach.phase[s] != "rest"])):
@@ -815,8 +823,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       for s in hm.SIDES:
         # ...each way home watched, one still to be read home at its rest
         # too: held where it would tip the body away from the hand
-        # (`Reach._shoved`), the walk going on with it held (`armHeld`)
-        if self.reach.phase[s] != "rest" and not self.reach.carried(s):
+        # (`Reach._shoved`), the walk going on with it held (`armHeld`) --
+        # and an arm a way home left held stays where it is held (#753)
+        if self.reach.phase[s] not in ("rest", "held") and not self.reach.carried(s):
           self.reach.retreat(s, watch=True)
         elif self.reach.phase[s] == "rest" and self.reach.homing[s]:
           self.reach.retreat(s, watch=True)

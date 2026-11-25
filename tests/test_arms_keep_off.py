@@ -421,6 +421,17 @@ def test_the_robot_is_told_its_arms_keep_off_another_robot_and_what_a_walk_does(
           "you") in body
 
 
+def test_the_robot_is_told_every_walk_goes_with_an_arm_left_held():
+  """#753's option 3 (a draft for Ben): YOUR BODY says every walk goes with
+  an arm left held, until a `withdraw` sends it home -- never that the next
+  walk sends it home, which it no longer does."""
+  from pluggybot.mind import practice as mp
+  body = " ".join(dict(mp.system_sections(st.hand_facts()))["your body"].split())
+  assert ("the walk goes with it there and says so in its report (`armHeld`), and so does every "
+          "walk after it, until a `withdraw` sends it home again.") in body
+  assert "the next walk sends it home again" not in body
+
+
 # ---- 5: a withdraw refused keeps its gripper ------------------------------------------------
 
 
@@ -613,6 +624,41 @@ def test_a_walks_hand_over_waits_its_bound_at_most_then_brings_the_arm_home_toda
     t0 = at()
     body.run(m.to_walk_routine())
     assert m.legs == "walk" and m.looks == 0 and not m.arm_waits, (out, others)
+
+
+def test_a_walks_hand_over_waits_for_no_way_home_of_an_arm_left_held(monkeypatch):
+  """#753's option 3 (a draft for Ben): an arm a way home left held goes
+  nowhere at a walk, so with another robot by nothing of its way home is
+  looked for, judged or waited out: waited for, its `ARM_WAIT_S` was spent
+  on a way home the walk then never took."""
+  monkeypatch.setattr(hmi, "ARM_LOOK_S", 0.1)
+  monkeypatch.setattr(hmi, "ARM_WAIT_S", 0.25)
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  at = lambda: float(body.data.time)  # noqa: E731
+  _beside(body)
+  m.reach = _Arms(m.reach.grippers, (), lambda: False, log, at)
+  m.reach.phase["left"] = "held"
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk" and m.looks == 0 and not m.arm_waits and m.reach.judged == []
+  assert [e for e in log if e[0] == "retreat"] == [], "an arm left held was sent home"
+  assert m.reach.phase["left"] == "held"
+
+
+def test_a_walk_verb_is_never_refused_for_an_arm_left_held():
+  """...nor is a walk verb refused for one with another robot by
+  (`Body.arm_kept`): a walk brings it nowhere, so no way home of it can bar
+  the walk -- as one out at its work still does."""
+  body = body_for(*_floor())
+  m = body.mission
+  at = lambda: float(body.data.time)  # noqa: E731
+  _beside(body)
+  m.reach = _Arms(m.reach.grippers, (), lambda: False, [], at)
+  m.reach.phase["left"] = "held"
+  assert body.arm_kept() is None, "a walk was refused for an arm it brings nowhere"
+  m.reach.phase["left"] = "hold"
+  assert body.arm_kept() is not None, "the premise: one out at its work bars the walk"
 
 
 def test_the_loops_own_hand_moves_wait_for_a_way_then_go(monkeypatch):
