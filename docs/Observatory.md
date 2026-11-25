@@ -46,6 +46,16 @@ west toward the copies standing still had laid (-55.7 cm by 12:53); the one
 map a fix dropped (11-22 09:17) held the counter to 0.9 cm a try for 8.5
 hours.
 
+**Measured** (one pod beside `loop-staging` 0505dfc1; SimNotes has it whole):
+- The station's checks: no dock lost and none gained but one lost far start (118 -> 119), and no fall.
+  Every lost-search flight with a fix was the base's but the 2 whose fix had kept the map.
+- The drift batch and #572's probe: identical.
+- Ben's bar: 617 of 736 and 4 falls on both trees, 6 moved by option 4 with the same verdicts.
+- A4's counter chains with a lobby charge between: the counter's belief after it 4.7 cm off at the median,
+  against the base's 8.7, and the first `find` after the drop as quick as the base's.
+- The pair's recording (`protocol/telemetry.home_humanoid_pair.jsonl.gz`) moved (96 grid images to 171; the
+  bodies part 298.6 s in). It is re-recorded here, and the site re-vendors it at the release.
+
 **What the period is for.**
 - **The acceptance**: after a lobby or house fix, the counter's belief
   starts within a few cm of the truth (no kept storeroom error to come back),

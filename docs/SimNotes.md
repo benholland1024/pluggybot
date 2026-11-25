@@ -11945,6 +11945,31 @@ live on 11-25 the standing walk was small (Rowan -0.7 mm a minute, Luca
 the drop clears those a fix finds. A robot that stands still lays nothing
 new of what changes round it until it moves.
 
+**Measured** (C4, the loop of 11-25, the second; one pod, an EPYC 7C13, beside
+`loop-staging` 0505dfc1; rows in `~/pluggybot-training/batches/c4_681f/`):
+- *The station's checks* (`station_spike.py`):
+  - Round the standoff, 39 of 39 docked, and at the seats 140 of 140, on both trees; option 4 moved 36 and
+    25 of them, and the rest were identical.
+  - Lost near, 20 of 20. The 13 lost searches whose fix dropped the map on the base too were identical; the
+    2 whose fix had kept it moved (docked 0.9 -> 1.1 cm and 4.7 -> 1.0 cm off).
+  - Lost far, 118 -> 119 docked, and 116 of the 117 flights with a fix identical; docked 0.7 cm off at the
+    median, as the base.
+  - Walked in, 16 identical. Plugged in for 2,400 s, 0.4 cm off (the base 0.5).
+  - No fall on either tree.
+- *The drift batch* (32 flights): identical to the base by end state and by the scans laid. No fix fired at
+  any of its 64 docks: the belief there was 4.7 cm off at the median and its heading 0.16 deg.
+- *#572's probe*: identical.
+- *Ben's bar* (736 flights): 617 passes and 4 falls on both trees. Option 4 moved 6 (the tour's drawer 27
+  and table 0, 1, 2, 25 and 30), each with the same verdict: the 6 it moved on `loop-741b`.
+- *The pair's fixture*: no fix fires in its day. The robot charging lays no scan standing still (96 grid
+  images to the base's 171), and the bodies part 298.6 s in.
+- *A4's counter chains with a lobby charge between* (the 11-25 save's maps, each robot's own procedures at
+  their live draws, 8 chains a tree):
+  - Every dock's fix fired: 0.35 m on Rowan's map, 0.10-0.15 m on Luca's.
+  - After it, the counter's belief ended its tries 4.7 cm off at the median (27.6 at worst), where the
+    base's kept storeroom brought back 8.7 (54.2).
+  - Falls went 2 -> 0, and the first `find` after the drop took 11-12 s, as the base's did.
+
 **What it leaves.**
 - A copy under `FIX_TOL` fires no fix: Luca's house dock of 11-25 13:26 sat
   8.4-9.4 cm west for its whole 80 minutes (C1), and on the 11-23 save the
