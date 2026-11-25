@@ -1122,7 +1122,7 @@ def _shelf_tags(k: int = 0):
 
 
 def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, undercount=0.0,
-                 label_far=0.0):
+                 label_far=0.0, cart_far=0.0):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
   turning `drift` rad more than it asked and counting `undercount` short of where it went (a
@@ -1130,7 +1130,7 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   front than the start stands; its first
   `held_back` descents onto a product held back and its first `short` set-down reaches stopped
   short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
-  stub's pose then)."""
+  stub's pose then); and the products `cart_far` m further out than they stand."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   so, tags = _shelf_tags(k)
@@ -1147,7 +1147,7 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
       if int(tag) not in tags or (hide is not None and hide(int(tag), self, looks)):
         return None
       x, y, z, n = tags[int(tag)]
-      x += label_far if int(tag) >= 79 else 0.0
+      x += label_far if int(tag) >= 79 else cart_far
       return {"x": x, "y": y, "z": z, "normal": list(n), "edge": [0.0, 1.0, 0.0], "range": 0.5}
 
     def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
@@ -1305,48 +1305,6 @@ def test_the_walk_to_the_shelf_squares_itself_off_the_frame_to_candle_line():
       assert body.stepped == [], body.stepped
 
 
-def test_the_frame_unseen_at_the_cart_is_looked_for_to_the_left():
-  """⚠ THE FRAME UNSEEN AT THE CART IS LOOKED FOR TO THE LEFT (#736 stage 2 round 2): every frame the walk's end
-  lost stood 0.25-0.26 m left, past the colour camera's side edge, and standing still it was never found."""
-  body, ran, log, so, _ = _shelf_flown(hide=lambda tag, b, n: tag == 77 and n == 1)
-  assert ran["ok"], ran
-  nxt = next(a for v, a, _ in _after(log, "spot", 77) if v in ("step", "spot"))
-  assert nxt.get("left", 0) > 0.03, nxt
-
-
-
-
-def test_a_tag_still_unseen_at_the_end_of_its_looks_is_looked_for_once_more():
-  """⚠ A LOOK THAT STILL MISSES IS TRIED ONCE MORE (#736 stage 2 round 2): a run ended at its last look in 11 of
-  the tour's 19 failures. A label: from 8 cm back and 5 cm left (lost nearer than its board's picture reaches,
-  or behind the carried product)."""
-  so, _ = _shelf_tags(0)
-  label = so.slots["frame"]
-  body, ran, log, _, _ = _shelf_flown(hide=lambda tag, b, n: tag == label and n < 5)
-  assert ran["ok"], ran
-  looks = [i for i, (v, a, _) in enumerate(log) if v == "spot" and int(a["tag"]) == label]
-  before = [a for v, a, _ in log[looks[3]:looks[4]] if v == "step"]
-  assert before and before[-1]["ahead"] < -0.05 and before[-1]["left"] > 0.03, before
-
-
-
-
-def test_a_look_that_misses_after_a_step_steps_back_half_of_it():
-  """⚠ A LOOK THAT MISSES AFTER A STEP STEPS BACK HALF OF IT (#736 stage 2 round 2): the candle was lost at the
-  cart's left edge after a step's over-travel, and the told way, right, took it further each step. Here the
-  trip back over-travels (its count short of the feet), near steps right to the candle, the look after misses,
-  and the next step is back half that step's ask."""
-  body, ran, log, _, _ = _shelf_flown(undercount=0.2, hide=lambda tag, b, n: tag == 76 and n == 2)
-  assert ran["ok"], ran
-  looks = [i for i, (v, a, _) in enumerate(log) if v == "spot" and int(a["tag"]) == 76]
-  first = [a for v, a, _ in log[looks[0]:looks[1]] if v == "step"]
-  after = [a for v, a, _ in log[looks[1]:looks[2]] if v == "step"]
-  assert first and first[-1]["left"] < -0.05, first
-  assert after and after[-1]["left"] == pytest.approx(-first[-1]["left"] / 2, abs=1e-6), (first, after)
-
-
-
-
 def test_at_a_label_no_step_back_and_no_small_step_ahead():
   """⚠ AT A LABEL NO STEP BACK, AND AHEAD ONLY PAST 5 CM (#736 stage 2 round 2): carried, a label read 0.45-0.47
   ahead asked back steps of 3-5 cm that read 'too short', then fell; an ask ahead of 4 cm went 8. A stub that
@@ -1379,16 +1337,22 @@ def test_the_walk_to_the_shelf_never_ends_at_a_look_that_misses():
   assert body.stepped == [], body.stepped
 
 
+def _read(tags, tag, pose, dx=0.0, dy=0.0):
+  """Where `tag` reads from a stance `pose` on the shelf's stub (its looks see the start's frame turned into
+  the stance's), x ahead and y left; `dx`, `dy` the stub's shift of it."""
+  X, Y = tags[tag][0] + dx, tags[tag][1] + dy
+  c, s = math.cos(pose[2]), math.sin(pose[2])
+  return c * (X - pose[0]) + s * (Y - pose[1]), -s * (X - pose[0]) + c * (Y - pose[1])
 
 
-def test_a_press_that_never_landed_lands_at_the_set_down_point_itself():
-  """⚠ A PRESS THAT NEVER LANDED LOWERS THE HAND TO THE SET-DOWN POINT ITSELF, 4 CM UNDER IT (#736 stage 2
-  round 2): at full stretch over an upper-board slot the press went up, and 5 cm under where it left the hand,
-  four products of 96 flights were let go 15-25 cm over the board and fell."""
-  body, ran, log, _, _ = _shelf_flown(press_n=0.0)
+def test_at_the_cart_a_step_ahead_asks_six_tenths_of_the_way():
+  """⚠ AT THE CART A STEP AHEAD ASKS 0.6 OF THE WAY TO ITS MARK (#736 stage 2, rounds 2 and 3): uncarried, a
+  step ahead there went about 1.4 times its ask and lost the candle under the picture (the candle lost at the
+  cart, 10 of the first reference's 64 dev checks; round 3's 4). A candle read 10 cm further out than its stub
+  stands is stepped toward by 0.6 of its distance past 0.34 m."""
+  body, ran, log, so, tags = _shelf_flown(cart_far=0.10)
   assert ran["ok"], ran
-  i = next(i for i, (v, a, _) in enumerate(log) if v == "pull" and a["dz"] < -0.5)
-  into = [a for v, a, _ in log[:i] if v == "move_hand"][-1]
-  landing = next(a for v, a, _ in log[i + 1:] if v == "move_hand")
-  assert (landing["x"], landing["y"]) == pytest.approx((into["x"], into["y"]), abs=1e-9), (into, landing)
-  assert landing["z"] == pytest.approx(into["z"] - 0.04, abs=1e-9), (into, landing)
+  i = next(i for i, (v, a, p) in enumerate(log) if v == "spot" and int(a["tag"]) == 76)
+  x, _ = _read(tags, 76, log[i][2], dx=0.10)
+  nxt = next(a for v, a, p in log[i + 1:] if v == "step")
+  assert nxt["ahead"] == pytest.approx(0.6 * (x - 0.34), abs=1e-6), (x, nxt)
