@@ -396,6 +396,9 @@ class Navigator:
     # battery hooks in here: energy must drain in lockstep with the physics,
     # not per phase, or a long terminal creep is free.
     self.step_hooks: list = []
+    #: ...and after every one of them, whenever one was hung (#749): where
+    #: the world is saved (`continuation.Keeper`)
+    self.last_hooks: list = []
     # ...its noise its robot's own unless the body is keyed (`senses.Noise`)
     self.lidar = Lidar(model, site_name=handle.el("lidar"),
                        robot_body=handle.root, seed=lidar_seed)
@@ -457,6 +460,13 @@ class Navigator:
     self.scanned_t: float | None = None
     self.seen_t: dict[str, float] = {}
     self.step_count = 0
+    #: THE STEP'S BOOKKEEPING AFTER ITS HOOKS (#749, `_after_step`): a
+    #: routine that books its steps arms its own token as it yields one
+    #: (`_booked_routine`), and from that step's hooks until it is booked the
+    #: step is owed it -- what a save taken inside the hooks keeps, and a
+    #: restore books (`book_owed`)
+    self._booking: object | None = None
+    self._owed = False
     self.collision_steps = 0
     #: This robot's geoms, root and subtree: what another robot's sensors
     #: attribute to it (issue #365).
@@ -516,7 +526,10 @@ class Navigator:
   # ---- the seam (issue #58) ------------------------------------------------
 
   def _on_step(self) -> None:
+    self._owed, self._booking = self._booking is not None, None
     for hook in self.step_hooks:
+      hook()
+    for hook in self.last_hooks:
       hook()
     if self.viewer is not None:
       self._sync()
@@ -587,14 +600,43 @@ class Navigator:
   def _nav_routine(self, v: float, w: float) -> Routine:
     """`_nav_step` as a routine: the step is the yield, the bookkeeping runs
     when the driver resumes -- after the step, as before."""
-    yield v, w
+    yield from self._booked_routine((v, w))
+
+  def _booked_routine(self, command) -> Routine:
+    """One physics step of `command`, booked after its hooks (`_after_step`)
+    when the driver resumes: every routine that books its steps steps them
+    here (#749; Webserver.md). From the step's hooks until it is booked, the
+    step is owed (`_owed`), and still owed where a stop or a close comes in
+    at the yield (had the world gone on, this would have booked it; the
+    wrappers that would have closed it say so, `forgo_owed`). ⚠ What comes
+    in at a command not yet stepped takes back its own token alone: a stale
+    one's close or collection never disarms another's."""
+    mine = object()
+    self._booking = mine
+    try:
+      yield command
+    except BaseException:
+      if self._booking is mine:
+        self._booking = None
+      raise
     self._after_step()
 
   def _after_step(self) -> None:
+    self._owed = False
     self.step_count += 1
     self._look_step()
     self._scan_step()
     self._contact_step()
+
+  def book_owed(self) -> bool:
+    """The bookkeeping the step the world last stepped was owed after its
+    hooks (`_booked_routine`), done now, once: what a restore does on the
+    step it steps again, where the save was taken inside the hooks (#749;
+    `continuation.restore`). True where it was owed."""
+    if not self._owed:
+      return False
+    self._after_step()
+    return True
 
   def _look_step(self) -> None:
     """What the body looks for through every manoeuvre, before the scan:
@@ -623,11 +665,11 @@ class Navigator:
       if self.maps():
         m = self._match(angles, ranges, origin)
         if m is None or self.matcher.fuses(m, self.data.time):
-          if m is not None and self.matcher.relay_m:
+          if m is not None and self.matcher.relaying:
             # ...laid over what it sees forgotten (#741, `ScanMatcher.relay`)
             self.grid.forget_seen(self.pose, angles, ranges, self.lidar.max_range,
-                                  origin=origin, round_m=self.matcher.relay_m,
-                                  behind_m=RELAY_BEHIND_M, keep_near=relay_keeps(free_from))
+                                  origin=origin, behind_m=RELAY_BEHIND_M,
+                                  keep_near=relay_keeps(free_from))
             self.matcher.relaid()
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                            origin=origin, free_from=free_from, graze_m=GRAZE_M)

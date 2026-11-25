@@ -346,8 +346,17 @@ save a filmstrip PNG named after the script.
   `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
   the push where it held at least half the run, at its hardest, else out of
   reach -- on the stop's tick alone, a last dip or a lone spike named the
-  other. ⚠ ON ITS WAY OUT, THE TICK WHAT
-  IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
+  other. ⚠ STOPPED ON A PUSH, IT IS HELD WHERE IT IS, AT ITS COMMAND'S
+  TURN (#750; `Reach._eased_stop`; SimNotes, "A hand stopped on a push, held
+  where it is"), pressing on nothing, whatever comes next, its goal at the
+  reach's own turn (a withdraw out the way it went in): held at the command
+  it drove on to, a jaw pressed on a chest's bracket was dragged back over
+  it by the withdraw's line out at 30-57 N, and the robot went over; held
+  at the turn the press rolled it to, a carry after keeps that (`carry`,
+  #493) -- as it does where the arm cannot hold its command's turn there
+  (`REPLAN_M`, `REPLAN_ROT`) and is held as read. ⚠ ON ITS
+  WAY OUT, THE TICK WHAT IT READS WOULD TIP THE BODY TOWARD THE HAND PAST
+  `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
   (`POSTURE_TOL`), ONCE IT HAS FOR `OUT_TIP_S` (0.03 s) RUNNING -- its pull
   toward the body at the hand's height, less its press down at the hand's
@@ -519,7 +528,26 @@ save a filmstrip PNG named after the script.
   GRIPS WHAT IT PULLS TAKES ITS POSTURES AS IT DID: two of our door's 72
   held-out passes opened only by the body leaning on the gripped lever, and
   a gripped fork or knob still falls the same way: widening it is Ben's
-  call. ⚠ WHILE ONE HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
+  call. ⚠ A PROCEDURE'S CARRY (`move_hand`) OF A HAND THAT HOLDS NOTHING
+  TAKES NONE WHILE IT READS PAST 20 N, at its ask (held where the body is)
+  and on its way, one coming given up and backed off so too, but only for a
+  load held past `MEAN_S` (#699 on a carry; `reach.CARRY_PRESSED_SHARE`): a
+  carry asks no force, and an open hand at a cube's board read 25-35 N while
+  one carry took four postures. ⚠ ITS LOAD IS READ OFF THE WHOLE BODY'S
+  BALANCE ALONE, WHERE IT CLOSES (`Reach.closed`): where its rows did not
+  agree, the arm's own estimate, taken as still, read 430 N in free air as
+  the body crouched, bowed and turned at once, and gave a posture up; where
+  it closed, bowed 0.95 rad, at most 60 N, its mean 15 -- and ITS BACK-OFF
+  GOES ON ONLY WHILE ONE THAT CLOSES READS THE LOAD (on a mean held through
+  ones that did not, a body rising out of a deep bow was walked all the way
+  back into it, and its run fell later). ⚠ It reads the robot's own forearm
+  on its own thigh as the working hand's load (20-29 N closed, nothing on the
+  hand: Ben's bar's door_31 gave a posture up so). ⚠ The body held where it stood at a loaded ask is no posture
+  given up (`held_here`), and a path's or a turned carry's posture withheld
+  at its ask is planned again once light (`recheck`: it plans none on its
+  way). One so ended out of reach where another posture would reach says why
+  (`steps.MOVE_LOADED`). Never the loop's own (a charge's). ⚠ WHILE ONE
+  HAND IS OUT AT ITS WORK AND ITS GRIPPER READS IT HOLDS
   SOMETHING, THE OTHER'S REACH, CARRY AND PULL -- A PROCEDURE'S (`verb`),
   NEVER THE LOOP'S OWN (A CHARGE'S, A WALK'S LIFT) -- TAKE NO POSTURE BUT THE
   ONE THE BODY STANDS IN, READ ONCE AS EACH IS
@@ -1387,11 +1415,18 @@ save a filmstrip PNG named after the script.
   the period of #744 and #746). ⚠ `spot` AND `watch` SAY WHICH CAMERA
   THEY READ AND WHAT IT TAKES IN (#660; `steps.SPOT_TOP_DEG` and the rest of
   its picture's numbers, off the model and IN THE STANCE FRAME -- a test reads
-  them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown):
+  them against `color_eye` -- but `SPOT_BLOCK_READS_M`, flown, and
+  `SPOT_BOW_SIDE_UNDER_M`, typed off the statue, below):
   the colour camera, looking down; `look`, `find`, a practice's first
   picture and the lab's view are the navigation camera (`Body.head_camera`),
   and nothing a robot reads calls either "the head camera" (a test reads
-  every prompt). ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
+  every prompt). ⚠ `spot`'s TEXT SAYS NONE OF ITS BOWS BRINGS IN A TAG BESIDE
+  ITS PICTURE HIGHER THAN `SPOT_BOW_SIDE_UNDER_M` (0.5 m), AND THAT TURNING
+  SWINGS IT (#728's option 2; SimNotes, "A tag beside `spot`'s picture, and
+  its bows"): typed, the statue's 0.44 m at every bow `spot` can take rounded
+  up to a tenth -- a test works it out there, and from every 5 cm of crouch
+  (lower), and fails otherwise; lower, near the bottom's corners, a bow
+  takes in some of what stood beside and below it. ⚠ A CALL REFUSED BEFORE IT RAN LEAVES
   ITS VERB NO READING (`steps.forget_readings`): what it last reported would
   read as this call's. ⚠ A HAND'S MOVE MAY STOP ON A
   READING (#554; `steps.GUARDED_VERBS`, behind `WorldFacts.guarded`, on in
@@ -1975,7 +2010,15 @@ save a filmstrip PNG named after the script.
   (without it a step parts by 1e-12), and the LAST STEP STEPPED AGAIN from
   where it began (#420; `LastStep`, `replay`): a running world's forward
   pass is a step behind its `qpos`, and one forwarded fresh parted at the
-  walking policy's first decision. A new piece of state that decides
+  walking policy's first decision. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
+  OWED IT AFTER THE HOOKS (`_after_step`: the look, the depth frame's fold,
+  the scan) BOOKED THERE (#749; `Body.book_owed`; Webserver.md): the keeper
+  saves inside a step's hooks, so every routine that books its steps yields
+  them through `Navigator._booked_routine` (a test reads every call of
+  `_after_step`), the keeper's hook is a `Body.last_hooks` one (after every
+  step hook, whenever hung), no save is taken on a step a death or a
+  stand-up landed in (`Keeper.landed`), and a routine they close there owes
+  nothing (`Body.forgo_owed`). A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
@@ -2757,22 +2800,23 @@ save a filmstrip PNG named after the script.
   (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
   robot 0.6 m back into it; `start_at` closes the window. ⚠ ONLY A FIX
   THAT KEEPS THE MAP OPENS ONE, AND IT LAYS AGAIN WHAT ITS NEXT SCAN SEES
-  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`, `RELAY_PAST_M`;
-  SimNotes, "A station's fix that keeps the map lays again what it sees"):
-  every cell from the sensor to each bearing's end, filled between the rays,
-  forgotten before that scan is laid -- kept, the region round the station held the
+  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`; SimNotes, "A
+  station's fix that keeps the map lays again what it sees"): every cell
+  whose nearest bearing of that scan's lies within a degree of it, out to
+  that bearing's end, forgotten before the scan is laid -- kept, the region round the station held the
   offset of the belief that laid it and took the belief back as the window
   closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
-  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (as far round as the
-  fix's reach, the lobby's relay forgot 928 walls behind what it saw, never
-  laid again from there; under the bound the reach, `relayM`, 0.40 m at
-  least, widens nothing), ⚠ AND NO WALL
+  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (uncapped, the lobby's
+  relay forgot 928 walls behind what it saw, never laid again from there),
+  ⚠ AND NO WALL
   NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
   CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
   `update` lays it floor (the house's couch behind a robot the lost search
   fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
-  head's panels leave free_from, it goes -- open, round 3. The price, kept: a
-  robot that walks away and back meets the lobby's copy again, 13 cm). ⚠ THE WINDOW'S
+  head's panels leave free_from, it goes: Rowan's dock of 11-22 replayed laid
+  7-12 of its cells floor, and no walk went through them; Ben's to weigh. The
+  price, kept: a robot that walks away and back meets the lobby's copy
+  again, 13 cm). ⚠ THE WINDOW'S
   SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
   it lasted 146 s docked and the legs carried a belief 3 cm through it, the
   region laid along it; a window of one scan slid the fits 3 cm along the

@@ -64,7 +64,8 @@ from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_
                                      STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
                                      STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
-from pluggybot.humanoid.reach import LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS
+from pluggybot.humanoid.reach import (CARRY_PRESSED_SHARE, LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS,
+                                      PRESSED_ASK_N)
 from pluggybot.humanoid.model import (CHOSEN, COLOR_FOVY_DEG, color_camera_ahead, color_camera_z,
                                       stand_height)
 from pluggybot.perception.box import (DEPTH_MIN_Z as MEASURE_NEAREST_M, FLOOR_M as MEASURE_FLOOR_M,
@@ -544,6 +545,19 @@ SPOT_SIDE_TOP_DEG, SPOT_SIDE_BOTTOM_DEG = _spot_side_deg(1), _spot_side_deg(-1)
 #: the number a block's tag is known by, and 52.7 would read 53
 #: (`test_no_hand_verb_knows_the_chest`).
 SPOT_SIDE_BOTTOM_TENS = 10 * math.floor(SPOT_SIDE_BOTTOM_DEG / 10)
+#: ...and no bow of `spot`'s -- asked, or held short by #717's room -- takes
+#: in anything that stood beside the standing picture higher than this over
+#: the floor, m (#728's option 2): bowed, the head comes forward as it turns
+#: down, and at a counter's height the picture's sides draw in 4-10 deg at the
+#: bows it asks. Lower, near its bottom's corners, a bow takes in some of what
+#: stood beside and below it. On the robot's model of itself posed as each
+#: bow's statue, the highest that happens is 0.44 m: a test works it out there
+#: and fails unless this is that rounded up to a tenth. ⚠ The statue's, its
+#: weight over the soles' middle (0.436 with the stand's 1.2 cm lean); the
+#: live head stands 1-2 cm behind it, and flown, nothing beside the picture
+#: came in at a counter's height (SimNotes, "A tag beside `spot`'s picture,
+#: and its bows").
+SPOT_BOW_SIDE_UNDER_M = 0.5
 #: ...the picture's top over the floor IN THE STANCE FRAME, m, where the
 #: robot reads every place: at x = 0 (the camera's height carried back to the
 #: soles' middle, 4.5 cm behind it), falling this much a metre of x; and how
@@ -651,9 +665,11 @@ def _spot(life, args: dict) -> Routine:
   if seen is None:
     forget_readings(life, "spot")
     # what the bows could not change, the picture's top (#660) and its sides
-    # (#728), and short: History's run line drops whole a false test's reason
-    # past what its run leaves, about 307 characters less the procedure's
-    # name and the line's digits (#629; tests/test_watch.py pins the fit)
+    # (#728: past them no bow takes in a tag higher than
+    # `SPOT_BOW_SIDE_UNDER_M`), and short: History's run line drops whole a
+    # false test's reason past what its run leaves, about 307 characters less
+    # the procedure's name and the line's digits (#629; tests/test_watch.py
+    # pins the fit)
     top = (f"tag {int(tag)} is not in your colour camera's picture from where you "
            "stand, or too near or too far to read: it shows nothing higher than "
            f"{SPOT_TOP_DEG:.0f} degrees below level")
@@ -1297,6 +1313,12 @@ MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way fr
 #: option 2).
 MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture you are in: "
              "your {other} hand is out holding something, so your body keeps it")
+#: ...and one out of reach whose hand, holding nothing, read a load as a
+#: posture would have come (#699 on a carry: `reach.CARRY_PRESSED_SHARE` of
+#: `reach.PRESSED_ASK_N`, its line).
+MOVE_LOADED = ("your {hand} hand could reach no further that way from the posture you are in: "
+               f"it holds nothing and read a push of more than "
+               f"{CARRY_PRESSED_SHARE * PRESSED_ASK_N:.0f} N, so your body keeps it")
 
 
 def _hand_report(life, hand: str, rep: dict) -> dict:
@@ -1357,6 +1379,9 @@ def _move_hand(life, args: dict) -> Routine:
   if kept_by and life.body.hand_reaches(hand, end, rot):
     # ...where another posture would reach its end (#719)
     return {"ok": False, **out, **said, "reason": MOVE_KEPT.format(hand=hand, other=kept_by)}
+  if rep.get("why") == "out of reach" and rep.get("loaded") and life.body.hand_reaches(hand, end, rot):
+    # ...or its hand, holding nothing, read a load (#699)
+    return {"ok": False, **out, **said, "reason": MOVE_LOADED.format(hand=hand)}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 
@@ -1672,7 +1697,10 @@ HANDS_VERBS: dict[str, Verb] = {
                f"runs from {SPOT_TOP_DEG:.0f} to {SPOT_BOTTOM_DEG:.0f} degrees below level, "
                f"out to {SPOT_SIDE_TOP_DEG:.0f} degrees either side of where your head faces "
                f"at its top and more than {SPOT_SIDE_BOTTOM_TENS} at its bottom, and bowing only "
-               "takes it lower. With your trunk square to your feet, a thing at x in your "
+               "takes it lower: none of `spot`'s bows brings in a tag beside the picture if the "
+               f"tag stands higher than {SPOT_BOW_SIDE_UNDER_M:g} m over the floor, and turning "
+               "swings the picture the way you turn. With your trunk square to your feet, a "
+               "thing at x in your "
                "stance frame is in the picture only if it stands lower than "
                f"({SPOT_TOP_AT_FEET_M:.2f} - {SPOT_TOP_DROP:.2f} x) m over the floor, and a tag "
                "reads only with the whole of it inside the picture: the lower a tag is, the "
@@ -2019,10 +2047,13 @@ def _until_down_routine(life, routine: Routine) -> Routine:
       routine.close()
       raise
     except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      if dead(life):
+        body.forgo_owed()                  # ...the step it died in: gone on, closed unbooked
       exc, sent = e, None
       continue
     if dead(life):
       routine.close()
+      body.forgo_owed()                    # ...the step it died in, closed unbooked (#749)
       return None, "died"
 
 

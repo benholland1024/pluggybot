@@ -7556,6 +7556,51 @@ still: the 120 mm tags' window, 10-14 cm off the camera, is narrower than a
 step lands. The instruments and their rows are
 `~/pluggybot-training/issue-660/`.
 
+## A tag beside `spot`'s picture, and its bows (issue #728's option 2)
+
+The weekend's refused `spot`s of 11-21/22 had their tag beside the picture
+far oftener than above it, and the robots blamed its top (#728). Bowed, the
+head turns down AND comes forward and down (on the statue, 16 cm forward and 9
+down at 0.45 rad): the turn alone would draw in a point just past the picture's
+side low down, as it rises toward the picture's middle, but the head's
+forward move pushes a near point out further. Which wins is a matter of height.
+- **On the robot's model of itself** (each bow `spot` can take posed as its
+  statue, 0.05-0.45 rad; exactly, by each bowed picture's corners' rays
+  against the standing picture's sides): nothing that stood beside the
+  standing picture -- at its side, or at a corner above or below it -- comes
+  into a bowed one higher than 0.41 m over the floor at 0.05 rad, 0.44 at
+  0.45 (0.436 with the stand's 1.2 cm lean); bowed from a crouch, the camera
+  lower, lower still (0.18 m from the deepest a posture holds, the stand's
+  the highest every centimetre between). At a counter's height the bowed
+  picture's side draws IN, 4-10 deg of bearing at the bows `spot` asks and
+  0.3-0.9 at a 0.05 one. Lower, near the bottom's corners, a bow takes in
+  some of what stood beside and below it: on the floor, what stood up to 2.8
+  deg of the picture's own angle past its side (0.3 at 0.4 m up).
+- **Live, the robots' own procedures** (#728's W1 instrument: 208 flights of
+  the weekend's cube, chest and door procedures at their live draws, 703
+  `spot`s read off their runs' verbs): 136 had their tag beside the standing
+  picture -- 106 at its side, 30 beside and below, none beside and above; the
+  cube, the chest's knob, the mat; 0.1-34 deg past the side (median 8), 0.56-1.48
+  m off -- and in all 136 the bowed looks had it further out, none seeing it.
+- **Flown on `loop-staging` 2acb028d** (osmesa, two noise draws): a 26 mm
+  block on the counter's board 0.5-1.5 deg past the side, 0.6 and 0.9 m off,
+  was in no picture at any bow 0-0.45 rad by 0.05 (6 of 6), and 3 deg inside
+  was read standing (2 of 2). On the floor, at the places the statue lets in,
+  the block's middle came into a bowed picture (0.45 rad, once 0.25) in 5
+  flights of 16, 0.1-0.6 deg inside its side, and no look read it whole: the
+  live camera stands 1-2 cm behind the statue's, its head 0.5 deg back.
+- **Turning is what swings the picture**: on the statue a turn to face it
+  brings each of the 136 live tags into one of `spot`'s pictures. Not every
+  tag beside it comes in so: one far off at a prop's top (0.87 m high, 1.44 m
+  and more off) is above the picture whichever way the robot faces, and one
+  beside and above needs a step nearer.
+
+So `spot`'s text says that none of its bows brings in a tag beside the
+picture standing higher than `steps.SPOT_BOW_SIDE_UNDER_M` (0.5 m: the
+statue's 0.44 rounded up to a tenth, typed, a test working it out on the
+statue at every bow and on a grid), and that turning swings the picture.
+The instruments and their rows are `~/pluggybot-training/loop-1124b/z1-728b/`.
+
 ## Two robots at the counter (issue #670)
 
 **What happened.** At 11:48 on 11-08 Rowan's walk to the cupboard stopped at
@@ -10138,10 +10183,99 @@ with its price.
   on its way back to where the pull began; nothing of the pull's own ends
   it then (held fast, pinned and out of reach wait while a posture comes),
   only its caller's patience or an `until`. A hand still loaded when the
-  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. And
-  `move_hand` takes its postures as it did.
+  posture's time to come is out (`POSTURE_WAIT_S`) goes on back. A
+  `move_hand` of a hand that holds nothing is the next paragraph's.
 - *A reach's joint-space way out* is not this rule's: it stops on a push
   of its own (#708, next).
+
+**A carry (`move_hand`) of a hand that holds nothing (the loop of 11-23,
+`~/pluggybot-training/loop-1123/x3-699c/`).** On 11-21 Rowan's own
+`cube_run2` reached short of the cube, shut its gripper on nothing, let go,
+reached again and then carried the open hand 4.5 cm further at the same
+height (`move_hand`, t_0574): its belief 0.85 m off, the hand met the
+cube's board, and the robot went down from a crouch. Flown at the live draw
+(the loop of 11-22's W1), 2 of 24 fell: one in the carry, the open gripper
+on the board at 20-35 N while the carry took (0, 0.3 rad), (-0.16 m, 0.3)
+and (-0.20 m, 0.55) on its way; one in a later `pull` with the cube
+gripped (a gripped hand, the case above left to Ben). A carry had no line
+at all -- the pull's rule is the pull's -- and asks no force to take twice
+of: at the draw on the tree of 11-23 the robot's own reading over a carry
+was 25-35 N (its `MEAN_S` mean) while one carry took four postures, the
+deepest (-0.16, 0.3), the pull's 40 N refusing none. **What is true now**
+(`Reach.carry`, `_held`; `reach.CARRY_PRESSED_SHARE`): a procedure's carry
+(a `verb`'s, never the loop's own) of a hand whose gripper does not read
+held as it is asked takes no posture while the hand reads past 20 N
+(`PRESSED_ASK_N`, once) -- as it reads at the ask, then over `MEAN_S` --
+and gives a coming one up there as a pull does, backing off toward where
+the carry began until it reads no more, held there, that carry taking no
+other; it goes as far as its arm reaches from there, out of reach at once
+where it cannot follow. Loaded as it is asked, it plans as any carry does
+-- an end no posture reaches is refused, nothing moved, as always -- and
+takes where the body is: the posture it holds within `POSTURE_TOL`, else
+where it has got to, as #719 keeps a body -- never a posture still coming
+(re-asked that, a body went on bowing over the loaded hand, and no give-up
+could come). On a straight carry's way a posture refused for a load is
+asked again at the next command that reads light, as a pull's is; a path's
+or a turned carry's, which plans none on its way, is planned again over
+what is left of its path, once, at the first command that reads light
+(`recheck`: chosen once at the ask, one reading there kept the whole move
+from the posture its path needed). The body held where it stood at a
+loaded ask is no posture coming, and nothing is given up there
+(`held_here`: given up, the carry took none once light -- W1's draws k1, k4
+and k20); and a posture coming is given up only for a load the hand has
+read past the line for `MEAN_S` running (below). Ended out of reach where
+another posture would reach, its last posture withheld for a load, it says
+so (`steps.MOVE_LOADED`), never that no posture would. **Flown** (one Vast pod, an AMD EPYC 7642, each flight its
+own noise): at Rowan's draw with the belief 0.85 m off, on the tree it fell on
+(9914a40c, which flies W1's 24 rows exactly) 2 of 24 fell -- one in the
+carry, one in a `pull` with the cube gripped -- and with this rule 1 of 24,
+the gripped one, bit for bit; on the tree of 11-23 (3619f4eb) neither fell
+(0 of 24 both ways), the base taking 18 postures deeper while an open carry
+read past 20 N, in 10 flights (to (-0.20 m, 0.55 rad), the hand pushing 72
+N true), the rule none: only its give-ups' way back and, asked loaded as
+the body still came, a hold where it had got to. Where it gave up, the true
+push on the hand was 21-33 N; the reading can also fall short of it (14 N
+read, 29 N true). Ben's bar (the hands checks at set-outs 0-31 and 32-127,
+the tour's five jobs: 736 flights), flown on the rule's first form, passed
+609 and fell 5 on both trees; of its 421 open carries (median 1.9 N, 95th
+percentile 13 N) 8 read past 20 N, all our door's hand drawn back off its
+lever after letting go, 7 of them for 0.01-0.04 s as it was asked with no
+posture coming; the rule changed one flight, a door that failed either way
+(101.7 N read, 189 N true), and pools sealed by that form (240 flights)
+passed 197 and fell 6 on both. Every flight where it can act was flown
+again on each later form, deciding the same. **Its reading while the
+trunk moves** (the loop of 11-24, `~/pluggybot-training/loop-1124/y4-699c/`):
+the reading is the body's taken as still, and an open hand carried in free
+air into the deepest postures on purpose, nothing touching the robot but
+its soles -- the world or its own body -- read up to 430 N: a turned carry
+from the stand into a crouch, a bow and a waist turn at once (-0.2 m, 0.55
+rad, -15 deg) read so on the 25 commands whose whole-body balance did not
+close (`SelfModel.felt` reads nothing there, and the arm's own estimate
+stood as `Reach.force`), its mean past the line for 0.21 s, and the rule as
+it then was gave that posture up (out of reach either way there, no fall).
+Where the balance closed, the same flights read at most 25 N raw, the
+deepest (0.95 rad, the waist 45 deg) 60 N, and a mean of at most 15 N. So a
+carry's load is read off the whole body's balance alone, where it closes
+(`Reach.closed`: a command that does not close reads nothing, the mean and
+its run past the line held as they were), and a posture coming is given up
+only for a load past the line for `MEAN_S` running (a quarter's margin of the
+line). A gate on the trunk's rate would have had to sit at that one
+phantom's lowest, 0.166 rad/s, its mean falling under the line at 0.171: a
+fit to one case. **On Ben's bar** (the same loop, one Xeon E7-8890 v4 beside
+9d83cf32) one flight fell where the base did not, our door's set-out 31:
+its back-off `move_hand`, rising out of the lever press's deep bow (0.95
+rad, the waist 44 deg), read 20-29 N on commands that closed, for 0.12 s,
+with nothing on the left hand -- the right forearm pressed the right thigh
+at 72-99 N, and the balance reads a push on the robot's own body as the
+working hand's -- so the posture was given up; then the balance stopped
+closing, and the mean, held through those commands, kept the back-off
+going until the body was back in the bow it had begun in; the run fell in
+a `withdraw` 28 s later. So a back-off goes on only while a command that
+closes reads the load: one that does not close ends it where the body has
+got to (the door then 85 deg open, no fall, a fail either way). On it the
+whole bar passed 609 of 736 and fell 5 times on both trees, 1 flight moved (that door); at
+Rowan's draw on the tree it fell on (9914a40c) 1 of 32 fell where 2 had -- the
+gripped `pull`, bit for bit -- the carry's fall gone, every grade the same.
 
 **The fingers-ahead reach that fells the robot is another loop (#708)**:
 Luca's `chest_run35` falls in its first reach's way out, before any pull,
@@ -11871,23 +12005,17 @@ held 0.4 (1.0) without them.*
   leaves"): alone, its fixes keep the map and the region takes the belief
   back as the base's did.
 
-**The rule as built** (`HumanoidBody._fix_at`, `RELAY_PAST_M`,
-`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by`
-/ `forget_seen`, `Navigator._scan_step`). A station fix that moves the belief
-and keeps the map -- the only call in the code that opens an anchor's window
--- arms a relay with a reach: what it moved the belief, its turn at the
-LIDAR's 8 m, and the fit's own reach (0.30 m) more, where a copy of what the
-robot sees may lie. The next scan laid goes in over what it looks across
-forgotten first: every cell from the sensor out to each bearing's end
-(`max_range` where nothing came back), and every cell within the reach of
-one, but none more than 0.15 m past the end of its bearing (uncapped, the
-lobby's relay forgot 7,294 cells more, 928 of them walls, all behind what its
-scan met: what lies behind a wall the scan met is never laid again from
-there, and a copy behind a fresh wall pulls nothing). Under that bound the
-reach widens nothing: every reach is 0.40 m or more, and the lobby's regions
-were 27.4-27.7 m² for reaches of 0.46-1.01 m (uncapped, 45.8-65.4), so what
-goes is what the scan looks across, filled between its rays, and up to 0.15
-m past each end. It keeps a wall nearer than both its
+**The rule as built** (`HumanoidBody._fix_at`, `ScanMatcher.relay`,
+`RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by` / `forget_seen`,
+`Navigator._scan_step`). A station fix that moves the belief and keeps the
+map -- the only call in the code that opens an anchor's window -- arms a
+relay. The next scan laid goes in over what it looks across forgotten first:
+every cell whose nearest bearing of that scan's lies within a degree of it,
+from the sensor out to that bearing's end (`max_range` where nothing came
+back) and no more than 0.15 m past it, judged at the cell's middle (uncapped,
+the lobby's relay forgot 7,294 cells more, 928 of them walls, all behind
+what its scan met: what lies behind a wall the scan met is never laid again
+from there, and a copy behind a fresh wall pulls nothing). It keeps a wall nearer than both its
 bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
 rays pass over what is lower and `update` clears no wall, so a low thing
 mapped from afar stays, and the fit takes no return there anyway. On a
@@ -11895,9 +12023,9 @@ bearing that clears none (the scan bowed past 30 deg, or behind another
 robot) it keeps every wall: forgotten, `update` laid it floor. The anchor's
 30 scans then lay the region from the belief put right, each as it comes. A
 bearing the scan does not carry (another robot's, the robot's own body) is
-looked across by none of it. The relay is kept state (`relayM`); a warp or a
-map forgotten cancels it and closes the window; of two fixes before its scan,
-the larger reach; a fix past the matcher's search drops the map as before
+looked across by none of it. The relay is kept state (`relay`); a warp or a
+map forgotten cancels it and closes the window; a fix past the matcher's
+search drops the map as before
 and arms none. It reaches both fixes that keep the map: the dock's look at a
 charge's start (`anchor_at_dock`) and the lost search's
 (`_near_station_routine`).
@@ -11915,7 +12043,7 @@ its relay's scan: nothing is laid again, and the closed window hands the
 right belief back to the copy, as #681 measured (0.2-0.45 m).
 
 **What it forgets, and what of the copy it removes** (the lobby, a fix of
-0.15 m, a reach of 0.46 m). The region is 11,016 cells (27.5 m²), 969 of
+0.15 m). The region is 11,016 cells (27.5 m²), 969 of
 them walls; the 161 walls nearer than 1 m are kept and the other 10,853 cells
 that held evidence forgotten. The copy, read by its own offset (an old wall
 that lies where a wall the window laid again would lie moved 10.0 cm west
@@ -11971,7 +12099,7 @@ path), the pair's recording and #572's probe.
   panels leave free from 2.63 m), and a cell or two at the edges of each
   station's own box; past 1 m it keeps none, and from the house station's
   standoff and lost-fix poses the couch's part 1.3-2.6 m behind is laid floor
-  (435-843 of its points, at 2.5 cm; open, #741's third review). Uncapped, it planned through what it forgot (1 walk-off
+  (435-843 of its points, at 2.5 cm; counted below). Uncapped, it planned through what it forgot (1 walk-off
   of its 8, the 11-23 save's lobby to the lab: 2 plans through 6 cells that held
   walls; none as built), and on a map whose copies lie elsewhere it would
   empty the rooms next door for nothing. Which to give up is #681's to weigh.
@@ -11982,6 +12110,67 @@ path), the pair's recording and #572's probe.
   heading turning 2.4 deg); option 3 cannot act there (no fix), and option 4
   held it at 13.1 cm for the hour (`loop-741b`).
 - Work at the counter (about 8 cm a try, #681's comment of 11-23).
+
+**#741's open points, counted on the served day** (Z2, the loop of 11-24b;
+`~/pluggybot-training/loop-1124b/z2-741d/`: `c/census.py`, `c/truth.py`,
+`c/z2_scene.py`). Every station fix that keeps the map arms the relay: the
+weekend's wakes of 11-21 and 11-22 made 8 (7 at the lobby, among them Luca's
+lost search's 1.04 m out, and Rowan's dock at the house of 11-22 17:51,
+which moved the belief 0.26 m), five wake days 10. Each was replayed on the
+live saves of 11-22 and 11-23 (`world.npz` alone; Luca's or Rowan's map,
+re-docked from the standoff with the belief set off as that fix found it),
+beside fresh maps laid through a belief set off at all three stations and
+`station_spike.py --lost`'s 50 starts: the relay as built beside the relay
+off with its region counted where it would have forgotten (the shadow),
+counted against the world's own geometry laid on the robot's grid (to
+measure only), on one pod.
+- *A thin wall met at a graze* (point 1). Over the 11 served relays that
+  fired, the relay had laid 223 cells of the true walls floor as the window
+  closed, the shadow 21 -- at the house, the station's own wall seen along
+  its length -- but ten minutes on 155 against the shadow's 162: the
+  shadow's belief, held on the copy, lays its scans 10 cm off and wears them
+  away too. Over all 23 relays, fresh maps among them, 399 and 321 against
+  71 and 240. No plan went through a forgotten cell, and none across a wall
+  of the world, in 10 walk-offs (7 after a dock whose fix kept the map),
+  each flown four ways; their arrivals, as built against the shadow, nearer
+  on 11 legs, further on 8, within 0.5 cm on 13 (p = 0.65).
+- *A low thing behind the robot* (point 2). At the replay of Rowan's dock the
+  house's couch read floor to the planner in 7 cells as the window closed
+  and 12 ten minutes on (the shadow none), at every house relay on the live
+  maps 3-7 and 4-12, at a fresh map's dock there 81 (the couch and the bed),
+  and at the lost search's 24 relays on fresh maps there 18-67 each (the
+  couch 588 and the bed 436 in all, against the shadow's 158); the lobby one
+  cell, the mall none. Walked past the couch after the served dock, no plan
+  went through those cells (the rest of the couch and its inflation still
+  barred the way); arrivals 2.1 and 0.4 cm, the shadow's 4.4 and 3.9; every
+  lost start docked either way.
+- *The moot reach* (point 3): on all 346 relay scans counted, the region the
+  reach made and the bare cone were the same cells; it is gone (above).
+- *A bowed relay* (point 4) never came: every relay scan was upright (held
+  pitch 0, tilt 3.3 deg at most); in 4 of the 24 lost relays one bearing
+  read no `free_from`, the robot's own body hiding it.
+- *A fall in the window* (point 5): none of the 10 kept fixes of five wake
+  days had a fall within ten minutes of it. K10's scene each way (the lost
+  scene 2 m out, shoved 0.5, 1 or 2 s after the fix, four offsets): 10 of
+  12 cells the same all four ways (no fix, or no stand within 60 s); in
+  #681's own (0.5 m, 1 s) the window closed with the relay ended 1.1 cm off
+  and plugged in, left open with it 129 cm, closed with no relay 49 cm, open
+  with none -- the base before #741 -- 128 cm; at 2 s, 0.4, 78, 0.5 and 49.
+- *Tried, each against a rule written before its rows*. A forgotten wall
+  held at `OCC_THRESH` (0.5) rather than 0 keeps `update`'s protections, and
+  at the served relays laid 37 cells of the true walls floor instead of 223
+  and no low cell, but a copy so held is re-walled by one stray return (0.5
+  + 0.85): ten minutes on they held 831 copy cells against 357, and docked
+  at the lobby on the 11-22 save read 2.7-9.4 cm at the median where as
+  built held 0.3-3.9 (a hair of 0.001 the same, 9.0 at worst). Keeping,
+  besides the near keep, every wall nearer than its bearing's `free_from`
+  that lies more than the fix's reach short of that bearing's end -- a low
+  thing under the rays, never a copy of what the scan sees -- halved the
+  couch (the served dock 3 and 7 cells; the lost relays 772 against 1030)
+  and docked as well at the house, kept 26-43 copy cells where as built
+  kept 9-18 (the shadow 92-113), and laid one cell of the true walls more
+  than as built at the served dock; it was not flown at the lobby. Neither
+  is built: what to give up is Ben's.
 
 **What is true now.** A station fix that keeps the map forgets what its next
 scan looks across, filled between its rays and up to 0.15 m past each end,
@@ -12058,6 +12247,117 @@ meaning its lift stopped at the wrist's end, and on the new one it pulls on:
 at the weekend's live draws, 11 of its 72 chest flights part there, and the
 lid, lifted higher, came down fast in 10 of them (Observatory.md, the period
 of #744 and #746, has the counts).
+
+## A hand stopped on a push, held where it is (issue #750)
+
+**What happened.** Ben's bar on #747's swing rule (`loop-747`, the second loop
+of 11-24) fell once where the base did not: the lid check's set-out 14. The
+rule refused the lid reference's fourth try, so its fifth went in at the next
+tilt, crouched 16 cm, and fell. Flown on the base with that fourth try moving
+nothing (`LID_SKIP=3`, the harness only), the base fell the same way at 10.28
+s: the base's own path, filed as #750.
+
+**What the robot read, and what was true** (the loop of 11-25, A2;
+`~/pluggybot-training/loop-1125/a2-750/c/dissect750.py`, every 0.02 s, the
+robot's own readings beside the truth, for the record alone). The fifth reach
+stopped on its way in on a push (42 N, 6.6 cm across its fingers from its
+goal) with a jaw pressed down on the chest's bracket. The stop held the arm at
+the command it had driven on to, so its spring pressed the jaw on the bracket
+at 32-57 N, and the withdraw's line out ran from that command, dragging the jaw
+back over the bracket for 0.6 s.
+- *Not a tip toward the hand.* The robot's own reading (`Reach._tipping`, off
+  the whole body's force, which matched the true contact within a few N) read
+  the press down at the hand's reach: 9-20 N m AWAY from the hand through the
+  line out and 7-34 in the way home, one tick 19.8 toward it as the way home
+  set off. #708's line on a way out (20 N m toward the hand) never passes; the
+  walk's hand-over's (15 N m away, held 0.2 s) would not either (0.06 and
+  0.15 s past it), and no rule watches a line out. Nor a stall: the arm's
+  drivers read it at most 0.24 rad off its command (`STALL_RAD` 0.5).
+- *The truth.* The bracket pushed the left hand up at 32-57 N and, as the line
+  dragged it back, forward at 11-16 N. The robot rolled away from its left
+  hand, 3 -> 8 deg, its soles turned 4 deg, and its pelvis set off forward at
+  8.98 s, inside the line out, before the stand was asked (9.15). As the jaw
+  slipped off (9.44) it stood rolled 8 deg, its centre of mass 8 cm right of
+  the soles' middle and 5.5 cm ahead; it went on forward and right, the pelvis
+  struck the counter at 10.14 s (1,118 N), and it went over backward.
+- *Not the stand.* Kept crouched until the arm's command was home (#750's
+  option 3, the harness only) it fell at 10.26 s, rolled 11 deg, its soles
+  sliding to 16 deg.
+- *Eased, it stood.* With the arm commanded where its drivers read it before
+  the line out (option 2, the harness only), the press fell to 7-16 N and was
+  gone in 0.2 s, nothing rolled, and the procedure's next try opened the lid
+  (63 deg).
+
+The base's drawer at set-out 12 falls of the same press another way: its first
+reach stopped on a push with a jaw pressed down on the drawer's top, and the
+procedure reached again from there, with no withdraw between. The new reach's
+way out, in a new posture, dragged the jaw over the top at 27-39 N, the soles
+turned 21 deg, and the robot fell at 8.02 s.
+
+**Where to ease: at the stop, chosen on draws outside Ben's bar.** Two forms
+were flown on one pod (an AMD EPYC 7642) beside the base, at the five hands
+checks' set-outs 128-191 (960 flights, each set-out its own noise), under a
+rule written before either flew: the ease at the withdraw (W: `retreat` eases
+a hand stopped on a push before its line out) and at the stop (S: the stop
+itself holds the hand where its drivers read it, whatever comes next).
+
+| | passed of 320 | fell | flights acted on | moved (end state / path) |
+|---|---|---|---|---|
+| base | 248 | 6 | | |
+| W, at the withdraw | 249 | 5 | 18 | 18 / 14 |
+| S, at the stop | 248 | 4 | 26 | 26 / 19 |
+
+Both met the bar on those draws, and every flight neither acted on was the
+base's by end state and path; the rule took S for its fewer falls. The fall
+between them is the drawer at 188 (it fails standing under S, and W never acts
+there); S also loses the drawer at 185 (14.5 cm out at the end), and both lose
+the door at 130, whose base pass came from its last withdraw's way home: a jaw
+hooked the lever's arm and swung the door from 10 to 56 deg. Over the flights
+each acted on, the sim time to the verdict moved by a median of 0.1 s (W) and
+0.0 s (S), +19 and +45 s summed. A stop's words ("as it stopped, its grip was
+... from where you asked") read the hand a tick after the stop: on the flights
+S acted on, 22 of 26 said the same and 4 moved by 0.1 cm and 1-2 N.
+
+**At the turn it was asked** (the reviews of 11-25). S as flown put the turn
+its senses read -- the one the press had rolled the hand to -- into the
+command and the goal, and a carry after keeps the command's turn (`carry`:
+never the one it sagged to, #493). Held at the turn its command had instead,
+its arm solved there from where its drivers read it (S'), the wrist turns back
+off the press: at the lid check's set-out 14 its drivers read it 0.26 rad off
+that command as it stopped, and the jaw left the bracket 0.04 s later. On the
+dev draws S' passed 252 of 320 with 3 falls, against S's 248 and 4 (the
+drawers 46 and 0 against 43 and 1). The second review found two more: the
+reach's goal took the command's turn too, so a reach asked none -- the robots'
+own, nearly all -- backed out along its fingers instead of the way it went in;
+and a solve missing by up to 6 cm was commanded, a hand that cannot hold that
+turn there driven a few cm off where it rests.
+
+**On Ben's bar** (the final code, one pod beside ff2896af): 613 of 736 passed
+(609) with 4 falls (5), 58 flights acted on and none moved where it did not
+act. The lid's set-out 14 with its fourth try moving nothing passes (64 deg),
+and the drawer's set-outs 12 and 22 no longer fall. Its one new fall, the
+drawer at 78, is the base's own: eased, the hand's next reach, planned from
+where the arm is, found nothing that reached before a crouch with a bow and
+the waist turned 15 deg, whose way out dragged the jaw over the drawer's top
+at 27-70 N until the soles turned 20 deg and it fell. Given that posture the
+base falls the same way (8.86 s); given only the base's, which does not
+reach from the eased arm, that reach moves nothing and the next opens the
+drawer 18 cm. The robots' own 200 tries kept their two passes, and the tries
+with a fall went 3 -> 2.
+
+**What is true now** (`Reach._eased_stop`, `_update`'s stop; `tests/
+test_hands.py`): a reach stopped on its way in by a push (`BLOCKED_N`, "it
+pushed on something") is held where the hand is. Its command is the place its
+senses put the grip at as that command began, at the turn the command had,
+the arm solved there from where its drivers read it; its goal is that place at
+the reach's own turn, none where it was asked none, so a withdraw comes out
+along the way it went in: back along the asked fingers, or straight back
+toward the body. Where that solve misses past `REPLAN_M` or `REPLAN_ROT`, the
+arm is held as read, its command at the turn it reads (a carry after keeps
+that one). A next reach's way out, a shut or a carry begins from there too. A
+stop out of reach holds its command as before. The stop's report reads the
+hand a tick after the stop, so its numbers can move by about 0.1 cm and 1-2 N
+where it is eased.
 
 ## Debugging workflow that worked
 
