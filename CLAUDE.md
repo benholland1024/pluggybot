@@ -1149,7 +1149,12 @@ save a filmstrip PNG named after the script.
   the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
   over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
   (round 5), held out 15, the carry walker 0 (each miss, and round 4's
-  reference read beside it: SimNotes).
+  reference read beside it: SimNotes) -- ⚠ and with walk2 shown its arms at
+  rest while it carries (#751's cure), 3 of 32 where the tree before laid 16
+  on one pod: its put-downs were tuned on a settle the seeing walker's
+  carried turns left, and land a constant 3-4 cm off, which a retune would
+  most likely take back (SimNotes, "The walker shown its arms at rest while
+  a hand is carried").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1342,7 +1347,16 @@ save a filmstrip PNG named after the script.
   floor as it was -- ⚠ SOLVED ON THE STAND'S STATUE, where the walk carries
   it (solved bowed, a plate lifted from a reach's 0.3 rad bow rode 15-17 deg
   tipped) -- and held there through every walk, a `step` too, until a reach
-  or a let-go ends it (`Reach.drop_carry`); ⚠ NEVER WALKED WHERE THE REACH
+  or a let-go ends it (`Reach.drop_carry`); ⚠ WHILE IT IS, THE WALKER IS
+  SHOWN ITS ARMS AT REST (#751's cure; `WalkDriver.observation(arms_at_rest=)`,
+  `carry_blind`; SimNotes, "The walker shown its arms at rest while a hand is
+  carried"): every arm joint it sees at its own default -- where the served
+  arms hang -- and still, the drivers read as ever (the same draws), told at
+  each of its policy's steps off the reach as it stands: seeing the folded
+  elbow (1.6-2.0 rad; its scripted arms went to 1.15), walk2 stood still at
+  the first carried step after a pick (93 of 109 trips) and veered 9-12 deg a
+  metre toward the carrying arm; ⚠ never a walker trained to carry
+  (`CARRY_TASK`, carry2), which trained seeing them; ⚠ NEVER WALKED WHERE THE REACH
   LEFT IT (over the table's top, walk2 fell in 16 of 37); a walk verb's
   report says `carried` (and `dropped`, its grip read empty by the end), the
   body text beside the let-go (`practice.WALK_LETS_GO`); with another robot

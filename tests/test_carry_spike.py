@@ -67,3 +67,29 @@ def test_its_hand_over_leaves_the_arm_where_it_is_posed():
     course.close()
   finally:
     body.close()
+
+
+def test_a_served_flight_is_tagged_blind_off_every_step_it_walked():
+  """Served, the walk shows walk2 its arms at rest while a hand is carried
+  (#751), so such a row says `blind` -- read at every step the walker took,
+  never off the row's end: a fall's stand-up builds a fresh reach, which
+  carries nothing, and a flight that fell was filed apart from its case. A
+  walker trained to carry, shown its arms as they are, is never tagged."""
+  import mujoco
+  from pluggybot.humanoid.policy import StandPolicy
+  from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  walker = WalkDriver(model, data)
+  seen = cs.watch_blind(walker)
+  walker.step(carrying=False)
+  assert not seen["blind"]
+  walker.step(carrying=True)
+  walker.step(carrying=False)
+  assert seen["blind"], "a flight that walked blind once is tagged for good"
+  carrier = WalkDriver(model, data, policy=StandPolicy(WALK_NPZ.parent / "humanoid_walk_carry.npz"))
+  seen = cs.watch_blind(carrier)
+  carrier.step(carrying=True)
+  assert not seen["blind"]
