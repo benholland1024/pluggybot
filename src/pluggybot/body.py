@@ -946,8 +946,8 @@ class Body(abc.ABC):
   rights_itself: bool
   #: The falls its own fall watch has taken, counted up: what a fall IS is
   #: the body's to say (#493's grader asks) -- the humanoid's trunk 35 deg
-  #: past the posture its legs hold, by its IMU, or its pelvis sunk
-  #: (`humanoid.getup`), each the moment its get-up takes over.
+  #: off the posture its legs hold and off upright both, by its IMU, or its
+  #: pelvis sunk (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
   #: rights itself, its get-up's MEASURED budget, timed from the get-up's
@@ -955,10 +955,10 @@ class Body(abc.ABC):
   stuck_after_s: float
   #: The trunk's pitch forward that the posture its legs hold puts it at,
   #: rad: what a topple is read past (`TOPPLE_TILT_RAD`: the lifecycle's
-  #: `down`, and the death seam's for a body that cannot right itself).
-  #: 0 for a body that stands only upright; the humanoid's bow
-  #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
-  #: (#559).
+  #: `down`, and the death seam's for a body that cannot right itself), off
+  #: it or off upright, the nearer (#724). 0 for a body that stands only
+  #: upright; the humanoid's bow (`Reach.held_pitch`), whose deepest, 63
+  #: deg, is past the seam's 60 (#559).
   held_pitch: float
 
   @abc.abstractmethod

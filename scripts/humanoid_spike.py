@@ -3931,11 +3931,13 @@ def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
 # driven back against its part's no-load speed (back-driven past it, a
 # motor pumps the bus). Three ways to
 # fall: the standing policy keeps the legs; the drivers go limp once the
-# trunk has tipped `getup.FALL_TILT_RAD` past its posture; or the get-up policy takes
+# trunk has tipped `getup.FALL_TILT_RAD` past its posture and upright both
+# (`getup.tipped_past`); or the get-up policy takes
 # the legs and arms there (`humanoid.getup`), and gets up.
 
 from pluggybot.humanoid.getup import (COLLAPSED_M, FALL_TILT_RAD, GETUP_NPZ,  # noqa: E402
-                                      FallWatch, GetupDriver, over_lower_sole, tipped)
+                                      FallWatch, GetupDriver, over_lower_sole, tipped,
+                                      tipped_past)
 from pluggybot.body import TOPPLE_TILT_RAD  # noqa: E402
 from pluggybot.humanoid.body import HumanoidBody  # noqa: E402
 from pluggybot.lifecycle import DEATH_CHECK_S, STOOD_AGAIN_S  # noqa: E402
@@ -3952,7 +3954,8 @@ class StuckClock:
   """#684's `stuck` clock as the death seam keeps it (`HubLifecycle.
   _death_step`, its constants), read off a trial's own timeline -- graded by
   us off the truth: down while the get-up has the legs or the trunk lies past
-  `TOPPLE_TILT_RAD` off the posture its legs hold; a stand under
+  `TOPPLE_TILT_RAD` off the posture its legs hold and off upright both
+  (`_down_now`); a stand under
   `STOOD_AGAIN_S` before it goes down again one struggle on one clock; dead
   `stuck` once down `GETUP_BUDGET_S` since its struggle began. Settled once it
   died, or stood `STOOD_AGAIN_S` after a struggle."""
@@ -3993,9 +3996,13 @@ class StuckClock:
 
 def _down_now(d, root: int, pitch: float) -> bool:
   """The trunk past `TOPPLE_TILT_RAD` off a posture pitched `pitch` forward
-  (`HubLifecycle._chassis_tilt`, off the truth)."""
+  and, for a bow, off upright both (`HubLifecycle._chassis_tilt`, off the
+  truth)."""
   w, x, y, z = d.xquat[root]
-  up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(pitch) - 2.0 * (x * z - w * y) * math.sin(pitch)
+  level = 1.0 - 2.0 * (x * x + y * y)
+  up = level * math.cos(pitch) - 2.0 * (x * z - w * y) * math.sin(pitch)
+  if pitch > 0.0:
+    up = max(up, level)
   return math.acos(max(-1.0, min(1.0, up))) >= TOPPLE_TILT_RAD
 
 
@@ -4211,8 +4218,8 @@ def fall_table(npz: str | None = None, jobs: int = 4, watch_s: float | None = No
   peak_tau = np.array([hm.CHOSEN.motor(j).peak_torque for j in hm.JOINT_NAMES])
   noload = np.array([hm.CHOSEN.motor(j).noload_speed for j in hm.JOINT_NAMES])
   print(f"FALLS, shoved {FALL_NS:g} N*s at the trunk each way, standing on a bare floor; the "
-        f"get-up policy or the limp drivers take over {math.degrees(FALL_TILT_RAD):.0f} deg past its "
-        "posture")
+        f"get-up policy or the limp drivers take over {math.degrees(FALL_TILT_RAD):.0f} deg off its "
+        "posture and upright both")
   print("  each part: the speed it first touched the floor at, m/s, and the hardest the floor "
         "pushed back, kN (MuJoCo's soft contact: an upper bound's shape, not a number to bank)")
   print("  gears past peak: joints whose torque through the gears passed their part's peak "
@@ -4792,8 +4799,9 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
                    watch_s: float | None = None) -> dict:
   """The robot on a bare floor settled in posture `held` (its reach holding
   it, as a plan's posture is), shoved `way` at `ns` N*s and watched
-  `BOW_WATCH_S`: when each check fires -- the tilt past the posture (the
-  watch's), off upright (the watch's as it was), the collapse -- what struck
+  `BOW_WATCH_S`: when each check fires -- the tilt off the posture held and
+  off upright both (the watch's), off the posture alone (#520's), off
+  upright alone (the watch's before it), the collapse -- what struck
   the floor first, a hand aside, and when, and the head's speed into it;
   whether it fell, by our grading (a part struck, or its pelvis 0.15 m under
   where it held); and `served`, the checks handing the fall to the get-up
@@ -4812,8 +4820,9 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   _drain(wait(h, 1.5))
   z0 = float(d.xpos[h.root][2])
   rec = {"posture": tuple(held), "way": way, "ns": ns, "served": served, "tilt_s": None,
-         "upright_s": None, "collapse_s": None, "first": None, "hit_s": None, "head_v": None,
-         "head_part": None, "unit_v": None, "took_s": None, "stood_s": None, "max_tip": 0.0}
+         "posture_s": None, "upright_s": None, "collapse_s": None, "first": None, "hit_s": None,
+         "head_v": None, "head_part": None, "unit_v": None, "took_s": None, "stood_s": None,
+         "max_tip": 0.0}
   t0 = d.time
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
@@ -4827,10 +4836,11 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
       continue
     if not up and n % every == 0:
       t, g = d.time - t0, h.stand.trunk.gravity()
-      tip = tipped(g, h.reach.held_pitch())
+      tip = tipped_past(g, h.reach.held_pitch())
       rec["max_tip"] = max(rec["max_tip"], tip)
       sunk = over_lower_sole(watch.sm, h.stand.joints.read(d)[0], g) < COLLAPSED_M
       for key, fired in (("tilt_s", tip > FALL_TILT_RAD), ("collapse_s", sunk),
+                         ("posture_s", tipped(g, h.reach.held_pitch()) > FALL_TILT_RAD),
                          ("upright_s", h.stand.trunk.attitude.tilt() > FALL_TILT_RAD)):
         if fired and rec[key] is None:
           rec[key] = t
@@ -4892,11 +4902,12 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4,
         f"at {', '.join(f'{ns:g}' for ns in BOW_NS)} N*s. On the standing policy alone, graded by "
         "us: the falls, which check would have taken each first, how long before a part but a "
         "hand struck the floor, and the shoves it stood through that a check took for a fall -- "
-        "the tilt past the posture (the watch) and off upright (the watch as it was). As served, "
+        "the tilt off the posture held and off upright both (the watch), off that posture "
+        "alone (#520's watch) and off upright alone (the watch before it). As served, "
         "the checks handing each fall to the get-up policy: stood, s from the shove; and the "
         "head into the floor, m/s, alone and served")
   print(f"{'posture':>14s}{'falls':>7s}{'first: tilt, collapse':>23s}{'ahead, s':>11s}"
-        f"{'false: posture, upright':>25s}{'stood, served':>18s}{'head alone':>17s}"
+        f"{'false: now, posture, upright':>30s}{'stood, served':>18s}{'head alone':>17s}"
         f"{'head served':>17s}")
   for p in BOW_POSTURES:
     fell = [r for r in alone if r["posture"] == p and r["fell"]]
@@ -4908,19 +4919,20 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4,
              for r in caught if r["hit_s"] is not None]
     false_now = sum(r["tilt_s"] is not None or r["collapse_s"] is not None for r in stood_through)
     false_was = sum(r["upright_s"] is not None or r["collapse_s"] is not None for r in stood_through)
+    false_520 = sum(r["posture_s"] is not None or r["collapse_s"] is not None for r in stood_through)
     up = [r for r in served if r["posture"] == p and r["took_s"] is not None]
     stood = [r["stood_s"] for r in up if r["stood_s"] is not None and not _died(r)]
     heads = [r["head_v"] for r in fell if r["head_v"]]
     heads_s = [r["head_v"] for r in up if r["head_v"]]
     print(f"{p[0]:+6.2f} m {p[1]:4.2f}{len(fell):>4d}/{len(fell) + len(stood_through)}"
           f"{f'{by_tilt}, {len(caught) - by_tilt}':>23s}{_span(ahead, '{:.2f}'):>11s}"
-          f"{f'{false_now} of {len(stood_through)}, {false_was}':>25s}"
+          f"{f'{false_now} of {len(stood_through)}, {false_520}, {false_was}':>30s}"
           f"{f'{len(stood)}/{len(up)}, {_span(stood)}':>18s}"
           f"{f'{len(heads)}, {_span(heads)}':>17s}{f'{len(heads_s)}, {_span(heads_s)}':>17s}")
   missed = [r for r in alone if r["fell"] and r["tilt_s"] is None and r["collapse_s"] is None]
   most = max((r["max_tip"] for r in alone if not r["fell"]), default=0.0)
   print(f"  falls neither check took: {len(missed)}; the most a shove it stood through tipped it "
-        f"past its posture: {math.degrees(most):.1f} deg, against the watch's "
+        f"past its posture and upright: {math.degrees(most):.1f} deg, against the watch's "
         f"{math.degrees(FALL_TILT_RAD):.0f}")
   struck = {}
   for r in rows:
