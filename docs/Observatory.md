@@ -10,6 +10,70 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A step whose walk got nowhere says what its legs counted, in the window that ended it (#751's words, C2, `loop-751w`) — opens when this PR is deployed
+
+**What the robots read** moves by one failure's words: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) and the session host's hello
+`9dcf6202` are byte for byte as they were, and `step`'s text is unchanged.
+A `step` whose walk's legs count under 1 cm along its way in a window, no
+keep-off holding it, said (51 characters) "your step got nowhere: something
+stands in your way". It now says what its legs counted and in which window:
+"your step got nowhere: your legs counted under 1 cm along the way you
+stepped in the first 2 s of its walk" (106), or, after an earlier window of
+the walk or an earlier walk of the step went, "your step stopped short: once
+it was under way, your legs counted under 1 cm along the way you stepped in 1
+s" (109; "in 2 s" where an oblique step's second walk never got going). Its
+numbers are the walk's constants. History's run line says each whole only
+where that moves nothing else on it, else its head ("your step got nowhere",
+"your step stopped short": #728's shorter form); the sim's log, a
+`procedure` event's `failedReason` and a practice's report say it whole. A
+draft for Ben.
+
+**Why** (#751). A carried hand's first step after a pick stood still with
+nothing in its way and read "something stands in your way"; and a walk that
+went a few cm before a later window with none read "got nowhere". The step
+measures what its legs counted, and that no keep-off held it -- never what
+stood there: on 11-25 Rowan's `door_p7` read, on one line within minutes, a
+knee keep-off (the counter's face 0.21-0.22 m off), a press (its legs 5 cm,
+its scans less) and eight plain stalls. A1's draft (126 characters, "...in 2 s
+(1 s once under way), and nothing a step keeps off held it") said both
+windows at once and claimed a cause.
+
+**Measured** (nothing flown that moves: the record gains `stuck`, read by
+the words alone). History's room on a run line the real code writes (a stub
+run, read back from the robot's store): the reason has 262-297 of the 384
+past the stamp, beside a readout, a 4-digit line or the longest name. Each
+run with a plain stall rebuilt off the sim's log (its tests that read false,
+its failed step, its end; its locals off its `procedure` event; `spot`'s
+shorter form as live): 11-14 3, 11-15 15, 11-18 1, 11-22 1, 11-25 3. In
+full, the new words would have taken the step's own reason off the line in
+up to 4 of the 23, where the old words were said, and put the readout on a
+line of its own in 5; with the head as the shorter form, none. Two local
+flights of `door_p7`'s loop at a door set-out's counter (15 steps) read kept
+off or stepped, never a plain stall: what held the live ones is unmeasured.
+
+Today's wake's nine and the weekend's one, all Rowan's, all tests that read
+false, none carried (their reasons said by the log alone: History's line
+said none, before or after -- a `spot`'s refusal took the line, or the
+step's line had first read false as kept off, and History says each line's
+first reason):
+
+| UTC | run, line | step asked | s | BEFORE | AFTER |
+|---|---|---|---|---|---|
+| 11-22 17:04 | `drawer_run10`, 100 | (0, -0.15), its left arm left held by a withdraw | 3.3 | "...something stands in your way" | the first window's |
+| 11-25 06:49 | `drawer_run11`, 107 | the same | 3.3 | the same | the first window's |
+| 11-25 11:21-11:50 | `door_p7`, 39 (x8) | (0.11, 0), hands home | 5.3 x5, 6.3 x3 | the same | not told by its time |
+
+A first-window stall with its hand-over at once takes 3.3 s (the window's 2,
+the stand's 0.8 settle, the step's 0.5); a later window's takes 4.3 s or more,
+as does a first window after a slower hand-over.
+
+**What to read**: the sim log's PROCEDURE lines with the new words, and how
+many say the first window against once under way (what the timing could not
+tell); whether a robot told its step got nowhere steps again (at #751's stall
+the next identical step stepped 28 times of 29) rather than writing a note
+about what stands in its way; no "something stands in your way" anywhere.
+
 ### A procedure's reach takes no posture whose swing meets what its depth camera saw (#747's option 1, Z3, `loop-747`) — opens when this PR is deployed
 
 **What the robots read** moves by one refusal's words: the prompt

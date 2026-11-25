@@ -1535,8 +1535,8 @@ def _step(life, args: dict) -> Routine:
     if rep["why"] == "blocked" and not kept and stuck:
       # ...its head alone where the rest would move anything else History's
       # line says (#728's shorter form, `lifecycle.procedure_outcome`): in
-      # full, the step's own reason fell off the line in up to 3 of the 8
-      # live runs it stalled in (#751)
+      # full, the step's own reason fell off the line in up to 4 of the 23
+      # live runs with a stall, and a readout onto a line of its own in 5 (#751)
       reason = step_stuck_said(stuck)
       return {"ok": False, **out, "reason": reason, "brief": reason.partition(":")[0]}
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept

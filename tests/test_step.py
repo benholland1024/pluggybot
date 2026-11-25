@@ -797,12 +797,12 @@ def test_a_stalled_step_reads_false_saying_what_its_legs_counted_on_historys_lin
                                          ({"m": 0.01, "s": 1.0, "underWay": True},
                                           "your step stopped short")])
 def test_a_stalls_words_give_way_to_their_head_where_historys_line_has_no_room(stuck, head):
-  """#751 on #728's shorter form: rebuilt off the wakes of 11-14 to 11-25,
-  the stall's words in full dropped the step's own reason off the run's
-  line in up to 3 of its 8 runs with one, where the old 51 characters were
-  said, and on 11-15 put a run's readout on a line of its own in 5 of 15.
-  Its head, before the colon, is its shorter form: said where the rest would
-  move anything else, and the line otherwise as one with no shorter form."""
+  """#751 on #728's shorter form: rebuilt off five wakes (11-14 to 11-25),
+  the stall's words in full took the step's own reason off the run's line in
+  up to 4 of the 23 runs with one, where the old 51 characters were said,
+  and a readout onto a line of its own in 5. Its head, before the colon, is
+  its shorter form: said where the rest would move anything else, and the
+  line otherwise as one with no shorter form."""
   from pluggybot import lifecycle as lc
   body = StubBody(*_bare())
   body.step_routine = lambda *a, **kw: tick.result(
