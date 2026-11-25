@@ -52,6 +52,20 @@ falls the base never had.
   gained a fall. Rowan's four draws, 32 keys: identical.
 - Option 2 (raise first): 13 / 4 and 6 / 0, three falls gained; option 1
   (refuse): 10 / 7 and 5 / 1, the falls moved into the next withdraw.
+- With the step replaced by a turn either way, a walk 1.4 m or 4 m out or a
+  `find`: the base fell in the walk's hand-over on 6 keys of 12 in each,
+  option 3 in none of 60. The loop's own charge walk with the arm held:
+  12 of 12 docked on both trees, no fall, but the held arm scraped the
+  lobby's east wall in 11 of 12 at up to 688 N (the base, which walks with
+  it held in 8 of 12 there too, at up to 257 N). Standing 600 s or 1200 s
+  plugged in with it held: none of 24 fell.
+- Ben's bar: 617 of 736 and 4 falls on both trees, 0 moved (no flight in it
+  hands over with an arm held).
+- What to read on the observatory: the walks that begin with an arm held
+  (a walk report's `armHeld`) and what follows them -- a fall in the walk or
+  the next withdraw, a robot at the counter or the charger with an arm out,
+  a doorway jam (a robot with an arm held never rests, so is never asked
+  aside).
 
 ### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
 

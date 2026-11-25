@@ -12376,6 +12376,26 @@ per-tick arm trace; passes / falls at t_0818's 24 keys and t_0810's 8):
   step left the hand came home in all 12: the drag had pulled the hand
   toward the counter's edge.
 - Rowan's four draws, 32 keys: identical on every tree.
+- Option 3's tree replays the flight patch it was first read on, 32 of 32 by path, end and falls. With
+  line 141's step replaced -- `face` 0.35 rad either way, `drive_to` 1.4 m and 4 m out from the tag,
+  `find(75)` in the study room -- the base falls in the walk's hand-over on the same 6 keys of 12 in
+  each, option 3 in none of its 60 walks: the held jaw drags over the counter's top at up to 182 N and
+  once over a cupboard's door panel at 297 N.
+- The loop's own charge walk with the arm held (the procedure ending at the held withdraw, the grade's
+  5 s hold, then `go_charge_routine` to the research center's lobby, 10-14 m): every tree docked 12 of
+  12 and fell in none. Option 3 walked with the arm held in all 12 and scraped the lobby's east wall in
+  11 at peaks of 71-688 N, about 24 s of contact a walk; the base, its hand-over's drag held by the stall
+  rule and raised twice, walked with the arm held in 8 and scraped at 72-257 N. Walk2 neither stalled nor
+  veered with the arm out: the walks took the base's time and path (medians 82 s and 11.5 m).
+- Standing with the arm held: 600 s after the step back, and 1200 s plugged in after the charge walk,
+  the senses stepped -- option 3 none of 24 fell, the trunk within 1.9 deg, the jaw resting on the
+  counter at 24-40 N where it was held there.
+- Ben's bar beside dc843dc0 on one pod: 617 of 736 and 4 falls on both trees, none of the 736 moved --
+  none has a walk's hand-over that finds an arm held.
+- A middle way, flown and not built: the walk goes with the held arm and sends it home where its legs
+  come back to the standing policy -- a step's end, or for a drive the next hand verb. In 72 flights
+  none fell, every step's arm came home at its end (24 of 24), and it moves no word; a drive's arm rides
+  held to the next hand verb, so it scrapes the lobby's wall as option 3's does.
 
 **What is true now** (`HumanoidMission.to_walk_routine`, `_arms_wait_routine`,
 `Body.arm_kept`; `tests/test_humanoid_body.py`, `tests/test_arms_keep_off.py`):
