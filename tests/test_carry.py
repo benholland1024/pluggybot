@@ -700,7 +700,9 @@ def test_a_walk_shows_its_walker_the_arms_at_rest_only_while_a_hand_is_carried()
     m.reach.carry_q["right"] = m.reach.q_cmd["right"].copy()
     m.reach.phase["right"] = "carried"
     assert rested(), "the right hand's carry"
-    m.reach.phase["left"], m.reach.phase["right"] = "held", "rest"
+    m.reach.phase["left"] = "held"
+    assert rested(), "the right hand carried and the left arm left held: both shown at rest, as measured"
+    m.reach.phase["right"] = "rest"
     m.reach.carry_q["right"] = None
     assert not rested(), "an arm left held, shown at rest"
     m.reach.carry_q["left"] = np.array(_FOLDED)
@@ -743,6 +745,7 @@ def test_only_a_walker_that_never_trained_carrying_is_shown_its_arms_at_rest():
   its arms hold carry poses, and is shown them as they are -- its task as
   training registers it."""
   from pathlib import Path
+  from types import SimpleNamespace as NS
   from pluggybot.humanoid.policy import StandPolicy
   from pluggybot.humanoid.walk import CARRY_TASK, SEEING_NPZ, WALK_NPZ, WalkDriver
   init = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "__init__.py"
@@ -750,8 +753,9 @@ def test_only_a_walker_that_never_trained_carrying_is_shown_its_arms_at_rest():
   model, data = _floor()
   _fold_left(model, data)
   seeing = StandPolicy(SEEING_NPZ)
+  scan = _shown(NS(policy=seeing))["height_scan"]
   walkers = {"walk2": WalkDriver(model, data),
-             "seeing": WalkDriver(model, data, policy=seeing, scan=lambda: np.zeros(len(seeing.mean) - 69)),
+             "seeing": WalkDriver(model, data, policy=seeing, scan=lambda: np.zeros(scan.stop - scan.start)),
              "carry2": WalkDriver(model, data, policy=StandPolicy(WALK_NPZ.parent / "humanoid_walk_carry.npz"))}
   rested = {}
   for name, w in walkers.items():

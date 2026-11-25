@@ -731,6 +731,20 @@ def hide(model, info, reading: Reading) -> None:
       model.geom_group[g] = PARKED_GROUP
 
 
+def watch_blind(walker) -> dict:
+  """Whether the walker was ever shown its arms at rest because a hand was
+  carried (#751), its `blind` set the first step it was: a wrapper on this
+  flight's walker, which a fall's stand-up keeps."""
+  seen = {"blind": False}
+  step = walker.step
+
+  def stepped(trunk_stepped: bool = False, carrying: bool = False) -> None:
+    seen["blind"] = seen["blind"] or bool(carrying and walker.carry_blind)
+    return step(trunk_stepped, carrying)
+  walker.step = stepped
+  return seen
+
+
 def before_walk(model, body, info, reading: Reading) -> dict:
   """The switches a flight walks under, once posed: the held pieces hidden
   from every sensor (`UNSEEN`; `setup` hid them already), the walker shown
@@ -849,6 +863,7 @@ def fly(job) -> dict:
       return row
     mi = body.mission
     row.update(before_walk(model, body, info, reading))
+    walked_blind = watch_blind(mi.walker)
     falls0 = mi.falls
     x0, y0, h0, _, _ = reading.pelvis()
     bx0, by0, bh0 = mi.pose
@@ -888,7 +903,9 @@ def fly(job) -> dict:
       row["q_carried"] = {s_: [float(v) for v in mi.reach.q_cmd[s_]] for _, s_ in info["arms"]}
       # ...and the served walk shows walk2 its arms at rest while a hand is
       # carried (#751): such a flight walked blind, whatever --blind-arms said
-      if any(row["carried"].values()) and mi.walker.carry_blind:
+      # -- read at every step it walked, never off the row's end (a fall's
+      # stand-up builds a fresh reach, which carries nothing)
+      if walked_blind["blind"]:
         row["blind"] = True
     if WALKER:
       row["walker"] = os.path.basename(WALKER)

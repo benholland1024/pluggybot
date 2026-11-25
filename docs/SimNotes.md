@@ -7949,14 +7949,11 @@ plan are the night shift's, 2026-11-11, T7).
   2 of 8, touching nothing, sooner at 120 N than at 40: a creep that is not
   the squeeze's, not yet diagnosed.
 
-**What is true now:** nothing served carries. Carrying needs a hand-over that
-keeps a held grip and walks the arm to a carry pose first, a self-filter for
-what a hand holds, the plate squeezed at 80 N, and the cup's creep found.
-walk2 as it is carries
-closed loop at a cost in time and a veer; a walker trained with carry poses
-held and loads at the grip is the honest fix. `carry_spike.py --view
+**What is true now:** a walk carries a hand that holds ("Carrying, served",
+below), and walk2 is shown its arms at rest while it does ("The walker shown
+its arms at rest while a hand is carried", below). `carry_spike.py --view
 plate_close:route:1` watches a 0.47 kg plate held close tilt in the jaws from
-35 s and fall at 47 s; `--strip` draws it.
+35 s and fall at 47 s on the instrument's own hand-over; `--strip` draws it.
 
 ## Carrying, served (#682's stage A)
 
@@ -8143,9 +8140,11 @@ with no hand carried is bit for bit as before. It is told at each policy step
 off the reach as it stands, so a restart carries it on and a stand-up's fresh
 reach ends it. A walker trained to carry (`Pluggy-Humanoid-Walk-Carry`,
 carry2, not served) is shown its arms as they are: it trained seeing them hold
-carry poses, and blinded it would lose what it learned to balance on. Built
-so, it equals carry_spike's `--blind-arms` and the loop's patch where both
-act, flight for flight.
+carry poses, and blinded it would lose what it learned to balance on. ⚠ The
+gate reads the task its policy was exported from (`CARRY_TASK`, a prefix of
+training's task id): a walker trained to carry under another id is blinded
+until its id is named there. Built so, it equals carry_spike's `--blind-arms`
+and the loop's patch where both act, flight for flight.
 
 **Measured** (one Vast pod, a Xeon E5-2699 v4, osmesa, Python 3.12;
 `loop-staging` 0505dfc1 against the cure; the shelf on `loop-736` 97bbc19c
