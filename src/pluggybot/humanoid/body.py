@@ -28,7 +28,6 @@ from pluggybot.humanoid.mission import (DEPTH_PERIOD, MOTION_EPS, STAND_BACK_S, 
                                         HumanoidMission)
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import AT_EASE, HOLD_SPEED
-from pluggybot.mapping.scan_match import SEARCH_M, SEARCH_RAD
 from pluggybot.navigator import GRID_M
 from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
@@ -213,16 +212,13 @@ WALK_KEEP_M = HumanoidMission.INFLATION_CELLS * GRID_M
 #: draws nothing a flight reads.
 DEPTH_REACH_M = 3.0
 #: A look at the station moves the belief only past this, m / rad: the
-#: matched belief in the house is good to a few centimetres (#476).
+#: matched belief in the house is good to a few centimetres (#476). ⚠ AND
+#: A FIX THAT MOVES IT DROPS THE MAP AND ITS PLACES (#681): kept, a region
+#: holds the offset of the belief that laid it and the matcher holds the
+#: belief to it (live 11-25, the counter's error back at once after a lobby
+#: fix; SimNotes, "A station's fix that moves the belief drops the map").
 FIX_TOL_M = 0.10
 FIX_TOL_RAD = math.radians(2.0)
-#: ⚠ A FIX PAST THE MATCHER'S OWN SEARCH DROPS THE MAP: the walls laid while
-#: lost are copies the matcher holds a corrected belief to. MEASURED on the
-#: quadrupeds (#476, `drift_spike.py --lived` at `quadruped-final`): put
-#: at the truth on the deployed pair's own maps, a walk was 1.3 and 1.9 m
-#: out within 20 s, relocated onto a copy; on an empty map, 0.23 m at worst.
-ASKEW_M = SEARCH_M
-ASKEW_RAD = SEARCH_RAD
 
 
 def _yaw(rot: np.ndarray) -> float:
@@ -1822,7 +1818,7 @@ class HumanoidBody(Body):
     at the wrong wall from 1.5 m off and further, and found it 0 times in
     43 (#572's stage 2). Its `lost` and `searched` records are those the
     quadruped's were (`belief_event`), and its search keeps its map until a
-    fix past the matcher's reach."""
+    fix moves the belief (`_fix_at`)."""
     from pluggybot.humanoid import charge
     from pluggybot.humanoid.places import LOOKED_M, VIEWPOINT_PATIENCE_S, next_viewpoint
     if self._station is None:
@@ -1925,10 +1921,10 @@ class HumanoidBody(Body):
     """The belief put where the station, seen as `seen` (its frame in the
     believed world, `charge.look`), says it stands: the station is
     commissioned (`_station`), as the dock is (#476). Past `FIX_TOL_*` the
-    belief moves, and past the matcher's own search (`ASKEW_*`) the map laid
-    on the old belief goes too -- kept, a map laid while lost pulled a
-    corrected belief back onto a copy within 20 s. Its `fixed` record, or
-    None where the look agreed with the belief."""
+    belief moves, and the map laid on the old belief goes, its places with
+    it (`forget_world`, #681); the dock's fix lays it afresh round the seat
+    (`anchor_at_dock`). Its `fixed` record, `dropped` at every move, or None
+    where the look agreed with the belief."""
     prior = self._station
     x, y, yaw = self.pose
     c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
@@ -1938,16 +1934,11 @@ class HumanoidBody(Body):
     moved, turned = math.hypot(tx - x, ty - y), abs(math.remainder(tyaw - yaw, 2 * math.pi))
     if moved < FIX_TOL_M and turned < FIX_TOL_RAD:
       return None
-    dropped = moved > ASKEW_M or turned > ASKEW_RAD
     self.mission._set_pose(tx, ty, tyaw)
-    if dropped:
-      self.forget_world()
-    elif self.mission.matcher is not None:
-      self.mission.matcher.anchored()
-      self.mission.matcher.relay()
+    self.forget_world()
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
-                                     moved=True, dropped=dropped, station=self.mission.station)
+                                     moved=True, dropped=True, station=self.mission.station)
 
   places = property(lambda self: self.mission.places)
 
@@ -2034,10 +2025,19 @@ class HumanoidBody(Body):
 
   def anchor_at_dock(self) -> None:
     """The station fixes its belief as it charges (#476), off the look it
-    plugged in by (`_fix_at`): a look in the frame the fix left is no look."""
+    plugged in by (`_fix_at`): a look in the frame the fix left is no look.
+    ⚠ A FIX THAT MOVED IT LAYS ITS NEXT SCANS WHERE THE STATION PUT IT, the
+    map it dropped laid afresh round the seat (`ScanMatcher.anchored`, #681):
+    plugged in and standing still it lays none on time alone, and its map
+    would be one scan. NEVER THE LOST SEARCH'S FIX, which walks on at once:
+    its window laid the legs' reckoning into the fresh map, and
+    `station_spike.py --lost --far`'s docks ended 1.9-3.1 cm off at the
+    median, 0.7 without."""
     if (self._station_seen is not None and self._station is not None
         and self._fix_at(self._station_seen) is not None):
       self._station_seen = None
+      if self.mission.matcher is not None:
+        self.mission.matcher.anchored()
 
   def dock_hold_routine(self, seconds):
     return self.hold_routine(seconds)

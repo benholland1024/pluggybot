@@ -1297,8 +1297,8 @@ pose fitted both.
   scans laid in go in at that belief, unmatched, and overwrite a copy laid
   askew: without it, a robot backed off the dock was 0.62 m off a second
   later, matched back into the copy; with it, 0.00-0.01 m (since #741 they
-  are laid as they come, 3 s, the first over what it sees forgotten: "A
-  station's fix that keeps the map lays again what it sees"). Only a fixture's
+  are laid as they come, 3 s; since #681 over a map the fix dropped: "A
+  station's fix that moves the belief drops the map"). Only a fixture's
   tags anchor: a seat with no decode was good to 2 deg, and 30 scans laid
   unmatched through that would lay the room askew themselves. Nor is the
   commissioned start an anchor (a look-around laid unmatched smears the
@@ -1371,10 +1371,10 @@ two tags (`HumanoidBody._fix_at`).
   -- at the charge, and on a lost robot's looks. Never on a walk-in: the
   quadruped's one look there was 26 cm and 6.6 deg out, past the line that
   drops a map.
-- *What it does*: past `FIX_TOL_*` (10 cm or 2 deg) it moves the belief and
-  lays the map again round it; past the matcher's own search (`ASKEW_*`,
-  0.6 m or 6 deg) the map goes with its places -- kept, a map laid while
-  lost pulled a corrected belief back onto a copy within 20 s.
+- *What it does*: past `FIX_TOL_*` (10 cm or 2 deg) it moves the belief,
+  and the map goes with its places, laid again from there (#681: "A
+  station's fix that moves the belief drops the map") -- kept, a map laid
+  while lost pulled a corrected belief back onto a copy within 20 s.
 - *Lost*: no fixture in sight where the charge's walk ended (within
   `NEAR_STANDOFF_M` of the standoff, #422), with no other robot near it.
   The map goes, the robot looks for the fixture -- the humanoid steps in by
@@ -4333,8 +4333,8 @@ could tell it crept. On a fresh map it does, within a centimetre through the
 whole creep. On the live maps of 11-21/22 it did not: docked at the lobby's
 station, the belief walked 3-21 cm off the body with every fit `ok`, and the
 unplug failed 3 times of 8, each where it hid the creep (#703's comment of
-11-22; why it drifted there: "A station's fix that keeps the map lays again
-what it sees", below).
+11-22; why it drifted there: "A station's fix that moves the belief drops
+the map", below).
 
 **Why 300 s, and 5 cm past the creep.** In the base's flights below, its
 belief drifted, the robot docked 1.6-3.6 cm past its seat, and its hand got
@@ -9406,8 +9406,9 @@ instruments count all three (`FIT_TAKEN`).
 
 **Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
 wide search or the station. The slow creep (0.2 m and 2 deg an hour with
-every scan matched, Rowan charging and in `DONE`): not explained. A fix
-under `ASKEW` keeps an askew map (the mall's leg). An error toward a wall
+every scan matched, Rowan charging and in `DONE`): not explained. (A fix
+under `ASKEW` kept an askew map, the mall's leg, until #681's pair dropped
+the map at every fix that moves the belief.) An error toward a wall
 whose far side was never seen is not doubted: its points land on unseen
 cells, no information, so the fit reads 0.93-1.00 on walls (the review's
 dead end mapped from one side: 0.3 m toward its end kept in 44 cases of
@@ -10005,12 +10006,9 @@ here; probes written to break it; three code reviews):
   fix, the get-up leaving the belief 1.25 m from the body): open, it ended
   1.21 m off on the copy its scans made; closed, 0.49 m off on the older
   copy the window had only begun to lay over. Since #741 the stand-up
-  closes it, the older copy gone with what the fix's relay laid again: 0.01
-  m (below, "A station's fix that keeps the map lays again what it sees").
-  Where the get-up leaves the body in place with no anchored scan laid yet
-  (1 fall of 84) the closed window hands a right belief to the askew map,
-  0.2-0.45 m off (0.01 m open): since #741, a fall begun before the relay's
-  scan.
+  closes it, and since #681 the fix drops the map before the window opens,
+  so no older copy is left to hand the belief to (below, "A station's fix
+  that moves the belief drops the map").
 - *Only up from a fall.* Checking an inconsistent fit's find at any time
   let the wide search's unconfirmed place (1.8 m along a sidewalk whose wall
   the map had eroded, #401) refuse a find that was the truth.
@@ -10089,8 +10087,8 @@ left wherever its fits hold it, and what laid Rowan's there is not known.
 Not up from a fall, the bounded search still takes the best of a window
 the truth may lie outside of, and the doubt's own search looks no further
 than its window; a belief arriving from the mall's station 0.9-1.0 m off
-(#681's call 3, a fix under `ASKEW` keeping a map laid askew) is `ok` on
-its own map, as before. A wrong place under `UNIQUE_M` from the truth
+(#681's call 3, a fix under `ASKEW` keeping a map laid askew, which since
+#681's pair drops it) is `ok` on its own map, as before. A wrong place under `UNIQUE_M` from the truth
 stands (the cube's end's find; an `ok` fit 0.39 m along the restaurant's
 pass), as does any take where the truth is out of the look's 2 m or
 explains under 0.9 of the scan: the station's to fix, as before. The legs'
@@ -11843,246 +11841,162 @@ its seat, is a robot lost, searched at once, as before. ⚠ The report is the ot
 own word, read as its reported pose is: a robot whose port says nothing
 holds nothing by this rule.
 
-## A station's fix that keeps the map lays again what it sees (issue #741)
+## A station's fix that moves the belief drops the map (issues #741, #681)
 
-The weekend's wakes of 11-21 and 11-22 docked Luca at the research center
-lobby's station seven times with a fix that kept its map, and every one of
-those docks drifted: the anchor's window held the belief a couple of minutes,
-then the fits took it 3-14 cm north again. The one dock whose fix dropped the
-map (Rowan's, 11-22 09:17) held under 1 cm for 5,400 s. X7 (the loop of
-11-23) found why on the live saves: each region of a kept map holds the
-offset of the belief that last laid it, and the matcher holds the belief to
-the map. On the save of 11-22 (the world 11-21's wake left) the lobby is laid
-10.0 cm west and 8.3 cm north and the storeroom 34-36 cm north; Luca's docked belief was the lobby's offset
-to the millimetre, and #703's unplug of 11-22 09:08 failed on it.
+**Why a fix that keeps the map does not hold.** Each region of a kept map
+holds the offset of the belief that last laid it, and the scan matcher holds
+the belief to the map (X7, the loop of 11-23, on the live saves). So a
+station's fix put the belief right at the station, and the map handed the
+error back: on the weekend of 11-21/22 every one of Luca's seven lobby docks
+whose fix kept the map drifted 3-14 cm north again within minutes, and the
+one dock whose fix dropped the map (Rowan's, 11-22 09:17, past the matcher's
+search) held under 1 cm for 5,400 s, and its tries at the counter moved the
+belief 0.9 cm a try for 8.5 hours.
 
-**Measured on that save** (Y3, the loop of 11-24: X7's loader, Luca restored
-by name into a one-robot house, its plug put back in the lobby station's
-cup, warped to the standoff and docked by the loop's own `go_charge` and
-`charge`, held 40-60 minutes; every tree on one pod; the belief against the
-truth each minute). Re-docked with the belief at the truth at the standoff,
-the base was taken 12.9 cm onto the copy before the dock's look; the fix
-("moved 0.15 m") held 0.3-1.1 cm through the anchor's 30 scans (one every
-`FUSE_S`, 146 s docked), then 11.5 cm at 180 s and 10.3 cm at the median to
-the end. Arriving off as the live robots arrived, it went the same way. Why
-the window could not overwrite the copy: right after it, 144-176 of 207
-points lay on walls at the truth and up to 198 at the copy -- the window lays
-its scans from one standing pose, where the copy was laid over hours from
-everywhere, the lobby a hall 3 m by 12 m seen from its end, its walls met at
-a graze (#712's rule keeps their copies) and the far side of what the dock
-sees never crossed.
+**#741's relay, and what it left.** From 11-24 a fix that kept the map laid
+again what its next scan saw: every cell within a degree of that scan's
+bearings, out to each bearing's end and up to 0.15 m past it, forgotten
+before the scan was laid (walls nearer than both the bearing's `free_from`
+and 1 m kept), and the anchor's 30 scans then laid from the belief put
+right. Docked, it held: re-docked on the live saves of 11-22 and 11-23,
+0.3-2.6 cm at the median where the base went back to 3-19 cm, and live on
+11-25 Rowan's three lobby fixes sat at a median 0.3 cm (2.8 at most) while
+docked. But the relay re-laid only what the station sees, and the
+storeroom's counter lies beyond it: back at the counter after its 07:00
+lobby fix (0.20 m), Rowan's storeroom error came back at once (-13.9 cm east
+at 08:32, as before the fix) and walked west to -55.7 cm by 12:53 (C1, the
+loop of 11-25b, off the wake's `drift` rows; #681's comment of 11-25). A4
+(the loop of 11-25, #681's comment of 11-25 04:23) took the counter's error
+apart: on a right map a try moves the belief about 1 cm; the live "8 cm a
+try" is the map's own error read out as the robot walks along the counter
+-- a storeroom laid turned swings the error by the turn times the walk, a
+storeroom laid twice pulls the belief toward its second copy -- and the
+copies were laid standing still, the matcher following its own scans laid
+every 5 s.
 
-| the dock arrives | the base | option 4 | option 3: the window held to `FUSE_S` | a window of one scan | the window's scans as they come | the same, as built |
-|---|---|---|---|---|---|---|
-| 11-22's save, the belief at the truth at the standoff | 10.3 (11.0) | 10.8 (11.5) | 0.3 (0.9) | 0.2 (1.7) | 0.3 (0.7) | 0.3 (1.0) |
-| 11-22's save, 35 cm west | 10.9 (12.8) | 12.4 (13.7) | 0.3 (0.8) | 3.3 (4.2) | 0.4 (0.9) | 0.6 (1.5) |
-| 11-22's save, 26 cm east, 10.5 south, 5.5 deg | 10.9 (11.4) | 10.8 (11.1) | 0.9 (1.8) | 1.8 (2.4) | 0.4 (0.8) | 0.5 (1.3) |
-| 11-22's save, 6.5 cm east, 9.4 north, 1.7 deg | 18.7 (26.1) | 6.6 (7.4) | 4.1 (4.5) | 0.4 (1.1) | 0.4 (1.0) | 2.6 (5.0) |
-| 11-23's save, 35 cm west | 3.4 (4.2) | 3.2 (3.6) | 1.3 (1.9) | 2.2 (2.7) | 0.6 (1.1) | 0.6 (1.5) |
+**The rule as built (#681's pair).** Every station fix that moves the
+belief past `FIX_TOL_*` (10 cm, 2 deg) drops the map, the depth camera's
+layer and the places found on it (`HumanoidBody._fix_at`, `forget_world`),
+as only one past the matcher's search did before; and the dock's fix
+(`anchor_at_dock`, plugged in and standing still), never the lost search's,
+opens the anchor's window: the next 30 scans laid at the belief put right,
+unmatched, as they come (3 s). The loop's explore goes with the map, as at a stand-up
+(`floorExplored` false, no frontier blacklisted). The relay is gone with
+what only it reached (`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`,
+`OccupancyGrid.seen_by` / `forget_seen`). With it, #741's option 4: a scan
+is laid only once the belief has moved 1 cm or turned half a degree since
+the last laid, or inside an anchor's window; never on time alone (below). The History line
+says how far the station put the robot, in cm under a metre and tenths of a
+degree under ten, and that its map and the places it had found are gone
+(`MAP_GONE`, the stand-up's own words), where it said "the map I had was
+laid askew": the fix measures the belief, never the map, and a belief its
+last walk carried off had laid no askew map.
+- *Why the window at the dock's drop.* A robot standing still lays no scan
+  on time alone, so docked after a drop its map would be the one scan laid
+  after the fix until it crept a centimetre; a window of one scan slid the
+  fits 3 cm along the lobby on walls one scan thick, where the 30 held
+  0.3-0.8 cm (#741's forms, docked on the 11-22 save), and held to one every
+  5 s the window lasted 146 s docked while the legs' reckoning carried a
+  belief 3-4 cm through it, the region laid along it.
+- *Why never at the lost search's.* It walks on to the standoff at once, and
+  the window laid its scans along the legs' reckoning, unmatched, into the
+  fresh map: `station_spike.py --lost --far` (123 lost starts, every fix a
+  drop on both trees, one pod) docked 0.7 cm off at the median (1.7 at the
+  90th percentile) on the base, whose drop past the matcher's search opened
+  no window; 1.9 (5.7) with it, and 3.1 (6.7) on the tree below; without it
+  on that same tree, 0.7 (1.7) again -- nearer than with it on 79 starts,
+  further on 4.
+- *Why the pelvis's place, not the sensor's.* A bow carries the sensor 0.54
+  m ahead of a pelvis standing still, and the review of #681's pair laid
+  what it saw from there at once (where the sensor had moved 1 cm). It cost
+  more than it gave: it laid 0.3 % more scans (177,481 against 176,851 of
+  the drift batch's 181,000) and redrew every walking flight -- all 32 of the
+  drift batch moved, the worst error up more than 5 cm in 10 and down in 5,
+  a sign test a wash -- and the far check lost 4 docks the base made (lost
+  searches that never found the station, before any fix: their maps laid
+  otherwise) for 2 it gained. So a bow's view is laid once the feet move.
+- *A fall inside the window* closes it (`ScanMatcher.fell`, #741's review):
+  laid unmatched at a belief the get-up moved, its scans lay the room again
+  where it is not (measured in #681's scene, when the lost search's fix still
+  opened one: shoved a second after it, open, 1.30 m off). With the map
+  dropped there is no older copy for the closed window to hand the belief
+  back to.
+- *A restart inside the window* carries it on (`anchoring` is kept state); a
+  save from before the pair restores its window closed: it was a fix's that
+  kept the map, and laid on unmatched it would be a second room beside the
+  kept one.
 
-*The belief's error once the anchor's window closed, to the end (40-60
-minutes), cm: the median (the most). Each dock's fix kept the map. Option 3's
-forms were chosen between by a rule written before the last two flew: the
-median at most 3 cm and the most at most 5 in all five, then the least worst
-median -- the window's scans as they come. As built, that form keeps the
-review's two limits on what it forgets (below), and on the dock arriving 6.5
-cm east they cost it 2.6 cm (5.0, still walking south at the end) where it
-held 0.4 (1.0) without them.*
+**Standing still, no scan laid on time alone** (#741's option 4, Y3 of the
+loop of 11-24, `loop-741b`). A robot standing still laid a scan every
+`FUSE_S` (5 s): docked for minutes, every scan fused at a pose jittering by a
+millimetre had walked the map and the pose together 0.15 m (#386), and every
+5 s 0.03 m. On the live robots' kept maps it still walked them: Luca held
+docked as saved on the 11-22 save, 13 cm off and its creep long over, stood
+at 13-14 cm for 15 minutes and then walked 30 cm west in 45, its heading
+turning 2.6 deg -- the shape of the live walk of 11-21 13:32 -- and at the
+counter, standing 28 minutes where the live robots stood (the 11-23 save),
+the belief walked 0.8-8.8 cm west. With no scan laid while the belief has
+not moved a centimetre or turned half a degree: the docked hold 13.1 cm at
+the median (13.4 at most) for the hour, the counter 0.4-0.8 cm. It does not
+move a belief a copy already took (the fits put it there, laid or not), and
+live on 11-25 the standing walk was small (Rowan -0.7 mm a minute, Luca
++0.6), the runs' walk toward copies already laid the larger part (-30 and
+-23.5 cm over two to three hours, C1): it stops the copies being laid, and
+the drop clears those a fix finds. A robot that stands still lays nothing
+new of what changes round it until it moves.
 
-- **Option 4** -- no scan laid on time alone while standing still, outside an
-  anchor's window -- leaves a docked belief where the base leaves it: it is
-  the fit, not the laying, that takes the belief to the copy. It stops the
-  still walk (below), and moves every flight that stands still with the
-  matcher on: built apart (`loop-741b`), for Ben.
-- **Option 3's window.** Held to `FUSE_S`, the window lasted 146 s docked and
-  the legs' reckoning, unmatched through it, carried a belief 3-4 cm (the dock
-  arriving 6.5 cm east and 9.4 north; `station_spike.py --lost`'s trial 14,
-  walking from its fix to the standoff), the region laid along it. A window
-  of one scan slid the fits 3 cm along the lobby on walls one scan thick.
-  Laid as they come, the 30 scans take 3 s.
-- **Option 1**, the map dropped at every station fix as an askew one is,
-  held live (Rowan's dock of 11-22 09:17), but every fix would send the robot
-  exploring again from the station with its places gone (`forget_world`):
-  described, not built. **Option 2**, a smaller `FIX_TOL`, below ("What it
-  leaves"): alone, its fixes keep the map and the region takes the belief
-  back as the base's did.
-
-**The rule as built** (`HumanoidBody._fix_at`, `ScanMatcher.relay`,
-`RELAY_BEHIND_M`, `relay_keeps`, `OccupancyGrid.seen_by` / `forget_seen`,
-`Navigator._scan_step`). A station fix that moves the belief and keeps the
-map -- the only call in the code that opens an anchor's window -- arms a
-relay. The next scan laid goes in over what it looks across forgotten first:
-every cell whose nearest bearing of that scan's lies within a degree of it,
-from the sensor out to that bearing's end (`max_range` where nothing came
-back) and no more than 0.15 m past it, judged at the cell's middle (uncapped,
-the lobby's relay forgot 7,294 cells more, 928 of them walls, all behind
-what its scan met: what lies behind a wall the scan met is never laid again
-from there, and a copy behind a fresh wall pulls nothing). It keeps a wall nearer than both its
-bearing's `free_from` and the fit's 1 m (`MATCH_MIN_M`): there the scan's
-rays pass over what is lower and `update` clears no wall, so a low thing
-mapped from afar stays, and the fit takes no return there anyway. On a
-bearing that clears none (the scan bowed past 30 deg, or behind another
-robot) it keeps every wall: forgotten, `update` laid it floor. The anchor's
-30 scans then lay the region from the belief put right, each as it comes. A
-bearing the scan does not carry (another robot's, the robot's own body) is
-looked across by none of it. The relay is kept state (`relay`); a warp or a
-map forgotten cancels it and closes the window; a fix past the matcher's
-search drops the map as before
-and arms none. It reaches both fixes that keep the map: the dock's look at a
-charge's start (`anchor_at_dock`) and the lost search's
-(`_near_station_routine`).
-
-**A fall inside the window.** #681 left an anchor's window open at a fall
-(above: neither way was right). The relay has forgotten the copy round the
-station by the fix's next scan, so the stand-up now closes the window and
-drops a relay still to come (`ScanMatcher.fell`): in #681's scene (shoved a
-second after the lost search's fix, the get-up leaving the belief 1.34 m
-from the body), the base laid the window's last 17 scans at that belief and
-ended 1.30 m off, its walks giving up by the station when the read ended at
-55 s; with the relay, refused, relocated and then every fit `ok`, 0.01 m,
-plugged in at 50 s. The price is a fall begun in the 0.1 s between a fix and
-its relay's scan: nothing is laid again, and the closed window hands the
-right belief back to the copy, as #681 measured (0.2-0.45 m).
-
-**What it forgets, and what of the copy it removes** (the lobby, a fix of
-0.15 m). The region is 11,016 cells (27.5 m²), 969 of
-them walls; the 161 walls nearer than 1 m are kept and the other 10,853 cells
-that held evidence forgotten. The copy, read by its own offset (an old wall
-that lies where a wall the window laid again would lie moved 10.0 cm west
-and 8.3 cm north, and on none where it stands): 171 cells in the region
-before, 10 by the window's end, all
-within 1 m of the sensor and so kept, and 14 ten minutes on; outside the
-region, past the 0.15 m behind what the scan met, 89 cells stay (moved the
-opposite way, the same reading finds 29 and 38: its floor). The planner
-reads 8,115 of the region's cells as unknown after the relay's own scan,
-1,487 (3.7 m²) as the window closes and 480 (1.2 m²) ten minutes on -- what
-it forgot that the dock cannot see again, up to 0.15 m behind what its scans
-met and round their ends, planned through at `UNKNOWN_COST`.
-
-**Elsewhere** (each beside the base on one pod). On fresh maps the relay is
-neither better nor worse: of `station_spike.py --lost`'s 50 starts, the 24
-whose fix kept the map docked on both and ended within -3.6 to +2.9 cm of the
-base's end (7 nearer, 9 further, 8 within 0.5 cm; a sign test reads p =
-0.80), and the other 26 are the base's, bit for bit. The station's own
-checks: 39 approaches round the standoff and 140 seats the base's, row for
-row; of 20 lost starts every one docked, 18 the base's, the two whose fix
-kept the map 2.2 -> 0.9 cm and 2.8 -> 4.7; 16 walks in from across the house
-the base's. Walked on from the re-laid lobby to the storeroom's counter and
-to the lab (six flights whose dock's fix kept the map, 21 legs), the belief
-arrived nearer than the base's on 11 legs, further on 6 and within 0.5 cm on
-4 (p = 0.33), in the same time (634 s of walking to 658), with no plan
-through a cell the relay forgot that held a wall and none across a wall of
-the world. Bit for bit the base's, the relay never acting: the drift batch
-(32 flights; the dock's correction at most 7.7 cm, under `FIX_TOL`), a sample
-of Ben's bar (80 flights of the hands checks and the tour, end state and
-path), the pair's recording and #572's probe.
+**Measured** (C4, the loop of 11-25, the second; one pod, an EPYC 7C13, beside
+`loop-staging` 0505dfc1; rows in `~/pluggybot-training/batches/c4_681f/`):
+- *The station's checks* (`station_spike.py`):
+  - Round the standoff, 39 of 39 docked, and at the seats 140 of 140, on both trees; option 4 moved 36 and
+    25 of them, and the rest were identical.
+  - Lost near, 20 of 20. The 13 lost searches whose fix dropped the map on the base too were identical; the
+    2 whose fix had kept it moved (docked 0.9 -> 1.1 cm and 4.7 -> 1.0 cm off).
+  - Lost far, 118 -> 119 docked, and 116 of the 117 flights with a fix identical; docked 0.7 cm off at the
+    median, as the base.
+  - Walked in, 16 identical. Plugged in for 2,400 s, 0.4 cm off (the base 0.5).
+  - No fall on either tree.
+- *The drift batch* (32 flights): identical to the base by end state and by the scans laid. No fix fired at
+  any of its 64 docks: the belief there was 4.7 cm off at the median and its heading 0.16 deg.
+- *#572's probe*: identical.
+- *Ben's bar* (736 flights): 617 passes and 4 falls on both trees. Option 4 moved 6 (the tour's drawer 27
+  and table 0, 1, 2, 25 and 30), each with the same verdict: the 6 it moved on `loop-741b`.
+- *The pair's fixture*: no fix fires in its day. The robot charging lays no scan standing still (96 grid
+  images to the base's 171), and the bodies part 298.6 s in.
+- *A4's counter chains with a lobby charge between* (the 11-25 save's maps, each robot's own procedures at
+  their live draws, 8 chains a tree):
+  - Every dock's fix fired: 0.35 m on Rowan's map, 0.10-0.15 m on Luca's.
+  - After it, the counter's belief ended its tries 4.7 cm off at the median (27.6 at worst), where the
+    base's kept storeroom brought back 8.7 (54.2).
+  - Falls went 2 -> 0, and the first `find` after the drop took 11-12 s, as the base's did.
+  - Passes are rare for these procedures: 3 of 32 tries on the base, 0 of 32 with the pair. Each base-only
+    pass parted from its pair at the first rest's scan option 4 withheld, the beliefs millimetres apart, and
+    failed on one of the procedures' own classes.
+  - Rowan's chest procedure (try 1, option 4 its only difference) was flown again at 16 new noise keys a
+    tree, by a rule written before it flew. It came out 0 passes on the base and 1 with the pair; the lid
+    was lower with the pair in 9 pairs and higher in 7 (a one-sided sign test, p = 0.40): a reshuffle. "The
+    lid never opened" came 5 times with the pair and once on the base.
 
 **What it leaves.**
-- A fix of under 10 cm is no fix (`FIX_TOL`): the 11-23 save's lobby copy
-  lies 3.5-5.7 cm north, and docked there the copy takes the belief before
-  the dock's look in 5 arrivals of 6, so nothing re-lays it (3.1-5.8 cm on
-  every arm, the base's to the millimetre). At the seat the dock's look
-  places the station within 0.24 cm (0.48 at most) of where it placed it the
-  look before, and on that map would move the belief 4.2-4.8 cm; on a fresh
-  map, 0.2-0.9 cm. A smaller `FIX_TOL` (#741's option 2), Ben's to weigh
-  with this, would fire there and on no look's noise.
-- What it keeps, for a robot that walks. As built, walked from the re-laid
-  lobby to the storeroom's counter and back on the 11-22 save's map (the docks
-  arriving at the truth and 35 cm west), the belief arrived at the counter
-  33-37 cm north (the base's 32-38; the storeroom's copy lies 34-36 cm north,
-  laid by the walks there) and back at the lobby 13.3-13.9 cm off: the
-  lobby's copy again (the base's 11.6-11.7). With the near-wall keep off and
-  the cap kept, the counter read 4.0-6.9 and 15.0-20.4 cm and the lobby 3.6-4.0;
-  with the cap off and the keep kept, 14.6-15.6 and 30.0-32.2, the lobby
-  13.8-14.0; with neither (96ad64fb), 4.5-8.2 and 6.1-6.5, the lobby 1.6-4.1.
-  The keep guards a low thing the band's rays pass over up close: at the
-  three stations' fix poses, the house's couch (top 0.50 m), 0.73-1.0 m
-  behind a robot the lost search fixes 1.6 m out (there the head's back
-  panels leave free from 2.63 m), and a cell or two at the edges of each
-  station's own box; past 1 m it keeps none, and from the house station's
-  standoff and lost-fix poses the couch's part 1.3-2.6 m behind is laid floor
-  (435-843 of its points, at 2.5 cm; counted below). Uncapped, it planned through what it forgot (1 walk-off
-  of its 8, the 11-23 save's lobby to the lab: 2 plans through 6 cells that held
-  walls; none as built), and on a map whose copies lie elsewhere it would
-  empty the rooms next door for nothing. Which to give up is #681's to weigh.
-- The still walk where no fix fires. Held docked as saved on the 11-22 save
-  (13 cm off, the creep long over), the base's belief stood still for 15
-  minutes, then walked 30 cm west in 45, its heading turning 2.6 deg -- the
-  live walk of 11-21 13:32 (#741's third box, 20 cm in 38 minutes, its
-  heading turning 2.4 deg); option 3 cannot act there (no fix), and option 4
-  held it at 13.1 cm for the hour (`loop-741b`).
-- Work at the counter (about 8 cm a try, #681's comment of 11-23).
+- A copy under `FIX_TOL` fires no fix: Luca's house dock of 11-25 13:26 sat
+  8.4-9.4 cm west for its whole 80 minutes (C1), and on the 11-23 save the
+  lobby's 3.5-5.7 cm copy took the belief before the dock's look in 5
+  arrivals of 6 (Y3). At the seat the look places the station within 0.24
+  cm (0.48 at most); a `FIX_TOL` of about 2.5 cm (#741's option 2) would fire
+  there and on no look's noise, and dropping at every dock is #741's option
+  1: Ben's next choice.
+- Luca's heading at the counter on 11-25 went 0.0 to -1.8 deg over three runs
+  in 20 minutes (11:13-11:32) and back over 1.7 hours standing, its east
+  error swinging 18 cm with it, every fit `ok` (C1): neither half acts on it
+  (no fix fired), and A4's flights saw 0.13 deg at most. Open.
+- Work at the counter on a map with a copy within the fit's reach still
+  walks the belief toward it, about 3.5 cm a try (A4), until the next fix
+  that moves the belief drops it.
 
-**#741's open points, counted on the served day** (Z2, the loop of 11-24b;
-`~/pluggybot-training/loop-1124b/z2-741d/`: `c/census.py`, `c/truth.py`,
-`c/z2_scene.py`). Every station fix that keeps the map arms the relay: the
-weekend's wakes of 11-21 and 11-22 made 8 (7 at the lobby, among them Luca's
-lost search's 1.04 m out, and Rowan's dock at the house of 11-22 17:51,
-which moved the belief 0.26 m), five wake days 10. Each was replayed on the
-live saves of 11-22 and 11-23 (`world.npz` alone; Luca's or Rowan's map,
-re-docked from the standoff with the belief set off as that fix found it),
-beside fresh maps laid through a belief set off at all three stations and
-`station_spike.py --lost`'s 50 starts: the relay as built beside the relay
-off with its region counted where it would have forgotten (the shadow),
-counted against the world's own geometry laid on the robot's grid (to
-measure only), on one pod.
-- *A thin wall met at a graze* (point 1). Over the 11 served relays that
-  fired, the relay had laid 223 cells of the true walls floor as the window
-  closed, the shadow 21 -- at the house, the station's own wall seen along
-  its length -- but ten minutes on 155 against the shadow's 162: the
-  shadow's belief, held on the copy, lays its scans 10 cm off and wears them
-  away too. Over all 23 relays, fresh maps among them, 399 and 321 against
-  71 and 240. No plan went through a forgotten cell, and none across a wall
-  of the world, in 10 walk-offs (7 after a dock whose fix kept the map),
-  each flown four ways; their arrivals, as built against the shadow, nearer
-  on 11 legs, further on 8, within 0.5 cm on 13 (p = 0.65).
-- *A low thing behind the robot* (point 2). At the replay of Rowan's dock the
-  house's couch read floor to the planner in 7 cells as the window closed
-  and 12 ten minutes on (the shadow none), at every house relay on the live
-  maps 3-7 and 4-12, at a fresh map's dock there 81 (the couch and the bed),
-  and at the lost search's 24 relays on fresh maps there 18-67 each (the
-  couch 588 and the bed 436 in all, against the shadow's 158); the lobby one
-  cell, the mall none. Walked past the couch after the served dock, no plan
-  went through those cells (the rest of the couch and its inflation still
-  barred the way); arrivals 2.1 and 0.4 cm, the shadow's 4.4 and 3.9; every
-  lost start docked either way.
-- *The moot reach* (point 3): on all 346 relay scans counted, the region the
-  reach made and the bare cone were the same cells; it is gone (above).
-- *A bowed relay* (point 4) never came: every relay scan was upright (held
-  pitch 0, tilt 3.3 deg at most); in 4 of the 24 lost relays one bearing
-  read no `free_from`, the robot's own body hiding it.
-- *A fall in the window* (point 5): none of the 10 kept fixes of five wake
-  days had a fall within ten minutes of it. K10's scene each way (the lost
-  scene 2 m out, shoved 0.5, 1 or 2 s after the fix, four offsets): 10 of
-  12 cells the same all four ways (no fix, or no stand within 60 s); in
-  #681's own (0.5 m, 1 s) the window closed with the relay ended 1.1 cm off
-  and plugged in, left open with it 129 cm, closed with no relay 49 cm, open
-  with none -- the base before #741 -- 128 cm; at 2 s, 0.4, 78, 0.5 and 49.
-- *Tried, each against a rule written before its rows*. A forgotten wall
-  held at `OCC_THRESH` (0.5) rather than 0 keeps `update`'s protections, and
-  at the served relays laid 37 cells of the true walls floor instead of 223
-  and no low cell, but a copy so held is re-walled by one stray return (0.5
-  + 0.85): ten minutes on they held 831 copy cells against 357, and docked
-  at the lobby on the 11-22 save read 2.7-9.4 cm at the median where as
-  built held 0.3-3.9 (a hair of 0.001 the same, 9.0 at worst). Keeping,
-  besides the near keep, every wall nearer than its bearing's `free_from`
-  that lies more than the fix's reach short of that bearing's end -- a low
-  thing under the rays, never a copy of what the scan sees -- halved the
-  couch (the served dock 3 and 7 cells; the lost relays 772 against 1030)
-  and docked as well at the house, kept 26-43 copy cells where as built
-  kept 9-18 (the shadow 92-113), and laid one cell of the true walls more
-  than as built at the served dock; it was not flown at the lobby. Neither
-  is built: what to give up is Ben's.
-
-**What is true now.** A station fix that keeps the map forgets what its next
-scan looks across, filled between its rays and up to 0.15 m past each end,
-keeping the walls within 1 m its rays cannot clear and every wall on a
-bearing that clears none, and lays the anchor's 30 scans from the belief put
-right as they come: re-docked on
-the live maps of 11-22 and 11-23, 0.3-2.6 cm at the median and 5.0 at most
-where the base went back to 3-19 cm -- though a robot that walks away and back
-meets the lobby's copy again, 13 cm; a flight with no such fix is the base's,
-bit for bit; and a fall closes the window.
+**What is true now.** A station fix that moves the belief 10 cm or 2 deg
+drops the map and its places, says so in History, and lays the map afresh
+from the station's frame: its next 30 scans, as they come; standing still,
+no scan is laid on time alone.
 
 ## What a pull and a reach read of the body (issues #744, #746)
 

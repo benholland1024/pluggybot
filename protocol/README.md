@@ -940,9 +940,10 @@ only record of it was the box's log. One event type is new:
     `posture`, `state`;
   - `fixed`: `fixture` (`dock` / `rack` / `station`, a humanoid's), `moved`, `dropped` (the map went
     too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
-    / `seat`); a humanoid's station fix that kept the map (`dropped` false)
-    lays again what its next scan sees -- every one of a robot that matches
-    its scans, as the served ones do, pluggybot #741;
+    / `seat`); a humanoid's station fix drops the map at every move,
+    `dropped` always true (pluggybot #681; from #741 until then, one short of
+    its matcher's search kept the map and laid again what its next scan
+    saw);
   - `lost`: `fixture`;
   - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
     where one was found its `fixture` and whether it `dropped` the map;

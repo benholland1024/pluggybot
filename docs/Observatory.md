@@ -10,6 +10,73 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
+
+**What the robots read** moves by one History line and one field of the
+turn: the prompt `264ac7f6…` (72,130 characters, 17 sections) and the
+session host's hello `9dcf6202` are byte for byte as they were. A station fix that dropped the map (only one
+past the matcher's 0.6 m search did) said "my charging station put me 0.7 m
+and 2 deg from where I believed I was: the map I had was laid askew, and it
+is gone" (123-126 characters with its stamp, of History's 400). Every fix
+that moves the belief 10 cm or 2 deg now says "my charging station put me
+20 cm and 0.4 deg from where I believed I was: the map I had and the places
+I had found are gone" (129-131), the stand-up's own words (`MAP_GONE`), its
+distance in cm under a metre and its turn in tenths of a degree under ten
+(at "0.1 m" or "0 deg" a fix past its own threshold read as one under it);
+a fix under 0.6 m was narrated only. And the turn's `floorExplored` reads
+false after such a fix, as after a stand-up: the explore that laid the map
+went with it. "Laid askew" was a cause the fix never measured: it
+measures the belief, and a belief its last walk carried off laid no askew
+map. A draft for Ben.
+
+**The change** (`HumanoidBody._fix_at`, `ScanMatcher.fuses`; SimNotes, "A
+station's fix that moves the belief drops the map"). Every station fix that
+moves the belief drops the map, the depth camera's layer and the places
+found on it; the dock's fix lays its next 30 scans at the belief put right,
+as they come (never the lost search's, which walks on at once); #741's
+relay (re-laying what the fix's next scan saw) is gone. And a robot
+standing still lays a scan into its map only once its belief has moved 1 cm
+or turned half a degree since the last -- never on time alone, where it
+laid one every 5 s -- but inside that window.
+
+**Why** (#681). Back at the storeroom's counter after a lobby fix that kept
+the map, the storeroom's kept error came back at once (Rowan on 11-25:
+-13.9 cm at 08:32 after its 07:00 fix, -13.5 to -18.8 before it) and walked
+west toward the copies standing still had laid (-55.7 cm by 12:53); the one
+map a fix dropped (11-22 09:17) held the counter to 0.9 cm a try for 8.5
+hours.
+
+**Measured** (one pod beside `loop-staging` 0505dfc1; SimNotes has it whole):
+- The station's checks: no dock lost and none gained but one lost far start (118 -> 119), and no fall.
+  Every lost-search flight with a fix was the base's but the 2 whose fix had kept the map.
+- The drift batch and #572's probe: identical.
+- Ben's bar: 617 of 736 and 4 falls on both trees, 6 moved by option 4 with the same verdicts.
+- A4's counter chains with a lobby charge between: the counter's belief after it 4.7 cm off at the median,
+  against the base's 8.7, and the first `find` after the drop as quick as the base's. The base passed 3 of
+  32 tries there and the pair none; Rowan's chest flown again at 16 new keys a tree read 0 and 1 (sign p
+  0.40), a reshuffle.
+- The pair's recording (`protocol/telemetry.home_humanoid_pair.jsonl.gz`) moved (96 grid images to 171; the
+  bodies part 298.6 s in). It is re-recorded here, and the site re-vendors it at the release.
+
+**What the period is for.**
+- **The acceptance**: after a lobby or house fix, the counter's belief
+  starts within a few cm of the truth (no kept storeroom error to come back),
+  and no docked or standing belief walks with the body still.
+- **What it costs**: the map and the places found on it at every charge
+  whose fix moves the belief (Rowan's four lobby fixes of 11-25, 0.11-0.54 m,
+  would each have dropped it; Luca's two house docks, under 10 cm, none). The
+  counter's props are found again by their tags on the next try; and a
+  robot standing still lays nothing new of what changes round it until it
+  moves -- a bow's view included, laid once the feet move (laid where the
+  sensor moved, the far check lost 4 docks the base made and every drift
+  flight was redrawn, for no gain).
+- **What it leaves**: a copy under 10 cm fires no fix (Luca's house dock of
+  11-25, 8.4-9.4 cm west for 80 minutes: #741's option 1 or 2, Ben's next
+  choice); the counter's work still walks a belief toward a copy within the
+  fit's reach until the next such fix; Luca's heading excursion at the
+  counter on 11-25 (0.0 to -1.8 deg in 20 minutes, back over 1.7 hours) is
+  untouched.
+
 ### While a hand is carried, the walker is shown its arms at rest (#751's cure, C3, `loop-751b`) — opens when this PR is deployed
 
 **What the robots read** does not move: the prompt `264ac7f6…` (72,130
