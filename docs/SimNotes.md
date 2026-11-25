@@ -2332,7 +2332,7 @@ on one pod of another CPU type (a Xeon Gold 6140, where dc843dc0 itself
 reads 615 of 736 and 4 falls): 615 and 4 on both trees, 3 flights moved --
 each a fall out of a bow, two tables' and a drawer's, taken 0.06-0.18 s
 later with the same verdict -- and the other 733 the same flights by end
-state and path. The drift spike's 18 falls (from the stand, and walking) and
+state and path. The drift spike's 18 shoves (10 falls, standing or walking) and
 C1's 24 keys of the 11-25 wake's door (every fall there from the stand) are
 the same flights.
 Of the robots' own procedures that fall out of a bow, Luca's
