@@ -1343,7 +1343,8 @@ class HumanoidBody(Body):
     under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
     "blocked"
-    -- its walk got nowhere, or kept off another robot as a walk does
+    -- its walk got nowhere (then `stuck` says what its legs counted, in which
+    window, #751), or kept off another robot as a walk does
     (`_kept_off`, #670), or kept off a wall or what stands at its knees
     (`_Room`, #717: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
@@ -1380,6 +1381,7 @@ class HumanoidBody(Body):
       patience += TURN_CLOSE_S
 
     held = mi.held_s
+    stuck = None
 
     def over() -> str | None:
       # ...a wait for an arm's way home counted against no patience, as a
@@ -1405,11 +1407,14 @@ class HumanoidBody(Body):
     b_mid = self.stance
     self._jump = 0.0
     kept = None
-    for a_, l_ in walks:
+    for k, (a_, l_) in enumerate(walks):
       if why == "stepped":
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
-        why, kept = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
+        why, kept, stuck = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
+        if stuck is not None and k:
+          # ...a walk after one that walked: the step was under way (#751)
+          stuck["underWay"] = True
     seen = mi.odo.corrected.copy()
     # ...handed over once both soles read planted, or its bound out (#740)
     settled = yield from mi.to_stand_routine()
@@ -1448,6 +1453,8 @@ class HumanoidBody(Body):
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
             "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
             **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {}),
+            # ...or how its walk got nowhere (#751)
+            **({"stuck": stuck} if why == "blocked" and stuck is not None else {}),
             # ...and its legs gone back to standing before both its soles had
             # read down, its settle's bound out (#740)
             **({"feetDown": False} if settled is False else {})}
@@ -1523,7 +1530,9 @@ class HumanoidBody(Body):
     window, its first `STEP_START_S`, or where it keeps off another robot
     (`_kept_off`, judged where its stride's carry would take it, off the
     scans taken since `since`, the step's start); else what `over` says.
-    Returns (why, how it kept off, or None)."""
+    Returns (why, how it kept off, or None, and how it got nowhere, or None:
+    under `m` m along its way in a window of `s` s, `underWay` once an earlier
+    window had passed -- what its legs counted, never why, #751)."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -1532,6 +1541,7 @@ class HumanoidBody(Body):
     wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
     pace = BACK_V if ahead < -abs(left) else STEP_V
     speed, went, mark, window = 0.0, 0.0, (float(self._d.time), 0.0), STEP_START_S
+    under_way = False
     held = mi.held_s
     seen = mi.odo.corrected.copy()
     # ...and walls and furniture (#717), off every scan the step has taken
@@ -1551,19 +1561,19 @@ class HumanoidBody(Body):
       self._jump = max(self._jump, math.hypot(float(d[0]), float(d[1])))
       seen = mi.odo.corrected.copy()
       if went + max(speed, 0.0) * STEP_STOP_S >= length:
-        return "stepped", None
+        return "stepped", None, None
       kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)
       if kept is None:
         kept = room.kept(max(speed, 0.0) * STEP_STOP_S, went)
       if kept is not None:
-        return "blocked", kept
+        return "blocked", kept, None
       if float(self._d.time) - mark[0] >= window:
         if went - mark[1] < STEP_STUCK_M:
-          return "blocked", None
-        mark, window = (float(self._d.time), went), STEP_STUCK_S
+          return "blocked", None, {"m": STEP_STUCK_M, "s": window, "underWay": under_way}
+        mark, window, under_way = (float(self._d.time), went), STEP_STUCK_S, True
       why = over()
       if why is not None:
-        return why, None
+        return why, None, None
       yield from mi._twist_routine(pace * ux, pace * uy, 0.0)
 
   def _kept_off(self, ux, uy, carry, since, at=(0.0, 0.0)):

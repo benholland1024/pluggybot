@@ -709,7 +709,9 @@ class Body(abc.ABC):
     -- as the body walks: the humanoid's least step is a stride, and a walk asked less may
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
-    turn that could not get there -- "blocked" -- its walk got nowhere, or kept off another robot as a
+    turn that could not get there -- "blocked" -- its walk got nowhere, and then `stuck` says what
+    its legs counted in which window (`m`, m, along its way in `s` s, `underWay` where the step had
+    walked before it; #751), or kept off another robot as a
     walk does (#670), or a wall or what stands at its knees (#717), and then `keptOff` says how
     -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance
