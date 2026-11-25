@@ -10,6 +10,56 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### While a hand is carried, the walker is shown its arms at rest (#751's cure, C3, `loop-751b`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte for
+byte as they were, and no verb's text, report or History line changes.
+
+**What the robots do** moves where a walk carries a hand, and nowhere else. A
+walk verb's hand-over carries a hand that holds something to its carry pose
+at the hip (#682); while either hand is carried, walk2 -- the served walker
+-- is now shown every arm joint it sees (both arms' six; never a gripper or
+the waist) at its own default and still: its arms hanging, as its scripted
+arms hung half the time in training. It balances blind to the carried arm.
+The drivers are read as ever, so a flight with no hand carried is bit for bit
+what it was: Ben's bar's 736 flights (none carries; 617 laid and 4 falls on
+both trees) and the pair's fixture day (9 walk hand-overs, none carrying)
+replay exactly. A walker trained to carry (carry2, not served) would be
+shown its arms as they are.
+
+**Why** (#751). The carry pose folds the elbow to 1.6-2.0 rad, where walk2's
+scripted arms went to 1.15. Seeing it, from the stance the standing policy
+held through a pick, walk2 lifted neither sole: the first carried step after
+a pick read "got nowhere" with nothing in its way (93 of 109 trips of the
+shelf's reference, about 6 s a trip), and every carried walk veered toward
+the carrying arm (9-12 deg a metre on the pass's walks). Settling the arm
+first (option 1) did not start the step; hiding the arm did.
+
+**Measured** (one Vast pod, a Xeon E5-2699 v4, osmesa; `loop-staging` 0505dfc1
+against the cure; SimNotes, "The walker shown its arms at rest while a hand is
+carried", has each leg). The shelf's reference (#736): the first carried step
+after a pick read "got nowhere" in 87 of 98 trips, and with the cure in none
+of 95; its checks laid 21 of 32 with no fall, where they laid 17 with 1, and
+its tours 12, where they laid 13, no fall on either. The pass's reference
+(#682): its carried walks walk true (they veered toward the carrying arm 9.3
+and 11.6 deg a metre; now 0.4 and 3.3), and it lays 3 of 32, where it laid 16
+with 1 fall -- its put-downs were tuned on a settle the seeing walker's
+carried turns left, which a retune would most likely recover (not flown).
+carry_spike's served carries: no fall on either tree; its open-loop courses
+end 0.19 m from their asks, where they ended 0.69; in the house 29 of 32
+carries arrive, where 24 did, dropping 3 pieces, where they dropped 9. Neither
+the shelf nor the pass is offered: none of this reaches a robot until a job
+carries.
+
+**What to read**: a robot's own procedure that walks carrying. There has
+been none yet: 0 of X5's 200 replayed live tries, and 0 of 11-25's 86 runs (a
+walk verb after a `close_hand` with no `open_hand` or `withdraw` between, read
+off each run's source). When one does, read its first carried step's word
+("stepped", never "got nowhere" with nothing there), a fall while carrying, a
+piece dropped on a carried walk (`dropped`), and how a carried `step`'s stance
+turned (`step.turn`).
+
 ### A step whose walk got nowhere says what its legs counted, in the window that ended it (#751's words, C2, `loop-751w`) — opens when this PR is deployed
 
 **What the robots read** moves by one failure's words: the prompt
