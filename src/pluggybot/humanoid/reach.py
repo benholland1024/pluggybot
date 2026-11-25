@@ -1629,18 +1629,30 @@ class Reach:
     self.halt(side, "blocked")
     self.stopped[side] = {"by": "caught"}
 
-  def _eased_stop(self, side: str, pos, rot, k: float) -> np.ndarray:
-    """A hand stopped on its way in by a push (`BLOCKED_N`) held where its
-    drivers read it, pressing on nothing (#750), as one caught on its way out
-    is (`_struck`): its command and its goal the grip they put it at (`pos`,
-    `rot`, its senses' as this command began, stiffness `k`), so a withdraw
-    comes out along those fingers from there; returns the arm's joints so
-    read, its command."""
-    q = self.sensed[self.self_model.arm[side]].copy()
+  def _eased_stop(self, side: str, pos, held: HandGoal) -> tuple[np.ndarray, float]:
+    """A hand stopped on its way in by a push (`BLOCKED_N`) held where it IS
+    (#750), as a carry stopped short is (`_end`): its command and its goal
+    the place its senses put the grip at as this command began (`pos`), at
+    the turn it was asked (`held`'s, which a carry after keeps: `carry`), its
+    arm solved there from where its drivers read it -- so it presses on
+    nothing it met. Returns the arm's joints and how far they leave the
+    grip, m: its command and its miss. Where that solve diverges
+    (`WILD_M`), the arm as its drivers read it. ⚠ The command steps to where
+    the arm stands, letting the press go, as `_struck` lets a caught way out
+    go: no gap, nothing driven anywhere."""
+    sm = self.self_model
+    read = self.sensed[sm.arm[side]].copy()
+    sm._set_arm(side, read)
+    q, ep, _ = sm.solve(side, pos, held.rot)
+    if ep >= WILD_M:
+      q, ep = read, 0.0
+      sm._set_arm(side, q)
+    turn = None if held.rot is None else np.array(held.rot, dtype=float)
+    self.cmd[side] = HandGoal(np.array(pos, dtype=float), turn, held.stiffness)
+    self.goal[side] = HandGoal(np.array(pos, dtype=float), None if turn is None else turn.copy(),
+                               held.stiffness)
     self.q_to[side] = q.copy()
-    self.cmd[side] = HandGoal(np.array(pos, dtype=float), np.array(rot, dtype=float), k)
-    self.goal[side] = HandGoal(np.array(pos, dtype=float), np.array(rot, dtype=float), k)
-    return q
+    return q, ep
 
   def ease(self, side: str) -> bool:
     """A hand held where it is -- holding (`hold`) or stopped on its way
@@ -3194,11 +3206,11 @@ class Reach:
           # Stopped where it was last commanded: the goal is out of its reach,
           # or the hand pushes on something -- the push said where it held at
           # least half the run, both or not (`_pushes`) -- and a push held
-          # where its drivers read it (`_eased_stop`, #750). ⚠ Held at the
-          # command it drove on to, a jaw pressed down on a chest's bracket
-          # was dragged back over it by the withdraw's line out at 30-57 N,
-          # rolling the robot 5 deg off its hand until, slipped off, it went
-          # over; one pressed on a drawer's top, by the next reach's way out.
+          # where the hand is (`_eased_stop`, #750). ⚠ Held at the command it
+          # drove on to, a jaw pressed down on a chest's bracket was dragged
+          # back over it by the withdraw's line out at 30-57 N, rolling the
+          # robot 5 deg off its hand until, slipped off, it went over; one
+          # pressed on a drawer's top, by the next reach's way out.
           n_push, n_all, hardest = self._pushes[s]
           self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
                              else {"by": "reach"})
@@ -3206,7 +3218,7 @@ class Reach:
           q, ep, _ = sm.solve(s, held.pos, held.rot)
           self.phase[s], there = "blocked", False
           if self.stopped[s]["by"] == "pushed":
-            q, ep = self._eased_stop(s, seen[s][0], seen[s][1], c.stiffness), 0.0
+            q, ep = self._eased_stop(s, seen[s][0], held)
         self.q_cmd[s], self.miss[s], stiffness = q, ep, c.stiffness
         if there and phase in ("approach", "pull"):
           self.phase[s] = "hold"
