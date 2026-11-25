@@ -1048,22 +1048,130 @@ def test_a_new_move_ends_a_way_home_still_to_be_read():
   assert not r.homing["left"]
 
 
-def test_a_carrys_way_ends_at_its_pose_never_waiting_to_be_read_home():
-  """A walk's hand-over takes a hand that holds to its carry pose by the way
-  home's own walk (#682): that way ends "carried", at its pose, and is no way
-  home still to be read home -- left so, a walk's hand-over waited on it for
-  good (`HumanoidMission.to_walk_routine`)."""
+def _carried_to(r, side, read, turning):
+  """A bare reach's arm raised (`RAISED`), given a carry pose 0.4 rad off
+  its rest and sent there by the way home's walk (#682), the loop walking
+  its command until it arrives -- its drivers reading every joint `read` off
+  that pose and the arm turning at `turning` rad/s (`sensed`, `qd`: the
+  test's stubs of them). Returns the pose."""
+  q = r.rest[side] + 0.4
+  r.set_joints(side, RAISED)
+  r.q_cmd[side] = RAISED.copy()
+  r.carry_q[side] = q.copy()
+  arm = r.self_model.arm[side]
+  r.sensed = np.zeros(len(hm.JOINT_NAMES))
+  r.sensed[arm] = q + read
+  r.qd[arm] = turning / math.sqrt(len(hm.ARM))
+  r.retreat(side)
+  assert r.homing[side] and r.phase[side] == "home"
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase[side] != "home":
+      break
+  assert r.phase[side] == "carried" and np.allclose(r.q_cmd[side], q), \
+    "the premise: its command at its carry pose"
+  return q
+
+
+def test_a_carrys_way_is_over_once_its_drivers_read_the_arm_settled_at_its_pose():
+  """#751: a carry's way ended on its COMMAND reaching the carry pose (#682),
+  never read -- and a walk's hand-over gave walk2 the legs 2 ms later, the
+  arm still turning at 1.1-2.6 rad/s: the first step after a pick stood
+  still and read "blocked" in 91 of 107 of the shelf reference's trips. It
+  is over as a way home is, by its drivers (`home_over`): the arm turning
+  under `CARRY_STILL` and every joint within `CARRY_NEAR_RAD` of its pose,
+  the load's sag allowed."""
+  from pluggybot.humanoid import reach as rc
   r = _stepped(_standing_reach())
-  r.set_joints("left", RAISED)
-  r.q_cmd["left"] = RAISED.copy()
-  r.carry_q["left"] = r.rest["left"] + 0.4
+  arm = r.self_model.arm["left"]
+  q = _carried_to(r, "left", read=0.3, turning=1.2)
+  assert r.homing["left"] and not r.home_over("left"), "over on its command"
+  r.sensed[arm] = q - 0.05                   # ...there, sagging under its load
+  r._update(0.01)
+  assert not r.home_over("left"), "over with the arm still turning"
+  r.qd[arm] = 1.1 * rc.CARRY_STILL / math.sqrt(len(hm.ARM))
+  r._update(0.01)
+  assert not r.home_over("left"), "over turning faster than `CARRY_STILL`"
+  r.qd[arm] = 0.9 * rc.CARRY_STILL / math.sqrt(len(hm.ARM))
+  r._update(0.01)
+  assert r.home_over("left") and not r.homing["left"] and r.carried("left")
+
+
+@pytest.mark.parametrize("read, turning", [(0.0, 1.0), (0.2, 0.0)], ids=["turning", "held off"])
+def test_a_carrys_way_its_drivers_never_read_settled_is_over_its_bound_after_its_command(read, turning):
+  """...but never waited on for good: as first built, a walk's hand-over
+  waited on a carried arm until its procedure's budget (#682). One its
+  drivers never read still, or that its load holds off its pose, is over
+  `CARRY_SETTLE_S` after its command arrived -- not a tick before -- and
+  carried as it is."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  _carried_to(r, "left", read=read, turning=turning)
+  for _ in range(int(round(rc.CARRY_SETTLE_S / 0.01)) - 1):
+    r._update(0.01)
+  assert not r.home_over("left"), "over before its bound"
+  r._update(0.01)
+  assert r.home_over("left") and r.carried("left")
+
+
+def test_a_carry_ended_as_its_way_is_read_leaves_nothing_to_read():
+  """A let-go as a carried arm's way is read (`drop_carry`: the walk's
+  hand-over's, a withdraw's, its way home yet to begin) ends the read at the
+  next tick, never read against a pose it no longer has; and a way home
+  begun from there is read home, at its rest, as any is."""
+  r = _stepped(_standing_reach())
+  _carried_to(r, "left", read=0.0, turning=1.0)
+  r.drop_carry("left")
+  r._update(0.01)
+  assert not r.homing["left"] and r.home_over("left")
   r.retreat("left")
-  assert r.homing["left"] and r.phase["left"] == "home"
+  assert r.phase["left"] == "home" and r.homing["left"] and r.held_for["left"] == 0.0
   for _ in range(2000):
     r._update(0.01)
     if r.phase["left"] != "home":
       break
-  assert r.phase["left"] == "carried" and not r.homing["left"]
+  assert r.phase["left"] == "rest" and r.homing["left"] and not r.home_over("left")
+
+
+def test_a_reach_from_a_carried_arm_whose_way_is_read_ends_the_read_and_the_carry():
+  """A reach begun from a carried arm as its way is read is a move of the
+  arm's own, as a way home cut short is (`reach`): the read is over, the
+  carry with it (#682), and nothing later reads a carry it no longer has."""
+  from pluggybot.humanoid.arms import HandGoal
+  r = _stepped(_standing_reach())
+  q = _carried_to(r, "left", read=0.0, turning=1.0)
+  pre = q + 0.1
+  r.keep = lambda side, verb=False: None
+  r._planned = lambda side, goal, approach, postures, flip: (((0.0, 0.0, 0.0), pre, None, True), goal, None)
+  r.way_out = lambda side, q_to, posture=None, refuse=True, own=False: [pre.copy()]
+  r._returns = lambda side, q_pre, posture: True
+  assert r.reach("left", HandGoal(np.array([0.4, 0.2, 0.9]), None, 1.0), verb=True)
+  assert r.phase["left"] == "move" and r.carry_q["left"] is None
+  assert not r.homing["left"] and r.home_over("left")
+
+
+def test_a_carrys_way_still_read_rides_a_restart_its_clock_kept():
+  """A carried arm is no hand at work (`Body.working`): the world saves
+  through its way being read, and what a restart keeps (`Reach.KEPT`)
+  carries the read and how long it has run -- restored 0.4 s in, it is over
+  `CARRY_SETTLE_S` after its command arrived, not 1 s after the restore."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import kept_value, value_back
+  a = _stepped(_standing_reach())
+  _carried_to(a, "left", read=0.0, turning=1.0)
+  for _ in range(40):
+    a._update(0.01)
+  b = _stepped(_standing_reach())
+  for k in rc.Reach.KEPT:
+    if hasattr(a, k):
+      setattr(b, k, value_back(kept_value(getattr(a, k))))
+  assert b.carried("left") and b.homing["left"] and not b.home_over("left")
+  left = int(round(rc.CARRY_SETTLE_S / 0.01)) - 40
+  for _ in range(left - 1):
+    b._update(0.01)
+  assert not b.home_over("left"), "over before its bound"
+  b._update(0.01)
+  assert b.home_over("left")
 
 
 def test_a_way_home_held_is_lifted_and_sent_home_again_before_it_is_left_there(monkeypatch):

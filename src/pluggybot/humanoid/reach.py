@@ -391,6 +391,16 @@ CARRY_POSE = (0.15, 0.25, 0.0, 2.00)
 #: ...its wrist found on a grid this many ways in pitch and in roll, then
 #: once more this fine round the best.
 CARRY_GRID, CARRY_FINE = (33, 41), 0.1
+#: A CARRY'S WAY IS OVER BY ITS DRIVERS, as a way home is (#751; `_settled`,
+#: `home_over`; SimNotes, "A carry's way read settled"): its command at its
+#: carry pose, once they read its six joints turning under this together,
+#: rad/s (the norm of their speeds), and every joint within this of the
+#: pose, rad -- a load's sag read 0.03-0.05 -- or this long after its
+#: command arrived, s, whatever they read: an arm its load holds off its
+#: pose. ⚠ Over on its command, a walk's hand-over gave walk2 the legs 2 ms
+#: later, the arm turning at 1.1-2.6 rad/s, and walk2 stood still: the first
+#: step after a pick got nowhere in 91 of 107 of the shelf reference's trips.
+CARRY_STILL, CARRY_NEAR_RAD, CARRY_SETTLE_S = 0.1, 0.1, 1.0
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -1408,7 +1418,8 @@ class Reach:
     #: asked once every arm is home or carried (`_update`).
     self.stand_home = False
     #: By side, whether its way home is still to be read home by its drivers
-    #: (`_go_home`), how long they have read it held at its rest, s, and how
+    #: (`_go_home`) -- a carry's, read settled at its carry pose (`_settled`,
+    #: #751) -- how long since its command arrived they have not, s, and how
     #: often it has been lifted since its way home began (`HELD_S`, `LIFTS`).
     self.homing = {s: False for s in hm.SIDES}
     self.held_for = {s: 0.0 for s in hm.SIDES}
@@ -2506,8 +2517,26 @@ class Reach:
   def home_over(self, side: str) -> bool:
     """Whether an arm's last way home is over by its drivers (`_homed`):
     read home or held -- False only for one whose command reached its rest
-    and whose drivers have not yet read it either way, `HELD_S` at most."""
-    return not (self.homing[side] and self.phase[side] == "rest")
+    and whose drivers have not yet read it either way, `HELD_S` at most --
+    and a carry's (#751, `_settled`): False for one whose command reached
+    its carry pose and whose drivers have not yet read it settled there,
+    `CARRY_SETTLE_S` at most."""
+    return not (self.homing[side] and self.phase[side] in ("rest", "carried"))
+
+  def _settled(self, side: str, dt: float) -> None:
+    """A carry's way's end as its drivers read it (#751): its arm turning
+    under `CARRY_STILL` and every joint within `CARRY_NEAR_RAD` of its carry
+    pose -- or, not, `CARRY_SETTLE_S` after its command arrived, whatever
+    they read -- or its carry ended (a let-go's `drop_carry`, its way home
+    yet to begin)."""
+    q, arm = self.carry_q[side], self.self_model.arm[side]
+    if q is None or (float(np.linalg.norm(self.qd[arm])) < CARRY_STILL
+                     and float(np.abs(self.sensed[arm] - q).max()) <= CARRY_NEAR_RAD):
+      self.homing[side], self.held_for[side] = False, 0.0
+      return
+    self.held_for[side] += dt
+    if self.held_for[side] >= CARRY_SETTLE_S - 1e-9:
+      self.homing[side], self.held_for[side] = False, 0.0
 
   def _homed(self, side: str, dt: float) -> None:
     """A way home's end as its drivers read it: home, or -- not home
@@ -3126,6 +3155,9 @@ class Reach:
         elif phase == "rest" and self.homing[s]:
           # ...a way home is over once its drivers read it home, or held
           self._homed(s, dt)
+        elif phase == "carried" and self.homing[s]:
+          # ...and a carry's once they read it settled at its pose (#751)
+          self._settled(s, dt)
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
@@ -3143,9 +3175,8 @@ class Reach:
             self.q_to[s] = self.homes[s].pop(0)
           else:
             self.phase[s] = "rest" if self.carry_q[s] is None else "carried"
-            # ...a carry's way ends at its pose, never read home (#682)
-            self.homing[s] = self.homing[s] and self.carry_q[s] is None
-            # ...its command home: the stand its way home kept from it
+            # ...its command home -- or at its carry pose, to be read settled
+            # there (#751) -- the stand its way home kept from it
             # (`_go_home`), its drivers not yet read
             self._stand_at_ease()
       elif phase == "blocked":

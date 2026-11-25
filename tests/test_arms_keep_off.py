@@ -452,7 +452,8 @@ class _Arms:
     return False
 
   def home_over(self, side) -> bool:
-    return not (self.homing[side] and self.phase[side] == "rest")
+    # ...the reach's own rule, read off this fake's phases and `homing`
+    return rc.Reach.home_over(self, side)
 
   def carried(self, side) -> bool:
     return self.phase[side] == "carried" and self.carry_q[side] is not None

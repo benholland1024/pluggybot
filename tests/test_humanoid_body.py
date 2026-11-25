@@ -252,7 +252,10 @@ class _Homing:
     return False
 
   def home_over(self, side) -> bool:
-    return not (self.homing[side] and self.phase[side] == "rest")
+    # ...the reach's own rule, read off this fake's phases and `homing`
+    # (#751: a carry's way, read settled at its pose, too)
+    from pluggybot.humanoid.reach import Reach
+    return Reach.home_over(self, side)
 
   def drop_carry(self, side) -> None:
     self.carry_q[side] = None

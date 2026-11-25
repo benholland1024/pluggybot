@@ -450,6 +450,10 @@ def test_a_hand_carried_at_its_side_is_no_hand_at_work():
     m.reach.carry_q["left"] = m.reach.q_cmd["left"].copy()
     m.reach.phase["left"] = "carried"
     assert not body.working and not m._hand_out()
+    # ...and so while its way is read settled at its pose (#751): that read is
+    # the walk's hand-over's alone
+    m.reach.homing["left"] = True
+    assert not m.reach.home_over("left") and not body.working and not m._hand_out()
     m.reach.phase["right"] = "hold"
     assert body.working and m._hand_out()
   finally:
@@ -593,3 +597,81 @@ def test_the_carrying_walker_trains_on_the_carry_pose_the_walk_takes():
   close = next(ast.literal_eval(n.value) for n in ast.walk(ast.parse(src))
                if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "CARRY_CLOSE")
   assert tuple(close) == tuple(rc.CARRY_POSE)
+
+
+# ---- 7: the walk's hand-over waits for a carried arm read settled (#751) -----------
+
+
+def _carrying(monkeypatch, n):
+  """A floor body whose reach is `test_humanoid_body._HomingOut`'s: its left hand
+  out holding something, carried by the walk's hand-over, its carry's way over by
+  its drivers `n` steps after its command arrived (`homing`, read by the reach's
+  own rule: `Reach.home_over`)."""
+  from test_humanoid_body import _HomingOut
+  body = body_for(*_floor())
+  m = body.mission
+  grippers = m.reach.grippers
+  m.reach = _HomingOut(grippers, ("left",), [], lambda: float(body.data.time), n=n)
+  grippers["left"].shut()
+  monkeypatch.setattr(grippers["left"], "held", lambda: True)
+  return body, m, m.reach
+
+
+def test_a_walk_takes_the_legs_only_once_a_carried_arms_way_is_read_settled(monkeypatch):
+  """#751: the walk's hand-over waited on each way home's drivers (#693) but
+  never on a carry's -- its way ended on its command at its pose (#682) -- and
+  gave walk2 the legs 2 ms after, the arm still turning at 1.1-2.6 rad/s:
+  walk2 stood still, and the first step after a pick read "blocked" with
+  nothing in its way. It waits until the carried arm's way is over by its
+  drivers (`Reach.home_over`: read settled at its pose, `CARRY_SETTLE_S` at
+  most)."""
+  body, m, fake = _carrying(monkeypatch, 300)
+  try:
+    body.run(m.to_walk_routine())
+    assert m.legs == "walk" and fake.carried("left")
+    assert not fake.homing["left"] and fake.steps >= 300, \
+      "the walk took the legs while the carried arm's way was read"
+  finally:
+    body.close()
+
+
+def test_a_walks_hand_over_closed_as_its_carry_is_read_leaves_the_read_to_the_next(monkeypatch):
+  """A stop, a death's close or a collection ends the hand-over in its wait:
+  the read is the reach's (`homing`, `held_for`, kept across a restart),
+  never the routine's, so the next walk's hand-over -- its arm carried
+  already, no lift and no way -- waits on what is left of it."""
+  from test_humanoid_body import _capped
+  body, m, fake = _carrying(monkeypatch, 300)
+  try:
+    done, _ = _capped(body, m.to_walk_routine(), 0.1)
+    assert not done and m.legs == "stand" and fake.carried("left") and fake.homing["left"]
+    body.run(m.to_walk_routine())
+    assert m.legs == "walk" and not fake.homing["left"] and fake.steps >= 300
+  finally:
+    body.close()
+
+
+def test_a_fall_as_a_carried_arms_way_is_read_is_the_get_ups_and_its_stand_up_ends_the_read(monkeypatch):
+  """A fall in the wait goes to the get-up (#520), which steps no reach: the
+  read stands still with it, and the stand-up's fresh reach -- hanging, a
+  carry no longer (`_stood_up`) -- has none, so the walk takes the legs once
+  the stand settles, never waiting on a reach that is gone."""
+  from test_humanoid_body import _Rising
+  body, m, fake = _carrying(monkeypatch, 10 ** 6)
+  try:
+    fell = []
+
+    def falling(data, pitch=0.0):
+      if fake.carried("left") and fake.homing["left"] and not fell:
+        fell.append(float(body.data.time))
+        return True
+      return False
+    m.fall.falling = falling
+    m.getup = _Rising(200)
+    t0 = float(body.data.time)
+    body.run(m.to_walk_routine())
+    assert fell and m.falls == 1 and m.legs == "walk"
+    assert m.reach is not fake and all(m.reach.home_over(s) for s in hm.SIDES)
+    assert float(body.data.time) - t0 < 5.0
+  finally:
+    body.close()
