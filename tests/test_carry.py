@@ -609,6 +609,8 @@ def _shown(walker) -> dict:
   nj = len(pol.joint_names)
   size = {"base_ang_vel": 3, "projected_gravity": 3, "joint_pos": nj, "joint_vel": nj,
           "actions": len(pol.action_joints), "command": 3}
+  # ...and the ground's scan, for a walker that sees it: the rest of its input
+  size["height_scan"] = len(pol.mean) - sum(size[n] for n in pol.observation_names if n in size)
   out, at = {}, 0
   for name in pol.observation_names:
     out[name] = slice(at, at + size[name])
@@ -732,3 +734,30 @@ def test_a_restart_carries_on_showing_the_walker_its_arms_at_rest():
   finally:
     a.close()
     b.close()
+
+
+def test_only_a_walker_that_never_trained_carrying_is_shown_its_arms_at_rest():
+  """The rule is for a walker that never saw a carried arm: walk2 and the
+  walker that sees the ground (its arms scripted as walk2's). One trained to
+  carry (`-Walk-Carry`, carry2: #682's stage B, not served) trained seeing
+  its arms hold carry poses, and is shown them as they are -- its task as
+  training registers it."""
+  from pathlib import Path
+  from pluggybot.humanoid.policy import StandPolicy
+  from pluggybot.humanoid.walk import CARRY_TASK, SEEING_NPZ, WALK_NPZ, WalkDriver
+  init = Path(__file__).resolve().parents[1] / "training" / "humanoid_train" / "__init__.py"
+  assert f'task_id="{CARRY_TASK}"' in init.read_text()
+  model, data = _floor()
+  _fold_left(model, data)
+  seeing = StandPolicy(SEEING_NPZ)
+  walkers = {"walk2": WalkDriver(model, data),
+             "seeing": WalkDriver(model, data, policy=seeing, scan=lambda: np.zeros(len(seeing.mean) - 69)),
+             "carry2": WalkDriver(model, data, policy=StandPolicy(WALK_NPZ.parent / "humanoid_walk_carry.npz"))}
+  rested = {}
+  for name, w in walkers.items():
+    shown = []
+    act = w.policy.act
+    w.policy.act = lambda obs, act=act, shown=shown: (shown.append(np.array(obs, dtype=float)), act(obs))[1]
+    w.step(carrying=True)
+    rested[name] = bool(np.all(shown[-1][_arm_entries(w)] == 0.0))
+  assert rested == {"walk2": True, "seeing": True, "carry2": False}

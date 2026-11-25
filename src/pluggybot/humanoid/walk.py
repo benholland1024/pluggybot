@@ -27,6 +27,10 @@ SEEING_NPZ = WALK_NPZ.parent / "humanoid_walk_seeing.npz"
 #: The twist it trained on, at its widest (`walk.LIN_X`, `LIN_Y`, `ANG_Z`):
 #: a command is held inside it.
 LIN_X, LIN_Y, ANG_Z = (-0.8, 1.4), (-0.4, 0.4), (-1.0, 1.0)
+#: The task a walker trained to carry is exported from (#682's stage B,
+#: `training/humanoid_train`; not served): it trained seeing its arms hold
+#: carry poses, so is shown them as they are while a hand is carried.
+CARRY_TASK = "Pluggy-Humanoid-Walk-Carry"
 
 
 class WalkDriver:
@@ -55,6 +59,10 @@ class WalkDriver:
     arms = [k for k, n in enumerate(self.policy.joint_names) if n.split("_", 1)[1] in hm.ARM]
     self.arm_at = self.seen[arms]
     self.arm_rest = self.policy.default_q[arms]
+    #: Whether it is shown its arms at rest while a hand is carried (`step`):
+    #: a walker that never trained with one carried -- walk2, the walker that
+    #: sees the ground -- never one trained to carry (`CARRY_TASK`).
+    self.carry_blind = not str(self.policy.training.get("task", "")).startswith(CARRY_TASK)
     legs = {n: k for k, n in enumerate(self.policy.joint_names)}
     self.leg_default = self.policy.default_q[[legs[n] for n in self.policy.action_joints]]
     self.every = max(1, round(self.policy.period / model.opt.timestep))
@@ -93,15 +101,15 @@ class WalkDriver:
                            for name, scale in zip(self.policy.observation_names,
                                                   self.policy.observation_scales)])
 
-  def step(self, trunk_stepped: bool = False, arms_at_rest: bool = False) -> None:
+  def step(self, trunk_stepped: bool = False, carrying: bool = False) -> None:
     """Before each physics step: the trunk's senses stepped (unless the
     standing driver beside it did) and, on a policy step, new targets to
-    the legs with the gains it trained on, its arms shown at rest where
-    `arms_at_rest` (`observation`)."""
+    the legs with the gains it trained on -- shown its arms at rest while
+    `carrying`, a hand carried, unless it trained to carry (`carry_blind`)."""
     if not trunk_stepped:
       self.trunk.step()
     if self.steps % self.every == 0:
-      action = self.policy.act(self.observation(arms_at_rest))
+      action = self.policy.act(self.observation(arms_at_rest=carrying and self.carry_blind))
       self.last_action = action
       self.target = self.leg_default + self.policy.action_scale * action
       self.legs.pd(self.target, self.policy.stiffness, self.policy.damping)

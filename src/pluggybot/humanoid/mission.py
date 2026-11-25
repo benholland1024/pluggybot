@@ -653,7 +653,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       self.walker.ask(*command)
       # ...shown its arms at rest while a hand is carried (#751): read off the
       # reach as it stands, so a restart's or a stand-up's carry is its own
-      self.walker.step(arms_at_rest=any(self.reach.carried(s) for s in hm.SIDES))
+      self.walker.step(carrying=any(self.reach.carried(s) for s in hm.SIDES))
     else:
       if any(command):
         raise RuntimeError("a walk was asked of the standing policy's legs: "
