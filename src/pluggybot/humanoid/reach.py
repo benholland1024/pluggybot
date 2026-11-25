@@ -1999,21 +1999,24 @@ class Reach:
     it met; its goal that place at the reach's own turn (none where it was
     asked none), so a withdraw comes out along the way it went in. Returns
     the arm's joints and how far they leave the grip, m: its command and its
-    miss. Where that solve misses (`REPLAN_M`, `REPLAN_ROT`: the turn out of
-    the arm's reach there), the arm as its drivers read it, its command at
-    the turn it puts the grip at, so the next solve does not step it -- a
-    carry after keeps that turn. ⚠ The command steps in one tick to the
-    place the arm stands, at the turn it was commanded all along, letting
-    the press go, as `_struck` lets a caught way out go."""
+    miss. ⚠ Where that solve misses (`REPLAN_M`, `REPLAN_ROT`: the turn out
+    of the arm's reach there) it eases nothing: held at the command it drove
+    on to, solved from the model as it stood, as before #750 -- held as read
+    there, a jaw pushed onto the cube's board stayed on it where the base's
+    slid off, the withdraw's way home dragged it over the counter's top, and
+    the robot went over backward (SimNotes). ⚠ The command steps in one
+    tick to the place the arm stands, at the turn it was commanded all
+    along, letting the press go, as `_struck` lets a caught way out go."""
     sm = self.self_model
+    stood = sm.q[sm.arm[side]].copy()
     read = self.sensed[sm.arm[side]].copy()
     sm._set_arm(side, read)
     q, ep, er = sm.solve(side, pos, held.rot)
-    turn = None if held.rot is None else np.array(held.rot, dtype=float)
     if ep > REPLAN_M or er > REPLAN_ROT:
-      q, ep = read, 0.0
-      sm._set_arm(side, q)
-      turn = None if held.rot is None else sm.grip_pose(side)[1].copy()
+      sm._set_arm(side, stood)
+      q, ep, _ = sm.solve(side, held.pos, held.rot)
+      return q, ep
+    turn = None if held.rot is None else np.array(held.rot, dtype=float)
     asked = self.goal[side].rot
     self.cmd[side] = HandGoal(np.array(pos, dtype=float), turn, held.stiffness)
     self.goal[side] = HandGoal(np.array(pos, dtype=float),
@@ -3586,9 +3589,10 @@ class Reach:
           # Stopped where it was last commanded: the goal is out of its reach,
           # or the hand pushes on something -- the push said where it held at
           # least half the run, both or not (`_pushes`) -- and a push held
-          # where the hand is, never at the command it drove on to, which
-          # pressed it on what it met (`_eased_stop`, #750; SimNotes, "A hand
-          # stopped on a push, held where it is").
+          # where the hand is, where its arm can hold its command's turn
+          # there, never at the command it drove on to, which pressed it on
+          # what it met (`_eased_stop`, #750; SimNotes, "A hand stopped on a
+          # push, held where it is").
           n_push, n_all, hardest = self._pushes[s]
           self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
                              else {"by": "reach"})
