@@ -1629,6 +1629,38 @@ class Reach:
     self.halt(side, "blocked")
     self.stopped[side] = {"by": "caught"}
 
+  def _eased_stop(self, side: str, pos, held: HandGoal) -> tuple[np.ndarray, float]:
+    """A hand stopped on its way in by a push (`BLOCKED_N`) held where it IS
+    (#750), as a carry stopped short is (`_end`): its command the place its
+    senses put the grip at as this command began (`pos`), at the turn the
+    command had (`held`'s, which a carry after keeps: `carry`), its arm solved
+    there from where its drivers read it, so its spring presses it on nothing
+    it met; its goal that place at the reach's own turn (none where it was
+    asked none), so a withdraw comes out along the way it went in. Returns
+    the arm's joints and how far they leave the grip, m: its command and its
+    miss. Where that solve misses (`REPLAN_M`, `REPLAN_ROT`: the turn out of
+    the arm's reach there), the arm as its drivers read it, its command at
+    the turn it puts the grip at, so the next solve does not step it -- a
+    carry after keeps that turn. ⚠ The command steps in one tick to the
+    place the arm stands, at the turn it was commanded all along, letting
+    the press go, as `_struck` lets a caught way out go."""
+    sm = self.self_model
+    read = self.sensed[sm.arm[side]].copy()
+    sm._set_arm(side, read)
+    q, ep, er = sm.solve(side, pos, held.rot)
+    turn = None if held.rot is None else np.array(held.rot, dtype=float)
+    if ep > REPLAN_M or er > REPLAN_ROT:
+      q, ep = read, 0.0
+      sm._set_arm(side, q)
+      turn = None if held.rot is None else sm.grip_pose(side)[1].copy()
+    asked = self.goal[side].rot
+    self.cmd[side] = HandGoal(np.array(pos, dtype=float), turn, held.stiffness)
+    self.goal[side] = HandGoal(np.array(pos, dtype=float),
+                               None if asked is None else np.array(asked, dtype=float),
+                               held.stiffness)
+    self.q_to[side] = q.copy()
+    return q, ep
+
   def ease(self, side: str) -> bool:
     """A hand held where it is -- holding (`hold`) or stopped on its way
     (`blocked`, pressed hardest) -- whose force pushes on along its fingers
@@ -3180,12 +3212,18 @@ class Reach:
         if self._off[s] >= BLOCKED_S:
           # Stopped where it was last commanded: the goal is out of its reach,
           # or the hand pushes on something -- the push said where it held at
-          # least half the run, both or not (`_pushes`)
+          # least half the run, both or not (`_pushes`) -- and a push held
+          # where the hand is, never at the command it drove on to, which
+          # pressed it on what it met (`_eased_stop`, #750; SimNotes, "A hand
+          # stopped on a push, held where it is").
           n_push, n_all, hardest = self._pushes[s]
           self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
                              else {"by": "reach"})
           self.cmd[s] = held
-          q, ep, _ = sm.solve(s, held.pos, held.rot)
+          if self.stopped[s]["by"] == "pushed":
+            q, ep = self._eased_stop(s, seen[s][0], held)
+          else:
+            q, ep, _ = sm.solve(s, held.pos, held.rot)
           self.phase[s], there = "blocked", False
         self.q_cmd[s], self.miss[s], stiffness = q, ep, c.stiffness
         if there and phase in ("approach", "pull"):
