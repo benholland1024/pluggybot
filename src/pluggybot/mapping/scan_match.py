@@ -272,9 +272,10 @@ FALLEN_NEAR_M = 2.0
 FALLEN_LOOKS = 6
 #: ⚠ THE STATION LAYS THE MAP AFRESH ROUND IT (issues #422, #681): once the
 #: dock's fix has put the belief in its frame and dropped the map laid on the
-#: old one (`anchored`, `HumanoidBody._fix_at`), the next ANCHORED_SCANS
-#: scans that go into the map are laid at that belief, unmatched -- 30, ten
-#: a second, is 3 s. ⚠ LAID AS THEY COME (#741): held to one every 5 s, the
+#: old one (`anchored`, `HumanoidBody.anchor_at_dock`; the lost search's fix
+#: opens none: it walks on at once), the next ANCHORED_SCANS scans that go
+#: into the map are laid at that belief, unmatched -- 30, ten a second, is
+#: 3 s. ⚠ LAID AS THEY COME (#741): held to one every 5 s, the
 #: window lasted 146 s docked, and the legs' reckoning, unmatched through
 #: it, carried a re-docked belief 3 cm, the region laid along it; a window
 #: of one scan slid the fits 3 cm along the lobby against walls one scan

@@ -11830,9 +11830,10 @@ last walk carried off had laid no askew map.
   otherwise) for 2 it gained. So a bow's view is laid once the feet move.
 - *A fall inside the window* closes it (`ScanMatcher.fell`, #741's review):
   laid unmatched at a belief the get-up moved, its scans lay the room again
-  where it is not (#681's scene, shoved a second after the lost search's fix:
-  open, 1.30 m off). With the map dropped there is no older copy for the
-  closed window to hand the belief back to.
+  where it is not (measured in #681's scene, when the lost search's fix still
+  opened one: shoved a second after it, open, 1.30 m off). With the map
+  dropped there is no older copy for the closed window to hand the belief
+  back to.
 - *A restart inside the window* carries it on (`anchoring` is kept state); a
   save from before the pair restores its window closed: it was a fix's that
   kept the map, and laid on unmatched it would be a second room beside the

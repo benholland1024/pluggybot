@@ -2791,9 +2791,10 @@ save a filmstrip PNG named after the script.
   looked round for good). ⚠ THE WIDE SEARCH'S OWN TAKE, AND THE SEARCH AT
   EVERY HEADING'S, IS CHECKED BY THE NEXT LOOK (`_put`: the doubt begins
   again where the belief was put, its looks and its 2 m). ⚠ UP FROM A FALL
-  AN ANCHOR'S WINDOW IS OVER (#741's review; `ScanMatcher.fell`): shoved a
-  second after the lost search's fix, the open window laid 17 scans at the
-  belief the get-up moved and ended 1.30 m off. ⚠ ONLY UP FROM
+  AN ANCHOR'S WINDOW IS OVER (#741's review; `ScanMatcher.fell`): laid
+  unmatched at a belief the get-up moved, its scans lay the room again where
+  it is not (measured when the lost search's fix still opened one: shoved a
+  second after it, 17 scans laid and 1.30 m off). ⚠ ONLY UP FROM
   A FALL: a robot that has not fallen is matched as it was, verdict for
   verdict (202 recorded falls replayed with the doubt off: the base's). ⚠
   IT BELIEVES THE MAP: a copy of the room `UNIQUE_M` or more away that
@@ -2852,7 +2853,8 @@ save a filmstrip PNG named after the script.
   quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` (10 cm,
   2 deg) moves the belief -- ⚠ AND DROPS THE MAP AND ITS PLACES, whatever
   it moved by (#681; `forget_world`; SimNotes, "A station's fix that moves
-  the belief drops the map"), its window laying the map afresh (above):
+  the belief drops the map"), the dock's window laying the map afresh
+  (above; never the lost search's):
   kept, each region held the offset of the belief that laid it and the
   matcher held the belief to it -- back at the counter after a lobby fix,
   the storeroom's error came back at once (live 11-25: -13.9 cm, as before

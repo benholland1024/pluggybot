@@ -2185,8 +2185,13 @@ def test_only_a_fix_that_drops_the_map_opens_an_anchors_window():
             and isinstance(n.func, ast.Attribute) and n.func.attr == attr]
 
   def fixed_first(fn, call):
-    """The call sits in the body of an `if` whose test calls `_fix_at`."""
-    return any(isinstance(n, ast.If) and calls(n.test, "_fix_at")
+    """The call sits in the body of an `if` that reads `_fix_at(...) is not
+    None` -- a fix that moved the belief -- among its tests."""
+    def moved(test):
+      return any(isinstance(n, ast.Compare) and calls(n.left, "_fix_at")
+                 and isinstance(n.ops[0], ast.IsNot) and isinstance(n.comparators[0], ast.Constant)
+                 and n.comparators[0].value is None for n in ast.walk(test))
+    return any(isinstance(n, ast.If) and moved(n.test)
                and any(call in list(ast.walk(b)) for b in n.body) for n in ast.walk(fn))
 
   opens = []
@@ -2202,6 +2207,16 @@ def test_only_a_fix_that_drops_the_map_opens_an_anchors_window():
         if not any(v.value is False for v in on):
           opens.append((path.name, fn.name, fixed_first(fn, node)))
   assert opens == [("body.py", "anchor_at_dock", True)], opens
+  # ...and a fix that moved the belief has dropped the map before it says so:
+  # `_fix_at` forgets the world in the statements before the record it returns
+  from pluggybot.humanoid import body as hb
+  fix_at = next(f for f in ast.walk(ast.parse(Path(hb.__file__).read_text()))
+                if isinstance(f, ast.FunctionDef) and f.name == "_fix_at")
+  forget = min(n.lineno for n in ast.walk(fix_at) if isinstance(n, ast.Call)
+               and isinstance(n.func, ast.Attribute) and n.func.attr == "forget_world")
+  said = max(n.lineno for n in ast.walk(fix_at) if isinstance(n, ast.Return) and n.value is not None
+             and not (isinstance(n.value, ast.Constant) and n.value.value is None))
+  assert forget < said, "a fix that moved the belief said so before dropping the map"
 
 
 def test_a_restart_keeps_an_anchors_window(room):
