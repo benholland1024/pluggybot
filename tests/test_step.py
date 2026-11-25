@@ -764,9 +764,13 @@ def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be(
   assert not len(k.near((0.0, 0.0, 0.0), np.array([0.0, 0.0, hmis.KNEE_JUMP_RAD + 0.01]))), \
     "a heading's jump kept what it saw"
   k.fold(np.array([[0.4, 0.0, 0.3]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
-  mission = NS(falls=0, legs="stand", knee=k, getup=NS(begin=lambda: None))
+  # ...and what it saw where its arms swing with it (#747)
+  swing = hmis.ArmsMemory()
+  swing.fold(np.array([[0.4, 0.0, 0.7]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
+  mission = NS(falls=0, legs="stand", knee=k, swing=swing, getup=NS(begin=lambda: None))
   HumanoidMission._fell(mission)
   assert not len(k.pts), "a fall kept what it saw"
+  assert not len(swing.pts), "a fall kept what it saw where its arms swing"
 
 
 def test_a_steps_own_scan_draws_noise_of_its_own():

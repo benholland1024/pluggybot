@@ -12368,6 +12368,131 @@ stop out of reach holds its command as before. The stop's report reads the
 hand a tick after the stop, so its numbers can move by about 0.1 cm and 1-2 N
 where it is eased.
 
+## A reach's posture swung into the counter (issue #747)
+
+A reach takes its plan's posture and sets its arm off along its way out in
+one instant (`Reach.reach`): the waist turns at 0.6 rad/s, the standing
+policy is shown a crouch at 0.15 m/s and a bow at 0.6 rad/s, and the arm
+walks out at 1 rad/s. Nothing judged where that carries a hand. The loop of
+11-24's Y6 flew the robots' own kind of reach across the body -- the left
+hand 3-20 cm right of the stance, no turn asked -- from where the knee rule
+leaves a robot at the storeroom's counter: the swing pressed the counter's
+face or edge in 292 of 360 reaches and 61 fell, every fall after a press
+of the face during the swing, the reaching hand among what pressed.
+
+**What the robot sees of the face.** Y6's flights stand still with a bare
+`STILL`, which runs no `_after_step`: no depth frame, no scan, and the
+senses hold nothing. Stood still as the day stands it (`hold_routine`),
+placed 0.20-0.30 m off the face, the D435 sees the counter's top and never
+its face (its picture ends 69 deg below level); walked in from 0.65 m and
+stepped in, its frames saw the face over its whole height, placed 4-7 mm
+nearer than it stood. The knee memory (#717) keeps only 0.08-0.6 m and the
+floor plan, and the LIDAR's band meets a 0.72 m top only 0.54 m out. So a
+memory of its own (`mission.ArmsMemory`): the same frames' points from 0.08
+to 1.35 m in 2 cm voxels, kept and forgotten as the knees' are, and a
+column's top, what lies within `ARMS_TOP_M` (3 cm) of its highest voxel,
+no face (`faces`): a hand comes down over a counter's top to its work, and
+the top's own noise reads a voxel or two deep. A face never seen from about
+0.33 m or further, and a thing that moved since, are what it misses.
+
+**The judgment** (`Reach._swing`, `swing_clock`, `plan`'s `swing`). The
+commands' own clocks, sampled every 50 ms until each has arrived: the
+shown posture walked at the policy's rates from where it is shown, the
+waist on `turned`, the arm along the way out `way_out` takes, 0.2 s behind
+the others (`SWING_ARM_LAG_S`: Y6's arm was 0.41 rad out where its command
+was 0.64). The trunk is posed between the body as it reads itself and the
+plan's statue, the waist and both arms where their commands are, and every
+part of both arms against the faces it saw -- less the work, a cylinder
+0.15 m across round its goal from 0.10 m under it up (the robots' own goals
+hover 2.4 cm over the cube's board). A part may come at most 5 mm into a
+face (`SWING_CLEAR_M`), or, begun further in, no further than it began less
+5 mm. A plan that would is passed over for the next `with_waist` ranks, and
+the one taken then is the one the hand goes in from, its look taking none;
+where every one would, a procedure's reach moves nothing and says what its
+posture would have swung into ("swing", `Body.hand_swung`). A look's
+second posture, where the plan passed over nothing, is judged too, the hand
+held at its pre-grasp. The loop's own reach is never judged.
+
+**Calibrated in a shadow census before it acted** (the loop of 11-24b, Z3;
+800 reaches walked in, draw k0, on one pod, the verdict recorded and never
+acted on; `~/pluggybot-training/batches/z3_747/`). Every shadow flight was
+the base's in every key. A box's gap had been clipped at 0 inside, a top
+read a voxel under itself as a face, and the cube's board was met at every
+pre-grasp: each found there, fixed, flown again. The 26 left-hand plans
+that fell went 1.6-3.4 cm into the face as the robot's model of itself has
+it; of the 393 right-hand ones that pressed nothing, 7 came 0.05-0.46 cm in
+-- their whole search took a 0.8 rad bow turned 60 deg -- and kept 1 cm
+off, 99 would have been passed over. The census and the experiment below
+read a capsule (a forearm, an upper arm) only within the norm of its
+MuJoCo sizes of its middle, the last 2.7 cm of each rounded end unread
+(found in review: `part_reach`, its half-length and its radius); the
+final bars fly it read.
+
+**Then acting, and its form chosen by a rule written before** (the same
+800, one pod). Passed over with the look free, the left hand fell 3 times
+where the base fell 26; kept off the postures its plan passed over, the
+look went on to the deepest bows, whose trunk and head met the counter
+(405-1755 N: the swing judges the arms), and two waist turns judged clear
+pressed the face, the arm lagging its command: 5 falls. Two arms then flew,
+both judging the arm's lag: passed over, the look then taking none (P2),
+and refused at the first plan that meets (R). P2: the left hand fell once
+(base 26), held 156 reaches (130), refused 110, pressed the face or edge
+130 times (272); R: fell 0, held 102, refused 231, pressed 61. The rule
+took the more holds within one fall: P2. Both refuse all 26 of the base's
+falls; the right hand's 400 and every flight neither acted on are the
+base's in every key. P2's one fall came where the base held: it passed
+over the base's crouch and ten more postures for a lighter one, whose real
+swing caught the counter's front edge at 224 N (a column's top 3 cm is no
+face, so the edge goes unjudged), and its withdraw's way home pressed the
+top at 525 N and fell (#693's family).
+
+**On the final code** (the loop of 11-25's pod, base beside branch, the base
+loop-staging with #750 and its fix, ec75d5ce). The grid's second draw, k1,
+walked in: the left hand fell once where the base fell 27, held 152 reaches
+(134), pressed the face or edge 126 times (267); the right hand fell 6 times
+as the base did, 3 of its 400 passed over; every flight the rule did not act
+on was the base's in every key. Its one fall is P2's blind spot again,
+flown as on the base before #750: passed over 22 postures to a deep bow (0.8
+rad, turned 15 deg), whose hand came down on the counter's top at 76-88 N.
+Ben's bar: 617 of 736 passed (base 612), 4 falls (base 4), no job held out
+worse by more than one -- met; the lid's set-out 14, which fell on the base
+before #750 once the rule refused its fourth try, no longer falls there.
+The robots' own 200 live tries (X5's): no pass lost (2), two of their three
+tries with a fall shed (cube_run3 k5 and k6), the rule acting on 12. Placed
+up close as Y6 flew them (180), it met nothing, and every flight was the
+base's in every key (on the base before #750).
+
+**What it costs.** A passing plan 40 ms more (the memory read and one
+judgment), and the fold 0.8 ms a frame, 0.9 % of the pair's walking wall
+time (1.45 % slower over three interleaved rounds on the dev box). A
+refusal searches every posture, 47-71 judgments, 6.2-6.6 s of the one
+physics thread on the dev box, where a plan out of reach takes 0.03 s
+(and every plan its words ask -- the other hand's, and out of reach the
+grip turned another way -- is judged too, each as long again where its
+every posture swings):
+P2's plans that passed over found their posture within 6 judgments in 85
+of 121, and a cap at 10 (about 1 s) would refuse the other 36 -- where P2
+held 13 to the base's 6 and fell once.
+
+**What it does not do.** The legs, the trunk and the head are not judged
+(the thighs never felled the robot alone). A face never seen, or moved
+since, is not there, nor one seen more than a minute before (`KNEE_S`, as
+the knees' memory): up close the camera sees the top alone, so a later
+procedure's reach at the counter is judged on the minute before it -- 112
+of the 200 live tries X5 flies began at the counter, none of which fell on
+the base. A voxel 0.55 m or more off is let go where a frame sees past its
+bearing at any height -- one above the picture's top at its range, a shelf
+at the shoulders' height seen from nearer, among them. A prop it moved leaves its old face up to that
+minute: within 0.55 m no frame clears what was kept (a carve against the
+depth picture would), so the next reach near where it stood is judged
+against it -- refused or passed over, never felled. The swing is sampled
+every 50 ms, a part moving several centimetres a sample, so a thin one
+could pass a face between two: all 26 of the census's falls were met, and
+none fell among the reaches it judged clear. A column's top 3 cm, a
+counter's front edge among them, is no face. A way home, a carry and a pull are not judged. The
+statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
+the truth lags the commands: the census, not the model, set the clearance.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

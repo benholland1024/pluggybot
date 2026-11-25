@@ -1083,6 +1083,9 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                               "how you truly stand, or pushing on something",
              "own body": "every way your {hand} arm takes from where it is to there passes "
                          "through your own body, so it did not move",
+             # ...said with what it would meet (`REACH_SWUNG`), where the body says
+             "swing": "every posture that puts your {hand} hand there would swing an arm into "
+                      "something your depth camera saw, so your arm did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one that stopped short, by the rule its body says stopped it
@@ -1094,6 +1097,21 @@ REACH_STOPPED_BY = {
   "reach": "your {hand} hand stopped short on its way in: out of reach from how you truly stand",
   "caught": "your {hand} hand stopped on its way out: it caught on something, which would have "
             "tipped you toward it"}
+#: ...and one whose every posture would swing an arm into what its depth
+#: camera saw (#747, `Body.hand_swung`): the first posture's arm and part,
+#: and where that was in the stance frame it stood in, as a reach is asked
+#: -- or, kept in the posture it is in by the other hand's grip (#719), that
+#: posture's.
+REACH_SWUNG = ("every posture that puts your {hand} hand there would swing an arm into "
+               "something your depth camera saw -- the first your {side} {part}, at x {x:.2f}, "
+               "y {y:.2f}, z {z:.2f} in your stance frame -- so your arm did not move")
+REACH_SWUNG_KEPT = ("your {other} hand is out holding something, so your body keeps the posture "
+                    "it is in, and from it your {hand} hand's way there would swing your {side} "
+                    "{part} into something your depth camera saw, at x {x:.2f}, y {y:.2f}, "
+                    "z {z:.2f} in your stance frame, so your arm did not move")
+#: ...the arm's parts as the robot says them.
+SWUNG_PARTS = {"upper_arm": "upper arm", "forearm": "forearm", "gripper": "hand",
+               "jaw_a_pad": "fingers", "jaw_b_pad": "fingers"}
 #: ...and one out of reach with the other hand holding something, whose grip
 #: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
 REACH_KEPT = ("your {other} hand is out holding something, so your body keeps the posture it "
@@ -1177,7 +1195,11 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    # ...and one out holding something, which kept the body's posture (#719)
                    "holds": "; your {other} hand is out holding something",
                    # ...and one whose every way there passes through your own body (#722)
-                   "own": "; your {other} hand's every way there passes through your own body"}
+                   "own": "; your {other} hand's every way there passes through your own body",
+                   # ...and one whose every posture there would swing an arm into what
+                   # its depth camera saw (#747)
+                   "swing": "; your {other} hand's every posture there would swing an arm into "
+                            "something your depth camera saw"}
 
 
 def _where(kept: dict) -> str:
@@ -1269,13 +1291,25 @@ def _reach(life, args: dict) -> Routine:
     # along or across fingers that had not begun their way in
     reason += _short_of(life, place, None if cause.get("by") == "caught" else rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
+  swung = life.body.hand_swung(hand) if why == "swing" else None
+  if swung is not None:
+    x, y, z = swung["at"]
+    part = SWUNG_PARTS.get(swung["part"], swung["part"])
+    held_by = life.body.posture_kept_by(hand)
+    if held_by:
+      # ...the one posture the other hand's grip keeps (#719): that hand is
+      # at its work, so nothing is said of what it could do
+      return {"ok": False, "hand": hand, "why": why, "reason": REACH_SWUNG_KEPT.format(
+        hand=hand, other=held_by, side=swung["side"], part=part, x=x, y=y, z=z), **said,
+        "felt": felt}
+    reason = REACH_SWUNG.format(hand=hand, side=swung["side"], part=part, x=x, y=y, z=z)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
       hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
       + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
-  if why == "own body" and other is not None and life.body.hand_reaches(other, place, rot,
-                                                                         verb=True):
+  if why in ("own body", "swing") and other is not None and life.body.hand_reaches(
+      other, place, rot, verb=True):
     # ...and whether the other hand could (#722): a turn or a step is not all
     reason += f"; your {other} hand could reach it as asked"
   if why == "out of reach" and turned():
