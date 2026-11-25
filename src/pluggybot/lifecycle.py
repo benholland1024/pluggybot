@@ -1818,20 +1818,22 @@ class HubLifecycle:
     """A belief event said, and the ones the robot should know of written
     to History: lost at a fixture, a map dropped, how the search after a
     loss ended, a map that has refused every scan for a minute and its
-    taking scans again (#697). A fix within the map's reach and a relocation are
+    taking scans again (#697). A fix that kept the map and a relocation are
     narrated only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
     # ...the station is the one fixture, and its search keeps the map until
-    # a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    # a fix moves the belief (`HumanoidBody.lost_routine`, `_fix_at`). ⚠ A
+    # fix measures the belief, never the map: a belief a last walk carried
+    # off had laid no askew map (#681), so it says how far, and what went
     if why == "lost":
       line = (f"I did not find {what} where I believed it was, so I may not be where I "
               "thought, and I am looking round for it")
     elif why == "fixed" and rec.get("dropped"):
       line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
-              f"was: the map I had was laid askew, and it is gone")
+              f"was: {MAP_GONE}")
     elif why == "searched" and rec.get("ended") == "seen, never near":
       line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and saw it, but never "
               "got near enough to it to know where I am")
@@ -3896,8 +3898,8 @@ class HubLifecycle:
     self.body.start_at(*pose)
     # ...on no map (#572, Ben's call): put right at its start, a belief is
     # pulled back onto the askew map it kept (Ben's reset of Rowan on 10-08
-    # was 7.7 m out within 500 s), so it goes with its places, as a fix past
-    # the matcher's reach drops them
+    # was 7.7 m out within 500 s), so it goes with its places, as a station's
+    # fix that moves the belief drops them
     self._forget_world()
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None

@@ -9,7 +9,7 @@ and search at its station are `test_station.py`'s; what they measure is
 import math
 
 from pluggybot.body import NOT_SEEN, StubBody
-from pluggybot.lifecycle import DRIFT_EVERY_S
+from pluggybot.lifecycle import DRIFT_EVERY_S, MAP_GONE
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.navigator import wire_pose
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -204,9 +204,13 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
   said = _history(life)
   assert any("I did not find my charging station where I believed it was" in ln
              and "looking round for it" in ln for ln in said)
-  assert any("my charging station put me 2.0 m and 17 deg" in ln and "is gone" in ln
-             for ln in said)
-  assert len(said) == 2, "a fix within the map's reach went into History"
+  # ...saying how far the station put it and what that cost, never a cause
+  # it did not measure (#681: the map "laid askew" -- a fix measures the
+  # belief, and one a last walk carried off had laid no askew map)
+  assert any(ln.endswith("my charging station put me 2.0 m and 17 deg from where I "
+                         f"believed I was: {MAP_GONE}") for ln in said), said
+  assert not any("askew" in ln for ln in said)
+  assert len(said) == 2, "a fix that kept the map went into History"
   # ...and the search after a loss ends in History, its fix's line or its own
   for seq, kw, words in ((5, dict(found=False, fixture="station"),
                           "I looked for my charging station for 156 s and did not see it"),

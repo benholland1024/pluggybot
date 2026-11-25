@@ -974,26 +974,46 @@ def test_the_plug_goes_to_the_port_as_read_at_each_move_and_is_let_go_where_it_s
 # ---- lost, and found by the station -------------------------------------------------
 
 
-def test_a_look_at_the_station_fixes_the_belief_and_past_the_matchers_reach_drops_the_map():
+def test_a_look_at_the_station_that_moves_the_belief_drops_the_map_and_its_places():
   """The station is commissioned as the dock is (#476): its look puts the
-  belief where it says the robot stands, and a fix past the matcher's own
-  search (`humanoid.body.ASKEW_M`) drops the map laid on the old belief."""
+  belief where it says the robot stands, and a fix that moves it drops the
+  map laid on the old belief and the places found on it (#681: kept, each
+  region held the offset of the belief that laid it, and back at the
+  counter the storeroom's error came back at once) -- whatever it moved
+  by, the turn alone too -- and opens the anchor's window, the next scans
+  laid where the station put it. A look that agrees moves and drops
+  nothing."""
   from pluggybot.body import RackPose
+  from pluggybot.humanoid.body import FIX_TOL_M, FIX_TOL_RAD
+  from pluggybot.mapping import scan_match as sm
   model, data, body, station = _house(at_seat=False)
   try:
     s, m = body._station, body.mission
+    tag = min(m.places.ids)
+
+    def mapped():
+      m.grid.grid[10, 10] = 5.0
+      m.low[0, 0] = 1.0
+      m.places.see(tag, s.x, s.y, float(data.time), 0.0)
+      assert m.places.get(tag) is not None
+
+    mapped()
     x, y, yaw = body.pose
-    near = RackPose(s.x + 0.3, s.y - 0.2, s.yaw)       # the belief 0.36 m off
-    fix = body._fix_at(near)
-    assert body.pose[:2] == pytest.approx((x - 0.3, y + 0.2), abs=1e-6)
-    assert fix["fixture"] == "station" and fix["moved"] and not fix["dropped"]
-    assert body._fix_at(s) is None, "a look that agrees moves nothing"
-    m.grid.grid[10, 10] = 5.0
-    far = RackPose(s.x + 0.7, s.y, s.yaw)
-    fix = body._fix_at(far)
-    assert fix["dropped"] and not m.grid.grid.any()
-    # ...and a map dropped lays nothing afresh: there is none (#741)
-    assert not m.matcher.relaying
+    agrees = RackPose(s.x + 0.9 * FIX_TOL_M, s.y, s.yaw)
+    assert body._fix_at(agrees) is None, "a look that agrees moves nothing"
+    assert body.pose == (x, y, yaw) and m.grid.grid[10, 10] == 5.0
+    assert m.places.get(tag) is not None and m.low[0, 0] == 1.0
+    assert m.matcher.anchoring == 0, "...and opens no window"
+    for off, turn in ((0.12, 0.0), (0.0, 1.5 * FIX_TOL_RAD), (0.7, 0.0)):
+      mapped()
+      x, y, yaw = body.pose
+      fix = body._fix_at(RackPose(s.x + off, s.y, s.yaw + turn))
+      assert fix["fixture"] == "station" and fix["moved"] and fix["dropped"], (off, turn)
+      assert not m.grid.grid.any() and not m.low.any(), "the map and its layer dropped"
+      assert m.places.get(tag) is None and len(m.places) == 0, "its places with it"
+      assert m.matcher.anchoring == sm.ANCHORED_SCANS, "the next scans laid where it was put"
+      if turn == 0.0:
+        assert body.pose[:2] == pytest.approx((x - off, y), abs=1e-6)
   finally:
     body.close()
 
@@ -1079,19 +1099,47 @@ def test_a_lost_humanoid_looks_round_by_its_head_and_walks_nearer_by_what_it_saw
 
     def look(b):
       acts.append("look")
-      return RackPose(s.x + 0.7, s.y, s.yaw)
+      return RackPose(s.x + 0.3, s.y, s.yaw)      # the belief 0.3 m off
       yield
     monkeypatch.setattr(m, "_look_around_routine", around)
     monkeypatch.setattr(m, "drive_to_routine", drive)
     monkeypatch.setattr(body, "face_routine", face)
     monkeypatch.setattr(charge, "look_routine", look)
+    m.grid.grid[10, 10] = 5.0
     assert body.run(body.lost_routine("station"))
     ax, ay = s.to_world(-charge.NEAR_M, 0.0)
     assert acts == ["around", ("walk", round(ax, 3), round(ay, 3)), "look"], acts
     events = [e["why"] for e in body.belief_events]
     assert events == ["lost", "fixed", "searched"], events
+    # ...and the map laid while it was lost goes with the fix (#681)
     assert body.belief_events[-1]["found"] and body.belief_events[-1]["dropped"]
+    assert not m.grid.grid.any()
   finally:
+    body.close()
+
+
+def test_a_fix_drops_its_own_robots_map_and_never_the_others():
+  """A pair (#167): each robot its own map and places, and a station's fix
+  drops the map and places of the robot it moved, its window its own
+  matcher's -- the other's, standing by the station, as they were (#681)."""
+  from pluggybot.body import RackPose, body_for
+  from pluggybot.mapping import scan_match as sm
+  from pluggybot.robot import SECOND
+  model, data, body, station = _house(at_seat=False, pair=True)
+  other = body_for(model, data, handle=SECOND)
+  try:
+    s, mine, theirs = body._station, body.mission, other.mission
+    tag = min(theirs.places.ids)
+    for m in (mine, theirs):
+      m.grid.grid[10, 10] = 5.0
+      m.places.see(tag, s.x, s.y, float(data.time), 0.0)
+    fix = body._fix_at(RackPose(s.x + 0.3, s.y, s.yaw))
+    assert fix["dropped"] and not mine.grid.grid.any() and len(mine.places) == 0
+    assert mine.matcher.anchoring == sm.ANCHORED_SCANS
+    assert theirs.grid.grid[10, 10] == 5.0 and theirs.places.get(tag) is not None
+    assert theirs.matcher.anchoring == 0
+  finally:
+    other.close()
     body.close()
 
 

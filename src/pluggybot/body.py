@@ -298,7 +298,7 @@ class Body(abc.ABC):
   def forget_world(self) -> None:
     """Its map and its places cleared -- it knows where its dock is and
     nothing else: a true death (issue #419), a stand-up (#572), a fixture's
-    fix past the matcher's reach (#476)."""
+    fix that moves the belief (#476, #681)."""
 
   @abc.abstractmethod
   def plan_frontier(self, blacklist: set) -> tuple[list | None, str]:
