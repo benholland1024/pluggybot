@@ -2698,14 +2698,15 @@ save a filmstrip PNG named after the script.
   (held plainly, a wheel pump ran the pose 3.4 m); a direction the walls do
   not fix keeps odometry's estimate; a fit the map disagrees with, or one
   that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
-  NOT FUSED, if nothing agrees; and a scan is fused only once where it was
-  taken from has moved, its sensor's place as well as the pose (docked,
-  fusing every scan walked the map 0.15 m; a bow carries the sensor 0.54 m
-  ahead of a pelvis standing still) -- ⚠ NEVER ON TIME ALONE BUT IN AN ANCHOR'S WINDOW,
-  laid there as they come (#741's option 4, #681; `ScanMatcher.fuses`):
-  laid every 5 s standing still, a kept map's docked belief walked 13 cm to
-  43 cm in an hour and the counter's 0.8-8.8 cm in 28 minutes; laid only as
-  it moves, 13.1 cm flat and 0.4-0.8.
+  NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
+  moved (docked, fusing every scan walked the map 0.15 m) -- ⚠ NEVER ON TIME
+  ALONE BUT IN AN ANCHOR'S WINDOW, laid there as they come (#741's option 4,
+  #681; `ScanMatcher.fuses`): laid every 5 s standing still, a kept map's
+  docked belief walked 13 cm to 43 cm in an hour and the counter's 0.8-8.8
+  cm in 28 minutes; laid only as it moves, 13.1 cm flat and 0.4-0.8. ⚠ A
+  BOW'S VIEW IS LAID ONLY ONCE THE FEET MOVE: laid where the sensor moved,
+  the far check lost 4 docks the base made, and every drift flight was
+  redrawn for no gain.
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one that held a direction, or whose
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
@@ -2814,10 +2815,12 @@ save a filmstrip PNG named after the script.
   `TURNED_NEAR_M` (0.5 m) OF WHERE THE BELIEF STOOD UP (walked on, it took
   5 of 118 onto that half turn). There it refuses about half the lobby's
   knocked get-ups.
-  ⚠ THE STATION LAYS THE MAP AFRESH: its fix drops the map (below) and the
-  next `ANCHORED_SCANS` (30) scans are laid at the belief it put right,
-  unmatched (`ScanMatcher.anchored`, #422, #681); `start_at` closes the
-  window. ⚠ ONLY A FIX THAT DROPS THE MAP OPENS ONE (a test reads the
+  ⚠ THE STATION LAYS THE MAP AFRESH: its dock's fix drops the map (below)
+  and the next `ANCHORED_SCANS` (30) scans are laid at the belief it put
+  right, unmatched (`ScanMatcher.anchored`, #422, #681) -- ⚠ NEVER THE LOST
+  SEARCH'S, which walks on at once: its window laid the legs' reckoning into
+  the fresh map, and the far check's docks ended 1.9-3.1 cm off at the
+  median against 0.7 -- and `start_at` closes the window. ⚠ ONLY A FIX THAT DROPS THE MAP OPENS ONE (a test reads the
   code): kept, the region round the station held the offset of the belief
   that laid it and took the belief back as the window closed (the lobby on
   the save of 11-22: 10-11 cm within 3 minutes), and #741's relay, which

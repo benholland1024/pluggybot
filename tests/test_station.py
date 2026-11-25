@@ -981,7 +981,8 @@ def test_a_look_at_the_station_that_moves_the_belief_drops_the_map_and_its_place
   region held the offset of the belief that laid it, and back at the
   counter the storeroom's error came back at once) -- whatever it moved
   by, the turn alone too -- and opens the anchor's window, the next scans
-  laid where the station put it. A look that agrees moves and drops
+  laid where the station put it -- at the dock's fix alone, never at the lost
+  search's, which walks on at once. A look that agrees moves and drops
   nothing."""
   from pluggybot.body import RackPose
   from pluggybot.humanoid.body import FIX_TOL_M, FIX_TOL_RAD
@@ -1011,9 +1012,16 @@ def test_a_look_at_the_station_that_moves_the_belief_drops_the_map_and_its_place
       assert fix["fixture"] == "station" and fix["moved"] and fix["dropped"], (off, turn)
       assert not m.grid.grid.any() and not m.low.any(), "the map and its layer dropped"
       assert m.places.get(tag) is None and len(m.places) == 0, "its places with it"
-      assert m.matcher.anchoring == sm.ANCHORED_SCANS, "the next scans laid where it was put"
+      assert m.matcher.anchoring == 0, "a lost search's fix opened a window: it walks on at once"
       if turn == 0.0:
         assert body.pose[:2] == pytest.approx((x - off, y), abs=1e-6)
+    # ...and the dock's (`anchor_at_dock`, plugged in and standing still) lays
+    # its next scans where the station put it
+    mapped()
+    body._station_seen = RackPose(s.x + 0.12, s.y, s.yaw)
+    body.anchor_at_dock()
+    assert not m.grid.grid.any() and len(m.places) == 0
+    assert m.matcher.anchoring == sm.ANCHORED_SCANS and body._station_seen is None
   finally:
     body.close()
 
@@ -1111,9 +1119,10 @@ def test_a_lost_humanoid_looks_round_by_its_head_and_walks_nearer_by_what_it_saw
     assert acts == ["around", ("walk", round(ax, 3), round(ay, 3)), "look"], acts
     events = [e["why"] for e in body.belief_events]
     assert events == ["lost", "fixed", "searched"], events
-    # ...and the map laid while it was lost goes with the fix (#681)
+    # ...and the map laid while it was lost goes with the fix (#681), and
+    # no window opens: it walks on to the standoff at once
     assert body.belief_events[-1]["found"] and body.belief_events[-1]["dropped"]
-    assert not m.grid.grid.any()
+    assert not m.grid.grid.any() and m.matcher.anchoring == 0
   finally:
     body.close()
 
@@ -1133,7 +1142,7 @@ def test_a_fix_drops_its_own_robots_map_and_never_the_others():
     for m in (mine, theirs):
       m.grid.grid[10, 10] = 5.0
       m.places.see(tag, s.x, s.y, float(data.time), 0.0)
-    fix = body._fix_at(RackPose(s.x + 0.3, s.y, s.yaw))
+    fix = body._fix_at(RackPose(s.x + 0.3, s.y, s.yaw), window=True)
     assert fix["dropped"] and not mine.grid.grid.any() and len(mine.places) == 0
     assert mine.matcher.anchoring == sm.ANCHORED_SCANS
     assert theirs.grid.grid[10, 10] == 5.0 and theirs.places.get(tag) is not None

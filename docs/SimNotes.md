@@ -11790,38 +11790,53 @@ every 5 s.
 **The rule as built (#681's pair).** Every station fix that moves the
 belief past `FIX_TOL_*` (10 cm, 2 deg) drops the map, the depth camera's
 layer and the places found on it (`HumanoidBody._fix_at`, `forget_world`),
-as only one past the matcher's search did before, and opens the anchor's
-window: the next 30 scans laid at the belief put right, unmatched, as they
-come (3 s). The loop's explore goes with the map, as at a stand-up
+as only one past the matcher's search did before; and the dock's fix
+(`anchor_at_dock`, plugged in and standing still), never the lost search's,
+opens the anchor's window: the next 30 scans laid at the belief put right,
+unmatched, as they come (3 s). The loop's explore goes with the map, as at a stand-up
 (`floorExplored` false, no frontier blacklisted). The relay is gone with
 what only it reached (`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`,
 `OccupancyGrid.seen_by` / `forget_seen`). With it, #741's option 4: a scan
-is laid only once where it was taken from has moved 1 cm or turned half a
-degree since the last laid -- its sensor's place as well as the pose's, a
-bow carrying the sensor 0.54 m ahead of a pelvis standing still -- or
-inside an anchor's window; never on time alone (below). The History line
+is laid only once the belief has moved 1 cm or turned half a degree since
+the last laid, or inside an anchor's window; never on time alone (below). The History line
 says how far the station put the robot, in cm under a metre and tenths of a
 degree under ten, and that its map and the places it had found are gone
 (`MAP_GONE`, the stand-up's own words), where it said "the map I had was
 laid askew": the fix measures the belief, never the map, and a belief its
 last walk carried off had laid no askew map.
-- *Why the window at a drop.* A robot standing still lays no scan on time
-  alone, so docked after a drop its map would be the one scan laid after the
-  fix until it crept a centimetre; a window of one scan slid the fits 3 cm
-  along the lobby on walls one scan thick, where the 30 held 0.3-0.8 cm
-  (#741's forms, docked on the 11-22 save), and held to one every 5 s the
-  window lasted 146 s docked while the legs' reckoning carried a belief 3-4
-  cm through it, the region laid along it.
+- *Why the window at the dock's drop.* A robot standing still lays no scan
+  on time alone, so docked after a drop its map would be the one scan laid
+  after the fix until it crept a centimetre; a window of one scan slid the
+  fits 3 cm along the lobby on walls one scan thick, where the 30 held
+  0.3-0.8 cm (#741's forms, docked on the 11-22 save), and held to one every
+  5 s the window lasted 146 s docked while the legs' reckoning carried a
+  belief 3-4 cm through it, the region laid along it.
+- *Why never at the lost search's.* It walks on to the standoff at once, and
+  the window laid its scans along the legs' reckoning, unmatched, into the
+  fresh map: `station_spike.py --lost --far` (123 lost starts, every fix a
+  drop on both trees, one pod) docked 0.7 cm off at the median (1.7 at the
+  90th percentile) on the base, whose drop past the matcher's search opened
+  no window; 1.9 (5.7) with it, and 3.1 (6.7) on the tree below; without it
+  on that same tree, 0.7 (1.7) again -- nearer than with it on 79 starts,
+  further on 4.
+- *Why the pelvis's place, not the sensor's.* A bow carries the sensor 0.54
+  m ahead of a pelvis standing still, and the review of #681's pair laid
+  what it saw from there at once (where the sensor had moved 1 cm). It cost
+  more than it gave: it laid 0.3 % more scans (177,481 against 176,851 of
+  the drift batch's 181,000) and redrew every walking flight -- all 32 of the
+  drift batch moved, the worst error up more than 5 cm in 10 and down in 5,
+  a sign test a wash -- and the far check lost 4 docks the base made (lost
+  searches that never found the station, before any fix: their maps laid
+  otherwise) for 2 it gained. So a bow's view is laid once the feet move.
 - *A fall inside the window* closes it (`ScanMatcher.fell`, #741's review):
   laid unmatched at a belief the get-up moved, its scans lay the room again
   where it is not (#681's scene, shoved a second after the lost search's fix:
   open, 1.30 m off). With the map dropped there is no older copy for the
   closed window to hand the belief back to.
 - *A restart inside the window* carries it on (`anchoring` is kept state); a
-  save from before the pair restores its window closed -- it was a fix's
-  that kept the map, and laid on unmatched it would be a second room beside
-  the kept one -- and lays its next scan at once (it kept its pose's place,
-  not its sensor's).
+  save from before the pair restores its window closed: it was a fix's that
+  kept the map, and laid on unmatched it would be a second room beside the
+  kept one.
 
 **Standing still, no scan laid on time alone** (#741's option 4, Y3 of the
 loop of 11-24, `loop-741b`). A robot standing still laid a scan every

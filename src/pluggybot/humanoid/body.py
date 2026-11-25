@@ -1917,16 +1917,19 @@ class HumanoidBody(Body):
         return True, self._fix_at(seen)
     return False, None
 
-  def _fix_at(self, seen) -> dict | None:
+  def _fix_at(self, seen, window: bool = False) -> dict | None:
     """The belief put where the station, seen as `seen` (its frame in the
     believed world, `charge.look`), says it stands: the station is
     commissioned (`_station`), as the dock is (#476). Past `FIX_TOL_*` the
     belief moves, and the map laid on the old belief goes, its places with
-    it (`forget_world`, #681) -- and the next scans are laid where the
-    station put it, the anchor's window (`ScanMatcher.anchored`): a robot
-    standing still lays none on time alone, and docked its map would be one
-    scan. Its `fixed` record, `dropped` at every move, or None where the
-    look agreed with the belief."""
+    it (`forget_world`, #681). ⚠ `window`, the dock's fix alone
+    (`anchor_at_dock`: plugged in, standing still), lays its next scans where
+    the station put it (`ScanMatcher.anchored`): standing still it lays none
+    on time alone, and docked its map would be one scan. NEVER THE LOST
+    SEARCH'S, which walks on at once: the window's scans were laid along the
+    legs' reckoning, and `station_spike.py --lost --far`'s docks ended
+    1.9-3.1 cm off at the median, 0.7 without. Its `fixed` record, `dropped`
+    at every move, or None where the look agreed with the belief."""
     prior = self._station
     x, y, yaw = self.pose
     c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
@@ -1938,7 +1941,7 @@ class HumanoidBody(Body):
       return None
     self.mission._set_pose(tx, ty, tyaw)
     self.forget_world()
-    if self.mission.matcher is not None:
+    if window and self.mission.matcher is not None:
       self.mission.matcher.anchored()
     return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
                                      atM=round(math.hypot(seen.x - x, seen.y - y), 2),
@@ -2029,9 +2032,10 @@ class HumanoidBody(Body):
 
   def anchor_at_dock(self) -> None:
     """The station fixes its belief as it charges (#476), off the look it
-    plugged in by (`_fix_at`): a look in the frame the fix left is no look."""
+    plugged in by (`_fix_at`), its window laying the map afresh from the seat:
+    a look in the frame the fix left is no look."""
     if (self._station_seen is not None and self._station is not None
-        and self._fix_at(self._station_seen) is not None):
+        and self._fix_at(self._station_seen, window=True) is not None):
       self._station_seen = None
 
   def dock_hold_routine(self, seconds):

@@ -32,11 +32,12 @@ map. A draft for Ben.
 **The change** (`HumanoidBody._fix_at`, `ScanMatcher.fuses`; SimNotes, "A
 station's fix that moves the belief drops the map"). Every station fix that
 moves the belief drops the map, the depth camera's layer and the places
-found on it, and lays its next 30 scans at the belief put right, as they
-come; #741's relay (re-laying what the fix's next scan saw) is gone. And a
-robot standing still lays a scan into its map only once its belief has
-moved 1 cm or turned half a degree since the last -- never on time alone,
-where it laid one every 5 s -- but inside that window.
+found on it; the dock's fix lays its next 30 scans at the belief put right,
+as they come (never the lost search's, which walks on at once); #741's
+relay (re-laying what the fix's next scan saw) is gone. And a robot
+standing still lays a scan into its map only once its belief has moved 1 cm
+or turned half a degree since the last -- never on time alone, where it
+laid one every 5 s -- but inside that window.
 
 **Why** (#681). Back at the storeroom's counter after a lobby fix that kept
 the map, the storeroom's kept error came back at once (Rowan on 11-25:
@@ -52,8 +53,11 @@ hours.
 - **What it costs**: the map and the places found on it at every charge
   whose fix moves the belief (Rowan's four lobby fixes of 11-25, 0.11-0.54 m,
   would each have dropped it; Luca's two house docks, under 10 cm, none). The
-  counter's props are found again by their tags on the next try, and a robot standing still lays nothing new of what changes round it until
-  it moves.
+  counter's props are found again by their tags on the next try; and a
+  robot standing still lays nothing new of what changes round it until it
+  moves -- a bow's view included, laid once the feet move (laid where the
+  sensor moved, the far check lost 4 docks the base made and every drift
+  flight was redrawn, for no gain).
 - **What it leaves**: a copy under 10 cm fires no fix (Luca's house dock of
   11-25, 8.4-9.4 cm west for 80 minutes: #741's option 1 or 2, Ben's next
   choice); the counter's work still walks a belief toward a copy within the

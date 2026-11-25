@@ -663,11 +663,11 @@ class Navigator:
       origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
         m = self._match(angles, ranges, origin)
-        if m is None or self.matcher.fuses(m, origin):
+        if m is None or self.matcher.fuses(m):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                            origin=origin, free_from=free_from, graze_m=GRAZE_M)
           if m is not None:
-            self.matcher.fused(self.pose, origin)
+            self.matcher.fused(self.pose)
       elif self.matcher is not None:
         self.matcher.fuse_next()
         self._refused(None)
