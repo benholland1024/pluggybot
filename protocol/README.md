@@ -119,8 +119,9 @@ the words of what it ended: a run's verb, a hand job, a death. One event
 type is new:
 
 - **`fall`**: per robot, one row for every fall its body's own watch
-  counts (`Body.falls`: the humanoid's trunk 35 deg past the posture its
-  legs hold, or its pelvis sunk, the step its get-up takes the legs), sent
+  counts (`Body.falls`: the humanoid's trunk 35 deg off the posture its
+  legs hold and off upright both, or its pelvis sunk, the step its get-up
+  takes the legs), sent
   as that get-up ENDS. Its fields:
   - `t` (as it ended), `fellT`, `seconds` (between them), `falls` (the
     body's count after this fall: the rows of one body count up by one, so

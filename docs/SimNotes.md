@@ -2091,8 +2091,10 @@ and `-Getup-Head`, and the served get-up's `-Getup-Wall3-Mirror` since #679,
 below; `humanoid_spike.py --fall`, `--view fall`, `--view
 getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
 a served world a stand-up 300 s later. The get-up policy takes every joint,
-arms too, once the IMU reads the trunk tipped 35 deg past the posture its
-legs hold (below: a bow is no fall) or the pelvis has sunk under 0.40 m
+arms too, once the IMU reads the trunk tipped 35 deg off the posture its
+legs hold and off upright both (below: a bow is no fall, nor a trunk on its
+way back from one, "A fall backward out of a bow") or the pelvis has sunk
+under 0.40 m
 over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
@@ -2256,36 +2258,91 @@ through `Body`, a low shelf (0.8 rad) and the floor (1.1 rad) each counted
 one and the get-up took the joints -- and the reach said it had arrived,
 because the stand-up's fresh reach hangs and `Reach.done` counts a hanging
 hand (and a hand stopped short) as done. The tip is read off the posture
-the legs hold now (`getup.tipped`, `Reach.held_pitch`: what the standing
+the legs hold -- and off upright where that is nearer, since #724 ("A fall
+backward out of a bow", below) -- (`getup.tipped`, `Reach.held_pitch`: what the standing
 policy is asked less the trim that ask carries, so exactly upright at the
 stand -- and no trim where the deepest bow's ask is held at the policy's
 range, or a stand's trim read the floor's held bow 2.3 deg tipped, not
 1.5; the walker's, upright): a bow's trunk follows its posture within
 2.5 deg going down and 1.5 coming up, and stage 5's 38 shoves from the
 stand come out row for row as before. From each posture a reach takes,
-shoved four ways at 10-45 N*s (`--fall`'s third table; on the standing
+shoved four ways at 10-45 N*s (`--fall`'s bow table; on the standing
 policy alone, graded by us, then as served; times from the shove; the
-waist's body and its standing policy, waist16, 11-13):
+waist's body, waist16 and getupwall14, as read since #724 -- `loop-watch2`
+on one Xeon Gold 6140 pod, 11-25):
 
-| posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, off upright | stood, served |
+| posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, #520's, off upright | stood, served |
 |---|---|---|---|---|---|
-| the stand | 10 of 16 | 7, 3 | 0.24-0.43 | 0 of 6, 0 | 10, 2.9-4.2 s |
-| -0.20 m, 0.55 rad | 8 of 16 | 6, 2 | 0.05-0.42 | 0 of 8, 0 | 8, 2.8-3.8 s |
-| -0.22 m, 0.80 rad | 8 of 16 | 6, 2 | 0.06-0.43 | 0 of 8, 8 | 8, 2.7-3.5 s |
-| -0.25 m, 0.95 rad | 8 of 16 | 6, 2 | 0.06-0.45 | 0 of 8, 8 | 8, 2.6-4.9 s |
-| -0.25 m, 1.10 rad | 8 of 16 | 6, 2 | 0.06-0.50 | 0 of 8, 8 | 8, 2.7-4.1 s |
+| the stand | 10 of 16 | 7, 3 | 0.24-0.43 | 0 of 6, 0, 0 | 10, 2.9-4.2 s |
+| -0.20 m, 0.55 rad | 8 of 16 | 6, 2 | 0.05-0.30 | 0 of 8, 0, 0 | 8, 2.9-3.8 s |
+| -0.22 m, 0.80 rad | 8 of 16 | 6, 2 | 0.06-0.27 | 0 of 8, 0, 8 | 8, 2.7-3.7 s |
+| -0.25 m, 0.95 rad | 8 of 16 | 6, 2 | 0.06-0.27 | 0 of 8, 0, 8 | 8, 2.7-3.9 s |
+| -0.25 m, 1.10 rad | 8 of 16 | 6, 2 | 0.06-0.26 | 0 of 8, 0, 8 | 8, 2.7-4.0 s |
 
-The most a shove it stood through tipped it past its posture was 7.2 deg.
+The most a shove it stood through tipped it past its posture and upright
+was 7.2 deg.
 ⚠ A forward fall from a bow folds at the knees, and THE COLLAPSE TAKES IT,
 0.05-0.08 s before they strike: lying on its face is only 27 deg past the
 deepest bow, so the tilt alone would never fire there. As served the head
-struck in 18 of the 42 falls at 0.3-7.0 m/s (getup3 15, at 0.7-6.0; on the
+struck in 19 of the 42 falls at 0.3-7.0 m/s (18 read off the bow alone; getup3 15, at 0.7-6.0; on the
 standing policy alone, in 35 at 0.5-8.1): the get-up's training tips its
 falling starts over from the stand, never from a bow. `reach_routine` says True only of a hand
 holding at its goal now, never on a stop or a fall, which ends it at once;
 a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
 stand-up's fresh reach -- and the stand-up keeps the grippers as they were
 asked, where a fresh set read a shut gripper as never shut.
+
+**A fall backward out of a bow** (#724; found by P5 of the loop of 11-16/17
+in M12's lobby case, #679's comment of 11-15). Read off the bow alone
+(#520), a trunk going back from it was a fall 35 deg behind the bow: off
+`spot`'s 26 deg look, 9 deg behind upright, where from the stand a fall is
+taken 35 deg behind it -- and off the floor's 63 deg, still 28 deg in front
+of it. In the research center's lobby `spot`'s bow pressed the head into a
+wall and the trunk went over backward at about 200 deg/s; the watch handed
+the body to the get-up 2-11 deg behind upright, still on its feet, and the
+get-up -- trained on falls tipped over from the stand -- ran it 1.6-2.7 m
+backward into the wall behind, one start of nine to a `stuck` death (M12's
+tree, 8edc3e54; since #717 the look's bow keeps off that wall). Left on the
+standing policy no trunk came back (in the stuck start, from 14 to 37 deg
+behind upright in 0.1 s): the take was early, not wrong. So the watch reads
+a tip off the bow and off upright, the nearer (`getup.tipped_past`; a
+posture leaning back off itself) -- never more than off the bow, so a flight
+that takes no fall, or takes one from the stand or under the walker, is the
+same flight to the bit -- and read so, all nine lobby starts went down on
+their backs and stood 2.5-2.7 s on, 1.0-1.1 m back, none into the wall. The
+death seam's topple (`HubLifecycle._chassis_tilt`: `down`, the stuck clock,
+the other robot's fallen disc) reads a bow the same way: off the bow alone,
+a body upright under the floor's bow was `down` while its watch had it
+standing. A body propped back under a bow (say 30 deg behind upright against
+a wall) is no fall and not down, as from the stand (Ben's call of 11-25).
+From each posture a reach takes (the bow table above, beside dc843dc0 on
+one pod), 24 of the 80 served shoves moved -- back or sideways at 30-45
+N*s, out of each bow -- each taken 0.08-0.24 s later and still 0.23-0.53 s
+before the first part struck (0.34-0.79 s before); all 42 falls stood
+either way, none died, the LIDAR struck in the same 4 (none of the 24),
+and in the 24 the head struck in 8 at 2.1-4.7 m/s (7, at 1.4-5.1); every
+other `--fall` table came out row for row as before.
+On `loop-staging` dc843dc0 three of Ben's bar's four falls were taken out
+of a bow with the trunk nearer upright than it (two tables', from 43-46 deg
+bows with the trunk 5-10 deg in front of upright; a drawer's, from a 12 deg
+bow 21 deg behind it), the fourth from the stand; read off the nearer, each
+still falls, taken 0.06-0.24 s later with the trunk 37-39 deg behind
+upright, and gets the same verdict. Ben's bar on this rule, beside dc843dc0
+on one pod of another CPU type (a Xeon Gold 6140, where dc843dc0 itself
+reads 615 of 736 and 4 falls): 615 and 4 on both trees, 3 flights moved --
+each a fall out of a bow, two tables' and a drawer's, taken 0.06-0.18 s
+later with the same verdict -- and the other 733 the same flights by end
+state and path. The drift spike's 18 shoves (10 falls, standing or walking) and
+C1's 24 keys of the 11-25 wake's door (every fall there from the stand) are
+the same flights.
+Of the robots' own procedures that fall out of a bow, Luca's
+`door_final45` (two keys) and Rowan's `chest_run13` still fall, 0.04-0.08 s
+later, with the same verdicts; and on the base `chest_run13`'s early take
+(21 deg behind upright) ran the body 3.1 m backward on its feet,
+never down, leaving its belief 3.1 m off after 30 s and a look -- past the
+wide search's 2 m -- where read off the nearer it went down on its back,
+stood 3.6 s later about 1 m back, and its belief came back to 0.4 m (the
+doors' to 0.10 m on both trees).
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak
@@ -4923,8 +4980,8 @@ the 8 m edge (`test_the_bands_floor_rises_with_range`).
 
 **A bowed robot maps and matches** (`HumanoidMission.maps`). Its points go
 in through the IMU's tilt and its model of itself while its trunk is within
-12 deg of the posture its legs hold (`getup.tipped`, the fall watch's own
-reading of a tip): walking it tipped up to 6.6 deg off upright; a bow is
+12 deg of the posture its legs hold (`getup.tipped`, off that posture
+alone: is the trunk where the posture holds it): walking it tipped up to 6.6 deg off upright; a bow is
 the posture, never a tip. Gated on level, as the C1's plane was, a bowed
 robot neither mapped nor matched, and Luca's heading turned 5.2 deg in 300
 s at a counter (#572); bowed at a counter now, its scans are matched

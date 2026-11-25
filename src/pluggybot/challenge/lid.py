@@ -31,8 +31,8 @@ THE CRITERIA, written first. An attempt passes when:
 
 Said beside, and gating nothing: its worst tilt (`Body.orientation`). ⚠
 What a fall is, is THAT BODY'S TO SAY, and nothing here names it: the
-humanoid's is its trunk 35 deg past the posture its legs hold or its pelvis
-sunk (`humanoid.getup`).
+humanoid's is its trunk 35 deg off the posture its legs hold and off
+upright both, or its pelvis sunk (`humanoid.getup`).
 
 Everything else is the robot's business: how it finds the knob, which way
 it pulls, whether it lies down. `sample_lid` reads nothing off the skill's
