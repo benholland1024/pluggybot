@@ -593,3 +593,142 @@ def test_the_carrying_walker_trains_on_the_carry_pose_the_walk_takes():
   close = next(ast.literal_eval(n.value) for n in ast.walk(ast.parse(src))
                if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "CARRY_CLOSE")
   assert tuple(close) == tuple(rc.CARRY_POSE)
+
+
+# ---- 7: the walker shown its arms at rest while a hand is carried (#751) ---------
+
+
+#: A carried left arm's six joints, folded as the carry pose folds it (the
+#: elbow 2.0 rad: walk2's scripted arms went to 1.15).
+_FOLDED = (0.15, 0.25, 0.0, 2.0, -1.2, -1.1)
+
+
+def _shown(walker) -> dict:
+  """Where each term of what the walking policy is shown sits in it."""
+  pol = walker.policy
+  nj = len(pol.joint_names)
+  size = {"base_ang_vel": 3, "projected_gravity": 3, "joint_pos": nj, "joint_vel": nj,
+          "actions": len(pol.action_joints), "command": 3}
+  out, at = {}, 0
+  for name in pol.observation_names:
+    out[name] = slice(at, at + size[name])
+    at += size[name]
+  return out
+
+
+def _arm_entries(walker) -> list[int]:
+  """What the policy is shown of its arms: each arm joint's position and
+  speed entries."""
+  terms = _shown(walker)
+  arms = [k for k, n in enumerate(walker.policy.joint_names) if n.split("_", 1)[1] in hm.ARM]
+  return ([terms["joint_pos"].start + k for k in arms]
+          + [terms["joint_vel"].start + k for k in arms])
+
+
+def _fold_left(model, data) -> None:
+  for j, v in zip(hm.ARM, _FOLDED):
+    jid = model.joint(f"left_{j}").id
+    data.qpos[model.jnt_qposadr[jid]] = v
+    data.qvel[model.jnt_dofadr[jid]] = 0.8
+  mujoco.mj_forward(model, data)
+
+
+def test_the_walker_shown_its_arms_at_rest_sees_them_hang_still_and_draws_as_ever():
+  """#751: walk2 trained with its arms scripted within half their range,
+  hanging half the time; a carried hand folds the elbow to 1.6-2.0 rad, and
+  seeing it walk2 stood still at the first carried step after a pick. Shown
+  its arms at rest, every arm joint it sees (both arms, `hm.ARM`; no gripper,
+  no waist) reads its policy's default -- where the served arms hang -- and
+  still; everything else it is shown is as read, and the drivers are read as
+  ever, the same draws (the standing policy shares them: a draw more or less
+  would move every flight after it)."""
+  from pluggybot.humanoid.walk import WalkDriver
+  model, data = _floor()
+  _fold_left(model, data)
+  seen, rested = WalkDriver(model, data), WalkDriver(model, data)
+  assert ({hm.JOINT_NAMES[i] for i in rested.arm_at}
+          == {f"{s}_{j}" for s in hm.SIDES for j in hm.ARM})
+  stand = hm.stand_qpos()
+  assert np.array_equal(rested.arm_rest, [stand.get(hm.JOINT_NAMES[i], 0.0) for i in rested.arm_at]), \
+    "the rest it is shown is not where the served arms hang"
+  a, b = seen.observation(), rested.observation(arms_at_rest=True)
+  arm = _arm_entries(rested)
+  assert np.all(b[arm] == 0.0), "an arm it is shown off its default, or moving"
+  elbow = _shown(seen)["joint_pos"].start + list(seen.policy.joint_names).index("left_elbow")
+  assert a[elbow] == pytest.approx(2.0 - 0.3, abs=0.02), "the folded elbow, as its drivers read it"
+  assert np.array_equal(np.delete(a, arm), np.delete(b, arm)), "it was shown something else apart"
+  assert seen.joints.rng.bit_generator.state == rested.joints.rng.bit_generator.state, \
+    "the drivers' noise drawn otherwise"
+
+
+def test_a_walk_shows_its_walker_the_arms_at_rest_only_while_a_hand_is_carried():
+  """The walker is shown its arms at rest while either hand is carried
+  (`Reach.carried`), read off the reach as it stands at each of its policy's
+  steps -- a carry whose grip has come to read empty is carried still (its
+  arm stays folded at its pose until a reach or a let-go) -- and as read
+  otherwise: an arm out, an arm left where its way home was held, a hand let
+  go, and after a stand-up, whose reach is fresh."""
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    shown = []
+    act = m.walker.policy.act
+
+    def spy(obs):
+      shown.append(np.array(obs, dtype=float))
+      return act(obs)
+    m.walker.policy.act = spy
+    arm = _arm_entries(m.walker)
+    _fold_left(m.model, m.data)
+
+    def rested() -> bool:
+      """One policy step of the walker's, and whether it was shown its arms at rest."""
+      m.legs, m.walker.steps = "walk", 0
+      m._before_step(hmis.STILL)
+      return bool(np.all(shown[-1][arm] == 0.0))
+    assert not rested(), "shown at rest with no hand carried"
+    m.reach.carry_q["left"] = np.array(_FOLDED)
+    m.reach.phase["left"] = "carried"
+    assert rested()
+    m.reach.grippers["left"].held = lambda: False
+    assert rested(), "a carry whose grip reads empty, its arm folded still, shown as read"
+    m.reach.drop_carry("left")
+    m.reach.phase["left"] = "rest"
+    assert not rested(), "a hand let go, shown at rest"
+    m.reach.carry_q["right"] = m.reach.q_cmd["right"].copy()
+    m.reach.phase["right"] = "carried"
+    assert rested(), "the right hand's carry"
+    m.reach.phase["left"], m.reach.phase["right"] = "held", "rest"
+    m.reach.carry_q["right"] = None
+    assert not rested(), "an arm left held, shown at rest"
+    m.reach.carry_q["left"] = np.array(_FOLDED)
+    m.reach.phase["left"] = "carried"
+    m._stood_up()
+    assert m.legs == "stand" and not rested(), "a stand-up's fresh reach, shown at rest"
+  finally:
+    body.close()
+
+
+def test_a_restart_carries_on_showing_the_walker_its_arms_at_rest():
+  """A restart mid-carry (#345: the reach's carry is kept state, `Reach.
+  KEPT`) brings the rule back with it: the walker is told nothing a restart
+  must keep apart, so the restored walk shows its arms at rest."""
+  import json
+  a, b = body_for(*_floor()), body_for(*_floor())
+  try:
+    ma, mb = a.mission, b.mission
+    ma.reach.carry_q["left"] = np.array(_FOLDED)
+    ma.reach.q_cmd["left"] = ma.reach.carry_q["left"].copy()
+    ma.reach.phase["left"] = "carried"
+    ma.legs = "walk"
+    state, arrays = ma.kept_state()
+    mb.restore_kept(json.loads(json.dumps(state)), arrays)
+    shown = []
+    act = mb.walker.policy.act
+    mb.walker.policy.act = lambda obs: (shown.append(np.array(obs, dtype=float)), act(obs))[1]
+    mb.walker.steps = 0
+    mb._before_step(hmis.STILL)
+    assert mb.legs == "walk" and np.all(shown[-1][_arm_entries(mb.walker)] == 0.0)
+  finally:
+    a.close()
+    b.close()
