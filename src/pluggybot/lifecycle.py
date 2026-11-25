@@ -732,7 +732,9 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
 
   ⚠ A REASON WITH A SHORTER FORM (a step's `brief`, the start of its
   `reason`; #728: a `spot` that saw nothing names its picture's sides, its
-  `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
+  `brief` the top alone; #751: a `step` whose walk got nowhere says what its
+  legs counted, its `brief` the head before the colon) IS SAID IN FULL ONLY
+  WHERE THAT MOVES NOTHING ELSE:
   each in the order the run made them, the lines in full where they are the
   lines it had with that one reason the longer, inside the room, else in its
   shorter form -- so with every one in its shorter form the lines are the

@@ -462,19 +462,20 @@ def test_no_reader_of_a_step_is_shown_its_shorter_form():
   ("door_try", {"ok": False, "completed": 7, "total": 9, "failedAt": 6,
                 "locals": {"lx": 0.61, "ly": -0.2}, "steps": [
     {"verb": "step", "line": 3, "ok": False, "tested": True,
-     "reason": "your step got nowhere: something stands in your way"},
+     "reason": "your step was too short to walk"},
     {"i": 4, "verb": "reach", "line": 6, "ok": True, "why": "until",
      "until": "right.fx read 3.626 (above 3) 0.18 s in"},
     {"i": 6, "verb": "pull", "line": 9, "ok": False, "reason": "you fell on the way there"}]},
    ["the procedure door_try did not finish -- it stopped at line 9, pull: you fell on the way "
-    "there (7 steps had run; 1 test read false -- line 3, step: your step got nowhere: something "
-    "stands in your way; 1 stop condition said -- line 6, reach: right.fx read 3.626 (above 3) "
-    "0.18 s in) -- it ended with lx = 0.61, ly = -0.2"]),
+    "there (7 steps had run; 1 test read false -- line 3, step: your step was too short to walk; "
+    "1 stop condition said -- line 6, reach: right.fx read 3.626 (above 3) 0.18 s in) -- it ended "
+    "with lx = 0.61, ly = -0.2"]),
 ])
 def test_a_run_with_no_shorter_reason_says_what_it_said_before(name, run, said):
   """#728: a run none of whose steps carries a shorter form of its reason
-  -- every run but a `spot` that saw nothing -- is the line it was, byte for
-  byte (these are its lines)."""
+  -- every run but a `spot` that saw nothing and a `step` whose walk got
+  nowhere (#751) -- is the line it was, byte for byte (these are its
+  lines)."""
   from pluggybot import lifecycle as lc
   assert lc.procedure_outcome(name, run) == said
 
