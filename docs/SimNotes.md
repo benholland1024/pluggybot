@@ -12332,18 +12332,20 @@ own, nearly all -- backed out along its fingers instead of the way it went in;
 and a solve missing by up to 6 cm was commanded, a hand that cannot hold that
 turn there driven a few cm off where it rests.
 
-**On Ben's bar** (the final code, one pod beside ff2896af): 613 of 736 passed
-(609) with 4 falls (5), 58 flights acted on and none moved where it did not
-act. The lid's set-out 14 with its fourth try moving nothing passes (64 deg),
-and the drawer's set-outs 12 and 22 no longer fall. Its one new fall, the
+**On Ben's bar** (the final code, one pod beside ff2896af; a stop whose solve
+misses easing nothing, below): 612 of 736 passed (609) with 4 falls (5), 39
+flights moved and none without a stop on a push. The lid's set-out 14 with
+its fourth try moving nothing passes (64 deg), and the drawer's set-outs 12
+and 22 no longer fall. Its one new fall, the
 drawer at 78, is the base's own: eased, the hand's next reach, planned from
 where the arm is, found nothing that reached before a crouch with a bow and
 the waist turned 15 deg, whose way out dragged the jaw over the drawer's top
 at 27-70 N until the soles turned 20 deg and it fell. Given that posture the
 base falls the same way (8.86 s); given only the base's, which does not
 reach from the eased arm, that reach moves nothing and the next opens the
-drawer 18 cm. The robots' own 200 tries kept their two passes, and the tries
-with a fall went 3 -> 2.
+drawer 18 cm. The robots' own 200 tries kept their two passes and their
+three tries with a fall (held as read, one of them, cube_run3 k6, had not
+fallen). The dev draws read 252 and 3, as above.
 
 **What is true now** (`Reach._eased_stop`, `_update`'s stop; `tests/
 test_hands.py`): a reach stopped on its way in by a push (`BLOCKED_N`, "it
@@ -12352,9 +12354,16 @@ senses put the grip at as that command began, at the turn the command had,
 the arm solved there from where its drivers read it; its goal is that place at
 the reach's own turn, none where it was asked none, so a withdraw comes out
 along the way it went in: back along the asked fingers, or straight back
-toward the body. Where that solve misses past `REPLAN_M` or `REPLAN_ROT`, the
-arm is held as read, its command at the turn it reads (a carry after keeps
-that one). A next reach's way out, a shut or a carry begins from there too. A
+toward the body. Where that solve misses past `REPLAN_M` or `REPLAN_ROT` the
+stop eases nothing: it holds the command it drove on to, solved from the
+model as it stood, as before. Held as read there (the final code above), the
+walked-in grid's left hand 0.30 m off the counter, turned 10 deg, its goal
+0.20 m right and the waist 45 deg round, kept a jaw on the cube's board where
+the base's slid off it; the withdraw's way home dragged the jaw over the
+counter's top at 27-79 N, the stand came as its command read home with the
+jaw still caught, and the robot went over backward. After an eased stop, a
+next reach's way out, a shut or a carry begins from where the hand is; after
+one whose solve missed, from its command, as before. A
 stop out of reach holds its command as before. The stop's report reads the
 hand a tick after the stop, so its numbers can move by about 0.1 cm and 1-2 N
 where it is eased.
