@@ -1893,6 +1893,40 @@ def test_a_hand_stopped_on_a_push_is_held_where_it_is_at_the_turn_it_was_asked(p
     "its way home judged from where its line out would not end"
 
 
+def test_a_hand_stopped_on_a_push_out_of_reach_of_its_turn_is_held_as_read():
+  """#750's review: where the solve from the arm as its drivers read it to
+  where the hand is at the turn it was asked diverges (`WILD_M`), the arm is
+  held as read, at the turn that arm puts the grip at -- its command and its
+  arm agree, so the next solve does not step it -- and where no turn was
+  asked, none is kept."""
+  for turned in (True, False):
+    r, rc = _coming_in(0.05, 52.0)
+    read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
+    r.sensed[r.self_model.arm["left"]] = read
+    at, sagged = _grip_at(r, "left", read)
+    asked = _twisted(sagged, 0.15) if turned else None
+    r.cmd["left"].rot, r.goal["left"].rot = asked, asked
+    for _ in range(round(rc.BLOCKED_S / 0.01) - 1):
+      r._update(0.01)
+    del r.self_model.grip_pose
+    r.self_model._set_arm("left", read)
+    if turned:
+      # ...every solve on the stop's tick diverging
+      r.self_model.solve = lambda side, pos, rot=None, iters=None: (read + 0.5, 0.2, 0.0)
+    else:
+      del r.self_model.solve
+    r._update(0.01)
+    assert r.phase["left"] == "blocked" and r.stopped["left"]["by"] == "pushed", "the premise"
+    assert np.allclose(r.cmd["left"].pos, at)
+    if turned:
+      assert np.allclose(r.q_cmd["left"], read) and r.miss["left"] == 0.0, "a diverged solve commanded"
+      assert np.allclose(r.cmd["left"].rot, sagged), "commanded where it stands at a turn it is not at"
+    else:
+      assert r.cmd["left"].rot is None and r.goal["left"].rot is None, "a turn kept where none was asked"
+      grip, _ = _grip_at(r, "left", r.q_cmd["left"])
+      assert np.linalg.norm(grip - at) < 0.005
+
+
 def _angle_of(rot) -> float:
   """How far the rotation `rot` turns, rad."""
   return math.acos(max(-1.0, min(1.0, (float(np.trace(rot)) - 1.0) / 2.0)))

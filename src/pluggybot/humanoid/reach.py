@@ -1637,17 +1637,20 @@ class Reach:
     arm solved there from where its drivers read it -- so it presses on
     nothing it met. Returns the arm's joints and how far they leave the
     grip, m: its command and its miss. Where that solve diverges
-    (`WILD_M`), the arm as its drivers read it. ⚠ The command steps to where
-    the arm stands, letting the press go, as `_struck` lets a caught way out
-    go: no gap, nothing driven anywhere."""
+    (`WILD_M`), the arm as its drivers read it, at the turn it puts the grip
+    at: commanded where it stands and at another turn, the next solve would
+    step it. ⚠ The command steps to where the arm stands, letting the press
+    go, as `_struck` lets a caught way out go: no gap, nothing driven
+    anywhere."""
     sm = self.self_model
     read = self.sensed[sm.arm[side]].copy()
     sm._set_arm(side, read)
     q, ep, _ = sm.solve(side, pos, held.rot)
+    turn = None if held.rot is None else np.array(held.rot, dtype=float)
     if ep >= WILD_M:
       q, ep = read, 0.0
       sm._set_arm(side, q)
-    turn = None if held.rot is None else np.array(held.rot, dtype=float)
+      turn = None if held.rot is None else sm.grip_pose(side)[1].copy()
     self.cmd[side] = HandGoal(np.array(pos, dtype=float), turn, held.stiffness)
     self.goal[side] = HandGoal(np.array(pos, dtype=float), None if turn is None else turn.copy(),
                                held.stiffness)
