@@ -12261,23 +12261,21 @@ swing caught the counter's front edge at 224 N (a column's top 3 cm is no
 face, so the edge goes unjudged), and its withdraw's way home pressed the
 top at 525 N and fell (#693's family).
 
-**On the final code** (the loop's pod, base beside branch). The grid's
-second draw, k1, walked in: the left hand fell once where the base fell 27,
-held 152 reaches (134), pressed the face or edge 126 times (267); the right
-hand fell 6 times as the base did, 3 of its 400 passed over; every flight
-the rule did not act on was the base's in every key. Its one fall is P2's
-blind spot again: passed over 22 postures to a deep bow (0.8 rad, turned 15
-deg), whose hand came down on the counter's top at 76-88 N. Ben's bar: 613
-of 736 passed (base 609), 6 falls (base 5) -- not met, by the lid's set-out
-14, which is the base's own path: our procedure turns its next grip toward
-the middle only after a reach that left its hand out, and with its fourth
-try refused (the try that on the base swung a jaw into the counter at 31-70
-N) its fifth, a crouch, pressed the chest's bracket, stopped short, and its
-way home carried the pelvis 20 cm into the counter and the robot over
-backward; flown on the base with that try moving nothing, the base falls the
-same way. The robots' own 200 live tries (X5's): no pass lost, two of their
-three falls shed, the rule acting on 16. Placed up close as Y6 flew them
-(180), it met nothing, and every flight was the base's in every key.
+**On the final code** (the loop of 11-25's pod, base beside branch, the base
+loop-staging with #750 and its fix, ec75d5ce). The grid's second draw, k1,
+walked in: the left hand fell once where the base fell 27, held 152 reaches
+(134), pressed the face or edge 126 times (267); the right hand fell 6 times
+as the base did, 3 of its 400 passed over; every flight the rule did not act
+on was the base's in every key. Its one fall is P2's blind spot again,
+flown as on the base before #750: passed over 22 postures to a deep bow (0.8
+rad, turned 15 deg), whose hand came down on the counter's top at 76-88 N.
+Ben's bar: 617 of 736 passed (base 612), 4 falls (base 4), no job held out
+worse by more than one -- met; the lid's set-out 14, which fell on the base
+before #750 once the rule refused its fourth try, no longer falls there.
+The robots' own 200 live tries (X5's): no pass lost (2), two of their three
+tries with a fall shed (cube_run3 k5 and k6), the rule acting on 12. Placed
+up close as Y6 flew them (180), it met nothing, and every flight was the
+base's in every key (on the base before #750).
 
 **What it costs.** A passing plan 40 ms more (the memory read and one
 judgment), and the fold 0.8 ms a frame, 0.9 % of the pair's walking wall

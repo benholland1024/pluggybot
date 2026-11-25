@@ -30,8 +30,7 @@ hand's way there would swing your left fingers into something your depth
 camera saw, at ...", 263), and a reach kept off another robot says of the
 other hand "; your right hand's every posture there would swing an arm
 into something your depth camera saw" where that is why. Before, the same
-reach went, and pressed the counter or fell. A draft for Ben; NOT MERGED
-while Ben's bar is not met (below).
+reach went, and pressed the counter or fell. A draft for Ben.
 
 **The change** (`Reach._swing`, `swing_clock`, `plan`'s `swing`,
 `mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
@@ -53,11 +52,12 @@ too. The loop's own reach (a charge's) is never judged.
   the robots do with them -- the other hand, a step back, or the same
   reach again. Walked in to the storeroom's counter (the census, 400 left
   hands across the body), it fell once where the base fell 26.
-- **What it costs**: Ben's bar on the final code, 613 of 736 passed (base
-  609) and 6 falls (5): not met, its one new fall the base's own path (the
-  lid's set-out 14, flown on the base with the try the rule refused moving
-  nothing); the robots' own 200 live tries, no pass lost and two of three
-  falls shed; walked in, falls 33 to 7. A refusal searches every posture:
+- **What it costs**: Ben's bar on the final code against loop-staging with
+  #750 and its fix (ec75d5ce), 617 of 736 passed (base 612) and 4 falls
+  (4), no job held out worse by more than one; the robots' own 200 live
+  tries, no pass lost and two of three tries with a fall shed; walked in,
+  falls 33 to 7, its one new fall the counter's top in a deep bow (below).
+  A refusal searches every posture:
   6.2-6.6 s of the one physics thread on the dev box, where a plan out of
   reach takes 0.03 s; and every plan a refusal's words ask (the other
   hand's, and out of reach the grip turned another way) is judged too, each
