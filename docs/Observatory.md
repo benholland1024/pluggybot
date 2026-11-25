@@ -30,13 +30,13 @@ dragged it back across what it pressed (at the lid check's set-out 14 a jaw
 on a chest's bracket at 30-57 N rolled the robot 5 deg off its hand, and as
 it slipped off the robot went over), and so did a next reach's way out (the
 drawer check's set-out 12, the same fall). Such a hand is now held where it
-is, at its command's turn (where its arm cannot hold that turn there, at
-the command it drove on to, as before), pressing on nothing, the moment it
-stops: a
+is, at its command's turn, pressing on nothing, the moment it stops: a
 withdraw, a walk's or a step's hand-over, the next reach, a carry and the
 loop's own after a charge's reach all begin from where the hand is, and a
 withdraw comes out along the way the hand went in (a reach asked no turn --
-the robots' own, nearly all -- straight back toward the body, as before). It
+the robots' own, nearly all -- straight back toward the body, as before).
+Where its arm cannot hold that turn there, it is held at the command it
+drove on to and presses as before. It
 reaches the robots' own procedures after every pushed stop: 65 of the weekend
 of 11-21/22's 200 tries flown at their live draws have one. A stop out of
 reach holds its command as before.
@@ -45,12 +45,13 @@ reach holds its command as before.
 - **The acceptance**: no fall in the verb after a `reach` that stopped short
   because it "pushed on something" -- a `fall` row whose `at` names the
   `withdraw`, `reach` or walk that came next.
-- **Offline, before it**: at the hands checks' set-outs 128-191, 26 of 320
-  flights acted on, falls 6 -> 3 and passes 248 -> 252; Ben's bar on the
-  final code, 58 of 736 acted on, falls 5 -> 4 and passes 609 -> 613, its
-  one new fall the base's own from the posture its next reach took; the
-  robots' own 200 tries, the same two passes and tries with a fall 3 -> 2
-  (SimNotes, "A hand stopped on a push, held where it is").
+- **Offline, before it** (the final code, a stop whose solve misses easing
+  nothing): at the hands checks' set-outs 128-191, falls 6 -> 3 and passes
+  248 -> 252, 20 of 320 flights moved; Ben's bar, falls 5 -> 4 and passes
+  609 -> 612, 39 of 736 moved, its one new fall the base's own from the
+  posture its next reach took; the robots' own 200 tries, the same two
+  passes and the same three tries with a fall (SimNotes, "A hand stopped on
+  a push, held where it is").
 
 ### A restore books the step it steps again, and the keeper saves after every step hook (#749, Z6, `loop-749`) — opens when this PR is deployed
 

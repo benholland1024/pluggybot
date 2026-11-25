@@ -1836,9 +1836,9 @@ def _pressed_stop(push=52.0, goal_turn=True, solve="own"):
   hand 0.15 rad off the turn its command had (its pre-grasp's, as every
   reach's command has on its way in); its goal at that turn (`goal_turn`) or
   at none, a reach asked none. The stop's tick runs on the robot's own model
-  of itself ("own"), on `_coming_in`'s ("stub") or on `solve`. Returns (r,
-  rc, the read arm, where the hand is,
-  the turn its senses read, the command's turn, the goal before the stop)."""
+  of itself ("own") or on `_coming_in`'s ("stub"). Returns (r, rc, the read
+  arm, where the hand is, the turn its senses read, the command's turn, the
+  goal before the stop)."""
   r, rc = _coming_in(0.05, push)
   read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
   r.sensed[r.self_model.arm["left"]] = read
@@ -1855,8 +1855,6 @@ def _pressed_stop(push=52.0, goal_turn=True, solve="own"):
   r.self_model._set_arm("left", read)
   if solve == "own":
     del r.self_model.solve
-  elif solve != "stub":
-    r.self_model.solve = solve
   r._update(0.01)
   return r, rc, read, at, sagged, turn, asked
 
@@ -1945,6 +1943,7 @@ def test_a_hand_stopped_on_a_push_out_of_reach_of_its_turn_eases_nothing(miss):
   stood = r.q_cmd["left"].copy()
   r.self_model._set_arm("left", stood)
   held = r.cmd["left"].pos.copy(), np.array(r.cmd["left"].rot, dtype=float)
+  aimed = r.q_to["left"].copy()
   off = (1.2 * rc.REPLAN_M, 0.0) if miss == "place" else (0.0, 1.2 * rc.REPLAN_ROT)
   drove = np.linspace(0.1, 0.6, len(hm.ARM))
   calls = []
@@ -1964,6 +1963,7 @@ def test_a_hand_stopped_on_a_push_out_of_reach_of_its_turn_eases_nothing(miss):
   assert np.allclose(r.q_cmd["left"], drove) and r.miss["left"] == 0.001
   assert np.allclose(r.cmd["left"].pos, held[0]) and np.allclose(r.cmd["left"].rot, held[1])
   assert r.goal["left"] is asked, "a stop it did not ease moved its goal"
+  assert np.allclose(r.q_to["left"], aimed), "a stop it did not ease moved where its arm was going"
 
 
 def _angle_of(rot) -> float:
