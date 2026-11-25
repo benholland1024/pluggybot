@@ -454,8 +454,8 @@ class SideWall(Walk):
 #: A stall's words, typed: the test reads the template, never formats it.
 GOT_NOWHERE = ("your step got nowhere: your legs counted under 1 cm along the way you stepped "
                "in the first 2 s of its walk")
-STALLED_1S = ("your step stopped short: once it was under way, your legs counted under 1 cm "
-              "along the way you stepped in 1 s")
+STALLED_1S = ("your step stalled: once it was under way, your legs counted under 1 cm along the "
+              "way you stepped in 1 s")
 
 
 @pytest.mark.parametrize("walk, ask, window, under_way, said", [
@@ -484,6 +484,11 @@ def test_a_stalled_step_says_what_its_legs_counted_in_the_window_that_ended_it(
                           "underWay": under_way}, rep
   assert st.step_stuck_said(rep["stuck"]) == said
   assert "in your way" not in said
+  # ...its head, the shorter form History may say, no other reason's: not the
+  # bare fallback's, nor the start of a keep-off's
+  head = said.partition(":")[0]
+  assert head != "your step stopped short"
+  assert not any(t.startswith(head) for t in st.STEP_KEPT_OFF.values())
 
 
 def test_a_stall_is_the_only_step_record_that_says_how_its_walk_got_nowhere():
@@ -510,8 +515,8 @@ def test_a_stalls_words_say_their_numbers_off_the_constants(monkeypatch):
   rep = _step(_walker(Walk(wall=0.05)), 0.3)
   assert rep["stuck"] == {"m": 0.02, "s": 1.5, "underWay": True}
   assert st.step_stuck_said(rep["stuck"]) == (
-    "your step stopped short: once it was under way, your legs counted under 2 cm along the "
-    "way you stepped in 1.5 s")
+    "your step stalled: once it was under way, your legs counted under 2 cm along the way you "
+    "stepped in 1.5 s")
 
 
 def test_a_step_held_through_the_other_robots_run_counts_none_of_it():
@@ -795,11 +800,11 @@ def test_a_stalled_step_reads_false_saying_what_its_legs_counted_on_historys_lin
 @pytest.mark.parametrize("stuck, head", [({"m": 0.01, "s": 2.0, "underWay": False},
                                           "your step got nowhere"),
                                          ({"m": 0.01, "s": 1.0, "underWay": True},
-                                          "your step stopped short")])
+                                          "your step stalled")])
 def test_a_stalls_words_give_way_to_their_head_where_historys_line_has_no_room(stuck, head):
   """#751 on #728's shorter form: rebuilt off five wakes (11-14 to 11-25),
   the stall's words in full took the step's own reason off the run's line in
-  up to 4 of the 23 runs with one, where the old 51 characters were said,
+  up to 2 of the 23 runs with one, where the old 51 characters were said,
   and a readout onto a line of its own in 5. Its head, before the colon, is
   its shorter form: said where the rest would move anything else, and the
   line otherwise as one with no shorter form."""

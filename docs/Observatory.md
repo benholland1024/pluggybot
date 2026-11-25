@@ -20,14 +20,15 @@ keep-off holding it, said (51 characters) "your step got nowhere: something
 stands in your way". It now says what its legs counted and in which window:
 "your step got nowhere: your legs counted under 1 cm along the way you
 stepped in the first 2 s of its walk" (106), or, after an earlier window of
-the walk or an earlier walk of the step went, "your step stopped short: once
-it was under way, your legs counted under 1 cm along the way you stepped in 1
-s" (109; "in 2 s" where an oblique step's second walk never got going). Its
+the walk or an earlier walk of the step went, "your step stalled: once it
+was under way, your legs counted under 1 cm along the way you stepped in 1 s"
+(103; "in 2 s" where an oblique step's second walk never got going). Its
 numbers are the walk's constants. History's run line says each whole only
 where that moves nothing else on it, else its head ("your step got nowhere",
-"your step stopped short": #728's shorter form); the sim's log, a
-`procedure` event's `failedReason` and a practice's report say it whole. A
-draft for Ben.
+"your step stalled": #728's shorter form, no other reason's -- "your step
+stopped short" is the bare fallback's and begins every keep-off's); the
+sim's log, a `procedure` event's `failedReason` and a practice's report say
+it whole. A draft for Ben.
 
 **Why** (#751). A carried hand's first step after a pick stood still with
 nothing in its way and read "something stands in your way"; and a walk that
@@ -47,7 +48,7 @@ run with a plain stall rebuilt off the sim's log (its tests that read false,
 its failed step, its end; its locals off its `procedure` event; `spot`'s
 shorter form as live): 11-14 3, 11-15 15, 11-18 1, 11-22 1, 11-25 3. In
 full, the new words would have taken the step's own reason off the line in
-up to 4 of the 23, where the old words were said, and put the readout on a
+up to 2 of the 23, where the old words were said, and put the readout on a
 line of its own in 5; with the head as the shorter form, none. Two local
 flights of `door_p7`'s loop at a door set-out's counter (15 steps) read kept
 off or stepped, never a plain stall: what held the live ones is unmeasured.

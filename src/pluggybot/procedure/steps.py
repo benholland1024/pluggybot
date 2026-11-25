@@ -1494,11 +1494,13 @@ STEP_KEPT_OFF = {
 #: that ended it (`stuck`, #751): its walk's first, or one once it was under
 #: way. Never what stood there, which the step does not measure: "something
 #: stands in your way" was said where nothing stood (a carried hand's first
-#: step after a pick). Its head, before the colon, is its shorter form.
+#: step after a pick). Its head, before the colon, is its shorter form, and
+#: no other reason's: "your step stopped short" is the bare fallback's and
+#: begins every keep-off's.
 STEP_STUCK = ("your step got nowhere: your legs counted under {cm} cm along the way you stepped "
               "in the first {s} s of its walk")
-STEP_STALLED = ("your step stopped short: once it was under way, your legs counted under {cm} cm "
-                "along the way you stepped in {s} s")
+STEP_STALLED = ("your step stalled: once it was under way, your legs counted under {cm} cm along "
+                "the way you stepped in {s} s")
 
 
 def step_stuck_said(stuck: dict) -> str:
@@ -1535,7 +1537,7 @@ def _step(life, args: dict) -> Routine:
     if rep["why"] == "blocked" and not kept and stuck:
       # ...its head alone where the rest would move anything else History's
       # line says (#728's shorter form, `lifecycle.procedure_outcome`): in
-      # full, the step's own reason fell off the line in up to 4 of the 23
+      # full, the step's own reason fell off the line in up to 2 of the 23
       # live runs with a stall, and a readout onto a line of its own in 5 (#751)
       reason = step_stuck_said(stuck)
       return {"ok": False, **out, "reason": reason, "brief": reason.partition(":")[0]}
