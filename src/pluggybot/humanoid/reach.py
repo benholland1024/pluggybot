@@ -2099,7 +2099,9 @@ class Reach:
     already goes on. `watch`, a walk's hand-over's: the way home is held
     where it would tip the body away from the hand (`_shoved`); a
     withdraw's never, its word the arm's -- whichever began a way home
-    under way, the caller now waiting on it says which."""
+    under way, the caller now waiting on it says which. A hand stopped on
+    its way in by a push comes out from where its drivers read it
+    (`_eased_out`, #750)."""
     self.watch_home[side] = watch
     if self.phase[side] in ("rest", "home", "retreat"):
       return
@@ -2111,10 +2113,30 @@ class Reach:
       # a withdraw waited forever)
       self._go_home(side)
       return
+    if self.phase[side] == "blocked" and (self.stopped[side] or {}).get("by") == "pushed":
+      self._eased_out(side)
     self.goal[side] = pregrasp(self.goal[side], approach)
     self.speed[side] = HAND_SPEED
     self.looking[side] = False
     self.phase[side] = "retreat"
+
+  def _eased_out(self, side: str) -> None:
+    """A hand stopped on its way in by a push (`stopped` "pushed"), its
+    command where it drove on to, eased before its line out (#750): its arm
+    commanded where its drivers read it, pressing on nothing, its command
+    and goal the grip they put it at on its model of itself as it stands --
+    so its line out runs back along those fingers from there. ⚠ Out from
+    the command, a jaw pressed down on a chest's bracket was dragged back
+    over it at 30-57 N, rolling the robot 5 deg off its hand, which went
+    over as the jaw slipped off; eased, the press was gone in 0.2 s."""
+    q = self.sensed[self.self_model.arm[side]].copy()
+    self.q_cmd[side], self.q_to[side] = q, q.copy()
+    sm = self._planner_model()
+    self._pose_planner(sm, None)
+    sm._set_arm(side, q)
+    pos, rot = sm.grip_pose(side)
+    k = self.cmd[side].stiffness
+    self.cmd[side], self.goal[side] = HandGoal(pos.copy(), rot.copy(), k), HandGoal(pos, rot, k)
 
   def way_home(self, side: str, refuse: bool = False) -> list[np.ndarray] | None:
     """The joint targets an arm walks home through from its command, judged

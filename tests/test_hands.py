@@ -1803,6 +1803,53 @@ def test_the_humanoids_hand_stopped_is_its_reachs_own_rule_where_it_stopped_shor
     assert body.hand_why("left") == why and body.hand_stopped("left") == said
 
 
+def _grip_at(r, side, q):
+  """Where the arm at joints `q` puts `side`'s grip, (pos, rot), stance frame:
+  a fresh model of the robot posed as `r`'s stands."""
+  from pluggybot.humanoid.arms import SelfModel
+  sm = SelfModel()
+  sm.q = r.self_model.q.copy()
+  sm.d.qpos[:] = r.self_model.d.qpos
+  mujoco.mj_kinematics(sm.m, sm.d)
+  sm._set_arm(side, q)
+  return sm.grip_pose(side)
+
+
+@pytest.mark.parametrize("push", [True, False])
+def test_a_hand_stopped_on_a_push_comes_out_from_where_its_drivers_read_it(push):
+  """#750 (the lid check's set-out 14 with its fourth try moving nothing): a
+  reach stopped on its way in by a push is held at the command it drove on to,
+  6.6 cm across its fingers from its goal, a jaw on a chest's bracket and the
+  arm's spring pressing it down; out from that command, the withdraw's line
+  dragged the jaw back over the bracket at 30-57 N, the robot rolled 5 deg off
+  its hand and its soles turned 4 deg, and as the jaw slipped off it went over.
+  Its line out begins where its drivers read the arm, pressing on nothing,
+  back along those fingers `APPROACH_M` from the grip they put it at. A stop
+  that was no push -- out of reach -- comes out from its command as before."""
+  r, rc = _coming_in(0.05, 52.0 if push else 10.0)
+  for _ in range(round(rc.BLOCKED_S / 0.01)):
+    r._update(0.01)
+  assert r.phase["left"] == "blocked"
+  assert r.stopped["left"]["by"] == ("pushed" if push else "reach"), "the premise"
+  # ...its drivers read the arm held back off the command it drove on to
+  read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
+  r.sensed[r.self_model.arm["left"]] = read
+  drove, asked = r.q_cmd["left"].copy(), r.goal["left"]
+  r.retreat("left")
+  assert r.phase["left"] == "retreat"
+  if not push:
+    assert np.allclose(r.q_cmd["left"], drove), "an out-of-reach stop eased"
+    assert np.allclose(r.goal["left"].pos, rc.pregrasp(asked).pos)
+    return
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read), \
+    "still commanded where it drove on to, pressing on what it met"
+  pos, rot = _grip_at(r, "left", read)
+  assert np.allclose(r.cmd["left"].pos, pos) and np.allclose(r.cmd["left"].rot, rot)
+  assert np.allclose(r.goal["left"].pos, pos + rc.APPROACH_M * rot[:, 2]), \
+    "its line out not back along its own fingers from where it is"
+  assert r.cmd["left"].stiffness == asked.stiffness
+
+
 def _walking_home(phase="home", watch=True):
   """`_walking_out`'s left arm on its way HOME instead, in joint space, its
   command ahead of where its drivers read it, the hand out to the robot's
