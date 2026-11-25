@@ -20,10 +20,14 @@ keep-off holding it, said (51 characters) "your step got nowhere: something
 stands in your way". It now says what its legs counted and in which window:
 "your step got nowhere: your legs counted under 1 cm along the way you
 stepped in the first 2 s of its walk" (106), or, after an earlier window of
-the walk or an earlier walk of the step went, "your step stalled: once it
-was under way, your legs counted under 1 cm along the way you stepped in 1 s"
-(103; "in 2 s" where an oblique step's second walk never got going). Its
-numbers are the walk's constants. History's run line says each whole only
+the walk went, "your step stalled: once it was under way, your legs counted
+under 1 cm along the way you stepped in 1 s" (103). An oblique step the
+walker would skew, walked as two (ahead or back, then to one side), names the
+way of the walk that stalled ("...under 1 cm ahead in the first 2 s of its
+walk", "...under 1 cm to your left in 2 s", 82-94), and its sidestep is under
+way only where the walk before it walked by its stance (#649's rule): one
+step call of 2,315 over five wakes was such a step. Its numbers are the
+walk's constants. History's run line says each whole only
 where that moves nothing else on it, else its head ("your step got nowhere",
 "your step stalled": #728's shorter form, no other reason's -- "your step
 stopped short" is the bare fallback's and begins every keep-off's); the

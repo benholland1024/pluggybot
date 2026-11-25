@@ -1490,24 +1490,28 @@ STEP_KEPT_OFF = {
   "low": "your step stopped short of something your depth camera saw in front of you at your "
          "knees' height: a step keeps it {keepM:.2f} m from your middle in the way you step "
          "({m:.2f} m now)"}
-#: ...and one whose walk got nowhere, by what its legs counted in the window
-#: that ended it (`stuck`, #751): its walk's first, or one once it was under
-#: way. Never what stood there, which the step does not measure: "something
-#: stands in your way" was said where nothing stood (a carried hand's first
-#: step after a pick). Its head, before the colon, is its shorter form, and
-#: no other reason's: "your step stopped short" is the bare fallback's and
-#: begins every keep-off's.
-STEP_STUCK = ("your step got nowhere: your legs counted under {cm} cm along the way you stepped "
-              "in the first {s} s of its walk")
-STEP_STALLED = ("your step stalled: once it was under way, your legs counted under {cm} cm along "
-                "the way you stepped in {s} s")
+#: ...and one whose walk got nowhere (`stuck`, #751; Observatory.md, the period
+#: of #751's words): what its legs counted, the way they counted it, and in
+#: which window -- its walk's first, or one once it was under way -- never what
+#: stood there, which the step does not measure. Its head, before the colon,
+#: is its shorter form, and no other reason's: "your step stopped short" is
+#: the bare fallback's and begins every keep-off's.
+STEP_STUCK = ("your step got nowhere: your legs counted under {cm} cm {way} in the first {s} s "
+              "of its walk")
+STEP_STALLED = ("your step stalled: once it was under way, your legs counted under {cm} cm {way} "
+                "in {s} s")
+#: ...the way: the step's own, or one walk's of an oblique step walked as two
+#: (`HumanoidBody._step_walks`), whose second counts its sidestep alone.
+STUCK_WAYS = {None: "along the way you stepped", "ahead": "ahead", "back": "back",
+              "left": "to your left", "right": "to your right"}
 
 
 def step_stuck_said(stuck: dict) -> str:
   """A stalled walk's reason (#751), off its record's `stuck`: under `m` m
-  along its way in a window of `s` s -- its first, or once `underWay`."""
+  its `way` in a window of `s` s -- its first, or once `underWay`."""
   return (STEP_STALLED if stuck.get("underWay") else STEP_STUCK).format(
-    cm=f"{100 * float(stuck['m']):g}", s=f"{float(stuck['s']):g}")
+    cm=f"{100 * float(stuck['m']):g}", s=f"{float(stuck['s']):g}",
+    way=STUCK_WAYS[stuck.get("way")])
 
 
 def _step(life, args: dict) -> Routine:

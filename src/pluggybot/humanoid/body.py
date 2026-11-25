@@ -336,6 +336,22 @@ def _step_walks(ahead: float, left: float) -> list[tuple[float, float]]:
   return [w for w in ((ahead, 0.0), (0.0, left)) if any(w)]
 
 
+def _walk_way(ahead: float, left: float) -> str:
+  """One of `_step_walks`' two walks' own way, as a stall's words name it
+  (#751): the first straight ahead or back, the second to one side."""
+  if ahead:
+    return "ahead" if ahead > 0 else "back"
+  return "left" if left > 0 else "right"
+
+
+def _along(at, start, ahead: float, left: float) -> float:
+  """How far from `start` (x, y, heading) to `at` (x, y) goes along the way
+  (`ahead`, `left`) in `start`'s frame, m."""
+  n = math.hypot(ahead, left)
+  way = _rz(start[2]) @ np.array([ahead / n, left / n, 0.0])
+  return float((at[0] - start[0]) * way[0] + (at[1] - start[1]) * way[1])
+
+
 def _rz(yaw: float) -> np.ndarray:
   c, s = math.cos(yaw), math.sin(yaw)
   return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
@@ -1412,9 +1428,16 @@ class HumanoidBody(Body):
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
         why, kept, stuck = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
-        if stuck is not None and k:
-          # ...a walk after one that walked: the step was under way (#751)
-          stuck["underWay"] = True
+        if stuck is not None and len(walks) > 1:
+          # ...one of an oblique step's two walks counts its own way alone,
+          # never the step's (#751)
+          stuck["way"] = _walk_way(a_, l_)
+          if k and not stuck["underWay"]:
+            # ...and the second is under way only where the first walked, as
+            # a step's walk is judged (#649: its stance, `STEP_LEAST_M`), the
+            # stride's carry in: the first's stop rule counts the carry, and
+            # can end it on a lean over planted feet
+            stuck["underWay"] = _along(by_legs(self.stance), s_mid, *walks[0]) >= STEP_LEAST_M
     seen = mi.odo.corrected.copy()
     # ...handed over once both soles read planted, or its bound out (#740)
     settled = yield from mi.to_stand_routine()
@@ -1446,8 +1469,7 @@ class HumanoidBody(Body):
     matched = _rz(b0[2]).T @ np.array([b1[0] - b_mid[0], b1[1] - b_mid[1], 0.0])
     # ...and a walk its own legs reckon went nowhere did not walk (#649)
     if why == "stepped" and length >= STEP_LEAST_M:
-      way = _rz(s_mid[2]) @ np.array([ahead / length, left / length, 0.0])
-      if float((x1 - s_mid[0]) * way[0] + (y1 - s_mid[1]) * way[1]) < STEP_LEAST_M:
+      if _along((x1, y1), s_mid, ahead, left) < STEP_LEAST_M:
         why = "too short"
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),

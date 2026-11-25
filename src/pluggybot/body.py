@@ -711,7 +711,8 @@ class Body(abc.ABC):
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
     turn that could not get there -- "blocked" -- its walk got nowhere, and then `stuck` says what
     its legs counted in which window (`m`, m, along its way in `s` s, `underWay` where the step had
-    walked before it; #751), or kept off another robot as a
+    walked before it, and `way` -- "ahead", "back", "left" or "right" -- where that walk was one
+    of two, an oblique step's; #751), or kept off another robot as a
     walk does (#670), or a wall or what stands at its knees (#717), and then `keptOff` says how
     -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance

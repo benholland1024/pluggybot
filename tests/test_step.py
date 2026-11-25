@@ -451,6 +451,16 @@ class SideWall(Walk):
       self.pose, self.v = (x, math.copysign(self.side_m, y), yaw), (self.v[0], 0.0)
 
 
+class Planted(SideWall):
+  """...and its stance never moving, its pelvis leaning over planted feet
+  (#649): an oblique step's walk ahead ends on its stop rule so, never
+  having walked."""
+
+  @property
+  def stance(self):
+    return (0.0, 0.0, self.pose[2])
+
+
 #: A stall's words, typed: the test reads the template, never formats it.
 GOT_NOWHERE = ("your step got nowhere: your legs counted under 1 cm along the way you stepped "
                "in the first 2 s of its walk")
@@ -458,30 +468,41 @@ STALLED_1S = ("your step stalled: once it was under way, your legs counted under
               "way you stepped in 1 s")
 
 
-@pytest.mark.parametrize("walk, ask, window, under_way, said", [
+@pytest.mark.parametrize("walk, ask, window, under_way, way, said", [
   # P1: never got going, its walk's first window out
-  (lambda: Walk(shuffle_s=60.0), (0.0, -0.21), "start", False, GOT_NOWHERE),
+  (lambda: Walk(shuffle_s=60.0), (0.0, -0.21), "start", False, None, GOT_NOWHERE),
   # P2: 5 cm, then a later window with none
-  (lambda: Walk(wall=0.05), (0.3,), "stuck", True, STALLED_1S),
-  # P3: an oblique step's first walk walked, its second never got going
-  (lambda: SideWall(0.0), (0.03, 0.15), "start", True, STALLED_1S.replace("in 1 s", "in 2 s")),
-  # P4: ...or got 5 cm and then none in a later window
-  (lambda: SideWall(0.05), (0.03, 0.15), "stuck", True, STALLED_1S),
+  (lambda: Walk(wall=0.05), (0.3,), "stuck", True, None, STALLED_1S),
+  # an oblique step walked as two, its walk ahead never getting going: its own way
+  (lambda: Walk(shuffle_s=60.0), (0.03, 0.15), "start", False, "ahead",
+   GOT_NOWHERE.replace("along the way you stepped", "ahead")),
+  # P3: ...its walk ahead walked, its sidestep never got going
+  (lambda: SideWall(0.0), (0.03, 0.15), "start", True, "left",
+   STALLED_1S.replace("along the way you stepped in 1 s", "to your left in 2 s")),
+  # ...its walk ahead ended on its stop rule over planted feet (round 2 of the
+  # review): it never walked, and the step got nowhere
+  (lambda: Planted(0.0, coast_s=0.0), (0.03, -0.15), "start", False, "right",
+   GOT_NOWHERE.replace("along the way you stepped", "to your right")),
+  # P4: ...or its sidestep got 5 cm and then none in a later window
+  (lambda: SideWall(0.05), (0.03, 0.15), "stuck", True, "left",
+   STALLED_1S.replace("along the way you stepped", "to your left")),
 ])
 def test_a_stalled_step_says_what_its_legs_counted_in_the_window_that_ended_it(
-    walk, ask, window, under_way, said):
+    walk, ask, window, under_way, way, said):
   """#751: a carried hand's first step after a pick stood still and read
   "your step got nowhere: something stands in your way" with nothing there;
   and a walk that got 5 cm before a window with none read "got nowhere" too.
   A walk whose legs count under `STEP_STUCK_M` along its way in a window says
   so, in that window's words -- its first, or one once under way -- and never
-  what stood there, which the step does not measure."""
+  what stood there, which the step does not measure. One of an oblique
+  step's two walks names its own way, and the second is under way only where
+  the first walked, by its stance (#649's rule)."""
   w = walk()
   rep = _step(_walker(w), *ask)
   assert rep["why"] == "blocked" and "keptOff" not in rep, rep
   assert rep["stuck"] == {"m": hb.STEP_STUCK_M,
                           "s": hb.STEP_START_S if window == "start" else hb.STEP_STUCK_S,
-                          "underWay": under_way}, rep
+                          "underWay": under_way, **({"way": way} if way else {})}, rep
   assert st.step_stuck_said(rep["stuck"]) == said
   assert "in your way" not in said
   # ...its head, the shorter form History may say, no other reason's: not the
