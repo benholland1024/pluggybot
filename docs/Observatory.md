@@ -61,6 +61,12 @@ falls the base never had.
   plugged in with it held: none of 24 fell.
 - Ben's bar: 617 of 736 and 4 falls on both trees, 0 moved (no flight in it
   hands over with an arm held).
+- But where the walk leaves the hand over the counter -- a sidestep along it
+  that its room keeps short -- the robot's own next withdraw falls instead:
+  step left 0.15, 9 of 12 against the base's 6, three gained; step ahead
+  0.10, 1 of 12 (gained) against 8; step right 0, against 6. Option 3
+  defers the fall there; it is no fix for a way home from a held pose
+  (#693's second path).
 - What to read on the observatory: the walks that begin with an arm held
   (a walk report's `armHeld`) and what follows them -- a fall in the walk or
   the next withdraw, a robot at the counter or the charger with an arm out,

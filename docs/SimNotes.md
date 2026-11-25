@@ -12392,10 +12392,19 @@ per-tick arm trace; passes / falls at t_0818's 24 keys and t_0810's 8):
   counter at 24-40 N where it was held there.
 - Ben's bar beside dc843dc0 on one pod: 617 of 736 and 4 falls on both trees, none of the 736 moved --
   none has a walk's hand-over that finds an arm held.
+- With line 141's step a sidestep or a step toward the counter instead (falls; t_0818's 12 held keys,
+  then t_0810's 6): step left 0.15 -- the base 6 (each in the step's hand-over) and 2, option 3 9 and 2,
+  gaining k5, k10 and k23; step ahead 0.10 -- the base 8 and 2, option 3 1 (k23, gained) and 1; step
+  right 0.15 -- the base 6 and 2, option 3 0 and 0. Every one of option 3's is in the robot's own next
+  `withdraw`: where the walk leaves the hand over the counter's top (a sidestep along it that its room
+  keeps short reads `blocked`), that withdraw sends it home from there and falls as the base's
+  hand-over did. Option 3 defers the fall to the next way home wherever the walk does not carry the
+  hand off the counter.
 - A middle way, flown and not built: the walk goes with the held arm and sends it home where its legs
-  come back to the standing policy -- a step's end, or for a drive the next hand verb. In 72 flights
-  none fell, every step's arm came home at its end (24 of 24), and it moves no word; a drive's arm rides
-  held to the next hand verb, so it scrapes the lobby's wall as option 3's does.
+  come back to the standing policy -- a step's end, or for a drive the next hand verb. After a step
+  back none of 72 fell, but after a step ahead 10 of t_0818's 12 fell and after a step left 9 (gaining
+  k1, k5, k10, k23), nearly all in that step-end send-home begun with the hand 3.8 cm over the top --
+  the base's mechanism at another moment.
 
 **What is true now** (`HumanoidMission.to_walk_routine`, `_arms_wait_routine`,
 `Body.arm_kept`; `tests/test_humanoid_body.py`, `tests/test_arms_keep_off.py`):
@@ -12410,7 +12419,12 @@ a `withdraw` or the next walk sends it home again"; and after the walk's
 refusal for another robot, "An arm left held is no such hand: the walk goes
 with it").
 
-**What it does not take.** An arm left held rides out at its side through
+**What it does not take.** Every way home from a held pose over the counter's
+top is the hazard -- the hand-over's, a walk's end, the robot's next withdraw:
+the jaw drags over the top, the command reaches the rest before the stall
+clock's 0.3 s (0.26-0.29 s), and the arm pressed on toward it inside `HELD_S`
+takes the robot over backward (#693's second path). Option 3 only moves that
+way home to wherever the walk leaves the hand. An arm left held rides out at its side through
 every walk until a withdraw -- through a doorway, past the other robot, the
 loop's own charge walk and its dock -- and a robot with one is never at rest,
 so never asked aside, and the other robot keeps clear only of a body at

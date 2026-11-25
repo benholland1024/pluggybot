@@ -479,7 +479,10 @@ save a filmstrip PNG named after the script.
   with"): sent home from where it was held by the next walk's hand-over, a
   jaw on a counter's top dragged over it and the robot went over backward,
   6 of 12 held arms at Luca's live draw of 11-25 -- nor is a walk refused,
-  or waited, for its way home (`Body.arm_kept`, `_arms_wait_routine`). ⚠ A WALK'S
+  or waited, for its way home (`Body.arm_kept`, `_arms_wait_routine`); ⚠
+  where a walk leaves the hand over the top (a sidestep its room keeps
+  short), the robot's next withdraw falls instead (9 of 12 at that draw,
+  the base's step 6): #693's second path, deferred, not fixed. ⚠ A WALK'S
   HAND-OVER'S WAY HOME IS HELD SO AT ONCE WHERE WHAT ITS ARM READS TIPS THE
   BODY AWAY FROM THE HAND PAST `HOME_TIP_NM` (15 N m) FOR `HOME_TIP_S` (0.2
   s) RUNNING (#693's live family; `Reach._shoved`, `retreat(watch=True)`;
