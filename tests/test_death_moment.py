@@ -187,6 +187,57 @@ def test_a_bow_its_legs_hold_is_no_topple_and_the_same_tilt_unheld_is(monkeypatc
   assert [d["cause"] for d in seen] == ["stuck"]
 
 
+def test_a_trunk_upright_under_its_bow_is_no_topple_and_one_far_behind_it_is(monkeypatch):
+  """#724: the seam reads a bowed body off its bow or off upright, the
+  nearer, as its fall watch reads a tip (`getup.tipped_past`): upright under
+  the deepest bow -- 63 deg off it, past `TOPPLE_TILT_RAD` -- it is neither
+  down nor dead for longer than a fall may last (off the bow alone it was
+  down while its watch had it standing), and 61 deg behind upright under
+  that bow it is down, and dies `stuck`."""
+  bow = math.radians(63.0)
+  life = _life()
+  seen = _deaths(life)
+  monkeypatch.setattr(life.body, "held_pitch", bow, raising=False)
+  life.body.attitude = (1.0, 0.0, 0.0, 0.0)                               # upright
+  assert not life.down()
+  life.body.run(life.body.hold_routine(life.body.stuck_after_s + 1.0))
+  assert seen == [] and life.dead is None
+  back = math.radians(-61.0)
+  life.body.attitude = (math.cos(back / 2), 0.0, math.sin(back / 2), 0.0)  # thrown back
+  assert life.down()
+  life.body.run(life.body.hold_routine(life.body.stuck_after_s + 1.0))
+  assert [d["cause"] for d in seen] == ["stuck"]
+
+
+def test_a_topple_off_the_stand_or_a_lean_back_is_read_as_it_always_was(monkeypatch):
+  """#724 changes the seam's reading only for a bow: at the stand (and
+  under the walker, upright too) and for a posture leaning back it is the
+  angle off that posture, to the bit."""
+  life = _life()
+  rng = np.random.default_rng(724)
+  for pitch in (0.0, -0.05, -0.1):
+    monkeypatch.setattr(life.body, "held_pitch", pitch, raising=False)
+    for _ in range(50):
+      q = rng.normal(size=4)
+      w, x, y, z = q / np.linalg.norm(q)
+      life.body.attitude = (w, x, y, z)
+      up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(pitch) - 2.0 * (x * z - w * y) * math.sin(pitch)
+      assert life._chassis_tilt() == math.acos(max(-1.0, min(1.0, up))), (pitch, q)
+
+
+def test_a_peer_upright_under_its_bow_is_standing_to_the_other_robot(monkeypatch):
+  """#724 on the pair: the other robot reads `down` -- its disc round one
+  fallen, where its body lies, and History's word for it -- and a body
+  upright under the bow its legs hold is none of it."""
+  from test_two_minds import stub_pair
+  a, b = stub_pair()
+  monkeypatch.setattr(a.body, "held_pitch", math.radians(63.0), raising=False)
+  a.body.attitude = (1.0, 0.0, 0.0, 0.0)
+  assert not a.down()
+  assert not a.keep_clear(seen_by=b.body).down
+  assert lc.posture([a], a.robot_name or a.root) == "standing"
+
+
 def test_the_lean_word_is_the_nearest_of_four():
   assert [lc.lean_word(a) for a in (0, 44, -44, 46, 134, -46, -134, 136, -180)] \
       == ["forward", "forward", "forward", "left", "left", "right", "right",
