@@ -50,7 +50,7 @@ from pluggybot.humanoid.odometry import PlantedRun, StanceOdometry
 from pluggybot.humanoid.places import HumanoidPlaces
 from pluggybot.humanoid.policy import (HEIGHT_RANGE, HEIGHT_RATE, PITCH_RANGE, PITCH_RATE,
                                        StandDriver, StandPolicy)
-from pluggybot.humanoid.reach import AT_EASE, NOT_OUT, Reach
+from pluggybot.humanoid.reach import AT_EASE, HANDOVER_LIFT_M, NOT_OUT, Reach
 from pluggybot.humanoid.scan import HeadScan
 from pluggybot.humanoid.senses import Noise
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
@@ -794,9 +794,15 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     holds nothing is (`_lift_routine`) -- ⚠ and waiting first,
     `ARM_WAIT_S` at most, while every way home, or to its carry pose, it
     has would meet another robot's body (`_arms_wait_routine`, #678): its
-    way then judged against the robot as its last look saw it. ⚠ A fall as
-    they came home went to the walker if its step was the one that settled
-    them (#520): the get-up stands it first."""
+    way then judged against the robot as its last look saw it. ⚠ AN ARM A
+    WAY HOME LEFT HELD IS RAISED FIRST (#753, Ben's option 2;
+    `Reach.HANDOVER_LIFT_M`, `retreat(lift=)`): sent home from where it was
+    held, a jaw on a counter's top dragged over it and the robot went over
+    backward; one whose arm does not follow, or whose way home from the top
+    is held again, the walk goes with as it is held, saying so (`armHeld`) --
+    never a walk refused; with another robot by, home from where it is held,
+    as #693's raise. ⚠ A fall as they came home went to the walker if its
+    step was the one that settled them (#520): the get-up stands it first."""
     yield from self._getup_routine()
     if self.legs == "walk":
       return
@@ -815,9 +821,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       for s in hm.SIDES:
         # ...each way home watched, one still to be read home at its rest
         # too: held where it would tip the body away from the hand
-        # (`Reach._shoved`), the walk going on with it held (`armHeld`)
+        # (`Reach._shoved`), the walk going on with it held (`armHeld`) --
+        # and an arm left held raised first (#753)
         if self.reach.phase[s] != "rest" and not self.reach.carried(s):
-          self.reach.retreat(s, watch=True)
+          self.reach.retreat(s, watch=True, lift=HANDOVER_LIFT_M)
         elif self.reach.phase[s] == "rest" and self.reach.homing[s]:
           self.reach.retreat(s, watch=True)
       # ...the stand asked as each arm sets off home, by its own way

@@ -345,6 +345,14 @@ HELD_S = 0.5
 #: hand-over's shove hold raised again pushed its door 55 -> 49 deg (SimNotes,
 #: "A way home whose arm stalls").
 LIFT_M, LIFTS = 0.05, 2
+#: ...and a WALK'S HAND-OVER raises an arm a way home left held this far
+#: straight up first, m, then sends it home its judged way, that raise the way
+#: home's first of `LIFTS` -- never with another robot by, as above (#753;
+#: SimNotes, "A held arm raised before a walk sends it home"). ⚠ Sent home
+#: from where it was held, a jaw on a counter's top dragged over it at 39-180
+#: N and the robot went over backward, 6 of 12 held arms at Luca's live draw
+#: of 11-25: the withdraw's own 5 cm raises had each come back down on the top.
+HANDOVER_LIFT_M = 0.10
 #: ...and a walk's hand-over's is held so at once, on its way, where what its
 #: arm reads tips the body away from the hand (minus `_tipping`) past this, N
 #: m, this long running, s (`_shoved`, `watch_home`; SimNotes, "A way home
@@ -2501,17 +2509,26 @@ class Reach:
     self.speed[side] = HAND_SPEED
     self.phase[side] = "pull"
 
-  def retreat(self, side: str, approach: float = APPROACH_M, watch: bool = False) -> None:
+  def retreat(self, side: str, approach: float = APPROACH_M, watch: bool = False,
+              lift: float = 0.0) -> None:
     """Out along the line it came in on, then home its own way
     (`way_home`); the posture back to the stand. An arm on its way home
     already goes on. `watch`, a walk's hand-over's: the way home is held
     where it would tip the body away from the hand (`_shoved`); a
     withdraw's never, its word the arm's -- whichever began a way home
-    under way, the caller now waiting on it says which."""
+    under way, the caller now waiting on it says which. `lift`, a walk's
+    hand-over's too (`HANDOVER_LIFT_M`, #753): an arm left held is raised
+    that far straight up first, eased where its drivers read it, the way
+    home's first raise -- never with another robot by (`keep_out`) -- and
+    one its arm does not follow is left held there (`_raise_short`)."""
     self.watch_home[side] = watch
     if self.phase[side] in ("rest", "home", "retreat"):
       return
     self.lifted[side], self._shove[side] = 0, 0.0
+    if self.phase[side] == "held" and lift > 0.0 and not len(self.keep_out):
+      self.lifted[side] = 1
+      self._raise(side, self._ease(side), lift)
+      return
     if self.phase[side] in ("joints", "move", "held") or self.cmd[side] is None:
       # an arm moved joint by joint (`set_joints`), still walking out to its
       # pre-grasp, or held where its way home stopped (`HELD_S`), has no
@@ -2972,14 +2989,19 @@ class Reach:
       self._stand_at_ease()
       return
     self.lifted[side] += 1
-    # ...its grip where its drivers put it, on its model of itself as it
-    # stands, its line straight up from there; then `_go_home` from the top
+    self._raise(side, q, LIFT_M)
+
+  def _raise(self, side: str, q: np.ndarray, lift: float) -> None:
+    """An arm eased at `q` raised `lift` straight up: its grip where its
+    drivers put it, on its model of itself as it stands, its line straight up
+    from there (phase "retreat"); then `_go_home` from the top, or, its arm
+    not following, left held (`_raise_short`)."""
     sm = self._planner_model()
     self._pose_planner(sm, None)
     sm._set_arm(side, q)
     pos, rot = sm.grip_pose(side)
     self.cmd[side] = HandGoal(pos.copy(), rot.copy(), 1.0)
-    self.goal[side] = HandGoal(pos + np.array([0.0, 0.0, LIFT_M]), rot.copy(), 1.0)
+    self.goal[side] = HandGoal(pos + np.array([0.0, 0.0, lift]), rot.copy(), 1.0)
     self.speed[side], self.looking[side] = HAND_SPEED, False
     self.phase[side] = "retreat"
 

@@ -17,6 +17,7 @@ import pytest
 
 from pluggybot.body import Body, body_for
 from pluggybot.humanoid import model as hm
+from pluggybot.humanoid import reach as rc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -260,11 +261,13 @@ class _Homing:
   def carry_pose(self, side):
     return np.array([0.15, 0.25, 0.0, 2.0, -1.0, -1.0])
 
-  def retreat(self, side, approach=None, watch=False) -> None:
+  def retreat(self, side, approach=None, watch=False, lift=0.0) -> None:
     self.sent, self.steps = True, 0
     #: ...and whether each way home was a walk's hand-over's, watched for a
-    #: shove (#693's live family, `Reach.retreat(watch=)`)
+    #: shove (#693's live family, `Reach.retreat(watch=)`), and the raise it
+    #: asked an arm left held first (#753, `Reach.retreat(lift=)`)
     self.watched = dict(getattr(self, "watched", {}), **{side: watch})
+    self.lifts_asked = dict(getattr(self, "lifts_asked", {}), **{side: lift})
     if self.log is not None:
       self.log.append(("retreat", side, self.at()))
 
@@ -311,8 +314,8 @@ class _Out(_Homing):
         self.phase[s] = "hold"
         self.report[s] = {"why": self.lifts.get(s, "distance")}
 
-  def retreat(self, side, approach=None, watch=False) -> None:
-    super().retreat(side, approach, watch)
+  def retreat(self, side, approach=None, watch=False, lift=0.0) -> None:
+    super().retreat(side, approach, watch, lift)
     self.phase[side] = "rest" if self.carry_q[side] is None else "carried"
 
   def hold_posture(self, height, pitch) -> None:
@@ -378,8 +381,8 @@ class _HomingOut(_Out):
     super().__init__(grippers, out, log, at)
     self.n_home, self.since = n, {}
 
-  def retreat(self, side, approach=None, watch=False) -> None:
-    super().retreat(side, approach, watch)
+  def retreat(self, side, approach=None, watch=False, lift=0.0) -> None:
+    super().retreat(side, approach, watch, lift)
     self.homing[side], self.since[side] = True, self.steps
 
   def step(self) -> None:
@@ -422,9 +425,52 @@ def test_a_walk_takes_the_legs_with_an_arm_held_as_it_is(monkeypatch):
     if steps > 5000:
       raise AssertionError("the walk's hand-over waited on an arm left held")
   m.reach.on_step = bounded
-  m.reach.retreat = lambda side, approach=None, watch=False: None
+  m.reach.retreat = lambda side, approach=None, watch=False, lift=0.0: None
   body.run(m.to_walk_routine())
   assert m.legs == "walk"
+
+
+def test_a_walks_hand_over_asks_an_arm_left_held_raised_before_it_goes_home():
+  """#753 (Luca's fall of 11-25 07:23, flown at its live draw on ff2896af and
+  on `loop-staging`: 6 of 12 held arms fell in the step right after): the
+  hand-over sent an arm a withdraw had left held home from where it was held,
+  and a jaw on the counter's top dragged over it took the robot over
+  backward. Ben's option 2: the hand-over asks it raised first
+  (`Reach.retreat(lift=)`, `HANDOVER_LIFT_M`), which `Reach.retreat` acts on
+  only for an arm left held."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), (), log, lambda: float(body.data.time))
+  m.reach.phase["left"] = "held"
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk"
+  assert m.reach.lifts_asked.get("left", 0.0) > 0.0, \
+    "the hand-over sent an arm left held home with no raise first"
+  assert m.reach.lifts_asked["left"] == rc.HANDOVER_LIFT_M
+
+
+def test_the_loops_own_walk_goes_with_an_arm_its_raise_left_held_and_never_refuses():
+  """...and where the raise does not free it (held again, or its arm never
+  following), every walk goes with it held -- the loop's own walks (a
+  charge's) never refuse, never wait for it: a charge that cannot walk is a
+  death (Ben's call on #753). Failing on a hand-over that refuses or waits
+  while an arm is held (option 1 put on every walk)."""
+  body = body_for(*_floor())
+  m = body.mission
+  log = []
+  m.reach = _Out(_opened(m.reach.grippers), (), log, lambda: float(body.data.time))
+  m.reach.phase["left"] = "held"
+
+  def bounded(steps):
+    if steps > 5000:
+      raise AssertionError("the loop's own walk waited on an arm its raise left held")
+  m.reach.on_step = bounded
+  # ...its raise not followed: left held, as `Reach._raise_short` leaves it
+  m.reach.retreat = lambda side, approach=None, watch=False, lift=0.0: None
+  got = body.run(m.travel_routine(0.05, 0.3))
+  assert got in ("arrived", "timeout") and m.legs == "walk", got
+  assert m.reach.phase["left"] == "held"
 
 
 def test_a_walks_hand_over_has_its_ways_home_watched_for_a_shove_and_a_withdraw_never():
@@ -602,8 +648,8 @@ class _Homeward(_Out):
     self.posture = np.array(posture, dtype=float)
     self.waiting = False
 
-  def retreat(self, side, approach=None, watch=False) -> None:
-    _Homing.retreat(self, side, approach, watch)
+  def retreat(self, side, approach=None, watch=False, lift=0.0) -> None:
+    _Homing.retreat(self, side, approach, watch, lift)
     self.phase[side] = "home"
     if self.posture.any() and not self.ahead:
       self.waiting = True

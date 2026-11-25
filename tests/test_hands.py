@@ -1105,6 +1105,85 @@ def test_a_way_home_held_is_lifted_and_sent_home_again_before_it_is_left_there(m
   assert r.lifted["left"] == 0
 
 
+def _left_held(r, monkeypatch):
+  """`r`'s left arm left held at its rest (#693's hold, no raise left):
+  phase "held", its command where its drivers read it. Returns that reading."""
+  from pluggybot.humanoid import reach as rc
+  held_at = _held_at_rest(r, "left", monkeypatch, lifts=0)
+  for _ in range(int(round(rc.HELD_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and np.allclose(r.q_cmd["left"], held_at), "the premise: left held"
+  return held_at
+
+
+def test_a_walks_hand_over_raises_an_arm_left_held_then_sends_it_home_from_the_top(monkeypatch):
+  """#753 (Luca's fall of 11-25 07:23, flown at its live draw: 6 of 12 held
+  arms): a walk's hand-over sent an arm a withdraw had left held home from
+  where it was held, a jaw on the counter's top dragged over it, and the
+  robot went over backward. Ben's option 2: raised `HANDOVER_LIFT_M`
+  straight up first -- from where its drivers read it, on its model of
+  itself as it stands, the way home's first raise, watched -- then home its
+  judged way from the top."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _left_held(r, monkeypatch)
+  r.retreat("left", watch=True, lift=rc.HANDOVER_LIFT_M)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1 and r.watch_home["left"], \
+    "the hand-over sent an arm left held home from where it was held"
+  sm = r.self_model
+  sm._set_arm("left", held_at)
+  at, _ = sm.grip_pose("left")
+  assert np.allclose(r.cmd["left"].pos, at)
+  assert np.allclose(r.goal["left"].pos, at + [0.0, 0.0, rc.HANDOVER_LIFT_M])
+  assert rc.HANDOVER_LIFT_M > rc.LIFT_M, "no higher than the withdraw's own raises, which left it held"
+  for _ in range(2000):
+    r._update(0.01)
+    if r.phase["left"] != "retreat":
+      break
+  assert r.phase["left"] == "home" and r.homing["left"], "not sent home from the top"
+  sm._set_arm("left", r.q_cmd["left"])
+  assert sm.grip_pose("left")[0][2] == pytest.approx(at[2] + rc.HANDOVER_LIFT_M, abs=0.005)
+
+
+def test_a_walks_hand_over_raises_no_arm_at_its_work_nor_one_with_another_robot_by(monkeypatch):
+  """...only an arm left held (phase "held"): one out at its work comes out
+  along its line as before; and with another robot by (`keep_out`), an arm
+  left held goes home from where it is held, judged against that robot, as
+  #693's own raise is never asked then -- from the top of a raise a way home
+  that met it would be taken rather than refused (#678)."""
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import HandGoal
+  r = _stepped(_standing_reach())
+  _left_held(r, monkeypatch)
+  r.keep_out = [(0.1, -0.61)]
+  r.retreat("left", watch=True, lift=rc.HANDOVER_LIFT_M)
+  assert r.phase["left"] == "home" and r.lifted["left"] == 0
+  r = _stepped(_standing_reach())
+  r.goal["right"] = HandGoal(np.array([0.35, -0.2, 0.9]), None, 1.0)
+  r.cmd["right"] = HandGoal(np.array([0.35, -0.2, 0.9]), None, 1.0)
+  r.phase["right"] = "hold"
+  r.retreat("right", watch=True, lift=rc.HANDOVER_LIFT_M)
+  assert r.phase["right"] == "retreat" and r.lifted["right"] == 0
+  assert np.allclose(r.goal["right"].pos, [0.35 - rc.APPROACH_M, -0.2, 0.9]), "not its line out"
+
+
+def test_a_walks_hand_over_leaves_held_an_arm_its_raise_does_not_free(monkeypatch):
+  """...and a raise its arm does not follow -- held from above, or under an
+  edge -- leaves it held where it is (`_raise_short`), eased where its
+  drivers read it, pressing on nothing: the walk goes with it held, saying
+  so (`armHeld`), and nothing refuses."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  held_at = _left_held(r, monkeypatch)
+  r.retreat("left", watch=True, lift=rc.HANDOVER_LIFT_M)
+  monkeypatch.setattr(r, "_raise_short", lambda side: True)
+  arrived = int(round(rc.HANDOVER_LIFT_M / rc.HAND_SPEED / 0.01)) + 1
+  for _ in range(arrived + int(round(rc.BLOCKED_S / 0.01))):
+    r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and np.allclose(r.q_cmd["left"], held_at)
+  assert r.goal["left"] is None and r.cmd["left"] is None
+
+
 def _homed(r, side):
   """The stand's asks (`hold_posture`, recorded) as the loop walks the arm
   home: each with the phase the arm was in when it came."""
