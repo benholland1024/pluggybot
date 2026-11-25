@@ -12063,6 +12063,85 @@ at the weekend's live draws, 11 of its 72 chest flights part there, and the
 lid, lifted higher, came down fast in 10 of them (Observatory.md, the period
 of #744 and #746, has the counts).
 
+## A hand stopped on a push, held where it is (issue #750)
+
+**What happened.** Ben's bar on #747's swing rule (`loop-747`, the second loop
+of 11-24) fell once where the base did not: the lid check's set-out 14. The
+rule refused the lid reference's fourth try, so its fifth went in at the next
+tilt, crouched 16 cm, and fell. Flown on the base with that fourth try moving
+nothing (`LID_SKIP=3`, the harness only), the base fell the same way at 10.28
+s: the base's own path, filed as #750.
+
+**What the robot read, and what was true** (the loop of 11-25, A2;
+`~/pluggybot-training/loop-1125/a2-750/c/dissect750.py`, every 0.02 s, the
+robot's own readings beside the truth, for the record alone). The fifth reach
+stopped on its way in on a push (42 N, 6.6 cm across its fingers from its
+goal) with a jaw pressed down on the chest's bracket. The stop held the arm at
+the command it had driven on to, so its spring pressed the jaw on the bracket
+at 32-57 N, and the withdraw's line out ran from that command, dragging the jaw
+back over the bracket for 0.6 s.
+- *Not a tip toward the hand.* The robot's own reading (`Reach._tipping`, off
+  the whole body's force, which matched the true contact within a few N) read
+  the press down at the hand's reach: 9-20 N m AWAY from the hand through the
+  line out and 7-34 in the way home, one tick 19.8 toward it as the way home
+  set off. #708's line on a way out (20 N m toward the hand) never passes; the
+  walk's hand-over's (15 N m away, held 0.2 s) would not either (0.06 and
+  0.15 s past it), and no rule watches a line out. Nor a stall: the arm's
+  drivers read it at most 0.24 rad off its command (`STALL_RAD` 0.5).
+- *The truth.* The bracket pushed the left hand up at 32-57 N and, as the line
+  dragged it back, forward at 11-16 N. The robot rolled away from its left
+  hand, 3 -> 8 deg, its soles turned 4 deg, and its pelvis set off forward at
+  8.98 s, inside the line out, before the stand was asked (9.15). As the jaw
+  slipped off (9.44) it stood rolled 8 deg, its centre of mass 8 cm right of
+  the soles' middle and 5.5 cm ahead; it went on forward and right, the pelvis
+  struck the counter at 10.14 s (1,118 N), and it went over backward.
+- *Not the stand.* Kept crouched until the arm's command was home (#750's
+  option 3, the harness only) it fell at 10.26 s, rolled 11 deg, its soles
+  sliding to 16 deg.
+- *Eased, it stood.* With the arm commanded where its drivers read it before
+  the line out (option 2, the harness only), the press fell to 7-16 N and was
+  gone in 0.2 s, nothing rolled, and the procedure's next try opened the lid
+  (63 deg).
+
+The base's drawer at set-out 12 falls of the same press another way: its first
+reach stopped on a push with a jaw pressed down on the drawer's top, and the
+procedure reached again from there, with no withdraw between. The new reach's
+way out, in a new posture, dragged the jaw over the top at 27-39 N, the soles
+turned 21 deg, and the robot fell at 8.02 s.
+
+**Where to ease: at the stop, chosen on draws outside Ben's bar.** Two forms
+were flown on one pod (an AMD EPYC 7642) beside the base, at the five hands
+checks' set-outs 128-191 (960 flights, each set-out its own noise), under a
+rule written before either flew: the ease at the withdraw (W: `retreat` eases
+a hand stopped on a push before its line out) and at the stop (S: the stop
+itself holds the hand where its drivers read it, whatever comes next).
+
+| | passed of 320 | fell | flights acted on | moved (end state / path) |
+|---|---|---|---|---|
+| base | 248 | 6 | | |
+| W, at the withdraw | 249 | 5 | 18 | 18 / 14 |
+| S, at the stop | 248 | 4 | 26 | 26 / 19 |
+
+Both met the bar on those draws, and every flight neither acted on was the
+base's by end state and path; the rule took S for its fewer falls. The fall
+between them is the drawer at 188 (it fails standing under S, and W never acts
+there); S also loses the drawer at 185 (14.5 cm out at the end), and both lose
+the door at 130, whose base pass came from its last withdraw's way home: a jaw
+hooked the lever's arm and swung the door from 10 to 56 deg. Over the flights
+each acted on, the sim time to the verdict moved by a median of 0.1 s (W) and
+0.0 s (S), +19 and +45 s summed. A stop's words ("as it stopped, its grip was
+... from where you asked") read the hand a tick after the stop: on the flights
+S acted on, 22 of 26 said the same and 4 moved by 0.1 cm and 1-2 N.
+
+**What is true now** (`Reach._eased_stop`, `_update`'s stop; `tests/
+test_hands.py`): a reach stopped on its way in by a push (`BLOCKED_N`, "it
+pushed on something") is held where its drivers read the arm, its command and
+its goal the grip its senses put it at as that command began -- as #708's
+catch on a way out is held (`_struck`) -- so a withdraw comes out back along
+those fingers from where the hand is, and a next reach's way out, a shut or a
+carry begins there too. A stop out of reach holds its command as before. No
+word moves: the stop's report reads the hand as it stopped.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

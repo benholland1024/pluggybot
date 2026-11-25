@@ -10,6 +10,38 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand stopped on a push is held where its drivers read it (#750, A2, `loop-750`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No History line's words change: a stopped reach still
+says how far from where it was asked its grip was as it stopped, read off the
+hand as it stopped (on the dev flights the form acted on, 22 of 26 said it
+word for word, 4 by 0.1 cm and 1-2 N), and `withdraw`'s "bring the hand back
+out along the way it went in" reads as true of a hand that comes back along
+its fingers from where it stopped.
+
+**What changed in the world.** A reach that stops on its way in because its
+hand pushed on something ("it pushed on something before it got there")
+held its arm where it had driven on to, its spring pressing the hand on what
+it met, and whatever came next began from there: a withdraw's line out
+dragged it back across what it pressed (at the lid check's set-out 14 a jaw
+on a chest's bracket at 30-57 N rolled the robot 5 deg off its hand, and as
+it slipped off the robot went over), and so did a next reach's way out (the
+drawer check's set-out 12, the same fall). Such a hand is now held where its
+drivers read it, pressing on nothing, the moment it stops: a withdraw, a
+walk's or a step's hand-over, the next reach and the loop's own after a
+charge's reach all begin from where the hand is. A stop out of reach holds
+its command as before.
+
+**What the period is for.**
+- **The acceptance**: no fall in the verb after a `reach` that stopped short
+  because it "pushed on something" -- a `fall` row whose `at` names the
+  `withdraw`, `reach` or walk that came next.
+- **Offline, before it**: at the hands checks' set-outs 128-191, 26 of 320
+  flights acted on, falls 6 -> 4 and passes 248 -> 248 (SimNotes, "A hand
+  stopped on a push, held where it is").
+
 ### A restore books the step it steps again, and the keeper saves after every step hook (#749, Z6, `loop-749`) — opens when this PR is deployed
 
 **What the robots read** does not move: the prompt `264ac7f6…` (72,130
