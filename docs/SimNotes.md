@@ -11969,6 +11969,13 @@ new of what changes round it until it moves.
   - After it, the counter's belief ended its tries 4.7 cm off at the median (27.6 at worst), where the
     base's kept storeroom brought back 8.7 (54.2).
   - Falls went 2 -> 0, and the first `find` after the drop took 11-12 s, as the base's did.
+  - Passes are rare for these procedures: 3 of 32 tries on the base, 0 of 32 with the pair. Each base-only
+    pass parted from its pair at the first rest's scan option 4 withheld, the beliefs millimetres apart, and
+    failed on one of the procedures' own classes.
+  - Rowan's chest procedure (try 1, option 4 its only difference) was flown again at 16 new noise keys a
+    tree, by a rule written before it flew. It came out 0 passes on the base and 1 with the pair; the lid
+    was lower with the pair in 9 pairs and higher in 7 (a one-sided sign test, p = 0.40): a reshuffle. "The
+    lid never opened" came 5 times with the pair and once on the base.
 
 **What it leaves.**
 - A copy under `FIX_TOL` fires no fix: Luca's house dock of 11-25 13:26 sat

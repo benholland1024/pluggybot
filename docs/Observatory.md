@@ -52,7 +52,9 @@ hours.
 - The drift batch and #572's probe: identical.
 - Ben's bar: 617 of 736 and 4 falls on both trees, 6 moved by option 4 with the same verdicts.
 - A4's counter chains with a lobby charge between: the counter's belief after it 4.7 cm off at the median,
-  against the base's 8.7, and the first `find` after the drop as quick as the base's.
+  against the base's 8.7, and the first `find` after the drop as quick as the base's. The base passed 3 of
+  32 tries there and the pair none; Rowan's chest flown again at 16 new keys a tree read 0 and 1 (sign p
+  0.40), a reshuffle.
 - The pair's recording (`protocol/telemetry.home_humanoid_pair.jsonl.gz`) moved (96 grid images to 171; the
   bodies part 298.6 s in). It is re-recorded here, and the site re-vendors it at the release.
 
