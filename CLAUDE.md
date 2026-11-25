@@ -353,8 +353,10 @@ save a filmstrip PNG named after the script.
   it drove on to, a jaw pressed on a chest's bracket was dragged back over
   it by the withdraw's line out at 30-57 N, and the robot went over; held
   at the turn the press rolled it to, a carry after keeps that (`carry`,
-  #493) -- as it does where the arm cannot hold its command's turn there
-  (`REPLAN_M`, `REPLAN_ROT`) and is held as read. ⚠ ON ITS
+  #493). ⚠ WHERE THE ARM CANNOT HOLD ITS COMMAND'S TURN THERE (`REPLAN_M`,
+  `REPLAN_ROT`) IT EASES NOTHING, held at the command it drove on to as
+  before: held as read, a jaw on the cube's board stayed on it, the way home
+  dragged it over the counter's top, and the robot went over backward. ⚠ ON ITS
   WAY OUT, THE TICK WHAT IT READS WOULD TIP THE BODY TOWARD THE HAND PAST
   `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
