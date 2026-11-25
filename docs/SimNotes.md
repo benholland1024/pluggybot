@@ -804,7 +804,9 @@ cite record ids past #144,000, and a decision writes several lines: the
 1.4 and 2.9 s of a stalled world. The roll now reads the newest
 `HISTORY_VIEW_BATCH` (64) rows, doubled until the cap is passed or the rows
 run out, and counts `dropped` off the index: 7 ms a line at 10^5 rows, the
-view and `dropped` as before byte for byte (`tests/test_thoughts.py`). The
+view and `dropped` as before byte for byte (`tests/test_thoughts.py`). ⚠
+The count still grows with the rows (4.4 ms of those 7 at 10^5, about 45 ms
+at 10^6), years of lines at the ~2,500 records a week a robot writes. The
 mind's context never read the view: it reads `history_tail()`. A stream's
 opening `records` snapshot still reads every think row of the generation
 (`snapshot_rows`), once an open.

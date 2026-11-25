@@ -21,7 +21,8 @@ moves is the served world's pace.
 "The served sim's speed"). Every History line re-rendered the view off every
 active History row of the generation, about 9 µs a row on the physics
 thread, both robots held: 0.84 s a line at 10^5 rows on the dev box. It now
-reads the newest rows only: 7 ms a line there.
+reads the newest rows only: 7 ms a line there, most of it the count of the
+rows, which still grows with them (about 45 ms a line at 10^6).
 
 **What it does.** The wakes' minutes priced a decision's answer, its few
 History lines, at 0.8 s (11-18), 1.4 s (11-21/22) and 2.9 s (11-25) of a

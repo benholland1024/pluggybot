@@ -271,17 +271,24 @@ def _old_history_view(files):
 
 
 def _fill_history(files, n, longest, seed=0):
-  """`n` made-up History rows put straight into the store by one insert
-  (`remember` a row would render the view n times), each 1..`longest` long."""
+  """`n` made-up History rows, each 1..`longest` long: the first written by
+  `RecordStore.add`, the rest copies of the row it stored (every column as
+  `add` wrote it, but their `t` and text) put in by one insert --
+  `remember` a row would render the view n times."""
   import random
+  if n == 0:
+    return
   rng = random.Random(seed)
-  gen = files.records.generation(files.robot)
-  files.records.db.executemany(
-    "INSERT INTO records (robot, generation, t, at, kind, writer, topic, title, text, fields, cites) "
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-    [(files.robot, gen, float(i), "2026-11-26T00:00:00Z", "history", SYSTEM, "", "",
-      f"[t={i}s] " + "x" * rng.randint(1, longest), "{}", "[]") for i in range(n)])
-  files.records.db.commit()
+  texts = [f"[t={i}s] " + "x" * rng.randint(1, longest) for i in range(n)]
+  db = files.records.db
+  first = files.records.add(files.robot, "history", SYSTEM, texts[0], t=0.0)
+  cur = db.execute("SELECT * FROM records WHERE id = ?", (first.id,))
+  cols = [c[0] for c in cur.description]
+  row = dict(zip(cols, cur.fetchone()))
+  cols.remove("id")
+  db.executemany(f"INSERT INTO records ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                 [tuple({**row, "t": float(i), "text": texts[i]}[c] for c in cols) for i in range(1, n)])
+  db.commit()
 
 
 def test_a_history_line_renders_its_view_off_the_newest_rows_alone(files, monkeypatch):
