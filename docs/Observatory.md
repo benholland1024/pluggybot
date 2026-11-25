@@ -23,8 +23,9 @@ at the hip (#682); while either hand is carried, walk2 -- the served walker
 the waist) at its own default and still: its arms hanging, as its scripted
 arms hung half the time in training. It balances blind to the carried arm.
 The drivers are read as ever, so a flight with no hand carried is bit for bit
-what it was: the pair's fixture day (9 walk hand-overs, none carrying)
-replays exactly. A walker trained to carry (carry2, not served) would be
+what it was: Ben's bar's 736 flights (none carries; 617 laid and 4 falls on
+both trees) and the pair's fixture day (9 walk hand-overs, none carrying)
+replay exactly. A walker trained to carry (carry2, not served) would be
 shown its arms as they are.
 
 **Why** (#751). The carry pose folds the elbow to 1.6-2.0 rad, where walk2's

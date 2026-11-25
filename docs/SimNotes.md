@@ -8187,6 +8187,9 @@ interleaved; the loop of 11-25b, C3):
   On the arc (a walk turning 0.5 rad/s) the plates end 6-10 deg short of the
   turn, where the base's ended 1-3: walk2's own arc, its arms home or empty
   (7.5-9 deg on both trees) -- the base's left veer had cancelled it.
+- **Ben's bar** (the hands checks at 0-127 and the tour's five jobs, 736
+  flights, none carrying): 617 laid and 4 falls on both trees, every flight
+  the same by its end state and its path.
 
 **The price.** walk2 balances blind to its arm and to what it holds. T7's
 bare-floor flights (above, "Carrying while walking, measured") found a piece
