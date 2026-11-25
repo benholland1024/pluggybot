@@ -199,7 +199,8 @@ Before doing anything, read the doc that owns what you are about to touch:
   FAILS THE TRY (Ben, 2026-10-25, #544; it was lost time from 10-17, and
   learned skills fell to open a door): every grader's criterion, a fall
   the body's own watch counted (`Body.falls`; the humanoid's is its trunk
-  35 deg past the posture its legs hold, so a bow is none, #520) from the
+  35 deg off the posture its legs hold and off upright both, so a bow is
+  none, #520, #724) from the
   attempt's start to the hold's end, said FIRST in the verdict
   (`lid.judged`) and stated in the job the robot is told (`practice.JOBS`).
   The job is the lid inside the TASK's time limit, the budget
@@ -716,13 +717,17 @@ save a filmstrip PNG named after the script.
   is the open half: the belief lags 0.7-1.9 m at the foot (it runs down
   faster than asked; its odometry follows a sole in the air, skids and
   flights; the hall gives the matcher nothing along it). A FALL is the get-up policy's (`models/humanoid_getup.npz`,
-  getupwall14 of `-Getup-Wall3-Mirror` since #679, every joint): tilt `FALL_TILT_RAD` past the posture the
-  legs hold or the pelvis under `COLLAPSED_M` over the LOWER sole, handed
-  back once stood still; ⚠ A TIP IS READ OFF THE POSTURE, NEVER OFF
-  UPRIGHT (#520; `getup.tipped`, `Reach.held_pitch`, exactly upright at the
-  stand): the IMU is on the pelvis, under a waist that only turns, and off upright the reach's
-  deepest bows were falls; a forward fall from a bow is the collapse's to
-  take (lying on its face is 27 deg past the deepest bow). ⚠ The head is
+  getupwall14 of `-Getup-Wall3-Mirror` since #679, every joint): tilt `FALL_TILT_RAD` off the posture
+  the legs hold and off upright both, or the pelvis under `COLLAPSED_M` over
+  the LOWER sole, handed back once stood still; ⚠ A TIP IS READ OFF THE BOW
+  THE LEGS HOLD AND OFF UPRIGHT, THE NEARER (#520, #724; `getup.tipped_past`,
+  `Reach.held_pitch`, exactly upright at the stand; a posture leaning back
+  off itself; SimNotes, "A fall backward out of a bow"): the IMU is on the
+  pelvis, under a waist that only turns, so off upright alone the reach's
+  deepest bows were falls, and off the bow alone a trunk going back from one
+  was a fall the bow's depth sooner than from the stand, the get-up running
+  the body backward on its feet; a forward fall from a bow is the collapse's
+  to take (lying on its face is 27 deg past the deepest bow). ⚠ The head is
   charged on its own in training, or it struck at 5.5-6.9 m/s; the
   mission waits out a get-up before a walk takes the legs or the standing
   policy takes them back, and on standing forgets its ground map and
@@ -776,7 +781,9 @@ save a filmstrip PNG named after the script.
   off it. ⚠ A TOPPLE IS READ OFF THE POSTURE THE LEGS HOLD
   (`Body.held_pitch`, stage 3; `HubLifecycle.down`, what the other robot
   keeps clear of): a reach's deepest bow is 63 deg of pelvis tilt, past
-  `TOPPLE_TILT_RAD`'s 60.
+  `TOPPLE_TILT_RAD`'s 60 -- and off upright where that is nearer, as the
+  fall watch reads a tip (#724: off the bow alone, a body upright under it
+  was `down` while its watch had it standing).
 - **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
   `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
   SimNotes, "The humanoid's charging station"): a station on the living

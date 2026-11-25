@@ -2091,8 +2091,10 @@ and `-Getup-Head`, and the served get-up's `-Getup-Wall3-Mirror` since #679,
 below; `humanoid_spike.py --fall`, `--view fall`, `--view
 getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
 a served world a stand-up 300 s later. The get-up policy takes every joint,
-arms too, once the IMU reads the trunk tipped 35 deg past the posture its
-legs hold (below: a bow is no fall) or the pelvis has sunk under 0.40 m
+arms too, once the IMU reads the trunk tipped 35 deg off the posture its
+legs hold and off upright both (below: a bow is no fall, nor a trunk on its
+way back from one, "A fall backward out of a bow") or the pelvis has sunk
+under 0.40 m
 over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
@@ -2286,6 +2288,36 @@ holding at its goal now, never on a stop or a fall, which ends it at once;
 a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
 stand-up's fresh reach -- and the stand-up keeps the grippers as they were
 asked, where a fresh set read a shut gripper as never shut.
+
+**A fall backward out of a bow** (#724; found by P5 of the loop of 11-16/17
+in M12's lobby case, #679's comment of 11-15). Read off the bow alone
+(#520), a trunk going back from it was a fall 35 deg behind the bow: off
+`spot`'s 26 deg look, 9 deg behind upright, where from the stand a fall is
+taken 35 deg behind it -- and off the floor's 63 deg, still 28 deg in front
+of it. In the research center's lobby `spot`'s bow pressed the head into a
+wall and the trunk went over backward at about 200 deg/s; the watch handed
+the body to the get-up 2-11 deg behind upright, still on its feet, and the
+get-up -- trained on falls tipped over from the stand -- ran it 1.6-2.7 m
+backward into the wall behind, one start of nine to a `stuck` death (M12's
+tree, 8edc3e54; since #717 the look's bow keeps off that wall). Left on the
+standing policy no trunk came back (in the stuck start, from 14 to 37 deg
+behind upright in 0.1 s): the take was early, not wrong. So the watch reads
+a tip off the bow and off upright, the nearer (`getup.tipped_past`; a
+posture leaning back off itself) -- never more than off the bow, so a flight
+that takes no fall, or takes one from the stand or under the walker, is the
+same flight to the bit -- and read so, all nine lobby starts went down on
+their backs and stood 2.5-2.7 s on, 1.0-1.1 m back, none into the wall. The
+death seam's topple (`HubLifecycle._chassis_tilt`: `down`, the stuck clock,
+the other robot's fallen disc) reads a bow the same way: off the bow alone,
+a body upright under the floor's bow was `down` while its watch had it
+standing. A body propped back under a bow (say 30 deg behind upright against
+a wall) is no fall and not down, as from the stand (Ben's call of 11-25).
+On `loop-staging` dc843dc0 three of Ben's bar's four falls were taken out
+of a bow with the trunk nearer upright than it (two tables', from 43-46 deg
+bows with the trunk 5-10 deg in front of upright; a drawer's, from a 12 deg
+bow 21 deg behind it), the fourth from the stand; read off the nearer, each
+still falls, taken 0.06-0.24 s later with the trunk 37-39 deg behind
+upright, and gets the same verdict.
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak
@@ -4923,8 +4955,8 @@ the 8 m edge (`test_the_bands_floor_rises_with_range`).
 
 **A bowed robot maps and matches** (`HumanoidMission.maps`). Its points go
 in through the IMU's tilt and its model of itself while its trunk is within
-12 deg of the posture its legs hold (`getup.tipped`, the fall watch's own
-reading of a tip): walking it tipped up to 6.6 deg off upright; a bow is
+12 deg of the posture its legs hold (`getup.tipped`, off that posture
+alone: is the trunk where the posture holds it): walking it tipped up to 6.6 deg off upright; a bow is
 the posture, never a tip. Gated on level, as the C1's plane was, a bowed
 robot neither mapped nor matched, and Luca's heading turned 5.2 deg in 300
 s at a counter (#572); bowed at a counter now, its scans are matched

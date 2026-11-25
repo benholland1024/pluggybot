@@ -10,6 +10,41 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A fall backward out of a bow is taken once the trunk is nearer upright, as from the stand (#724, D2, `loop-watch2`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were, and no line's words change. What they report comes
+at another moment: History's fall line ("I fell over and got up again N s
+later") and a grade's "you fell" come at the fall's take, which out of a bow
+is later, and a body propped back under a bow is told no fall at all.
+
+**The change** (`getup.tipped_past`, read by `FallWatch.falling`; SimNotes,
+"A fall backward out of a bow"). The fall watch read a tip off the posture
+the legs hold (#520), so a trunk going back from a bow was a fall 35 deg
+behind the bow: 9 deg behind upright under the look's 26 deg bow, still 28
+in front of it under the floor's 63. It now reads the trunk off the bow and
+off upright, the nearer of the two (a posture leaning back off itself), so
+never more than off the bow: at the stand and under the walker nothing
+moves, to the bit. The death seam's topple (`HubLifecycle._chassis_tilt`:
+`down`, what the other robot keeps clear of, and the stuck clock) reads a
+bow so too. Ben's call of 11-25 on #724.
+
+**What it does.** A fall backward or sideways out of a bow is handed to the
+get-up later, and the body goes down before it gets up: in M12's lobby case
+(flown on its own tree, 8edc3e54) the early take ran nine falls 1.6-2.7 m
+backward on their feet, into the wall behind in three and to a stuck death
+in one; taken behind upright all nine went down on their backs and stood in
+2.5-2.7 s, 1.0-1.1 m back. On `loop-staging` dc843dc0 three of Ben's bar's
+four falls are takes out of a bow (two tables', a drawer's); read off the
+nearer each still falls, 0.06-0.24 s later, with the same verdict.
+
+**To read.** The `fall` rows (#707): how far each get-up carried the body
+and how long it took (`movedM`, `seconds`), how many ended `stuck`, and what
+the robot was doing as it fell (`at`) -- a fall out of a bow now goes down
+first, so expect its `seconds` nearer the floor's 2.5-3 s and its `movedM`
+about a metre, where an early take ran a body 1.6-2.7 m on its feet.
+
 ### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
 
 **What the robots read** moves by one History line and one field of the
