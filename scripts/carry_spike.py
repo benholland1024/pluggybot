@@ -235,8 +235,10 @@ if HELD_DROP:
   from pluggybot.humanoid import mission as _mission2
   _mission2.HELD_DROP_M = float(HELD_DROP)
 #: `--blind-arms`: the walker shown every arm joint where its policy's
-#: default puts it, still (`ArmsAtRest`), whatever the arm does -- does the
-#: veer come from the arm's weight, or from inputs walk2 never trained on?
+#: default puts it, still, the whole flight, whatever the arm does (its own
+#: `WalkDriver.observation(arms_at_rest=True)`) -- does the veer come from the
+#: arm's weight, or from inputs walk2 never trained on? (Served, a carried
+#: hand is shown so already, #751: such a row says `blind`.)
 BLIND = os.environ.get("CARRY_BLIND") == "1"
 #: `--kg X`: every held piece weighs X kg, not its draw's -- a heavier load
 #: than the table's dishware (a stack, a full bowl) for the walker's margin.
@@ -511,26 +513,6 @@ class Reading:
     self.rows.append(row)
 
 
-class ArmsAtRest:
-  """A walker's joint senses with its arms read where its policy's default
-  puts them and still (`--blind-arms`): the legs' and the waist's as read,
-  the same draws of the same noise."""
-
-  def __init__(self, walker):
-    self.inner = walker.joints
-    order = {n: k for k, n in enumerate(hm.JOINT_NAMES)}
-    arm = [(order[n], walker.policy.default_q[k]) for k, n in enumerate(walker.policy.joint_names)
-           if n.split("_", 1)[1] in hm.ARM]
-    self.idx = np.array([a for a, _ in arm])
-    self.rest = np.array([r for _, r in arm])
-
-  def read(self, data):
-    q, qd, tau = self.inner.read(data)
-    q, qd = q.copy(), qd.copy()
-    q[self.idx], qd[self.idx] = self.rest, 0.0
-    return q, qd, tau
-
-
 def _angle(r: np.ndarray) -> float:
   return math.degrees(math.acos(max(-1.0, min(1.0, (np.trace(r) - 1) / 2))))
 
@@ -758,7 +740,9 @@ def before_walk(model, body, info, reading: Reading) -> dict:
     hide(model, info, reading)
     out["unseen"] = True
   if BLIND:
-    body.mission.walker.joints = ArmsAtRest(body.mission.walker)
+    walker = body.mission.walker
+    seen = walker.observation
+    walker.observation = lambda arms_at_rest=False: seen(arms_at_rest=True)
     out["blind"] = True
   return out
 
@@ -902,6 +886,10 @@ def fly(job) -> dict:
       row["served"] = True
       row["carried"] = {s_: bool(mi.reach.carried(s_)) for _, s_ in info["arms"]}
       row["q_carried"] = {s_: [float(v) for v in mi.reach.q_cmd[s_]] for _, s_ in info["arms"]}
+      # ...and the served walk shows walk2 its arms at rest while a hand is
+      # carried (#751): such a flight walked blind, whatever --blind-arms said
+      if any(row["carried"].values()) and mi.walker.carry_blind:
+        row["blind"] = True
     if WALKER:
       row["walker"] = os.path.basename(WALKER)
     if PINCH_OUT:
