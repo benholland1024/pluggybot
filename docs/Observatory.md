@@ -12,16 +12,20 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
 
-**What the robots read** moves by one History line: the prompt `264ac7f6…`
-(72,130 characters, 17 sections) and the session host's hello `9dcf6202`
-are byte for byte as they were. A station fix that dropped the map (only one
+**What the robots read** moves by one History line and one field of the
+turn: the prompt `264ac7f6…` (72,130 characters, 17 sections) and the
+session host's hello `9dcf6202` are byte for byte as they were. A station fix that dropped the map (only one
 past the matcher's 0.6 m search did) said "my charging station put me 0.7 m
 and 2 deg from where I believed I was: the map I had was laid askew, and it
 is gone" (123-126 characters with its stamp, of History's 400). Every fix
 that moves the belief 10 cm or 2 deg now says "my charging station put me
-0.2 m and 0 deg from where I believed I was: the map I had and the places I
-had found are gone" (128-131), the stand-up's own words (`MAP_GONE`); a fix
-under 0.6 m was narrated only. "Laid askew" was a cause the fix never measured: it
+20 cm and 0.4 deg from where I believed I was: the map I had and the places
+I had found are gone" (129-131), the stand-up's own words (`MAP_GONE`), its
+distance in cm under a metre and its turn in tenths of a degree under ten
+(at "0.1 m" or "0 deg" a fix past its own threshold read as one under it);
+a fix under 0.6 m was narrated only. And the turn's `floorExplored` reads
+false after such a fix, as after a stand-up: the explore that laid the map
+went with it. "Laid askew" was a cause the fix never measured: it
 measures the belief, and a belief its last walk carried off laid no askew
 map. A draft for Ben.
 

@@ -1774,11 +1774,16 @@ class HubLifecycle:
     row per event that moved the belief outside a match or lost it
     (`Body.belief_events`), and one every `DRIFT_EVERY_S` with the
     matcher's verdicts since the last -- the sim's own check, read by
-    nothing that decides (`_tell_belief` says the robot's part)."""
+    nothing that decides (`_tell_belief` says the robot's part). A fix that
+    dropped the map ends the explore that laid it, as a stand-up's drop
+    does (`_forget_world`): no floor explored, no frontier blacklisted
+    (#681: kept, the loop believed one dock's view explored)."""
     events = self.body.belief_events
     if events and events[-1]["seq"] > self._belief_seen:
       for rec in events:
         if rec["seq"] > self._belief_seen:
+          if rec["why"] == "fixed" and rec.get("dropped"):
+            self.floor_explored, self.blacklist = False, set()
           self._emit(self._drift_row(rec))
           self._tell_belief(rec)
       self._belief_seen = events[-1]["seq"]
@@ -1818,7 +1823,8 @@ class HubLifecycle:
     """A belief event said, and the ones the robot should know of written
     to History: lost at a fixture, a map dropped, how the search after a
     loss ended, a map that has refused every scan for a minute and its
-    taking scans again (#697). A fix that kept the map and a relocation are
+    taking scans again (#697). A relocation, and a fix that kept the map (a
+    body's whose fix keeps it: the humanoid's drops it at every move), are
     narrated only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
     b, a = rec["before"], rec["after"]
@@ -1832,8 +1838,11 @@ class HubLifecycle:
       line = (f"I did not find {what} where I believed it was, so I may not be where I "
               "thought, and I am looking round for it")
     elif why == "fixed" and rec.get("dropped"):
-      line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
-              f"was: {MAP_GONE}")
+      # ...in cm under a metre and tenths of a degree under ten: at "0.1 m" or
+      # "0 deg" a fix past its 10 cm or 2 deg read as one under it
+      far = f"{off * 100:.0f} cm" if off < 1.0 else f"{off:.1f} m"
+      turn = f"{turned:.1f} deg" if turned < 10.0 else f"{turned:.0f} deg"
+      line = f"{what} put me {far} and {turn} from where I believed I was: {MAP_GONE}"
     elif why == "searched" and rec.get("ended") == "seen, never near":
       line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and saw it, but never "
               "got near enough to it to know where I am")

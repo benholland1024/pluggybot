@@ -2698,12 +2698,14 @@ save a filmstrip PNG named after the script.
   (held plainly, a wheel pump ran the pose 3.4 m); a direction the walls do
   not fix keeps odometry's estimate; a fit the map disagrees with, or one
   that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
-  NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
-  moved (docked, fusing every scan walked the map 0.15 m) -- ⚠ NEVER ON TIME
-  ALONE BUT IN AN ANCHOR'S WINDOW, laid there as they come (#741's option 4,
-  #681; `ScanMatcher.fuses`): laid every 5 s standing still, a kept map's
-  docked belief walked 13 cm to 43 cm in an hour and the counter's 0.8-8.8
-  cm in 28 minutes; laid only as it moves, 13.1 cm flat and 0.4-0.8.
+  NOT FUSED, if nothing agrees; and a scan is fused only once where it was
+  taken from has moved, its sensor's place as well as the pose (docked,
+  fusing every scan walked the map 0.15 m; a bow carries the sensor 0.54 m
+  ahead of a pelvis standing still) -- ⚠ NEVER ON TIME ALONE BUT IN AN ANCHOR'S WINDOW,
+  laid there as they come (#741's option 4, #681; `ScanMatcher.fuses`):
+  laid every 5 s standing still, a kept map's docked belief walked 13 cm to
+  43 cm in an hour and the counter's 0.8-8.8 cm in 28 minutes; laid only as
+  it moves, 13.1 cm flat and 0.4-0.8.
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one that held a direction, or whose
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
@@ -2833,7 +2835,8 @@ save a filmstrip PNG named after the script.
   AT THE STATION: after a step toward the seat the tags are out of view, and
   the belief carries the station between looks -- held on odometry alone,
   it drifted 4-7 cm over two steps and a seat came out 7 cm wrong.
-  The run, what it found and the window are kept state. ⚠ A scan is still
+  The run, what it found and the window are kept state (a save from before
+  #681's pair restores its window closed: it was a kept map's). ⚠ A scan is still
   laid in at half its points on walls: a stricter bar kept the living room
   from being laid over, and refused the scans that re-lay an eroded wall.
   ⚠ No BLAS product (einsum's own loop); the field is kept state.
@@ -2852,8 +2855,11 @@ save a filmstrip PNG named after the script.
   the storeroom's error came back at once (live 11-25: -13.9 cm, as before
   the fix), where on a map a fix had dropped (11-22) a try moved the belief
   0.9 cm for 8.5 hours; and a map laid while lost pulled a corrected belief
-  onto a copy within 20 s. ⚠ ITS HISTORY LINE SAYS HOW FAR AND WHAT WENT,
-  NEVER WHY (`MAP_GONE`): it measures the belief, never the map. ⚠ A copy
+  onto a copy within 20 s. ⚠ ITS HISTORY LINE SAYS HOW FAR (cm under a
+  metre, tenths of a degree under ten) AND WHAT WENT, NEVER WHY (`MAP_GONE`):
+  it measures the belief, never the map. ⚠ The explore that laid the map
+  goes with it, as a stand-up's (`floorExplored` false, nothing
+  blacklisted). ⚠ A copy
   under `FIX_TOL` fires none (Luca's house dock of 11-25 sat 8.4-9.4 cm
   west for 80 minutes). The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost

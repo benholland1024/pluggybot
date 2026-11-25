@@ -1371,10 +1371,10 @@ two tags (`HumanoidBody._fix_at`).
   -- at the charge, and on a lost robot's looks. Never on a walk-in: the
   quadruped's one look there was 26 cm and 6.6 deg out, past the line that
   drops a map.
-- *What it does*: past `FIX_TOL_*` (10 cm or 2 deg) it moves the belief and
-  lays the map again round it; past the matcher's own search (`ASKEW_*`,
-  0.6 m or 6 deg) the map goes with its places -- kept, a map laid while
-  lost pulled a corrected belief back onto a copy within 20 s.
+- *What it does*: past `FIX_TOL_*` (10 cm or 2 deg) it moves the belief,
+  and the map goes with its places, laid again from there (#681: "A
+  station's fix that moves the belief drops the map") -- kept, a map laid
+  while lost pulled a corrected belief back onto a copy within 20 s.
 - *Lost*: no fixture in sight where the charge's walk ended (within
   `NEAR_STANDOFF_M` of the standoff, #422), with no other robot near it.
   The map goes, the robot looks for the fixture -- the humanoid steps in by
@@ -9319,8 +9319,9 @@ instruments count all three (`FIT_TAKEN`).
 
 **Not done.** A drag past the search's 0.6 m (the live 1.1 m of 13:56): the
 wide search or the station. The slow creep (0.2 m and 2 deg an hour with
-every scan matched, Rowan charging and in `DONE`): not explained. A fix
-under `ASKEW` keeps an askew map (the mall's leg). An error toward a wall
+every scan matched, Rowan charging and in `DONE`): not explained. (A fix
+under `ASKEW` kept an askew map, the mall's leg, until #681's pair dropped
+the map at every fix that moves the belief.) An error toward a wall
 whose far side was never seen is not doubted: its points land on unseen
 cells, no information, so the fit reads 0.93-1.00 on walls (the review's
 dead end mapped from one side: 0.3 m toward its end kept in 44 cases of
@@ -9999,8 +10000,8 @@ left wherever its fits hold it, and what laid Rowan's there is not known.
 Not up from a fall, the bounded search still takes the best of a window
 the truth may lie outside of, and the doubt's own search looks no further
 than its window; a belief arriving from the mall's station 0.9-1.0 m off
-(#681's call 3, a fix under `ASKEW` keeping a map laid askew) is `ok` on
-its own map, as before. A wrong place under `UNIQUE_M` from the truth
+(#681's call 3, a fix under `ASKEW` keeping a map laid askew, which since
+#681's pair drops it) is `ok` on its own map, as before. A wrong place under `UNIQUE_M` from the truth
 stands (the cube's end's find; an `ok` fit 0.39 m along the restaurant's
 pass), as does any take where the truth is out of the look's 2 m or
 explains under 0.9 of the scan: the station's to fix, as before. The legs'
@@ -11791,16 +11792,19 @@ belief past `FIX_TOL_*` (10 cm, 2 deg) drops the map, the depth camera's
 layer and the places found on it (`HumanoidBody._fix_at`, `forget_world`),
 as only one past the matcher's search did before, and opens the anchor's
 window: the next 30 scans laid at the belief put right, unmatched, as they
-come (3 s). The relay is gone with what only it reached
-(`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`,
+come (3 s). The loop's explore goes with the map, as at a stand-up
+(`floorExplored` false, no frontier blacklisted). The relay is gone with
+what only it reached (`ScanMatcher.relay`, `RELAY_BEHIND_M`, `relay_keeps`,
 `OccupancyGrid.seen_by` / `forget_seen`). With it, #741's option 4: a scan
-is laid only once the belief has moved 1 cm or turned half a degree since
-the last laid, or inside an anchor's window -- never on time alone (below).
-The History line says how far the station put the robot and that its map
-and the places it had found are gone (`MAP_GONE`, the stand-up's own words),
-where it said "the map I had was laid askew": the fix measures the belief,
-never the map, and a belief its last walk carried off had laid no askew
-map.
+is laid only once where it was taken from has moved 1 cm or turned half a
+degree since the last laid -- its sensor's place as well as the pose's, a
+bow carrying the sensor 0.54 m ahead of a pelvis standing still -- or
+inside an anchor's window; never on time alone (below). The History line
+says how far the station put the robot, in cm under a metre and tenths of a
+degree under ten, and that its map and the places it had found are gone
+(`MAP_GONE`, the stand-up's own words), where it said "the map I had was
+laid askew": the fix measures the belief, never the map, and a belief its
+last walk carried off had laid no askew map.
 - *Why the window at a drop.* A robot standing still lays no scan on time
   alone, so docked after a drop its map would be the one scan laid after the
   fix until it crept a centimetre; a window of one scan slid the fits 3 cm
@@ -11814,8 +11818,10 @@ map.
   open, 1.30 m off). With the map dropped there is no older copy for the
   closed window to hand the belief back to.
 - *A restart inside the window* carries it on (`anchoring` is kept state); a
-  save from before the pair that still owed a relay (`relay`, `relayM`)
-  restores its window and makes none.
+  save from before the pair restores its window closed -- it was a fix's
+  that kept the map, and laid on unmatched it would be a second room beside
+  the kept one -- and lays its next scan at once (it kept its pose's place,
+  not its sensor's).
 
 **Standing still, no scan laid on time alone** (#741's option 4, Y3 of the
 loop of 11-24, `loop-741b`). A robot standing still laid a scan every

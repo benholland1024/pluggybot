@@ -360,6 +360,15 @@ def _solve3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
   return np.array([x0, x1, x2])
 
 
+def _from(pose, origin) -> tuple[float, float, float]:
+  """Where a scan laid at `pose` was taken from: its sensor's place, `origin`
+  (forward, left) of the pose, and the pose's heading."""
+  x, y, th = (float(v) for v in pose)
+  fwd, left = origin
+  c, s = math.cos(th), math.sin(th)
+  return x + c * fwd - s * left, y + s * fwd + c * left, th
+
+
 def _apart(a, b) -> tuple[float, float]:
   """How far apart two poses, or two corrections, (x, y, theta) are: metres
   and radians turned."""
@@ -444,8 +453,9 @@ class ScanMatcher:
     #: Where the field was computed (world x, y) and the scans fused since.
     self.at: tuple[float, float] | None = None
     self.fused_since = 0
-    #: The pose of the last scan fused (`fuses`).
-    self.fused_pose: tuple[float, float, float] | None = None
+    #: Where the last scan fused was taken from (`fuses`): its sensor's
+    #: place, levelled, and the heading of the pose it was laid at.
+    self.fused_from: tuple[float, float, float] | None = None
     #: Every verdict over a life, and the matches held along a direction.
     self.counts: dict[str, int] = {}
     self.last: Match | None = None
@@ -522,16 +532,19 @@ class ScanMatcher:
 
   # ---- when a scan goes into the map ------------------------------------------
 
-  def fuses(self, match: Match) -> bool:
+  def fuses(self, match: Match, origin=(0.0, 0.0)) -> bool:
     """Whether the scan just matched goes into the map: its verdict allows
-    it, and the robot has moved since the last one fused (FUSE_*) -- never
-    on time alone -- or it is an anchor's (`anchored`), laid as it comes."""
+    it, and where it was taken from has moved since the last one fused
+    (FUSE_*: its sensor's place, `origin` -- (forward, left) of the pose --
+    as well as the pose's, a bow carrying it 0.54 m ahead of a pelvis that
+    stands still) -- never on time alone -- or it is an anchor's
+    (`anchored`), laid as it comes."""
     if not match.fuse:
       return False
-    if self.fused_pose is None or self.anchoring:
+    if self.fused_from is None or self.anchoring:
       return True
-    x, y, th = match.pose
-    fx, fy, fth = self.fused_pose
+    x, y, th = _from(match.pose, origin)
+    fx, fy, fth = self.fused_from
     turned = abs(math.atan2(math.sin(th - fth), math.cos(th - fth)))
     return math.hypot(x - fx, y - fy) >= FUSE_M or turned >= FUSE_RAD
 
@@ -549,7 +562,7 @@ class ScanMatcher:
     self.turned_left, self.turned_seen, self.turned_from = 0, None, None
     self._settled()
     if on:
-      self.lost_run, self.pending, self.fused_pose = 0, None, None
+      self.lost_run, self.pending, self.fused_from = 0, None, None
 
   def fell(self) -> None:
     """The robot is up from a fall (issue #690): until a scan fits, its next
@@ -593,12 +606,13 @@ class ScanMatcher:
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
     on its wheels after a fall maps again at once."""
-    self.fused_pose = None
+    self.fused_from = None
 
-  def fused(self, pose) -> None:
-    """The scan just matched went into the map at `pose`."""
+  def fused(self, pose, origin=(0.0, 0.0)) -> None:
+    """The scan just matched went into the map at `pose`, taken from
+    `origin` (forward, left) of it."""
     self.fused_since += 1
-    self.fused_pose = tuple(float(v) for v in pose)
+    self.fused_from = _from(pose, origin)
     if self.anchoring:
       self.anchoring -= 1
 
@@ -1129,7 +1143,7 @@ class ScanMatcher:
     field, nothing fused, and a new life's verdicts counted from zero."""
     self.field = self.normals = None
     self.corner, self.at, self.fused_since = (0, 0), None, 0
-    self.fused_pose = None
+    self.fused_from = None
     self.counts, self.last = {}, None
     self.lost_run, self.pending, self.anchoring = 0, None, 0
     self.doubt_wait = 0
@@ -1142,10 +1156,10 @@ class ScanMatcher:
     state = {"corner": list(self.corner),
              "at": None if self.at is None else list(self.at),
              "fusedSince": self.fused_since,
-             "fusedPose": None if self.fused_pose is None else list(self.fused_pose),
+             "fusedFrom": None if self.fused_from is None else list(self.fused_from),
              "counts": dict(self.counts), "lostRun": self.lost_run,
              "pending": None if self.pending is None else list(self.pending),
-             "anchoring": self.anchoring,
+             "anchoring": self.anchoring, "windowAtDrop": True,
              "doubtWait": self.doubt_wait, "turnedLeft": self.turned_left,
              "turnedSeen": None if self.turned_seen is None else [list(p) for p in self.turned_seen],
              "turnedFrom": None if self.turned_from is None else list(self.turned_from),
@@ -1158,16 +1172,18 @@ class ScanMatcher:
     self.corner = tuple(int(v) for v in state["corner"])
     self.at = None if state["at"] is None else tuple(float(v) for v in state["at"])
     self.fused_since = int(state["fusedSince"])
-    if state.get("fusedPose") is not None:
-      self.fused_pose = tuple(float(v) for v in state["fusedPose"])
+    # ...a save from before #681's pair kept where its pose, not its sensor,
+    # was (`fusedPose`): its next scan is laid, moved or not
+    if state.get("fusedFrom") is not None:
+      self.fused_from = tuple(float(v) for v in state["fusedFrom"])
     self.counts = dict(state.get("counts", {}))
     self.lost_run = int(state.get("lostRun", 0))
     pending = state.get("pending")
     self.pending = None if pending is None else tuple(float(v) for v in pending)
-    # ...a save from before #681's pair may say a relay was still to come
-    # (`relay`, `relayM`): none is made now, and its window lays on the map
-    # that save kept
-    self.anchoring = int(state.get("anchoring", 0))
+    # ...and its window was a fix's that KEPT the map (a relay pending or
+    # done, `relay`, `relayM`): laid on unmatched, its scans would be a second
+    # room beside the kept one, so it is closed
+    self.anchoring = int(state.get("anchoring", 0)) if state.get("windowAtDrop") else 0
     self.doubt_wait = int(state.get("doubtWait", 0))
     self.turned_left = int(state.get("turnedLeft", 0))
     seen = state.get("turnedSeen")

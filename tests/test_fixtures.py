@@ -230,6 +230,41 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
   assert not any("3.0" in ln for ln in said)
 
 
+def test_a_fix_says_how_far_it_moved_the_belief_past_its_own_rounding():
+  # #681's pair's review: every fix that moves the belief 10 cm or 2 deg now
+  # writes History, and at "0.1 m" or "0 deg" one past its own threshold read
+  # as one under it -- so cm under a metre, tenths of a degree under ten
+  body = StubBody()
+  life = stub_life(body=body)
+  life._drift_due = math.inf
+  for seq, after, words in ((1, (1.12, 2.0, math.radians(0.4)), "put me 12 cm and 0.4 deg"),
+                            (2, (1.03, 2.0, math.radians(2.4)), "put me 3 cm and 2.4 deg"),
+                            (3, (3.5, 2.0, math.radians(17.0)), "put me 2.5 m and 17 deg")):
+    body.belief_events.append(_event(seq, "fixed", (1.0, 2.0, 0.0), after, after,
+                                     fixture="station", moved=True, dropped=True))
+    life._belief_step()
+    assert _history(life)[-1].endswith(f"my charging station {words} from where I believed I "
+                                       f"was: {MAP_GONE}"), _history(life)[-1]
+
+
+def test_a_fix_that_dropped_the_map_ends_the_explore_that_laid_it():
+  # #681's pair's review: a stand-up's drop ends the explore that laid the map
+  # (`_forget_world`); a fix's must too, or the loop believes one dock's view
+  # explored, and the old map's frontiers stay blacklisted
+  body = StubBody()
+  life = stub_life(body=body)
+  life._drift_due = math.inf
+  life.floor_explored, life.blacklist = True, {(3, 4)}
+  body.belief_events.append(_event(1, "fixed", (1.0, 2.0, 0.0), (1.05, 2.0, 0.0), (1.05, 2.0, 0.0),
+                                   fixture="station", moved=True, dropped=False))
+  life._belief_step()
+  assert life.floor_explored and life.blacklist == {(3, 4)}, "a fix that kept the map"
+  body.belief_events.append(_event(2, "fixed", (1.0, 2.0, 0.0), (1.3, 2.0, 0.0), (1.3, 2.0, 0.0),
+                                   fixture="station", moved=True, dropped=True))
+  life._belief_step()
+  assert not life.floor_explored and life.blacklist == set()
+
+
 def test_a_map_refusing_every_scan_is_one_line_and_a_scan_that_fits_one_more():
   # Issue #697: the body's `refusing` and `matching` belief events
   # (`navigator.Refusals`) are drift rows, each ONE History line, said as

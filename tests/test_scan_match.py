@@ -668,6 +668,15 @@ def test_a_robot_standing_still_lays_no_scan_on_time_alone_but_in_an_anchors_win
   # ...and a fit that slid is never laid into the map, however far it moved
   assert not m.fuses(moved._replace(why="slid", accepted=False))
   assert m.fuses(moved._replace(why="sparse", accepted=False))
+  # ...and where the scan is taken from counts, not the pelvis alone (round
+  # 1 of #681's pair's review): a bow carries the sensor 0.54 m ahead of a
+  # pelvis that stands still, and what it sees from there is laid, once
+  ahead = (0.03, 0.0)
+  m.fused(TRUE, ahead)
+  assert not m.fuses(jitter, (0.032, 0.0)), "a sensor's millimetre"
+  assert m.fuses(ok, (0.57, 0.0)), "a bow's view, not laid"
+  m.fused(TRUE, (0.57, 0.0))
+  assert not m.fuses(ok, (0.57, 0.0))
   # ...but an anchor's scans are laid as they come, ten a second
   m.anchored()
   m.fused(TRUE)
@@ -734,7 +743,7 @@ def test_each_scan_is_laid_through_the_pose_its_match_found(house):
   laid.clear()
   before = m.pose
   m.matcher.answer = m.matcher.answer._replace(why="slid", accepted=False, pose=before)
-  m.matcher.fused_pose = None
+  m.matcher.fused_from = None
   m.data.time += LIDAR_PERIOD
   m._scan_step()
   assert not laid, "a scan whose fit slid was laid into the map"
@@ -998,7 +1007,7 @@ def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(house):
   rate = (0.0, 0.0, 0.1)
   assert np.array_equal(n.stand.trunk.imu.gyro(rate, 0.002), imu.gyro(rate, 0.002))
   assert np.array_equal(n.matcher.field, m.matcher.field, equal_nan=True)
-  assert n.matcher.fused_pose == m.matcher.fused_pose
+  assert n.matcher.fused_from == m.matcher.fused_from
   a.close()
   b.close()
 
@@ -1020,15 +1029,25 @@ def test_a_restart_inside_a_fixs_window_carries_it_on(house):
   m._scan_step()
   assert 0 < m.matcher.anchoring < sm.ANCHORED_SCANS, "the premise: inside the window"
   state, arrays = m.kept_state()
-  for old in ({}, {"relay": True}, {"relayM": 0.46, "fusedT": 3.0}):
+  b = _humanoid(house)
+  n = b.mission
+  n.restore_kept(state, arrays)
+  assert n.matcher.anchoring == m.matcher.anchoring
+  n.data.time += 1.0
+  n._scan_step()
+  assert n.matcher.last.why == "anchored"
+  assert n.matcher.anchoring == m.matcher.anchoring - 1
+  b.close()
+  # ...but a save from before the pair: its window was a fix's that KEPT the
+  # map (a relay pending or done), laid on unmatched a second room beside the
+  # kept one -- closed (its next scan matched), and laid, moved or not, as it
+  # kept its pose's place, not its sensor's (`fusedPose`)
+  match = {k: v for k, v in state["match"].items() if k not in ("windowAtDrop", "fusedFrom")}
+  for old in ({"relay": True}, {"relay": False}, {"relayM": 0.46, "fusedT": 3.0}):
     b = _humanoid(house)
     n = b.mission
-    n.restore_kept(dict(state, match=dict(state["match"], **old)), arrays)
-    assert n.matcher.anchoring == m.matcher.anchoring, old
-    n.data.time += 1.0
-    n._scan_step()
-    assert n.matcher.last.why == "anchored", old
-    assert n.matcher.anchoring == m.matcher.anchoring - 1, old
+    n.restore_kept(dict(state, match=dict(match, fusedPose=[1.5, 0.5, 0.0], **old)), arrays)
+    assert n.matcher.anchoring == 0 and n.matcher.fused_from is None, old
     b.close()
   a.close()
 
@@ -2206,7 +2225,7 @@ def test_a_restart_keeps_an_anchors_window(room):
   state, arrays = m.kept_state()
   n = sm.ScanMatcher(room)
   n.restore_kept(state, arrays)
-  assert n.anchoring == sm.ANCHORED_SCANS - 1 and n.fused_pose == m.fused_pose
+  assert n.anchoring == sm.ANCHORED_SCANS - 1 and n.fused_from == m.fused_from
   assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
   m.anchored(on=False)
   assert m.anchoring == 0, "a warp kept the window"
@@ -2340,6 +2359,13 @@ def test_a_robot_standing_still_lays_no_scan_but_a_fixs_window(house):
 
   assert len(stand(LIDAR_PERIOD)) == 1, "the first scan"
   assert stand(15.0) == [], "laid on time alone, standing still"
+  # ...but a view its sensor moved to, the pelvis still (a bow), once: the
+  # scan taken 0.5 m further ahead, its fit taken where the pelvis stands
+  real, fit = m._scan, m.matcher.match
+  m._scan = lambda: (lambda sc: sc._replace(origin=(sc.origin[0] + 0.5, sc.origin[1])))(real())
+  m.matcher.match = lambda pose, *a, **kw: m.matcher._done(pose, "ok")
+  assert len(stand(15.0)) == 1, "a bow's view laid never, or on time"
+  m._scan, m.matcher.match = real, fit
   body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))
   assert stand(LIDAR_PERIOD * (sm.ANCHORED_SCANS + 100)) == ["anchored"] * sm.ANCHORED_SCANS
   body.close()
