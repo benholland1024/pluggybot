@@ -12133,24 +12133,33 @@ each acted on, the sim time to the verdict moved by a median of 0.1 s (W) and
 ... from where you asked") read the hand a tick after the stop: on the flights
 S acted on, 22 of 26 said the same and 4 moved by 0.1 cm and 1-2 N.
 
-**At the turn it was asked** (the review of 11-25's first round). S as flown
-put the turn its senses read -- the one the press had twisted the hand to --
-into the command and the goal, and a carry after keeps the command's turn
-(`carry`: never the one it sagged to, #493). The hand is now held where its
-senses put it at the turn the command had, as a carry stopped short is
-(`_end`), its arm solved there from where its drivers read it, which presses
-on nothing it met.
+**At the turn it was asked** (the reviews of 11-25). S as flown put the turn
+its senses read -- the one the press had rolled the hand to -- into the
+command and the goal, and a carry after keeps the command's turn (`carry`:
+never the one it sagged to, #493). Held at the turn its command had instead,
+its arm solved there from where its drivers read it (S'), the wrist turns back
+off the press: at the lid check's set-out 14 its drivers read it 0.26 rad off
+that command as it stopped, and the jaw left the bracket 0.04 s later. On the
+dev draws S' passed 252 of 320 with 3 falls, against S's 248 and 4 (the
+drawers 46 and 0 against 43 and 1). The second review found two more: the
+reach's goal took the command's turn too, so a reach asked none -- the robots'
+own, nearly all -- backed out along its fingers instead of the way it went in;
+and a solve missing by up to 6 cm was commanded, a hand that cannot hold that
+turn there driven a few cm off where it rests.
 
 **What is true now** (`Reach._eased_stop`, `_update`'s stop; `tests/
 test_hands.py`): a reach stopped on its way in by a push (`BLOCKED_N`, "it
-pushed on something") is held where the hand is -- its command and its goal
-the place its senses put the grip at as that command began, at the turn the
-command had (a reach asked none keeps none), the arm solved there from where
-its drivers read it, or the arm as read where that solve diverges -- so a
-withdraw comes out back along the asked fingers from where the hand is, and a
-next reach's way out, a shut or a carry begins there too. A stop out of reach
-holds its command as before. The stop's report reads the hand a tick after the
-stop, so its numbers can move by about 0.1 cm and 1-2 N where it is eased.
+pushed on something") is held where the hand is. Its command is the place its
+senses put the grip at as that command began, at the turn the command had,
+the arm solved there from where its drivers read it; its goal is that place at
+the reach's own turn, none where it was asked none, so a withdraw comes out
+along the way it went in: back along the asked fingers, or straight back
+toward the body. Where that solve misses past `REPLAN_M` or `REPLAN_ROT`, the
+arm is held as read, its command at the turn it reads (a carry after keeps
+that one). A next reach's way out, a shut or a carry begins from there too. A
+stop out of reach holds its command as before. The stop's report reads the
+hand a tick after the stop, so its numbers can move by about 0.1 cm and 1-2 N
+where it is eased.
 
 ## Debugging workflow that worked
 

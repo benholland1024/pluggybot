@@ -1803,16 +1803,23 @@ def test_the_humanoids_hand_stopped_is_its_reachs_own_rule_where_it_stopped_shor
     assert body.hand_why("left") == why and body.hand_stopped("left") == said
 
 
+@functools.lru_cache(maxsize=1)
+def _model_of_itself():
+  """One model of the robot, posed afresh for each grip read off it."""
+  from pluggybot.humanoid.arms import SelfModel
+  return SelfModel()
+
+
 def _grip_at(r, side, q):
   """Where the arm at joints `q` puts `side`'s grip, (pos, rot), stance frame:
-  a fresh model of the robot posed as `r`'s stands."""
-  from pluggybot.humanoid.arms import SelfModel
-  sm = SelfModel()
+  a model of the robot posed as `r`'s stands."""
+  sm = _model_of_itself()
   sm.q = r.self_model.q.copy()
   sm.d.qpos[:] = r.self_model.d.qpos
   mujoco.mj_kinematics(sm.m, sm.d)
   sm._set_arm(side, q)
-  return sm.grip_pose(side)
+  pos, rot = sm.grip_pose(side)
+  return pos.copy(), rot.copy()
 
 
 def _twisted(rot, rad):
@@ -1822,8 +1829,40 @@ def _twisted(rot, rad):
   return np.asarray(rot, dtype=float) @ np.array([[c, -s_, 0.0], [s_, c, 0.0], [0.0, 0.0, 1.0]])
 
 
-@pytest.mark.parametrize("push", [True, False])
-def test_a_hand_stopped_on_a_push_is_held_where_it_is_at_the_turn_it_was_asked(push):
+def _pressed_stop(push=52.0, goal_turn=True, solve="own"):
+  """`_coming_in`'s left hand stopped on its way in -- by a push of `push` N --
+  its drivers reading the arm held back off the command it drove on to, its
+  senses putting the grip where that arm does, the press having rolled the
+  hand 0.15 rad off the turn its command had (its pre-grasp's, as every
+  reach's command has on its way in); its goal at that turn (`goal_turn`) or
+  at none, a reach asked none. The stop's tick runs on the robot's own model
+  of itself ("own"), on `_coming_in`'s ("stub") or on `solve`. Returns (r,
+  rc, the read arm, where the hand is,
+  the turn its senses read, the command's turn, the goal before the stop)."""
+  r, rc = _coming_in(0.05, push)
+  read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
+  r.sensed[r.self_model.arm["left"]] = read
+  at, sagged = _grip_at(r, "left", read)
+  turn = _twisted(sagged, 0.15)
+  r.cmd["left"].rot = turn.copy()
+  r.goal["left"].rot = turn.copy() if goal_turn else None
+  r.self_model.grip_pose = lambda side: ((at.copy(), sagged.copy()) if side == "left"
+                                         else (np.array([0.4, -0.3, 0.9]), np.eye(3)))
+  asked = r.goal["left"]
+  for _ in range(round(rc.BLOCKED_S / 0.01) - 1):
+    r._update(0.01)
+  del r.self_model.grip_pose
+  r.self_model._set_arm("left", read)
+  if solve == "own":
+    del r.self_model.solve
+  elif solve != "stub":
+    r.self_model.solve = solve
+  r._update(0.01)
+  return r, rc, read, at, sagged, turn, asked
+
+
+@pytest.mark.parametrize("push, goal_turn", [(True, True), (True, False), (False, True)])
+def test_a_hand_stopped_on_a_push_is_held_where_it_is_at_the_turn_it_was_asked(push, goal_turn):
   """#750 (the lid check's set-out 14 with its fourth try moving nothing): a
   reach stopped on its way in by a push was held at the command it drove on
   to, 6.6 cm across its fingers from its goal, a jaw on a chest's bracket and
@@ -1831,48 +1870,33 @@ def test_a_hand_stopped_on_a_push_is_held_where_it_is_at_the_turn_it_was_asked(p
   dragged the jaw back over the bracket at 30-57 N, the robot rolled 5 deg off
   its hand and its soles turned 4 deg, and as the jaw slipped off it went over
   (the base's drawer at set-out 12: pressed on the drawer's top, the next
-  reach's way out dragged it). Stopped on a push, it is held where it IS --
-  its command and goal the place its senses put the grip at -- at the turn it
-  was ASKED, never the one the press twisted it to (a carry after keeps the
-  command's turn: `carry`, #493), its arm solved there from where its drivers
-  read it, pressing on nothing; a withdraw comes out back along the asked
-  fingers `APPROACH_M` from there. A stop that was no push -- out of reach --
-  holds its command as before."""
-  r, rc = _coming_in(0.05, 52.0 if push else 10.0)
-  # ...its drivers read the arm held back off the command it drives on to,
-  # its senses put the grip where that arm does, and the press has twisted
-  # the hand 0.15 rad off the turn it was asked
-  read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
-  r.sensed[r.self_model.arm["left"]] = read
-  at, sagged = _grip_at(r, "left", read)
-  asked_turn = _twisted(sagged, 0.15)
-  r.cmd["left"].rot, r.goal["left"].rot = asked_turn.copy(), asked_turn.copy()
-  r.self_model.grip_pose = lambda side: ((at.copy(), sagged.copy()) if side == "left"
-                                         else (np.array([0.4, -0.3, 0.9]), np.eye(3)))
-  drove, asked = r.q_cmd["left"].copy(), r.goal["left"]
-  ticks = round(rc.BLOCKED_S / 0.01)
-  for _ in range(ticks - 1):
-    r._update(0.01)
-  if push:
-    # ...the stop's tick on the robot's own model of itself, as the body's loop
-    # runs it: its arm where its drivers read it, its solve its own
-    del r.self_model.solve, r.self_model.grip_pose
-    r.self_model._set_arm("left", read)
-  r._update(0.01)
+  reach's way out dragged it). Stopped on a push, it is held where it IS: its
+  command the place its senses put the grip at, at the turn the command had,
+  never the one the press rolled it to (a carry after keeps the command's
+  turn: `carry`, #493), its arm solved there from where its drivers read it,
+  pressing on nothing; its goal that place at the reach's own turn -- none
+  where it was asked none -- so a withdraw comes out along the way it went in:
+  back along the asked fingers, or straight back toward the body (review 2).
+  A stop that was no push -- out of reach -- holds its command as before."""
+  r, rc, read, at, sagged, turn, asked = _pressed_stop(52.0 if push else 10.0, goal_turn,
+                                                       solve="own" if push else "stub")
   assert r.phase["left"] == "blocked"
   assert r.stopped["left"]["by"] == ("pushed" if push else "reach"), "the premise"
   if not push:
-    assert np.allclose(r.q_cmd["left"], drove), "an out-of-reach stop eased"
-    assert r.goal["left"] is asked
+    assert r.goal["left"] is asked, "an out-of-reach stop eased"
     return
   assert np.allclose(r.cmd["left"].pos, at) and np.allclose(r.goal["left"].pos, at), \
     "held at the command it drove on to, pressing on what it met"
-  assert np.allclose(r.cmd["left"].rot, asked_turn) and np.allclose(r.goal["left"].rot, asked_turn), \
-    "held at the turn the press twisted it to, which a carry after would keep"
+  assert np.allclose(r.cmd["left"].rot, turn), \
+    "held at the turn the press rolled it to, which a carry after would keep"
+  if goal_turn:
+    assert np.allclose(r.goal["left"].rot, turn)
+  else:
+    assert r.goal["left"].rot is None, "a turn written into a reach asked none"
   assert r.cmd["left"].stiffness == asked.stiffness
-  grip, turn = _grip_at(r, "left", r.q_cmd["left"])
+  grip, held_turn = _grip_at(r, "left", r.q_cmd["left"])
   assert np.linalg.norm(grip - at) < 0.005, "its arm not commanded where the hand is"
-  assert _angle_of(turn.T @ asked_turn) < 0.02, "its arm not at the turn it was asked"
+  assert _angle_of(held_turn.T @ turn) < 0.02, "its arm not at its command's turn"
   assert np.allclose(r.q_to["left"], r.q_cmd["left"]) and r.miss["left"] < 0.005
   left = [(q, k) for s, q, k in r.sent if s == "left"]
   assert np.allclose(left[-1][0], r.q_cmd["left"]) and left[-1][1] == asked.stiffness, \
@@ -1881,50 +1905,36 @@ def test_a_hand_stopped_on_a_push_is_held_where_it_is_at_the_turn_it_was_asked(p
   for _ in range(5):
     r._update(0.01)
   assert r.phase["left"] == "blocked" and np.allclose(r.q_cmd["left"], held), "it moved on its own"
-  # ...a withdraw comes out back along the asked fingers from there -- and the
-  # way home judged against another robot before it moves (#678,
-  # `home_clear`) begins where that line out ends
+  # ...a withdraw comes out along the way it went in -- and the way home
+  # judged against another robot before it moves (#678, `home_clear`) begins
+  # where that line out ends
   judged_from = r._home_from("left")
   r.retreat("left")
   assert r.phase["left"] == "retreat"
-  assert np.allclose(r.goal["left"].pos, at + rc.APPROACH_M * asked_turn[:, 2])
+  back = turn[:, 2] if goal_turn else np.array([-1.0, 0.0, 0.0])
+  assert np.allclose(r.goal["left"].pos, at + rc.APPROACH_M * back)
   end, _ = _grip_at(r, "left", judged_from)
   assert np.linalg.norm(end - r.goal["left"].pos) <= rc.REPLAN_M, \
     "its way home judged from where its line out would not end"
 
 
-def test_a_hand_stopped_on_a_push_out_of_reach_of_its_turn_is_held_as_read():
-  """#750's review: where the solve from the arm as its drivers read it to
-  where the hand is at the turn it was asked diverges (`WILD_M`), the arm is
-  held as read, at the turn that arm puts the grip at -- its command and its
-  arm agree, so the next solve does not step it -- and where no turn was
-  asked, none is kept."""
-  for turned in (True, False):
-    r, rc = _coming_in(0.05, 52.0)
-    read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
-    r.sensed[r.self_model.arm["left"]] = read
-    at, sagged = _grip_at(r, "left", read)
-    asked = _twisted(sagged, 0.15) if turned else None
-    r.cmd["left"].rot, r.goal["left"].rot = asked, asked
-    for _ in range(round(rc.BLOCKED_S / 0.01) - 1):
-      r._update(0.01)
-    del r.self_model.grip_pose
-    r.self_model._set_arm("left", read)
-    if turned:
-      # ...every solve on the stop's tick diverging
-      r.self_model.solve = lambda side, pos, rot=None, iters=None: (read + 0.5, 0.2, 0.0)
-    else:
-      del r.self_model.solve
-    r._update(0.01)
-    assert r.phase["left"] == "blocked" and r.stopped["left"]["by"] == "pushed", "the premise"
-    assert np.allclose(r.cmd["left"].pos, at)
-    if turned:
-      assert np.allclose(r.q_cmd["left"], read) and r.miss["left"] == 0.0, "a diverged solve commanded"
-      assert np.allclose(r.cmd["left"].rot, sagged), "commanded where it stands at a turn it is not at"
-    else:
-      assert r.cmd["left"].rot is None and r.goal["left"].rot is None, "a turn kept where none was asked"
-      grip, _ = _grip_at(r, "left", r.q_cmd["left"])
-      assert np.linalg.norm(grip - at) < 0.005
+@pytest.mark.parametrize("miss", ["place", "turn"])
+def test_a_hand_stopped_on_a_push_out_of_reach_of_its_turn_is_held_as_read(miss):
+  """#750's reviews: where the solve from the arm as its drivers read it to
+  where the hand is, at its command's turn, misses past `REPLAN_M` or
+  `REPLAN_ROT` -- that turn out of the arm's reach there, where a few cm off
+  would drive the hand back into what it met -- the arm is held as read, its
+  command at the turn that arm puts the grip at (its command and its arm
+  agree, so the next solve does not step it), its goal at the reach's own."""
+  from pluggybot.humanoid import reach as rc
+  off = (1.2 * rc.REPLAN_M, 0.0) if miss == "place" else (0.0, 1.2 * rc.REPLAN_ROT)
+  r, rc, read, at, sagged, turn, asked = _pressed_stop(
+    solve=lambda side, pos, rot=None, iters=None: (np.zeros(len(hm.ARM)), off[0], off[1]))
+  assert r.phase["left"] == "blocked" and r.stopped["left"]["by"] == "pushed", "the premise"
+  assert np.allclose(r.q_cmd["left"], read) and r.miss["left"] == 0.0, "a solve that missed commanded"
+  assert np.allclose(r.cmd["left"].pos, at)
+  assert np.allclose(r.cmd["left"].rot, sagged), "commanded where it stands at a turn it is not at"
+  assert np.allclose(r.goal["left"].rot, turn), "the reach's own turn not kept for its way out"
 
 
 def _angle_of(rot) -> float:

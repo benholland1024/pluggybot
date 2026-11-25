@@ -32,10 +32,12 @@ it slipped off the robot went over), and so did a next reach's way out (the
 drawer check's set-out 12, the same fall). Such a hand is now held where it
 is, at the turn it was asked, pressing on nothing, the moment it stops: a
 withdraw, a walk's or a step's hand-over, the next reach, a carry and the
-loop's own after a charge's reach all begin from where the hand is. It reaches
-the robots' own procedures after every pushed stop: 65 of the weekend of
-11-21/22's 200 tries flown at their live draws have one. A stop out of reach holds
-its command as before.
+loop's own after a charge's reach all begin from where the hand is, and a
+withdraw comes out along the way the hand went in (a reach asked no turn --
+the robots' own, nearly all -- straight back toward the body, as before). It
+reaches the robots' own procedures after every pushed stop: 65 of the weekend
+of 11-21/22's 200 tries flown at their live draws have one. A stop out of
+reach holds its command as before.
 
 **What the period is for.**
 - **The acceptance**: no fall in the verb after a `reach` that stopped short
