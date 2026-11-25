@@ -12386,12 +12386,18 @@ loop's own too, until a withdraw sends it home; nothing of its way home is
 waited for, and no walk is refused for it (#678's refusal is a hand a walk
 would bring home). The robots are told so (YOUR BODY: "...and so does every
 walk after it, until a `withdraw` sends it home again", where it said "...and
-a `withdraw` or the next walk sends it home again").
+a `withdraw` or the next walk sends it home again"; and after the walk's
+refusal for another robot, "An arm left held is no such hand: the walk goes
+with it").
 
 **What it does not take.** An arm left held rides out at its side through
 every walk until a withdraw -- through a doorway, past the other robot, the
 loop's own charge walk and its dock -- and a robot with one is never at rest,
-so never asked aside. A robot standing with such an arm held out off the
+so never asked aside, and the other robot keeps clear only of a body at
+rest. Nothing judges the held arm against another robot before or during a
+walk: #678's judgments are of ways home, and it takes none, and the walk's
+disc and front stop are the body's, its arms tucked. Walk2 sees the held
+arm's own pose on every walk (#751's mask hides only a carried arm). A robot standing with such an arm held out off the
 counter fell once in seven waits flown (option 2's k1, above). The robot's
 own `withdraw` from a held pose still drags the jaw, as the base's hand-over
 did (#693's second path, D4's).

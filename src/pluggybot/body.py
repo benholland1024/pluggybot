@@ -860,7 +860,8 @@ class Body(abc.ABC):
     says them -- else None, with no hand out none, and no look. A walk
     brings the arms home or to its side first, so the walk verbs refuse to
     walk then (`steps.ARM_KEPT_OFF`); the loop's own walks wait for it
-    (`HumanoidMission.ARM_WAIT_S`)."""
+    (`HumanoidMission.ARM_WAIT_S`). An arm left held (`arm_held`) is no such
+    hand: a walk goes with it where it is held (#753)."""
 
   @abc.abstractmethod
   def carrying(self, side: str) -> bool:

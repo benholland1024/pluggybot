@@ -196,7 +196,8 @@ WALK_LETS_GO = (" Before a `step` or any other walk moves your\n"
                 "with it, the hand lets go and comes home.\n%(held)s\nNor does a `step` or any other\n"
                 "walk move while a hand is out whose every way home -- or to your side,\n"
                 "carried -- would meet the body of another robot standing near you: it reads\n"
-                "false and says where that robot stands.") % {
+                "false and says where that robot stands. An arm left held is no such hand:\n"
+                "the walk goes with it.") % {
   "lift": round(100 * CARRY_LIFT_M, 1), "force": CARRY_LIFT_N,
   # ...and an arm whose way home something holds (#693's family)
   # ...and every walk after goes with it held too: sent home by the next

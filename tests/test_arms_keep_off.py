@@ -430,6 +430,9 @@ def test_the_robot_is_told_every_walk_goes_with_an_arm_left_held():
   assert ("the walk goes with it there and says so in its report (`armHeld`), and so does every "
           "walk after it, until a `withdraw` sends it home again.") in body
   assert "the next walk sends it home again" not in body
+  # ...nor is a walk refused for it with another robot by (`Body.arm_kept`), as the robot is told
+  assert ("it reads false and says where that robot stands. An arm left held is no such hand: the "
+          "walk goes with it.") in body
 
 
 # ---- 5: a withdraw refused keeps its gripper ------------------------------------------------

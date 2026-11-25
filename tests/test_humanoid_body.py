@@ -440,12 +440,19 @@ def test_a_walks_hand_over_leaves_an_arm_left_held_where_it_is_held():
   log = []
   m.reach = _Out(_opened(m.reach.grippers), ("right",), log, lambda: float(body.data.time))
   m.reach.phase["left"] = "held"
+  # ...the fake reads an arm held off its phase, as `Reach.held` does
+  m.reach.held = lambda side: m.reach.phase[side] == "held"
   body.run(m.to_walk_routine())
   assert m.legs == "walk"
   sent = [e[1] for e in log if e[0] == "retreat"]
   assert "left" not in sent, "the hand-over sent an arm left held home"
   assert sent == ["right"], "an arm out at its work no longer came home"
-  assert m.reach.phase["left"] == "held"
+  assert m.reach.phase["left"] == "held" and body.arm_held("left")
+  # ...and the next walk's hand-over goes with it too, never sending it home
+  m.legs = "stand"
+  body.run(m.to_walk_routine())
+  assert m.legs == "walk" and [e[1] for e in log if e[0] == "retreat"] == ["right"]
+  assert body.arm_held("left"), "a second walk sent the arm left held home"
 
 
 def test_the_loops_own_walk_goes_with_an_arm_left_held_and_never_refuses():

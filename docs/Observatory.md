@@ -12,10 +12,10 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ### Every walk goes with an arm left held, until a withdraw sends it home (#753's option 3, D1, `loop-753b`) — a draft for Ben; opens when this PR is deployed
 
-**What the robots read** moves by one sentence of YOUR BODY, in the prompt
-and the session host's hello alike: the prompt `264ac7f6…` (72,130
-characters, 17 sections) becomes `0cfbab57…` (72,148, 17 sections), and the
-hello `9dcf6202` (sha1) becomes `addbf9af`, vendored at
+**What the robots read** moves by two sentences of YOUR BODY, in the
+prompt and the session host's hello alike: the prompt `264ac7f6…` (72,130
+characters, 17 sections) becomes `d14c46ba…` (72,205, 17 sections), and the
+hello `9dcf6202` (sha1) becomes `9388708f`, vendored at
 `protocol/hello.home_humanoid_counter.json` (the site re-vendors it at the
 release). BEFORE: "An arm that something holds on its way home is raised 5
 cm and sent home again, unless another robot stands near you, and still
@@ -23,9 +23,13 @@ held, it stays where it is held, pressing on nothing: the walk goes with it
 there and says so in its report (`armHeld`), and a `withdraw` or the next
 walk sends it home again." AFTER: "...: the walk goes with it there and says
 so in its report (`armHeld`), and so does every walk after it, until a
-`withdraw` sends it home again." No History line moves: a walk that goes
-with an arm held reads ok, as it did, and says `armHeld` in its report, a
-field it already had.
+`withdraw` sends it home again." And the walk's refusal for another robot,
+BEFORE: "Nor does a `step` or any other walk move while a hand is out whose
+every way home -- or to your side, carried -- would meet the body of another
+robot standing near you: it reads false and says where that robot stands."
+AFTER, one sentence added: "An arm left held is no such hand: the walk goes
+with it." No History line moves: a walk that goes with an arm held reads ok,
+as it did, and says `armHeld` in its report, a field it already had.
 
 **The change** (`HumanoidMission.to_walk_routine`, `_arms_wait_routine`,
 `Body.arm_kept`; SimNotes, "A held arm a walk goes with"). A walk's
