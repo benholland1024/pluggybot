@@ -1643,8 +1643,7 @@ class Reach:
     the turn it puts the grip at, so the next solve does not step it -- a
     carry after keeps that turn. ⚠ The command steps in one tick to the
     place the arm stands, at the turn it was commanded all along, letting
-    the press go as `_struck` lets a caught way out go: at the lid check's
-    set-out 14 the jaw left the bracket 0.04 s after the stop."""
+    the press go, as `_struck` lets a caught way out go."""
     sm = self.self_model
     read = self.sensed[sm.arm[side]].copy()
     sm._set_arm(side, read)
@@ -3214,11 +3213,9 @@ class Reach:
           # Stopped where it was last commanded: the goal is out of its reach,
           # or the hand pushes on something -- the push said where it held at
           # least half the run, both or not (`_pushes`) -- and a push held
-          # where the hand is (`_eased_stop`, #750). ⚠ Held at the command it
-          # drove on to, a jaw pressed down on a chest's bracket was dragged
-          # back over it by the withdraw's line out at 30-57 N, rolling the
-          # robot 5 deg off its hand until, slipped off, it went over; one
-          # pressed on a drawer's top, by the next reach's way out.
+          # where the hand is, never at the command it drove on to, which
+          # pressed it on what it met (`_eased_stop`, #750; SimNotes, "A hand
+          # stopped on a push, held where it is").
           n_push, n_all, hardest = self._pushes[s]
           self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
                              else {"by": "reach"})
