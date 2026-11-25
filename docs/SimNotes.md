@@ -12147,6 +12147,19 @@ own, nearly all -- backed out along its fingers instead of the way it went in;
 and a solve missing by up to 6 cm was commanded, a hand that cannot hold that
 turn there driven a few cm off where it rests.
 
+**On Ben's bar** (the final code, one pod beside ff2896af): 613 of 736 passed
+(609) with 4 falls (5), 58 flights acted on and none moved where it did not
+act. The lid's set-out 14 with its fourth try moving nothing passes (64 deg),
+and the drawer's set-outs 12 and 22 no longer fall. Its one new fall, the
+drawer at 78, is the base's own: eased, the hand's next reach, planned from
+where the arm is, found nothing that reached before a crouch with a bow and
+the waist turned 15 deg, whose way out dragged the jaw over the drawer's top
+at 27-70 N until the soles turned 20 deg and it fell. Given that posture the
+base falls the same way (8.86 s); given only the base's, which does not
+reach from the eased arm, that reach moves nothing and the next opens the
+drawer 18 cm. The robots' own 200 tries kept their two passes, and the tries
+with a fall went 3 -> 2.
+
 **What is true now** (`Reach._eased_stop`, `_update`'s stop; `tests/
 test_hands.py`): a reach stopped on its way in by a push (`BLOCKED_N`, "it
 pushed on something") is held where the hand is. Its command is the place its

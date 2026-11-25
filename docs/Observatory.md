@@ -45,8 +45,11 @@ reach holds its command as before.
   because it "pushed on something" -- a `fall` row whose `at` names the
   `withdraw`, `reach` or walk that came next.
 - **Offline, before it**: at the hands checks' set-outs 128-191, 26 of 320
-  flights acted on, falls 6 -> 4 and passes 248 -> 248 (SimNotes, "A hand
-  stopped on a push, held where it is").
+  flights acted on, falls 6 -> 3 and passes 248 -> 252; Ben's bar on the
+  final code, 58 of 736 acted on, falls 5 -> 4 and passes 609 -> 613, its
+  one new fall the base's own from the posture its next reach took; the
+  robots' own 200 tries, the same two passes and tries with a fall 3 -> 2
+  (SimNotes, "A hand stopped on a push, held where it is").
 
 ### A restore books the step it steps again, and the keeper saves after every step hook (#749, Z6, `loop-749`) — opens when this PR is deployed
 
