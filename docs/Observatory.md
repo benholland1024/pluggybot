@@ -42,7 +42,7 @@ after a pick read "got nowhere" in 87 of 98 trips, and with the cure in none
 of 95; its checks laid 21 of 32 with no fall, where they laid 17 with 1, and
 its tours 12, where they laid 13, no fall on either. The pass's reference
 (#682): its carried walks walk true (they veered toward the carrying arm 9.3
-and 11.8 deg a metre; now 0.4 and 3.3), and it lays 3 of 32, where it laid 16
+and 11.6 deg a metre; now 0.4 and 3.3), and it lays 3 of 32, where it laid 16
 with 1 fall -- its put-downs were tuned on a settle the seeing walker's
 carried turns left, which a retune would most likely recover (not flown).
 carry_spike's served carries: no fall on either tree; its open-loop courses

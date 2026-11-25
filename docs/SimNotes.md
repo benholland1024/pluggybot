@@ -8166,8 +8166,8 @@ interleaved; the loop of 11-25b, C3):
 - **The pass** (`set_table_pass`, never offered; its reference from the tour's
   32 draws): the cure makes walk2 do what it is asked while carrying -- walks
   that ask no turn veered toward the carrying arm 9.3 deg a metre (the left
-  hand) and 11.8 (the right), and now 0.4 and 3.3 (walks carrying nothing, the
-  control, veer 5.1 and 5.8 deg a metre clockwise on the two trees); a carried
+  hand) and 11.6 (the right), and now 0.4 and 3.3 (walks carrying nothing, the
+  control, veer 5.2 and 6.0 deg a metre clockwise on the two trees); a carried
   step's turn ends 1.4 deg off what it asked on average, where it ended 2.9 --
   and the reference loses its put-downs: 3 of 32 laid with no fall, against 16
   of 32 with 1. It was tuned on the base walker's errors: its cup's reach
