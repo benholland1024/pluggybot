@@ -1803,6 +1803,92 @@ def test_the_humanoids_hand_stopped_is_its_reachs_own_rule_where_it_stopped_shor
     assert body.hand_why("left") == why and body.hand_stopped("left") == said
 
 
+def _grip_at(r, side, q):
+  """Where the arm at joints `q` puts `side`'s grip, (pos, rot), stance frame:
+  a fresh model of the robot posed as `r`'s stands."""
+  from pluggybot.humanoid.arms import SelfModel
+  sm = SelfModel()
+  sm.q = r.self_model.q.copy()
+  sm.d.qpos[:] = r.self_model.d.qpos
+  mujoco.mj_kinematics(sm.m, sm.d)
+  sm._set_arm(side, q)
+  return sm.grip_pose(side)
+
+
+@pytest.mark.parametrize("push", [True, False])
+def test_a_hand_stopped_on_a_push_is_held_where_its_drivers_read_it(push):
+  """#750 (the lid check's set-out 14 with its fourth try moving nothing): a
+  reach stopped on its way in by a push was held at the command it drove on
+  to, 6.6 cm across its fingers from its goal, a jaw on a chest's bracket and
+  the arm's spring pressing it down; the withdraw's line out from that command
+  dragged the jaw back over the bracket at 30-57 N, the robot rolled 5 deg off
+  its hand and its soles turned 4 deg, and as the jaw slipped off it went over
+  (the base's drawer at set-out 12: pressed on the drawer's top, the next
+  reach's way out dragged it). Stopped on a push, it is held where its drivers
+  read it, pressing on nothing -- its command and goal the grip they put it
+  at, as its senses had it when that command began -- and a withdraw comes out
+  back along those fingers `APPROACH_M` from there. A stop that was no push --
+  out of reach -- holds its command as before."""
+  r, rc = _coming_in(0.05, 52.0 if push else 10.0)
+  # ...its drivers read the arm held back off the command it drives on to,
+  # and its senses put the grip where that arm does
+  read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
+  r.sensed[r.self_model.arm["left"]] = read
+  at, turn = _grip_at(r, "left", read)
+  r.self_model.grip_pose = lambda side: ((at.copy(), turn.copy()) if side == "left"
+                                         else (np.array([0.4, -0.3, 0.9]), np.eye(3)))
+  drove, asked = r.q_cmd["left"].copy(), r.goal["left"]
+  for _ in range(round(rc.BLOCKED_S / 0.01)):
+    r._update(0.01)
+  assert r.phase["left"] == "blocked"
+  assert r.stopped["left"]["by"] == ("pushed" if push else "reach"), "the premise"
+  if not push:
+    assert np.allclose(r.q_cmd["left"], drove), "an out-of-reach stop eased"
+    assert r.goal["left"] is asked
+    return
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read), \
+    "held at the command it drove on to, pressing on what it met"
+  assert np.allclose(r.cmd["left"].pos, at) and np.allclose(r.goal["left"].pos, at)
+  assert np.allclose(r.cmd["left"].rot, turn) and r.cmd["left"].stiffness == asked.stiffness
+  left = [(q, k) for s, q, k in r.sent if s == "left"]
+  assert np.allclose(left[-1][0], read) and left[-1][1] == asked.stiffness, \
+    "commanded there the tick it stopped, at its reach's stiffness"
+  for _ in range(5):
+    r._update(0.01)
+  assert r.phase["left"] == "blocked" and np.allclose(r.q_cmd["left"], read), "it moved on its own"
+  # ...a withdraw comes out back along those fingers from there -- and the way
+  # home judged against another robot before it moves (#678, `home_clear`)
+  # begins where that line out ends, the eased hand's
+  judged_from = r._home_from("left")
+  r.retreat("left")
+  assert r.phase["left"] == "retreat"
+  assert np.allclose(r.goal["left"].pos, at + rc.APPROACH_M * turn[:, 2])
+  end, _ = _grip_at(r, "left", judged_from)
+  assert np.linalg.norm(end - r.goal["left"].pos) <= rc.REPLAN_M, \
+    "its way home judged from where its line out would not end"
+
+
+def test_a_hand_stopped_on_a_push_is_a_hand_at_work_until_it_is_home():
+  """#750's stateful paths: held where its drivers read it the tick it stops,
+  inside the arm's loop, the hand is out -- blocked, then on its line out --
+  so no keeper's save lands until it is home (`Body.working`); what it is
+  commanded and where it goes ride a run's end's save with the reach
+  (`Reach.KEPT`)."""
+  from pluggybot.humanoid import reach as rc
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  try:
+    for phase in ("blocked", "retreat", "home"):
+      body.mission.reach.phase["left"] = phase
+      assert body.working, phase
+    assert {"q_cmd", "q_to", "cmd", "goal", "phase"} <= set(rc.Reach.KEPT)
+  finally:
+    body.close()
+
+
 def _walking_home(phase="home", watch=True):
   """`_walking_out`'s left arm on its way HOME instead, in joint space, its
   command ahead of where its drivers read it, the hand out to the robot's

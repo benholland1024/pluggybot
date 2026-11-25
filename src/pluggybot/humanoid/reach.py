@@ -1629,6 +1629,19 @@ class Reach:
     self.halt(side, "blocked")
     self.stopped[side] = {"by": "caught"}
 
+  def _eased_stop(self, side: str, pos, rot, k: float) -> np.ndarray:
+    """A hand stopped on its way in by a push (`BLOCKED_N`) held where its
+    drivers read it, pressing on nothing (#750), as one caught on its way out
+    is (`_struck`): its command and its goal the grip they put it at (`pos`,
+    `rot`, its senses' as this command began, stiffness `k`), so a withdraw
+    comes out along those fingers from there; returns the arm's joints so
+    read, its command."""
+    q = self.sensed[self.self_model.arm[side]].copy()
+    self.q_to[side] = q.copy()
+    self.cmd[side] = HandGoal(np.array(pos, dtype=float), np.array(rot, dtype=float), k)
+    self.goal[side] = HandGoal(np.array(pos, dtype=float), np.array(rot, dtype=float), k)
+    return q
+
   def ease(self, side: str) -> bool:
     """A hand held where it is -- holding (`hold`) or stopped on its way
     (`blocked`, pressed hardest) -- whose force pushes on along its fingers
@@ -3180,13 +3193,20 @@ class Reach:
         if self._off[s] >= BLOCKED_S:
           # Stopped where it was last commanded: the goal is out of its reach,
           # or the hand pushes on something -- the push said where it held at
-          # least half the run, both or not (`_pushes`)
+          # least half the run, both or not (`_pushes`) -- and a push held
+          # where its drivers read it (`_eased_stop`, #750). ⚠ Held at the
+          # command it drove on to, a jaw pressed down on a chest's bracket
+          # was dragged back over it by the withdraw's line out at 30-57 N,
+          # rolling the robot 5 deg off its hand until, slipped off, it went
+          # over; one pressed on a drawer's top, by the next reach's way out.
           n_push, n_all, hardest = self._pushes[s]
           self.stopped[s] = ({"by": "pushed", "n": hardest} if 2 * n_push >= n_all
                              else {"by": "reach"})
           self.cmd[s] = held
           q, ep, _ = sm.solve(s, held.pos, held.rot)
           self.phase[s], there = "blocked", False
+          if self.stopped[s]["by"] == "pushed":
+            q, ep = self._eased_stop(s, seen[s][0], seen[s][1], c.stiffness), 0.0
         self.q_cmd[s], self.miss[s], stiffness = q, ep, c.stiffness
         if there and phase in ("approach", "pull"):
           self.phase[s] = "hold"
