@@ -30,8 +30,9 @@ dragged it back across what it pressed (at the lid check's set-out 14 a jaw
 on a chest's bracket at 30-57 N rolled the robot 5 deg off its hand, and as
 it slipped off the robot went over), and so did a next reach's way out (the
 drawer check's set-out 12, the same fall). Such a hand is now held where it
-is, at its command's turn (as read where its arm cannot hold that turn
-there), pressing on nothing, the moment it stops: a
+is, at its command's turn (where its arm cannot hold that turn there, at
+the command it drove on to, as before), pressing on nothing, the moment it
+stops: a
 withdraw, a walk's or a step's hand-over, the next reach, a carry and the
 loop's own after a charge's reach all begin from where the hand is, and a
 withdraw comes out along the way the hand went in (a reach asked no turn --

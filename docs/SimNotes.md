@@ -12167,9 +12167,15 @@ senses put the grip at as that command began, at the turn the command had,
 the arm solved there from where its drivers read it; its goal is that place at
 the reach's own turn, none where it was asked none, so a withdraw comes out
 along the way it went in: back along the asked fingers, or straight back
-toward the body. Where that solve misses past `REPLAN_M` or `REPLAN_ROT`, the
-arm is held as read, its command at the turn it reads (a carry after keeps
-that one). A next reach's way out, a shut or a carry begins from there too. A
+toward the body. Where that solve misses past `REPLAN_M` or `REPLAN_ROT` the
+stop eases nothing: it holds the command it drove on to, solved from the
+model as it stood, as before. Held as read there (the final code above), the
+walked-in grid's left hand 0.30 m off the counter, turned 10 deg, its goal
+0.20 m right and the waist 45 deg round, kept a jaw on the cube's board where
+the base's slid off it; the withdraw's way home dragged the jaw over the
+counter's top at 27-79 N, the stand came as its command read home with the
+jaw still caught, and the robot went over backward. A next reach's way out,
+a shut or a carry begins from where the hand is held too. A
 stop out of reach holds its command as before. The stop's report reads the
 hand a tick after the stop, so its numbers can move by about 0.1 cm and 1-2 N
 where it is eased.
