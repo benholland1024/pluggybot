@@ -8037,11 +8037,13 @@ walk that carries, on walk2 (the loop of 11-12/13, L4; rows and probes in
 
 **What is true now:** a walk carries a hand that holds and has come away, at
 one pose, its wrist level as it was, its piece hidden from its own sensors
-within 0.12 m of the grip; everything else lets go as before. On walk2 it
-veers toward the carrying arm, which the Navigator steers out and a `step`
-does not. Two things stand before a carry is graded (stage C): the plate's
-pinch let it slide free in 3 of 12 house walks even at 80 N, touching
-nothing, and the cup's creep on the 13 m route.
+within 0.12 m of the grip; everything else lets go as before. Seeing its
+carried arm, walk2 veered toward it and stood still at the first carried
+step after a pick; it is shown its arms at rest while a hand is carried
+(below, "The walker shown its arms at rest while a hand is carried"). Two
+things stand before a carry is graded (stage C): the plate's pinch let it
+slide free in 3 of 12 house walks even at 80 N, touching nothing, and the
+cup's creep on the 13 m route.
 
 ## A walker trained to carry (#682's stage B)
 
@@ -8110,6 +8112,86 @@ actor seeing walk2's 24 joints in walk2's order (the exporter records them,
   trial of three stood still (-0.14 m/s its mean, the bar's edge). Narrowed
   toward one pose, it lost what the box had given it: carry2 is the
   candidate, carry3 kept off the repository (`loop-1112/l4-carry/`).
+
+## The walker shown its arms at rest while a hand is carried (#751's cure)
+
+**What broke** (#751; the loops of 11-24 and 11-25). A walk's hand-over
+carries a hand that holds something to its carry pose ("Carrying, served",
+above), and walk2 takes the legs. At the first carried step after a pick -- a
+sidestep at 0.3 m/s from the stance the standing policy held through the pick,
+its soles 21.3 cm apart -- walk2 leaned toward its left sole and lifted
+neither: the step read "got nowhere" with nothing in its way in 93 of 109
+trips of the shelf's reference, about 6 s a trip, and the next step stepped.
+Not the arm's swing: settled first (#751's option 1, `loop-751`) it stood
+still 12 times in 13. Not the stance alone: from its own stance after a stride
+walk2 steps whatever it leans. The two together: the carry pose folds the
+elbow to 1.6-2.0 rad, where walk2's scripted arms went to 1.15, and shown its
+arms at rest instead the same hand-over stepped 4 of 4. Seeing a carried arm,
+walk2 also veered toward it (above: 4-22 deg over 4 m).
+
+**What is true now** (`WalkDriver.observation(arms_at_rest=)`,
+`step(carrying=)`, `carry_blind`, `CARRY_TASK`;
+`HumanoidMission._before_step`; `tests/test_carry.py`): while either hand is
+carried (`Reach.carried`), the walking policy is shown every arm joint it sees
+-- both arms' six, never a gripper or the waist -- at its own default and
+still: the hanging pose the served arms rest at, which its scripted arms held
+half the time in training. The drivers are read as ever, the same draws (the
+standing policy shares them), so a flight with no hand carried is bit for bit
+as before. It is told at each policy step off the reach as it stands, so a
+restart carries it on and a stand-up's fresh reach ends it. A walker trained
+to carry (`Pluggy-Humanoid-Walk-Carry`, carry2, not served) is shown its arms
+as they are: it trained seeing them hold carry poses, and blinded it would
+lose what it learned to balance on. Built so, it equals carry_spike's
+`--blind-arms` and the loop's patch where both act, flight for flight.
+
+**Measured** (one Vast pod, a Xeon E5-2699 v4, osmesa, Python 3.12;
+`loop-staging` 0505dfc1 against the cure; the shelf on `loop-736` 97bbc19c
+against it with the cure applied; each flight its own noise, the arms
+interleaved; the loop of 11-25b, C3):
+- **The stall is gone.** The shelf's reference (#736, never offered; `loop-736`
+  97bbc19c, A3's frozen round 3) at the bar's 32 check set-outs and its 32
+  tour draws: the first carried step after a pick read "got nowhere" in 87
+  of 98 trips, and with the cure in none of 95 -- 84 stepped, 11 walked on
+  until something at the knees kept them off (#717) -- the stalled step's
+  6 s saved a trip: the checks' flights took 95.8 s, where they took 108.7
+  (median), two trips a flight. The checks laid 17 of 32 with 1 fall,
+  and 21 of 32 with none; the tours 13 and 12 of 32, no fall on either --
+  each reference's own failures reshuffled (lost looks, drops, a product off
+  along its board), none of a new kind: the shelf's steps are placed off its
+  looks and a stalled step is asked again, so nothing in it leans on the
+  stall.
+- **The pass** (`set_table_pass`, never offered; its reference from the tour's
+  32 draws): the cure makes walk2 do what it is asked while carrying -- walks
+  that ask no turn veered toward the carrying arm 9.3 deg a metre (the left
+  hand) and 11.8 (the right), and now 0.4 and 3.3 (walks carrying nothing, the
+  control, veer 5.1 and 5.8 deg a metre clockwise on the two trees); a carried
+  step's turn ends 1.4 deg off what it asked on average, where it ended 2.9 --
+  and the reference loses its put-downs: 3 of 32 laid with no fall, against 16
+  of 32 with 1. It was tuned on the base walker's errors: its cup's reach
+  lands 2.1 cm short and the pull down slides the hand 2.1 cm onto the place
+  as the body turns 2.9 deg under it, the settle a carried turn that ended
+  short leaves; blind, the turn ends where it was asked, nothing settles, and
+  the cup is let go 4 cm from where the base's are, the fork 3. The card is
+  read within 5 mm and 0.2 deg on both (a spy beside each look). The cure's
+  let-goes are as tight as the base's (the cup's 1.4 cm a side against 1.3), a
+  constant away: moved by it, 27 of 30 cups and 28 of 29 forks would land (by
+  arithmetic, not flown).
+- **carry_spike** (`--served`; 12 cases over 9 courses on a bare floor and
+  the house's route, 4 draws each): no fall on either tree. On a bare floor
+  the open-loop courses ended 0.19 m from where they were asked (median),
+  where they ended 0.69 -- a plate held close walked 4 m straight 1 deg off
+  its heading, where it turned 25 -- and 37 of 38 goals arrived (32); in the
+  house 29 of 32 carries arrived (24), dropping 3 pieces (9), in 60 s (85).
+  On the arc (a walk turning 0.5 rad/s) the plates end 6-10 deg short of the
+  turn, where the base's ended 1-3: walk2's own arc, its arms home or empty
+  (7.5-9 deg on both trees) -- the base's left veer had cancelled it.
+
+**The price.** walk2 balances blind to its arm and to what it holds. T7's
+bare-floor flights (above, "Carrying while walking, measured") found a piece
+held close walks true blind, and a load held out does not (both arms out fell
+20 of 28); the served walk carries one piece at one pose, close, and nothing
+else. A reference tuned on the seeing walker's carried walks (the pass's
+put-downs, above) is tuned on errors the cure takes away.
 
 ## The place laid from the pass (#682's stage C, easy mode)
 

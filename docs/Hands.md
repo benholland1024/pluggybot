@@ -504,10 +504,12 @@ there (§4's "A tag watched while the robot moves").
   pose: one piece in one hand, close. The body text says it beside the
   let-go, and a walk verb's report says what it carried (`carried`) and what
   its grip read empty by the end (`dropped`). The walker under it is walk2,
-  trained before any carry -- it veers 4-22 deg toward the carrying arm over
-  4 m, which the Navigator steers out but a `step`'s walk does not -- until
-  a walker trained carrying is served (`Pluggy-Humanoid-Walk-Carry`, #682's
-  stage B, Ben's call). Nor does a walk verb move with a hand out whose
+  trained before any carry, and shown its arms at rest while a hand is carried
+  (#751: seeing its folded elbow it stood still at the first carried step
+  after a pick, and veered toward the carrying arm 9-12 deg a metre; blind,
+  0.4-3.3) -- until a walker trained carrying is served
+  (`Pluggy-Humanoid-Walk-Carry`, #682's stage B, Ben's call), which is shown
+  its arms as they are. Nor does a walk verb move with a hand out whose
   every way home -- or to its carry pose, holding -- would meet another
   robot's body (#678), whose loop's own walks wait for it instead.
 - **A way out or home that looks, or feels.** Both are judged on the
