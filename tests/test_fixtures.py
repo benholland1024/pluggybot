@@ -239,7 +239,9 @@ def test_a_fix_says_how_far_it_moved_the_belief_past_its_own_rounding():
   life._drift_due = math.inf
   for seq, after, words in ((1, (1.12, 2.0, math.radians(0.4)), "put me 12 cm and 0.4 deg"),
                             (2, (1.03, 2.0, math.radians(2.4)), "put me 3 cm and 2.4 deg"),
-                            (3, (3.5, 2.0, math.radians(17.0)), "put me 2.5 m and 17 deg")):
+                            (3, (3.5, 2.0, math.radians(17.0)), "put me 2.5 m and 17 deg"),
+                            # ...the unit chosen as rounded: never "100 cm" nor "10.0 deg"
+                            (4, (1.997, 2.0, math.radians(9.96)), "put me 1.0 m and 10 deg")):
     body.belief_events.append(_event(seq, "fixed", (1.0, 2.0, 0.0), after, after,
                                      fixture="station", moved=True, dropped=True))
     life._belief_step()
@@ -263,6 +265,28 @@ def test_a_fix_that_dropped_the_map_ends_the_explore_that_laid_it():
                                    fixture="station", moved=True, dropped=True))
   life._belief_step()
   assert not life.floor_explored and life.blacklist == set()
+
+
+def test_a_drift_sample_after_a_dropped_map_counts_its_verdicts_afresh():
+  # #681's pair's review: the matcher's verdicts count from zero once a fix
+  # drops the map, and a sample's `matched` is its period's growth -- read
+  # against the old map's counts, 5 `ok` since the drop less 3 before it
+  # said 2 (and 3 against 3, none)
+  body = StubBody()
+  life = stub_life(body=body)
+  rows = []
+  life.on_event.append(rows.append)
+  life._drift_due = None
+  body.match_counts = {"ok": 3}
+  life._belief_step()                                # the period begins at 3
+  body.match_counts = {"ok": 5}                      # ...the map dropped: 5 since
+  body.belief_events.append(_event(1, "fixed", (1.0, 2.0, 0.0), (1.3, 2.0, 0.0), (1.3, 2.0, 0.0),
+                                   fixture="station", moved=True, dropped=True))
+  life._belief_step()
+  life.data.time += DRIFT_EVERY_S
+  life._belief_step()
+  sample = [r for r in rows if r.get("type") == "drift" and r["why"] == "sample"][-1]
+  assert sample["matched"] == {"ok": 5}, sample["matched"]
 
 
 def test_a_map_refusing_every_scan_is_one_line_and_a_scan_that_fits_one_more():

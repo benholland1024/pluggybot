@@ -2927,7 +2927,8 @@ save a filmstrip PNG named after the script.
   out (#401) did. ⚠ The
   signs are put in at load (`humanoid/world.py`), after the robots. ⚠
   Places ride a restart WITH the map (no map back, no places) and a true
-  death or a stand-up forgets both (`Body.forget_world`). `find` is a verb where
+  death, a stand-up or a station's fix that moves the belief (#681) forgets
+  both (`Body.forget_world`). `find` is a verb where
   `world_config` has `places`.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `humanoid/senses.py`, Parts.md's

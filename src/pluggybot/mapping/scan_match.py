@@ -605,7 +605,7 @@ class ScanMatcher:
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
-    on its wheels after a fall maps again at once."""
+    on its feet after a fall maps again at once."""
     self.fused_from = None
 
   def fused(self, pose, origin=(0.0, 0.0)) -> None:

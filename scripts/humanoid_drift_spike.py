@@ -395,8 +395,9 @@ def fly(seed: str = "luca", start: str = "start", explore_s: float = 240.0, trip
       body.run(body.hold_routine(0.05))
     except Stuck as stuck:
       out["stuck"] = {**stuck_row(stuck), "phase": tr.phase}
-    # ...the matcher's verdicts since its map was last dropped (a stand-up, a
-    # station fix that moves the belief: `ScanMatcher.forget`), as each row's
+    # ...the matcher's verdicts since its map was last dropped (a stand-up, or
+    # a station fix that moves the belief: `ScanMatcher.forget`), as each
+    # row's `counts` are
     out.update(rows=tr.rows, zones=tr.zone_table(), residual=tr.residual,
                counts=body.match_counts, falls=body.falls,
                events=[{k: e[k] for k in ("t", "why", "before", "after", "truth") if k in e}

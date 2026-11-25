@@ -213,13 +213,10 @@ WALK_KEEP_M = HumanoidMission.INFLATION_CELLS * GRID_M
 DEPTH_REACH_M = 3.0
 #: A look at the station moves the belief only past this, m / rad: the
 #: matched belief in the house is good to a few centimetres (#476). ⚠ AND
-#: A FIX THAT MOVES IT DROPS THE MAP AND ITS PLACES (#681): each region of
-#: a kept map holds the offset of the belief that laid it, and the matcher
-#: holds the belief to the map -- kept, back at the counter the storeroom's
-#: error came back at once after a lobby fix (live 11-25: -13.9 cm, as
-#: before it), where on a map a fix had dropped (11-22) a try moved the
-#: belief 0.9 cm for 8.5 hours; past the matcher's own search, a map laid
-#: while lost put a corrected belief back onto a copy within 20 s (#476).
+#: A FIX THAT MOVES IT DROPS THE MAP AND ITS PLACES (#681): kept, a region
+#: holds the offset of the belief that laid it and the matcher holds the
+#: belief to it (live 11-25, the counter's error back at once after a lobby
+#: fix; SimNotes, "A station's fix that moves the belief drops the map").
 FIX_TOL_M = 0.10
 FIX_TOL_RAD = math.radians(2.0)
 

@@ -308,8 +308,8 @@ class Refusals:
     return None
 
   def forget(self) -> None:
-    """The map that refused is gone (a true death, a stand-up, a fix past
-    the map's reach): nothing of it to say."""
+    """The map that refused is gone (a true death, a stand-up, a station's
+    fix that moves the belief): nothing of it to say."""
     self.since, self.told, self.fits_since = None, False, None
 
   def kept_state(self) -> dict:

@@ -1783,7 +1783,10 @@ class HubLifecycle:
       for rec in events:
         if rec["seq"] > self._belief_seen:
           if rec["why"] == "fixed" and rec.get("dropped"):
+            # ...and the matcher's verdicts count afresh: a sample's are since
+            # this, never the new map's less the old's
             self.floor_explored, self.blacklist = False, set()
+            self._drift_counts = {}
           self._emit(self._drift_row(rec))
           self._tell_belief(rec)
       self._belief_seen = events[-1]["seq"]
@@ -1839,9 +1842,10 @@ class HubLifecycle:
               "thought, and I am looking round for it")
     elif why == "fixed" and rec.get("dropped"):
       # ...in cm under a metre and tenths of a degree under ten: at "0.1 m" or
-      # "0 deg" a fix past its 10 cm or 2 deg read as one under it
-      far = f"{off * 100:.0f} cm" if off < 1.0 else f"{off:.1f} m"
-      turn = f"{turned:.1f} deg" if turned < 10.0 else f"{turned:.0f} deg"
+      # "0 deg" a fix past its 10 cm or 2 deg read as one under it (the unit
+      # chosen as rounded: 0.997 m is "1.0 m", never "100 cm")
+      far = f"{off * 100:.0f} cm" if round(off * 100) < 100 else f"{off:.1f} m"
+      turn = f"{turned:.1f} deg" if round(turned, 1) < 10.0 else f"{turned:.0f} deg"
       line = f"{what} put me {far} and {turn} from where I believed I was: {MAP_GONE}"
     elif why == "searched" and rec.get("ended") == "seen, never near":
       line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and saw it, but never "
