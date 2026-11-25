@@ -287,7 +287,7 @@ ANCHORED_SCANS = 30
 #: together -- on a kept map, docked 13 cm to 43 cm in an hour, at the
 #: counter 0.8-8.8 cm in 28 minutes; laid only as it moves, 13.1 cm flat and
 #: 0.4-0.8 -- and every scan fused, docked, 0.15 m in 388 s (SimNotes,
-#: "Standing still, no scan laid on time alone").
+#: "A station's fix that moves the belief drops the map").
 FUSE_M = 0.01
 FUSE_RAD = math.radians(0.5)
 

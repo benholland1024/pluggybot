@@ -10,6 +10,53 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
+
+**What the robots read** moves by one History line: the prompt `264ac7f6…`
+(72,130 characters, 17 sections) and the session host's hello `9dcf6202`
+are byte for byte as they were. A station fix that dropped the map (only one
+past the matcher's 0.6 m search did) said "my charging station put me 0.7 m
+and 2 deg from where I believed I was: the map I had was laid askew, and it
+is gone" (123-126 characters with its stamp, of History's 400). Every fix
+that moves the belief 10 cm or 2 deg now says "my charging station put me
+0.2 m and 0 deg from where I believed I was: the map I had and the places I
+had found are gone" (128-131), the stand-up's own words (`MAP_GONE`); a fix
+under 0.6 m was narrated only. "Laid askew" was a cause the fix never measured: it
+measures the belief, and a belief its last walk carried off laid no askew
+map. A draft for Ben.
+
+**The change** (`HumanoidBody._fix_at`, `ScanMatcher.fuses`; SimNotes, "A
+station's fix that moves the belief drops the map"). Every station fix that
+moves the belief drops the map, the depth camera's layer and the places
+found on it, and lays its next 30 scans at the belief put right, as they
+come; #741's relay (re-laying what the fix's next scan saw) is gone. And a
+robot standing still lays a scan into its map only once its belief has
+moved 1 cm or turned half a degree since the last -- never on time alone,
+where it laid one every 5 s -- but inside that window.
+
+**Why** (#681). Back at the storeroom's counter after a lobby fix that kept
+the map, the storeroom's kept error came back at once (Rowan on 11-25:
+-13.9 cm at 08:32 after its 07:00 fix, -13.5 to -18.8 before it) and walked
+west toward the copies standing still had laid (-55.7 cm by 12:53); the one
+map a fix dropped (11-22 09:17) held the counter to 0.9 cm a try for 8.5
+hours.
+
+**What the period is for.**
+- **The acceptance**: after a lobby or house fix, the counter's belief
+  starts within a few cm of the truth (no kept storeroom error to come back),
+  and no docked or standing belief walks with the body still.
+- **What it costs**: the map and the places found on it at every charge
+  whose fix moves the belief (Rowan's four lobby fixes of 11-25, 0.11-0.54 m,
+  would each have dropped it; Luca's two house docks, under 10 cm, none). The
+  counter's props are found again by their tags on the next try, and a robot standing still lays nothing new of what changes round it until
+  it moves.
+- **What it leaves**: a copy under 10 cm fires no fix (Luca's house dock of
+  11-25, 8.4-9.4 cm west for 80 minutes: #741's option 1 or 2, Ben's next
+  choice); the counter's work still walks a belief toward a copy within the
+  fit's reach until the next such fix; Luca's heading excursion at the
+  counter on 11-25 (0.0 to -1.8 deg in 20 minutes, back over 1.7 hours) is
+  untouched.
+
 ### A step whose walk got nowhere says what its legs counted, in the window that ended it (#751's words, C2, `loop-751w`) — opens when this PR is deployed
 
 **What the robots read** moves by one failure's words: the prompt

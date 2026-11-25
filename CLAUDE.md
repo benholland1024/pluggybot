@@ -2699,8 +2699,11 @@ save a filmstrip PNG named after the script.
   not fix keeps odometry's estimate; a fit the map disagrees with, or one
   that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
   NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
-  moved or 5 s have passed (docked, fusing every scan walked the map 0.15 m)
-  -- an anchor's window's excepted, laid as they come (below, #741).
+  moved (docked, fusing every scan walked the map 0.15 m) -- ⚠ NEVER ON TIME
+  ALONE BUT IN AN ANCHOR'S WINDOW, laid there as they come (#741's option 4,
+  #681; `ScanMatcher.fuses`): laid every 5 s standing still, a kept map's
+  docked belief walked 13 cm to 43 cm in an hour and the counter's 0.8-8.8
+  cm in 28 minutes; laid only as it moves, 13.1 cm flat and 0.4-0.8.
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one that held a direction, or whose
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
@@ -2785,15 +2788,9 @@ save a filmstrip PNG named after the script.
   looked round for good). ⚠ THE WIDE SEARCH'S OWN TAKE, AND THE SEARCH AT
   EVERY HEADING'S, IS CHECKED BY THE NEXT LOOK (`_put`: the doubt begins
   again where the belief was put, its looks and its 2 m). ⚠ UP FROM A FALL
-  AN ANCHOR'S WINDOW IS OVER, AND A RELAY STILL TO COME IS DROPPED (#741,
-  where #681 left the window open; `ScanMatcher.fell`; SimNotes, "A
-  station's fix that keeps the map lays again what it sees"): shoved a
+  AN ANCHOR'S WINDOW IS OVER (#741's review; `ScanMatcher.fell`): shoved a
   second after the lost search's fix, the open window laid 17 scans at the
-  belief the get-up moved and ended 1.30 m off; closed, what the fix saw
-  already laid again, 0.01 m, and it plugged in. ⚠ The price: a fall begun
-  in the 0.1 s between a fix and its relay's scan leaves nothing laid
-  again, and the closed window hands the right belief back to the copy
-  (#681's 0.2-0.45 m). ⚠ ONLY UP FROM
+  belief the get-up moved and ended 1.30 m off. ⚠ ONLY UP FROM
   A FALL: a robot that has not fallen is matched as it was, verdict for
   verdict (202 recorded falls replayed with the doubt off: the base's). ⚠
   IT BELIEVES THE MAP: a copy of the room `UNIQUE_M` or more away that
@@ -2815,32 +2812,19 @@ save a filmstrip PNG named after the script.
   `TURNED_NEAR_M` (0.5 m) OF WHERE THE BELIEF STOOD UP (walked on, it took
   5 of 118 onto that half turn). There it refuses about half the lobby's
   knocked get-ups.
-  ⚠ THE STATION OUTRANKS THE MAP: anchored off its tags (a fix, below),
-  the next `ANCHORED_SCANS` (30) scans are laid at the belief unmatched
-  (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
-  robot 0.6 m back into it; `start_at` closes the window. ⚠ ONLY A FIX
-  THAT KEEPS THE MAP OPENS ONE, AND IT LAYS AGAIN WHAT ITS NEXT SCAN SEES
-  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`; SimNotes, "A
-  station's fix that keeps the map lays again what it sees"): every cell
-  whose nearest bearing of that scan's lies within a degree of it, out to
-  that bearing's end, forgotten before the scan is laid -- kept, the region round the station held the
-  offset of the belief that laid it and took the belief back as the window
-  closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
-  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (uncapped, the lobby's
-  relay forgot 928 walls behind what it saw, never laid again from there),
-  ⚠ AND NO WALL
-  NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
-  CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
-  `update` lays it floor (the house's couch behind a robot the lost search
-  fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
-  head's panels leave free_from, it goes: Rowan's dock of 11-22 replayed laid
-  7-12 of its cells floor, and no walk went through them; Ben's to weigh. The
-  price, kept: a robot that walks away and back meets the lobby's copy
-  again, 13 cm). ⚠ THE WINDOW'S
-  SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
-  it lasted 146 s docked and the legs carried a belief 3 cm through it, the
-  region laid along it; a window of one scan slid the fits 3 cm along the
-  lobby on walls one scan thick. ⚠ A RETURN NEARER
+  ⚠ THE STATION LAYS THE MAP AFRESH: its fix drops the map (below) and the
+  next `ANCHORED_SCANS` (30) scans are laid at the belief it put right,
+  unmatched (`ScanMatcher.anchored`, #422, #681); `start_at` closes the
+  window. ⚠ ONLY A FIX THAT DROPS THE MAP OPENS ONE (a test reads the
+  code): kept, the region round the station held the offset of the belief
+  that laid it and took the belief back as the window closed (the lobby on
+  the save of 11-22: 10-11 cm within 3 minutes), and #741's relay, which
+  laid again what the fix's next scan saw, left the storeroom's error to come
+  back at the counter (SimNotes, "A station's fix that moves the belief drops
+  the map"). ⚠ THE WINDOW'S SCANS ARE LAID AS THEY COME, ten a second: held
+  to one every 5 s, it lasted 146 s docked and the legs carried a belief 3
+  cm through it, the region laid along it; a window of one scan slid the
+  fits 3 cm along the lobby on walls one scan thick. ⚠ A RETURN NEARER
   THAN `MATCH_MIN_M` (1 m) IS NO POINT OF THE FIT (#581's stage 2): what the
   hands work on, struck by a ring or two at the part's noisiest -- matched,
   the band's matcher moved a dock's belief 40-67 cm in 16-19 s; and every
@@ -2859,10 +2843,19 @@ save a filmstrip PNG named after the script.
   where the belief puts it is a robot LOST** (issue #476, on two legs #559;
   `HumanoidBody._fix_at`, `lost_routine`; SimNotes, "The humanoid's charging
   station"): each station is commissioned (#560: three), as the
-  quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` moves
-  the belief and lays again what its next scan sees (#741, above); ⚠ PAST THE MATCHER'S SEARCH (`ASKEW_*`) THE MAP AND ITS
-  PLACES ARE DROPPED: kept, a map laid while lost pulled a corrected belief
-  onto a copy within 20 s. The station not in sight from the standoff a
+  quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` (10 cm,
+  2 deg) moves the belief -- ⚠ AND DROPS THE MAP AND ITS PLACES, whatever
+  it moved by (#681; `forget_world`; SimNotes, "A station's fix that moves
+  the belief drops the map"), its window laying the map afresh (above):
+  kept, each region held the offset of the belief that laid it and the
+  matcher held the belief to it -- back at the counter after a lobby fix,
+  the storeroom's error came back at once (live 11-25: -13.9 cm, as before
+  the fix), where on a map a fix had dropped (11-22) a try moved the belief
+  0.9 cm for 8.5 hours; and a map laid while lost pulled a corrected belief
+  onto a copy within 20 s. ⚠ ITS HISTORY LINE SAYS HOW FAR AND WHAT WENT,
+  NEVER WHY (`MAP_GONE`): it measures the belief, never the map. ⚠ A copy
+  under `FIX_TOL` fires none (Luca's house dock of 11-25 sat 8.4-9.4 cm
+  west for 80 minutes). The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
   ONCE a charge -- ⚠ NEVER WITH ANOTHER ROBOT PLUGGED IN THERE OR BY ITS
