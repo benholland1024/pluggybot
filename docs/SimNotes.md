@@ -10975,9 +10975,13 @@ legs over, and a reach planned its way out from the rest.
 - A walk's hand-over waits for each arm's way home to be over by its drivers
   (`Reach.home_over`) -- at most `HELD_S` after its command reached the
   rest, and a raise and a second way home -- and goes with an arm left held,
-  as it is held, its report saying so (`armHeld`). A carry's way ends at its
-  pose and is never waited on to be read home: as first built it was, and a
-  hand-over would have waited on a carried arm until its procedure's budget.
+  as it is held, its report saying so (`armHeld`). A carry's way is never
+  waited on to be read home -- as first built it was, and a hand-over would
+  have waited on a carried arm until its procedure's budget -- but it is read
+  settled at its carry pose, `CARRY_SETTLE_S` (1 s) at most (#751's option 1,
+  `Reach._settled`): standing, the arm reads still 0.09-0.11 s after its
+  command arrives. That wait does not start the first step after a pick,
+  which stalls with the arm still too (#751).
 
 **Flown** (one Vast pod, a Xeon E5-2698 v4, Python 3.12.3, osmesa, beside
 73f8daf; the bar flew the first commit, fda2f353, and the head after both

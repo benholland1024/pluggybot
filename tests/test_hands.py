@@ -1074,13 +1074,11 @@ def _carried_to(r, side, read, turning):
 
 
 def test_a_carrys_way_is_over_once_its_drivers_read_the_arm_settled_at_its_pose():
-  """#751: a carry's way ended on its COMMAND reaching the carry pose (#682),
-  never read -- and a walk's hand-over gave walk2 the legs 2 ms later, the
-  arm still turning at 1.1-2.6 rad/s: the first step after a pick stood
-  still and read "blocked" in 91 of 107 of the shelf reference's trips. It
-  is over as a way home is, by its drivers (`home_over`): the arm turning
-  under `CARRY_STILL` and every joint within `CARRY_NEAR_RAD` of its pose,
-  the load's sag allowed."""
+  """#751's option 1: a carry's way ended on its COMMAND reaching the carry
+  pose (#682), never read -- and a walk's hand-over gave walk2 the legs 2 ms
+  later, the arm still turning at 1.0-2.6 rad/s. It is over as a way home
+  is, by its drivers (`home_over`): the arm turning under `CARRY_STILL` and
+  every joint within `CARRY_NEAR_RAD` of its pose, the load's sag allowed."""
   from pluggybot.humanoid import reach as rc
   r = _stepped(_standing_reach())
   arm = r.self_model.arm["left"]

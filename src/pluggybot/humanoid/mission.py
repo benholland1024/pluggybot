@@ -721,7 +721,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       # command alone, a walk walked a jaw on a counter's top), which the walk
       # carries as it is, pressing on nothing, and says so (`Body.arm_held`)
       # -- and a carry's way read settled at its pose (`Reach.CARRY_SETTLE_S`
-      # at most, #751: handed over on its command, walk2 stood still)
+      # at most, #751's option 1: handed over on its command, the arm turned on)
       while (any(p not in AT_EASE for p in self.reach.phase.values())
              or not all(self.reach.home_over(s) for s in hm.SIDES)
              or not self.stand.settled or not self.reach.waist_home()):

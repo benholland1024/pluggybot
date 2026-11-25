@@ -392,14 +392,15 @@ CARRY_POSE = (0.15, 0.25, 0.0, 2.00)
 #: once more this fine round the best.
 CARRY_GRID, CARRY_FINE = (33, 41), 0.1
 #: A CARRY'S WAY IS OVER BY ITS DRIVERS, as a way home is (#751; `_settled`,
-#: `home_over`; SimNotes, "A carry's way read settled"): its command at its
+#: `home_over`; SimNotes, "A way home something holds"): its command at its
 #: carry pose, once they read its six joints turning under this together,
 #: rad/s (the norm of their speeds), and every joint within this of the
 #: pose, rad -- a load's sag read 0.03-0.05 -- or this long after its
 #: command arrived, s, whatever they read: an arm its load holds off its
-#: pose. ⚠ Over on its command, a walk's hand-over gave walk2 the legs 2 ms
-#: later, the arm turning at 1.1-2.6 rad/s, and walk2 stood still: the first
-#: step after a pick got nowhere in 91 of 107 of the shelf reference's trips.
+#: pose. Over on its command, a walk's hand-over gave walk2 the legs 2 ms
+#: later, the arm turning at 1.0-2.6 rad/s; read, standing, it is still in
+#: 0.09-0.11 s. ⚠ NOT WHAT STALLS THE FIRST STEP AFTER A PICK: that stalls
+#: with the arm still too, on the stance the standing policy leaves (#751).
 CARRY_STILL, CARRY_NEAR_RAD, CARRY_SETTLE_S = 0.1, 0.1, 1.0
 
 #: The postures a reach may take, in the order they are tried -- the least

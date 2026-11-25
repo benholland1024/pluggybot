@@ -618,13 +618,11 @@ def _carrying(monkeypatch, n):
 
 
 def test_a_walk_takes_the_legs_only_once_a_carried_arms_way_is_read_settled(monkeypatch):
-  """#751: the walk's hand-over waited on each way home's drivers (#693) but
-  never on a carry's -- its way ended on its command at its pose (#682) -- and
-  gave walk2 the legs 2 ms after, the arm still turning at 1.1-2.6 rad/s:
-  walk2 stood still, and the first step after a pick read "blocked" with
-  nothing in its way. It waits until the carried arm's way is over by its
-  drivers (`Reach.home_over`: read settled at its pose, `CARRY_SETTLE_S` at
-  most)."""
+  """#751's option 1: the walk's hand-over waited on each way home's drivers
+  (#693) but never on a carry's -- its way ended on its command at its pose
+  (#682) -- and gave walk2 the legs 2 ms after, the arm still turning at
+  1.0-2.6 rad/s. It waits until the carried arm's way is over by its drivers
+  (`Reach.home_over`: read settled at its pose, `CARRY_SETTLE_S` at most)."""
   body, m, fake = _carrying(monkeypatch, 300)
   try:
     body.run(m.to_walk_routine())
