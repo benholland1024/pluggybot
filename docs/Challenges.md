@@ -555,10 +555,13 @@ Each piece is a trip through the staff door, 10-13 m each way. Its set-out is
 the kind's (`restaurant.SET_OUTS`); the dishware, the shelf and the house are
 the served ones, and no tag was added: our reference finds the kitchen off the
 pass's pair. NOT OFFERED and paid nothing (`shown: false`), its minutes a
-generous 45 (`tasks.SHELF_MINUTES`); its bar is the pass's, written before its
+generous 45 (`tasks.SHELF_MINUTES`); its bar is the pass's, written before any
 reference flew -- 24 of 32 draws over the tour, a fall failing its try, then
-32 draws sealed by the frozen commit (`scripts/solve.py --feature kitchen`;
-SimNotes, "The place laid from the kitchen's shelf").
+32 draws sealed by the frozen commit (`scripts/solve.py --feature kitchen`,
+which refuses it until a reference is written; SimNotes, "The place laid from
+the kitchen's shelf"). Offered, like the pass's it moves the place's
+directions, which every kind's offer at the table carries: they say an offer
+sets the pieces out on the table near the card.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

@@ -9,7 +9,8 @@ be paid for, and a robot that never earns it is a finding about the robot.
                     `set_table` at the restaurant's table (#560) -- or
                     `set_table_pass`, its place laid from the pass, or
                     `set_table_shelf`, laid from the kitchen's shelf (#682's
-                    stage C, never offered) -- as the cadence offers it -- the area's address and directions,
+                    stage C, never offered; a kind with no reference written
+                    yet is refused) -- as the cadence offers it -- the area's address and directions,
                     the prop's hidden dynamics drawn afresh (`--draw K`, the
                     board's own sequence where none is given) and the prop
                     set out -- claimed, the hand-written reference's two
@@ -85,6 +86,18 @@ HAND_JOBS = {"drawer": ("open_drawer", "drawer"), "door": ("open_door", "door"),
              "table": ("set_table", "dining_table_0"),
              "pass": ("set_table_pass", "dining_table_0"),
              "kitchen": ("set_table_shelf", "dining_table_0")}
+
+
+def refused(feature: str) -> str | None:
+  """Why `feature` cannot fly, or None: its kind has no hand-written reference
+  yet (`challenge/solutions.py`'s `PROCEDURES`), so its job would be offered,
+  set out and claimed, and its run would find nothing to run."""
+  from pluggybot.challenge import solutions
+  kind = HAND_JOBS[feature][0]
+  if kind not in solutions.PROCEDURES:
+    return (f"--feature {feature}: no reference is written for {kind} yet "
+            "(challenge/solutions.py)")
+  return None
 
 
 def work_view(target: str) -> tuple[tuple[float, float], list[float], float, float]:
@@ -451,6 +464,9 @@ def main() -> None:
     mission.WALK_NPZ = Path(WALKER)
   if args.start == "tour" and (args.view or args.strip):
     parser.error("--view and --strip fly one: --from station or store")
+  why = refused(args.feature)
+  if why:
+    parser.error(why)
   hands_main(args)
 
 

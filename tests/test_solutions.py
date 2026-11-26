@@ -154,6 +154,21 @@ def test_a_reference_source_with_no_def_is_refused_by_name():
   assert solutions._def_name(solutions.PASS[0]) == "lay_cup"
 
 
+def test_solve_refuses_a_feature_whose_kind_has_no_reference(monkeypatch):
+  """`scripts/solve.py` refuses a feature whose kind has no hand-written
+  reference (`refused`; #682's stage C, the full task, its review): unrefused,
+  the job was offered, set out and claimed, and its run raised KeyError at
+  `PROCEDURES` -- and it flies every feature whose kind has one."""
+  from pathlib import Path
+  from pluggybot.challenge import solutions
+  monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+  import solve
+  for feature, (kind, _) in solve.HAND_JOBS.items():
+    assert (solve.refused(feature) is None) == (kind in solutions.PROCEDURES), feature
+  monkeypatch.delitem(solutions.PROCEDURES, "set_table_pass")
+  assert "no reference is written for set_table_pass" in solve.refused("pass")
+
+
 def _calls(source: str) -> list[tuple[str, list]]:
   """A source's calls in the order they are written: each verb's name and
   its arguments, a constant as its value and anything else as its text."""

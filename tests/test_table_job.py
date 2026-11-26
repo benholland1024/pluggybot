@@ -507,9 +507,10 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
   (`practice.TABLE_JOB`) -- and that none is where it goes: true of every
   kind a world offers at the table, over 32 set-outs, by the grader's own
   measure. The directions are the area's, so every kind's offer there
-  carries them: one that sets its pieces out elsewhere (the pass's, #682's
-  stage C, whose row says where) is offered by no world, and offering it
-  moves these words (why: #723's period in Observatory.md)."""
+  carries them: one that sets its pieces out elsewhere (the pass's and the
+  kitchen shelf's, #682's stage C, whose rows say where) is offered by no
+  world, and offering it moves these words (why: #723's period in
+  Observatory.md)."""
   offered = _offered()
   here = [k for k in TABLE_KINDS if k in offered]
   assert "set_table" in here

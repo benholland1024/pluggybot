@@ -423,8 +423,11 @@ SHELF_H = _home.SHELF_BOARDS_Z[SHELF_BOARD] + _home.SHELF_T / 2
 #: is set out in S (x, y, m), how far either way it is drawn off it (m) and
 #: how far its turn is (rad): the pass's row (`PASS_SOURCES`), near the
 #: board's front edge for the pass's reasons -- a carried piece hangs under
-#: the board's top, and standing a hand takes a piece no further in.
-SHELF_SOURCES = PASS_SOURCES
+#: the board's top, and standing a hand takes a piece no further in -- its
+#: own rows, so the pass's set-out moves without moving this one.
+SHELF_SOURCES = {"plate": ((0.11, 0.0), (0.010, 0.010), math.pi),
+                 "cup": ((0.06, -0.35), (0.010, 0.010), math.pi),
+                 "fork": ((0.07, 0.35), (0.008, 0.008), math.radians(6.0))}
 #: Where an offline flight of it starts (`world`; never the served job's,
 #: which begins wherever the robot is): the soles' middle this far out of
 #: the board's edge, on its middle, facing it, m -- nearer than the pass's:
