@@ -10,6 +10,50 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A carried thin piece's way to its carry pose keeps the hand up while it is out past where it began and its carry pose (#682's round 2; A1, `loop-pass9`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No word is new: a walk's report says `carried` as it
+did.
+
+**The change** (`Reach._picked`, `carry_descent`, `CARRY_AHEAD_M`,
+`CARRY_THIN_M`; SimNotes, "The place laid from the pass", round 10). A walk's
+hand-over that carries a hand whose jaws read under 3 cm apart judges that
+arm's way to its carry pose by the hand's descent while its grip is further
+out than both where the way began and where the carry pose holds it (2 cm
+past the further): straight where that is no more than 1 cm, else the side
+way where it comes down less. Every other way -- home to the rest, a thick
+piece's (the cup's), another robot's keep-off (#678) -- is judged as before.
+⚠ 3 cm was chosen from the pass's pieces: the plate's 8 mm wall and the
+fork's 2.4 cm handle, against the cup's 70 mm. What else a robot holds under
+3 cm: the storeroom's cube (2.6 cm), the chest's knob (2.6 cm), a drawer's
+handle and a door's lever (let go at the lift, never carried), the station's
+plug (2.45 cm; a charge never walks with it in hand); jaws shut on nothing
+read as thin too. ⚠ For such a way the hand's judge replaces the arm's own:
+the side way it takes from over the top dips the arm 4 cm deeper under what
+it worked over than straight, and it reads the hand, never the piece's reach
+past it. ⚠ This form was chosen AFTER two others were read: past the carry
+pose's grip alone failed the served carry check (`carry_spike.py --served
+--house`: a plate held level out in front went the side way and dropped, 7
+of 32 where 3), and past where the way began alone acted on almost nothing
+in the pass (the plate's carry pose lies 3 cm further out than where its way
+begins, and the coming down into it counted for every way alike). So neither
+that check's courses nor the pass's dev draws are independent readings of
+it; its independent readings are the pair's fixture day (identical but its
+stamps: no hand carried in it), X5's 24 replayed tries (24 of 24 identical,
+none carried), the shelf's (loop-736), Ben's bar on the final code and the
+pass's bar and sealed draws.
+
+**What the period is for.**
+- **The acceptance**: walks taken with a thin piece in hand -- the robots'
+  own: none in the 200 replayed tries nor in the 208 live runs read before
+  it -- and how each hand-over's way went (the side way's time, about 6 s
+  where straight took 3; a piece let go in it; falls).
+- **What it costs**: a carried thin piece's hand-over from over the top takes
+  ~3 s longer, and on the pass the side way let the plate go 4 times in 128
+  hand-overs where straight never did.
+
 ### `face`'s line says its heading is in the map (#754's option 1, C1, `loop-754`) — opens when this PR is deployed
 
 **What the robots read** moves by one line, on purpose: the prompt
