@@ -1314,7 +1314,7 @@ class Navigator:
     return self.run(self.face_routine(heading))
 
   def face_routine(self, heading: float) -> Routine:
-    """Turn in place to `heading`. False if the budget ran out first
+    """Turn in place to `heading`, in its map. False if the budget ran out first
     (issue #108) -- a robot that cannot turn must not be a robot that never
     gets back to the arbitration loop."""
     _, squared = yield from square_up_routine(

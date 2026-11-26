@@ -1697,11 +1697,9 @@ VERBS: dict[str, Verb] = {
                                 "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                                 default=DRIVE_TIMEOUT_S)},
                    _drive_to, drive_to_doc(WALK_KEEP_M)),
-  # its heading is in the robot's MAP (`face_routine` closes on the belief's),
-  # and its line says so (#754)
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
-               _face, "turn in place to `heading`, rad in your map (as `find.facing` "
-               "reads it); ok when squared within the budget"),
+               _face, "turn in place to `heading`, rad in your map; ok when squared "
+               "within the budget"),
   # PLACES (issue #419): a task area found by its tag and remembered -- the
   # robot's own knowledge, never a coordinate handed over
   "find": Verb("find", {"tag": Arg("float", choices="places"), "x": Arg("float"),

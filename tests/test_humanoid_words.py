@@ -269,10 +269,10 @@ def test_faces_line_says_its_heading_is_in_the_map_as_every_place_reading_names_
   """#754: `face` turns to a heading in the robot's MAP, and its line said
   only "turn in place": Rowan turned to bearings `spot` had read in its
   stance frame, `face(atan2(spot.y, spot.x))`, and the tag it meant to face
-  left its picture. A reading of a place or a way names its frame --
-  `spot.*` the stance frame, `find.*` the map -- and so does the verb that
-  takes a heading, in the words `find.facing` says its own in: read off the
-  served prompt, as the robot reads it."""
+  left its picture. Every reading of a place names its frame -- `spot.*`
+  the stance frame, `find.*` the map -- and so does the verb that takes a
+  heading, in the words `find.facing` says its own in: read off the served
+  prompt, as the robot reads it."""
   text = "\n\n".join(t for _, t in _sections(procedures=True))
   line = next(t for t in text.splitlines() if t.startswith("  face("))
   places = [s for s in world_facts(HUMANOID_HOME).sensors
@@ -281,8 +281,7 @@ def test_faces_line_says_its_heading_is_in_the_map_as_every_place_reading_names_
   for s in places:
     assert any(f in axes.SENSORS[s].doc for f in ("stance frame", "in your map")), s
   assert "in your map" in axes.SENSORS["find.facing"].doc
-  assert "in your map" in line and "`find.facing`" in line, line
-  assert "stance frame" not in line, line
+  assert "in your map" in line and "stance frame" not in line, line
 
 
 def test_face_turns_until_its_belief_reads_the_heading_so_its_line_is_true():
@@ -290,7 +289,11 @@ def test_face_turns_until_its_belief_reads_the_heading_so_its_line_is_true():
   robot's pose in its map -- its belief, all a fake body has -- reads the
   heading, never by a turn from where it stands: asked the heading it holds
   it turns nothing, and from map heading -0.98 `face(-0.21)` turns 0.77 rad
-  left (t_0800's, where 0.21 right was meant)."""
+  left (t_0800's, where 0.21 right was meant). A PREMISE PIN: #754 moved
+  only words, so this passes on either side of it, and fails where the
+  routine stops closing on the belief (a turn from where it stands, a
+  heading read off the truth) and the line would be false. The fake carries
+  what the routine reads; a new read fails here by its name."""
   from types import SimpleNamespace
   from pluggybot.humanoid.mission import HumanoidMission
   dt, tol = 0.002, HumanoidMission.FACING_TOLERANCE

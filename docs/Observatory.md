@@ -13,15 +13,19 @@ observatory is NOT a result: it reports into the issue it informs.
 ### `face`'s line says its heading is in the map (#754's option 1, C1, `loop-754`) — opens when this PR is deployed
 
 **What the robots read** moves by one line, on purpose: the prompt
-`264ac7f6…` (72,130 characters, 17 sections) becomes `aeffc2b8…` (72,188
+`264ac7f6…` (72,130 characters, 17 sections) becomes `3f8b2dc7…` (72,160
 characters, 17 sections), one section moved, PROCEDURES YOU MAY WRITE. The
 session host's hello `9dcf6202` is byte for byte as it was: a session's verbs
 are the practice's, and `face` is not one of them. No History line is new or
 reworded.
 `face`'s line in the verb list, a draft for Ben, BEFORE: "turn in place; ok
 when squared within the budget"; AFTER: "turn in place to `heading`, rad in
-your map (as `find.facing` reads it); ok when squared within the budget" (+58
-characters).
+your map; ok when squared within the budget" (+30 characters). #754's draft
+added "(as `find.facing` reads it)" after "map". It was written before anyone
+saw that this names the one map angle a robot holds, which points out of the
+tag, so `face(find.facing)` would turn the robot's back on it. What is built
+names the frame alone; that draft and a third wording are Ben's to choose
+among at the release.
 
 **What a deployed robot does**: nothing new. `face` turns as it did, until
 its belief's heading in its map is within 4 deg of the one asked
@@ -67,9 +71,7 @@ the old line: they are a second reading before, after Rowan's own finding.
 On the wakes after this deploys: `face` calls fed a stance bearing, in either
 form, and the `spot` after them, against the baseline; whether a turn toward a
 tag `spot` read goes by `step`'s `turn` instead; and a `face` fed
-`find.facing` with no half turn. The parenthetical names the one map angle a
-robot holds, and it points out of the tag, toward where the tag is read from:
-`face(find.facing)` turns the robot's back on it.
+`find.facing` with no half turn (none in the baseline).
 
 ### A way home something holds back is held where the trunk tips back (#693's second path, #753; D4, `loop-693e`) — opens when this PR is deployed
 
