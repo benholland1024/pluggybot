@@ -321,6 +321,32 @@ HOME_DIP_M, HOME_ROLL = 0.01, 1.3
 HOME_BACK = 0.2
 #: ...sampled every this much of its furthest joint's walk, rad.
 HOME_SAMPLE_RAD = 0.05
+#: A CARRIED ARM'S WAY TO ITS CARRY POSE IS JUDGED BY ITS HAND'S DESCENT
+#: WHILE FURTHER OUT THAN BOTH WHERE THE WAY BEGAN AND WHERE THE CARRY POSE
+#: HOLDS IT (#682's round 2; SimNotes, "The place laid from the pass"): what
+#: it holds hangs under the hand and reaches ahead of it, into what is under
+#: where it was held, so its way never comes down further out than this past
+#: the further of the two, m, where it can -- the side way where going
+#: straight comes down more there (`carry_descent`). ⚠ Judged as the way home
+#: is, by the arm alone, a plate held over the top was walked straight from
+#: the pass: its hand swung 0.1 m further out and came down while 0.25-0.3 m
+#: ahead, and the plate met the counter it was lifted from in 30 of 32
+#: hand-overs, the fork in 19 of 31, every fork that turned past 10 deg in
+#: the jaws turning after such a touch. ⚠ Judged past the carry pose's grip
+#: alone, a plate held level out in front came home the side way, which rolls
+#: the arm out and tipped it 62-80 deg: carried round the house, 7 of 32
+#: dropped where straight 3 (`carry_spike.py --served --house`) -- such a
+#: hand's straight way never passes where it began. ⚠ Past where it began
+#: alone, the descent into a carry pose 3 cm further out than that counted for
+#: every way alike, and the pass's plate went straight.
+CARRY_AHEAD_M = 0.02
+#: ...but only a hand whose jaws read under this apart, m: a thin thing is
+#: held by an edge or a handle, and the rest of it reaches out of the hand --
+#: the plate's 8 mm wall, the fork's 2.4 cm handle -- where a thick one is held
+#: across its body: the cup, 70 mm, carried straight from the pass, met the
+#: counter in none of 30 hand-overs, and taken the side way its trip parted
+#: from there for nothing (3 of 7 cups set down off their spot, where 0).
+CARRY_THIN_M = 0.03
 #: ...and home is the rest commanded and its drivers reading every joint
 #: within this of it, rad (they read to 0.0026).
 HOME_RAD = 0.05
@@ -1034,6 +1060,30 @@ def dip(sm: SelfModel, side: str, q0, ways, low: float, ahead: float) -> float:
       p = p[p[:, 0] > ahead]
       if len(p):
         worst = max(worst, low - float(p[:, 1].min()))
+    prev = w
+  return worst
+
+
+def carry_descent(sm: SelfModel, side: str, q0, ways) -> float:
+  """How far the hand comes down from where it begins, m, while its grip is
+  further out than `CARRY_AHEAD_M` past both where it began and where the
+  way ends (the carry pose), as the arm walks from `q0` through `ways` in
+  joint space, every joint arriving together (`Reach._joints`): a carried
+  way's judge (`CARRY_AHEAD_M`)."""
+  sm._set_arm(side, np.asarray(ways[-1], dtype=float))
+  end = float(sm.grip_pose(side)[0][0])
+  sm._set_arm(side, np.asarray(q0, dtype=float))
+  start = sm.grip_pose(side)[0]
+  beyond, top = max(float(start[0]), end) + CARRY_AHEAD_M, float(start[2])
+  worst, prev = 0.0, np.asarray(q0, dtype=float)
+  for w in ways:
+    w = np.asarray(w, dtype=float)
+    n = max(1, math.ceil(float(np.abs(w - prev).max()) / HOME_SAMPLE_RAD))
+    for k in range(1, n + 1):
+      sm._set_arm(side, prev + (w - prev) * (k / n))
+      pos = sm.grip_pose(side)[0]
+      if float(pos[0]) > beyond:
+        worst = max(worst, top - float(pos[2]))
     prev = w
   return worst
 
@@ -2776,6 +2826,17 @@ class Reach:
         # a hand already out sweeps nothing aside on its way to the next
         return [q1], None
     dips = _dips(sm, side, q0, q1 if out else q0, ahead)
+    if (not out and not np.array_equal(np.asarray(q1, dtype=float), self.rest[side])
+            and self.grippers[side].gap_mean < CARRY_THIN_M):
+      # ...a carried arm's way, home to its carry pose (`home_to`), holding
+      # something thin (`CARRY_THIN_M`): by its hand's descent further out
+      # than both where it began and its carry pose (`CARRY_AHEAD_M`), the
+      # side way where straight comes down more
+      straight = carry_descent(sm, side, q0, [q1])
+      if straight <= HOME_DIP_M:
+        return [q1], dips
+      aside = _aside(side, q0, q1, out)
+      return (aside if carry_descent(sm, side, q0, aside) < straight else [q1]), dips
     straight = dips([q1])
     if straight <= HOME_DIP_M:
       return [q1], dips

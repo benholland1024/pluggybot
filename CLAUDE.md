@@ -1167,17 +1167,24 @@ save a filmstrip PNG named after the script.
   pull bowed over the counter and fell), ⚠ in two moves, the last to no
   nearer the body's middle than 0.25 m (in one, a grip near the middle took
   the waist turned 30-60 deg and fell, 3 of 64 legs), ⚠ eases it before its
-  let-go (let go tilted, it dropped), ⚠ brings the fork back in two pulls
-  (one of 0.24 m or more bowed 31 deg, stood up out of it and fell, 6 of
-  21) and ⚠ tries the cup's pick again where its descent is held back on
-  the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
+  let-go (let go tilted, it dropped), ⚠ brings the fork back in ONE pull, to
+  0.33 m (one of 0.24 m or more bowed 31 deg, stood up out of it and fell, 6
+  of 21; on to 0.21 in a second, the gripped fork's pull took a posture about
+  once in 300 legs, its feet moved and the hand-over fell), ⚠ steps the card
+  ahead before the plate's put-down where its hand would go nearer the body's
+  middle than 5 cm (under 4.5 cm it found no posture or bowed 0.95 rad, the
+  waist turned, and dropped the plate or fell, 7 of 21) and ⚠ tries the
+  cup's pick again where its descent is held back on the lid (every such pick
+  was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
   over the tour, a fall failing the try) IS NOT MET: with walk2 shown its
   arms at rest while it carries (#751's cure) its put-downs, tuned on a
   settle the seeing walker's carried turns left, landed a constant 2-3.5 cm
   off (4 of 32); ⚠ aimed again by where dev flights on the cure set each
   piece down (the cup's `PASS_CUP_AT`, the fork's `PASS_FORK_AT`; the loop
   of 11-26b's round 1), 12 of 32 where the base laid 4, and 16 of 32 sealed
-  where 1, no fall, one pod (SimNotes, "The place laid from the pass").
+  where 1, no fall, one pod; ⚠ with round 2's judged way and round 3's steps
+  (above), 17 of 32 where round 1's tree laid 12, and 20 of 32 sealed by
+  532e6bb where 17, no fall (SimNotes, "The place laid from the pass").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1367,7 +1374,23 @@ save a filmstrip PNG named after the script.
   fell); then its gripper as it is, out along its line,
   then its judged way (`way_home`'s, ending there) to the forearm folded up
   and the hand at the hips, the wrist keeping the hand turned against the
-  floor as it was -- ⚠ SOLVED ON THE STAND'S STATUE, where the walk carries
+  floor as it was -- ⚠ FOR JAWS THAT HOLD SOMETHING THIN (`CARRY_THIN_M`, 3
+  cm: the plate's wall, the fork's handle; never the cup) JUDGED BY THE
+  HAND'S DESCENT WHILE FURTHER OUT THAN BOTH WHERE THE WAY BEGAN AND THE
+  CARRY POSE (#682's round 2; `carry_descent`, `CARRY_AHEAD_M`; SimNotes,
+  "The place laid from the pass"), the side way where straight comes down
+  more there: straight from a grip over the top, the hand swung 0.1 m out
+  and came down there, and the pass's plate met the counter in 30 of 32
+  hand-overs, its fork in 19 of 31, every fork that turned past 10 deg in
+  the jaws turning after such a touch; ⚠ past the carry pose alone, a plate
+  held level out in front went the side way, which rolls the arm out, and
+  dropped (7 of 32 round the house where 3); ⚠ past where it began alone,
+  the descent into a carry pose further out counted for every way alike;
+  ⚠ the hand's judge REPLACES the arm's for such a way (the side way it
+  takes from over the top dips the arm 4 cm deeper under the work), reads
+  the hand alone, never the piece past it, and with another robot by the
+  keep-off weighs the ways as before -- ⚠ SOLVED ON THE
+  STAND'S STATUE, where the walk carries
   it (solved bowed, a plate lifted from a reach's 0.3 rad bow rode 15-17 deg
   tipped) -- and held there through every walk, a `step` too, until a reach
   or a let-go ends it (`Reach.drop_carry`); ⚠ WHILE IT IS, THE WALKER IS
