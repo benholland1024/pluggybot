@@ -621,7 +621,9 @@ def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
   `STEP_LEAST_M` along its way, it takes that first move."""
   rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.0, 0.04)
   assert rep["why"] == "stepped", "a left walk ended in its lean, its feet unmoved"
-  assert rep["dy"] >= hb.STEP_LEAST_M
+  # ...held only that long, then its stop rule as before: here at once, its
+  # pelvis having leant past (no step closes on its stance)
+  assert rep["dy"] == pytest.approx(hb.STEP_LEAST_M, abs=0.003), rep["dy"]
   # ...carrying something too: the walk is the same walk
   body = _walker(Walk(coast_s=0.0, planted_s=0.3))
   body.held = True
