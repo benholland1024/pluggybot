@@ -546,7 +546,10 @@ TABLE_STANCES = '''def lay_place():
 #: aimed to bring its label in 0.06 m left of the robot's middle (a carried
 #: product hides a label 0.25 m or more to its left, and a step left carrying
 #: often reads blocked), so `near` brings it to 0.23 mostly by steps right; ⚠ a
-#: look that misses steps the way its tag most likely went; ⚠ at a label
+#: look that misses steps the way its tag most likely went -- a frame or a
+#: candle at the cart to its left: uncarried, a step right to its mark there
+#: goes 0.1-1.3 times its ask (a candle's 10 cm, 15-17), and every candle its
+#: look missed stood 0.27-0.80 m left, where a search right lost it; ⚠ at a label
 #: `near` steps no step back, and ahead only past 5 cm, half of it (carried,
 #: back steps of 3-5 cm read 'too short' and fell; one ahead of 4 cm went 8);
 #: at the cart 0.6 of a step ahead (one went 1.4 times its ask and lost the
@@ -574,7 +577,7 @@ def one(lab,i):
   for n in range(2):
     if g==0:
       open_hand("left")
-      near(t,0.34*i,0.21+0.015*i,-0.1*i)
+      near(t,0.34*i,0.21+0.015*i,0.05*(1-i)+0.08*i)
       j=1-i;a=j*atan2(read("spot.ny"),read("spot.nx"));e=cos(a);s=sin(a)
       mx=read("spot.x")+0.01*e*j;my=read("spot.y")+0.01*s*j
       gz=read("spot.z")-0.035*i;bz=read("spot.z")-0.0575-0.0425*i

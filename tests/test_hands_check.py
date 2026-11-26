@@ -1192,8 +1192,10 @@ def _after(log, verb, tag):
 
 def test_a_tag_its_first_look_misses_is_looked_for_the_way_it_most_likely_went():
   """⚠ A MISSED LOOK STEPS THE WAY ITS TAG MOST LIKELY WENT (#736 stage 2): a label after the carried
-  trip to its left (the trip over-travels: its steps' counts read short of the feet), the candle
-  after the trip back to its right; standing still, it was never found."""
+  trip to its left (the trip over-travels: its steps' counts read short of the feet), and the candle
+  at the cart to its left too (round 4: every candle its look missed stood 0.27-0.80 m left, after a
+  step right to its mark went 15-17 cm for 10, and a search right lost it); standing still, it was
+  never found."""
   so, _ = _shelf_tags(0)
   label = so.slots["frame"]
   body, ran, log, _, _ = _shelf_flown(hide=lambda tag, b, n: tag == label and n == 1)
@@ -1203,7 +1205,7 @@ def test_a_tag_its_first_look_misses_is_looked_for_the_way_it_most_likely_went()
   body, ran, log, _, _ = _shelf_flown(hide=lambda tag, b, n: tag == 76 and n == 1)
   assert ran["ok"], ran
   nxt = next(a for v, a, _ in _after(log, "spot", 76) if v in ("step", "spot"))
-  assert nxt.get("left", 0) < -0.05, nxt
+  assert nxt.get("left", 0) > 0.05, nxt
 
 
 def test_the_shelf_is_squared_off_its_label_before_each_set_down_and_the_trip_back():
@@ -1356,3 +1358,13 @@ def test_at_the_cart_a_step_ahead_asks_six_tenths_of_the_way():
   x, _ = _read(tags, 76, log[i][2], dx=0.10)
   nxt = next(a for v, a, p in log[i + 1:] if v == "step")
   assert nxt["ahead"] == pytest.approx(0.6 * (x - 0.34), abs=1e-6), (x, nxt)
+
+
+def test_a_frame_its_look_missed_is_sought_to_the_left():
+  """⚠ A FRAME ITS LOOK MISSED AT THE CART IS SOUGHT 5 CM LEFT (#736 stage 2, round 4): uncarried there a sidestep
+  goes 0.1-1.3 times its ask, and a step right to the frame's mark that over-travelled left it 0.26-0.27 m left,
+  past the colour camera's left edge, where looks standing still never found it again (4 of 16 dev tours)."""
+  body, ran, log, so, tags = _shelf_flown(hide=lambda tag, b, n: tag == 77 and n == 1)
+  assert ran["ok"], ran
+  nxt = next(a for v, a, _ in _after(log, "spot", 77) if v in ("step", "spot", "reach"))
+  assert nxt.get("left", 0) == pytest.approx(0.05, abs=1e-9), nxt
