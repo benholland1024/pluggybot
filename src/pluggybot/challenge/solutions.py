@@ -262,8 +262,8 @@ TABLE = _table_job()
 #:    `PASS_PLATE_BACK` by `move_hand` (nearer the pass the hand-over struck
 #:    it, and a `pull` that long took a 31 deg bow over the counter and fell:
 #:    `test_solutions`), in two moves, halfway and then to no nearer the
-#:    body's middle than `PASS_PLATE_LEFT`; the fork's to 0.21 in two pulls
-#:    (`PASS_FORK_MID`: by `move_hand` it slipped in the jaws at the
+#:    body's middle than `PASS_PLATE_LEFT`; the fork's by one pull to
+#:    `PASS_FORK_BACK` (by `move_hand` it slipped in the jaws at the
 #:    hand-over; `test_solutions`);
 #:  - the walk to the place the table's (`TABLE_APPROACH`), `PASS_BACK`
 #:    further back, its last step over 0.45 m in two, its last turn the
@@ -275,9 +275,11 @@ TABLE = _table_job()
 #:  - each piece set down from a hover over its spot, its offset in the hand
 #:    the grip's own, each put-down moved by where flights on walk2 set its
 #:    piece down (the hand's sensed place is 1.5-2 cm off) -- the cup's in the
-#:    card's own frame, turned by the card's angle in the stance; the plate
-#:    eased to the least squeeze before it is let go (tilted in the jaws, let
-#:    go, it fell the last centimetres: `test_solutions`).
+#:    card's own frame, turned by the card's angle in the stance; the plate's
+#:    taken a step toward its spot first where its hand would go nearer the
+#:    body's middle than `PASS_PLATE_LEAST`, and eased to the least squeeze
+#:    before it is let go (tilted in the jaws, let go, it fell the last
+#:    centimetres: `test_solutions`).
 PASS_TO = '''def to_pass(s):
   face(0)
   find(69, %(ax)g, %(ay)g, 600)
@@ -351,13 +353,16 @@ PASS_CUP_AT = (0.081, 0.24)
 #: came down within 2.5 cm in 59 of 61 there, and is not moved.
 PASS_PLATE_AT = (0.20, 0.073)
 PASS_FORK_AT = (0.20, 0.163)
-#: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
-#: ahead: in one pull, one 0.24 m or longer (a grip 0.45 m out or more) took
-#: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
-#: 0.3 s as its arm missed, and fell in 6 of 21, a shorter one in none of 79
-#: (SimNotes, "The place laid from the pass"); each half asks a posture that
-#: reaches both its ends standing.
-PASS_FORK_MID = 0.33
+#: Where the fork's pull-back off the pass ends, m ahead, in one pull: one
+#: 0.24 m or longer (a grip 0.45 m out or more) took a 31 deg bow and a 20 cm
+#: crouch for its way, stood up out of it within 0.3 s as its arm missed,
+#: and fell in 6 of 21, a shorter one in none of 79. On to 0.21 m in a second
+#: pull, the gripped fork's pull took a bow of its own about once in 300,
+#: and the body bore on it until its feet moved and it fell -- where the
+#: walk's hand-over, judged by where its hand comes down (`reach.
+#: CARRY_THIN_M`), clears the pass's top as high from here as from 0.21
+#: (SimNotes, "The place laid from the pass").
+PASS_FORK_BACK = 0.33
 #: Where the plate's pull-back off the pass ends, m ahead: from 0.50 m (the
 #: pass's face 0.39 ahead) to here by `move_hand` (nearer the pass the
 #: hand-over struck it; by `pull` that far it bowed and fell).
@@ -375,6 +380,14 @@ PASS_PLATE_AIM, PASS_PLATE_ACROSS = 0.184, 0.066
 #: while the first, from a grip read 0.08-0.13 m out, still bowed with the
 #: waist turned about once in 12 (and never fell).
 PASS_PLATE_LEFT = PASS_PLATE_AIM + PASS_PLATE_ACROSS
+#: How far left of the stance's middle the plate's put-down goes at the
+#: least, m, the card looked at after the walk to the place: nearer, a step
+#: puts the card ahead and it is looked at again. Under 0.045 m its reach
+#: was out of reach, or took a 0.95 rad bow with the waist turned 0.5-0.8
+#: rad and dropped the plate or fell, 7 of 21; over it no such bow in 297
+#: (the walk's last step forward leaves the card 2-5 cm across; SimNotes,
+#: "The place laid from the pass").
+PASS_PLATE_LEAST = 0.05
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -459,6 +472,10 @@ PASS_PLATE = '''def lay_plate():
     pass
   to_place(%(facing)g)
   spot(93)
+  if read("spot.y") + %(plate_at_b)s < %(plate_least)g:
+    if not step(0, read("spot.y")):
+      pass
+    spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
   reach("left", read("spot.x") - %(plate_at_a)s, read("spot.y") + %(plate_at_b)s, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
@@ -500,8 +517,7 @@ PASS_FORK = '''def lay_fork():
     close_hand("left", 25)
   oz = read("left.z") - gz + 0.0484
   pull("left", 0, 0, 1, 20, 0.05, give=0)
-  go("left", %(fork_mid)g, read("left.y"), read("left.z"), 20, 0)
-  go("left", 0.21, read("left.y"), read("left.z"), 20, 0)
+  go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)
   to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
@@ -538,9 +554,10 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
   terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
            "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
-           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
+           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_back": PASS_FORK_BACK,
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
            "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
+           "plate_least": PASS_PLATE_LEAST,
            "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
            "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),

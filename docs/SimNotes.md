@@ -8283,10 +8283,13 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), ten times, and has not met it: the reference as it stands, round
-5's with its put-downs aimed again on #751's cure (round 9, below), lays 12
-of 32 on the bar's draws and 16 of 32 sealed by 302f369, no fall, where the
-reference before it laid 4 and 1 on the same pod -- the bar is 12 away.
+below), eleven times, and has not met it: the reference as it stands, round
+5's with its put-downs aimed again on #751's cure (round 9), the walk's
+hand-over judging a thin piece's way by where its hand comes down (round 10,
+served) and the plate's card stepped ahead, the fork pulled back once (round
+11; all below), lays 17 of 32 on the bar's draws and 20 of 32 sealed by
+532e6bb, no fall, where round 9's laid 12 and 17 on the same pod -- the bar
+is 7 away.
 What developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
@@ -8663,6 +8666,15 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     plate let go carried 2 and 0; the fork 4 and 10 (lost at the hand-over 0
     and 3, set down off its spot or dropped 3 and 7, let go carried 1 and
     0). Kept.
+  - At 532e6bbe (rounds 10 and 11, below: a carried thin piece's way judged
+    by where its hand comes down; the plate's card stepped ahead, the fork
+    pulled back once), on walk2 shown its arms at rest while it carries: 17
+    of 32; held out (sealed by 532e6bb), 20; no fall. On the same pod, round
+    9's tree (302f369f) laid 12 of 32 and 17 held out. The first piece not
+    laid (the bar's draws, then the held-out): the cup's put-down 8 and 6,
+    the cup let go carried 2 and 0; the fork set down off its spot, neither
+    slipped nor struck, 3 and 2, dropped 1 and 0, lost at the hand-over 0 and
+    1; the plate let go at the hand-over 1 and 1, carried 0 and 2. Kept.
 - **What round 3 left, measured beside its reading** (not in the
   reference; round 3 ended with the reading):
   - **The fork's pull-back as a fixed length** from where its hand gripped
@@ -8696,7 +8708,8 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     then, its arm missing, stood up out of it within 0.3 s, the hand reading
     0-10 N, and the pelvis came 0.26-0.33 m toward the pass as the robot
     went over. Brought back in two pulls, the first stopping at 0.33 m
-    (`PASS_FORK_MID`), each half's posture reaches both its ends standing:
+    (round 11 keeps that one alone, `PASS_FORK_BACK`), each half's posture
+    reaches both its ends standing:
     on the fork leg alone, one fall in 64 -- none of the 13 gripped 0.45 m
     out or further; the one, a second pull of 0.11 m whose feet moved --
     where one pull fell 4 times in 64. It laid no more forks for it: 36,
@@ -8987,6 +9000,115 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     hand-overs and the fork in 19 of 31 -- in the arm's way to its carry
     pose, not as the walk turned away -- and every fork that turned past 10
     deg in the jaws turned after such a touch (round 10's lead).
+- **Round 10** (the loop of 11-26b, its lane A's round 2; same pod and CPU):
+  a carried thin piece's way to its carry pose, served code.
+  - **Where the carried pieces met the counter: the arm's way to its carry
+    pose.** Traced through every walk's hand-over (the piece's place and turn
+    in the grip and its every contact, from its line out to 1 s after it
+    arrives; shown passive: the census's 32 flights again, every end state the
+    same), round 9's flights on the dev draws: the plate met the pass's counter
+    in 55 of 63 hand-overs and the fork in 40 of 58, all but one in the arm's
+    way to its carry pose, never as the walk turned away (earlier rounds read a
+    recorder that looked only once the arm was carried), and every fork that
+    turned past 10 deg in the jaws (27) turned after such a touch; the cup
+    never touched. Straight in joint space from a grip over the top (the
+    shoulder rolled 2.99 rad) to the hanging carry pose, the hand swings
+    0.14 m further out than where it began and comes down 0.33-0.35 m there,
+    where the plate's rim and the fork's head reach past the counter's edge.
+  - **Two ways that did not work**: the carried way as lines (back over the
+    carry pose's grip, then down) -- the arm tracked them on the over-the-top
+    branch and the last joint move to the hanging pose swung the hand 14 cm
+    up and out (a probe's plate met the counter 7 times in 7); and a joint
+    waypoint over the carry pose, out of reach on the hanging branch.
+  - **The judge** (`Reach._picked`, `carry_descent`, `CARRY_AHEAD_M`,
+    `CARRY_THIN_M`; Carrying, served): a hand whose jaws read under 3 cm apart
+    (the plate's wall reads 1.0-1.25 cm, the fork's handle 2.4; the cup 7) is
+    walked to its carry pose straight where the hand comes down no more than
+    1 cm while further out than 2 cm past both where the way began and where
+    the carry pose holds it, else the side way where that comes down less.
+    Two earlier forms were read and set aside. Past the carry pose's grip
+    alone (the first), it failed `carry_spike.py --served --house`: a plate
+    held level out in front (`out`, `tray`, `close`) comes down past its carry
+    pose as it comes in, went the side way, which rolls the arm out 1.3 rad,
+    and tipped 62-80 deg (11-34 straight): 7 drops in 32 carries where 3,
+    one arrival fewer (on the bare floor 18 drops in 432 where 15). Past where
+    the way began alone (the second), the pass's plate went straight: its
+    carry pose lies 2.5-4.4 cm further out than where its way begins (0.213 m
+    and 0.183 ahead), and the coming down into it counted for every way alike
+    (0.366 m each), so it acted on almost nothing there (73 dev flights
+    finished, 40 laid where round 9's tree laid 37). ⚠ This form was chosen
+    after both readings: neither the pass's dev draws nor carry_spike's
+    courses are independent readings of it; the shelf's, the fixture day's,
+    X5's replayed tries, Ben's bar and the pass's bar and sealed draws are.
+    The judge on the bare floor, by form (the first, the second, this):
+    carry_spike's out, tray and close side, straight, straight; its low
+    straight throughout; the table reference's grip (over the top) side
+    throughout; the pass's grips over the top -- the plate at 0.23 m, the
+    fork at 0.21 and 0.33 -- side throughout; over the top with its carry pose
+    put 3-11 cm further out than where it begins, side, straight, side; a grip
+    fingers forward (the shelf's) straight throughout. What it does not do
+    (review): for such a way it replaces the arm's own judge, and the side
+    way it takes from over the top dips the arm 0.40 m under the lowest of it
+    over the work where straight 0.36; it reads the hand alone, never the
+    piece's reach past it, so a hand coming in and down is not judged (of 119
+    fork hand-overs from 0.33 m one went straight, and its fork touched the
+    pass); with another robot by, the keep-off (#678) weighs the ways as
+    before; and jaws shut on nothing read as thin.
+  - **Round 10 on the dev draws** (3600-3663, and a second set, 3700-3763,
+    flown because the first read more places and more falls): its first
+    form, 76 of 128 where round 9's tree laid 64, 3 falls where none (+27
+    -15) -- not frozen: every fall one of two hazards round 11 takes apart.
+    By piece, the fork carries the gain (first misses 27 -> 16: its slips and
+    strikes at the hand-over gone), the plate is even (9 -> 9) and the side
+    way let the plate go at the hand-over 4 times in 128 (round 9's tree
+    none). This form alone on 3600-3663: 38 of 64, 2 falls (the two hazards
+    again), its flights round 10's first form's to the bit in 56 of 64 (the 8
+    others where the fork's way began further out than its carry pose).
+- **Round 11** (the loop of 11-26b, its lane A's round 3; on round 10's
+  tree): the two hazards that felled round 10's flights.
+  - **A plate set down from a deep bow.** Over 318 plate put-downs (rounds 9
+    and 10 and the reference before them) the hand's target came under 0.045
+    m left of the stance's middle 21 times: 3 found no posture, 3 bowed 0.95
+    rad with the waist turned 0.5-0.8 rad (2 dropped the plate, 1 fell), 16
+    laid; from 0.045 to 0.06 m 53 times, no such bow, 50 laid; none over 0.045
+    in 297. The walk to the place squares itself across the card's line off
+    two looks (inside 3 cm it takes no step), and its last step forward
+    leaves the card 2-5 cm across. The plate's run looks at the card after
+    the walk, and where its hand would go nearer the middle than
+    `PASS_PLATE_LEAST` (0.05 m) steps the card ahead (`step(0, spot.y)`, the
+    approach's own correction) and looks again.
+  - **A fork pulled back into a bow.** Over 301 fork legs, its second
+    pull-back (0.33 to 0.21 m) ended at its distance 291 times, out of reach 9
+    and its feet moved once; on round 10's first form, 2 of 128 more (round 9's
+    tree, 0 of 128): the gripped fork's pull took a posture, the hand went
+    against its ask or the pelvis 15-19 cm back, and the walk's hand-over's
+    line out in that posture fell -- #699's known gripped-hand case (a gripped
+    fork or knob takes its postures as it did; widening the served rule is
+    Ben's call). On round 10's judge the hand-over takes the side way from
+    over the top wherever it begins (bare floor, from 0.21 / 0.27 / 0.33 m:
+    furthest out 0.393 / 0.397 / 0.404 m, lowest while past the carry pose
+    0.992 / 0.992 / 0.990 m), so the fork is pulled back once, to
+    `PASS_FORK_BACK` (0.33 m; under round 4's 0.24 m from the furthest grip).
+  - **On the dev draws** (the 128, rounds 10 and 11 together): 70 laid where
+    round 9's tree laid 64 (+25 -19), no fall where none -- frozen (the rule
+    written before: more places, no more falls). Each lever's acts, read off
+    its own trace: round 10's judge in 126 flights (the plate's hand-over
+    straight -> side 126, the fork's 114, side -> straight 1), the plate's
+    step in 14 (every plate laid), the fork's one pull in 119 (93 laid, 19
+    off, 7 dropped); the 2 flights none acted on replay round 9's tree to the
+    bit, and no acted flight parts from it before its first act; neither
+    hazard came again. What it leaves: the fork set down a median 0.9 cm
+    further toward the diner wherever its hand-over took the side way (off
+    its spot, neither slipped nor struck, 12 where 5: `PASS_FORK_AT` was
+    aimed on round 9's straight hand-over), the plate let go at the
+    hand-over 4 times. Read on the bar's draws and sealed draws (above): 17
+    and 20 of 32, where round 9's tree laid 12 and 17. Its served half read
+    beside its tree on what no dev draw chose it by: the pair's fixture day
+    identical but its stamps (no hand carried in it), X5's 24 replayed tries
+    identical (none carried), the shelf's check and tour (loop-736) 32 and
+    32 identical; carry_spike's courses, which it was chosen after, 32 of 32
+    round the house and 411 of 432 on the bare floor identical, the 21 the
+    table reference's grip over the top (one more let go there).
 
 ## The arms keep off the other robot (issue #678)
 

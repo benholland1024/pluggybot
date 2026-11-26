@@ -531,7 +531,11 @@ while it carries (#751's cure), its put-downs, tuned on a settle the seeing
 walker's carried turns left, landed a constant 2-3.5 cm off: 4 of 32. Aimed
 again by where dev flights on the cure set each piece down (the loop of
 11-26b's round 1), it lays 12 of 32 where that base laid 4, and 16 of 32
-held out where 1, no fall, one pod.
+held out where 1, no fall, one pod. With the walk's hand-over judging a thin
+piece's way by where its hand comes down, the plate's card stepped ahead where
+its put-down would come near the body's middle and the fork pulled back once
+(rounds 2 and 3), it lays 17 of 32 where round 1's laid 12, and 20 of 32 held
+out where 17, no fall.
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 
