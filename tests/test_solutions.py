@@ -412,13 +412,20 @@ def test_the_pass_put_downs_are_aimed_off_the_pass_own_constants(monkeypatch):
   language."""
   import math
   from pluggybot.challenge import solutions
-  for sx, sy, a in ((0.52, 0.04, 0.0), (0.49, -0.02, 0.05), (0.55, 0.08, -0.04)):
+  ox, oy, oz = 0.012, -0.007, 0.07
+  # cards that put no put-down past its stance's band (each run's own steps
+  # are pinned below): the cup's trip faces right of the card, so it sees
+  # the card further left than the plate's and the fork's trips do
+  for sx, sy, a in ((0.52, 0.06, 0.0), (0.49, 0.05, 0.05), (0.55, 0.08, -0.04)):
     spot = {"x": sx, "y": sy, "z": 0.75, "nx": math.cos(a), "ny": math.sin(a)}
-    ox, oy, oz = 0.012, -0.007, 0.07
-    cx, cy = _put_down(monkeypatch, 0, spot, {"ox": ox, "oy": oy, "oz": oz})
+    steps = []
+    cx, cy = _put_down(monkeypatch, 0, spot, {"ox": ox, "oy": oy, "oz": oz}, steps)
     ca, cb = solutions.PASS_CUP_AT
+    assert not steps, (sy, a, steps)
     assert math.isclose(cx, sx - ca * math.cos(a) + cb * math.sin(a) - ox, abs_tol=1e-9), (cx, a)
     assert math.isclose(cy, sy - ca * math.sin(a) - cb * math.cos(a) - oy, abs_tol=1e-9), (cy, a)
+  for sx, sy, a in ((0.52, 0.0, 0.0), (0.49, -0.015, 0.05), (0.55, 0.012, -0.04)):
+    spot = {"x": sx, "y": sy, "z": 0.75, "nx": math.cos(a), "ny": math.sin(a)}
     for run, at in ((1, solutions.PASS_PLATE_AT), (2, solutions.PASS_FORK_AT)):
       steps = []
       x, y = _put_down(monkeypatch, run, spot, {"oz": oz}, steps)
@@ -452,6 +459,65 @@ def test_the_pass_plate_steps_its_card_ahead_where_its_put_down_comes_near_the_m
   for sy in (least - b + 0.002, 0.0, 0.06):
     steps = []
     x, y = _put_down(monkeypatch, 1, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps)
+    assert not steps and abs(y - (sy + b)) < 1e-9, (sy, steps, y)
+
+
+def test_the_pass_cup_steps_right_where_its_put_down_goes_too_far_right(monkeypatch):
+  """#682's stage C on #751's cure (the loop of 11-26b, round 4): where the
+  cup's hand was to go further right of the stance's middle than about
+  0.20 m, its reach took no waist turn and its pull down crouched, the feet
+  swivelled 3-7 deg under the posture's change, and the cup came down 3-5
+  cm off its place: 25 of 44 such put-downs within 2.5 cm, where nearer,
+  0.11-0.19 m, all 75 were (SimNotes, "The place laid from the pass").
+  Looked at after the walk, a card that puts the cup's hand further right
+  than `PASS_CUP_RIGHT` is stepped toward, sideways, so that the hand goes
+  `PASS_CUP_MID` right, and looked at again; one that does not is put down
+  as read. Off the reference's own source, run by the language."""
+  import math
+  from pluggybot.challenge import solutions
+  ca, cb = solutions.PASS_CUP_AT
+  ox, oy = 0.012, -0.007
+  env = {"ox": ox, "oy": oy, "oz": 0.07}
+
+  def aim(sx, sy, a):
+    return (sx - ca * math.cos(a) + cb * math.sin(a) - ox, sy - ca * math.sin(a) - cb * math.cos(a) - oy)
+  for sy, a in ((-0.02, 0.0), (0.02, 0.06), (0.03, -0.03)):
+    spot = {"x": 0.5, "y": sy, "z": 0.75, "nx": math.cos(a), "ny": math.sin(a)}
+    assert aim(0.5, sy, a)[1] < -solutions.PASS_CUP_RIGHT
+    steps = []
+    x, y = _put_down(monkeypatch, 0, spot, env, steps)
+    assert len(steps) == 1 and abs(steps[0][0]) < 1e-12, (sy, steps)
+    assert math.isclose(steps[0][1], aim(0.5, sy, a)[1] + solutions.PASS_CUP_MID, abs_tol=1e-12), (sy, steps)
+    assert math.isclose(y, -solutions.PASS_CUP_MID, abs_tol=1e-9), (sy, y)
+    assert math.isclose(x, aim(0.5, sy, a)[0], abs_tol=1e-9), (sy, x)
+  for sy, a in ((0.034, 0.0), (0.06, 0.0), (0.05, 0.05), (0.12, -0.04)):
+    spot = {"x": 0.5, "y": sy, "z": 0.75, "nx": math.cos(a), "ny": math.sin(a)}
+    assert aim(0.5, sy, a)[1] >= -solutions.PASS_CUP_RIGHT
+    steps = []
+    x, y = _put_down(monkeypatch, 0, spot, env, steps)
+    assert not steps and math.isclose(y, aim(0.5, sy, a)[1], abs_tol=1e-9), (sy, steps, y)
+
+
+def test_the_pass_fork_steps_left_where_its_put_down_goes_too_far_left(monkeypatch):
+  """#682's stage C on #751's cure (the loop of 11-26b, round 4): past about
+  0.18 m left of the stance's middle the fork's pull down crouched and
+  swivelled the feet as the cup's did -- 25 of 37 put-downs within 2.5 cm
+  there, 54 of 57 at 0.11-0.17 m (SimNotes, "The place laid from the
+  pass"). A card that puts the fork's hand further left than
+  `PASS_FORK_LEFT` is stepped toward, sideways, so that the hand goes
+  `PASS_FORK_MID` left, and looked at again; one that does not is put down
+  as read. Off the reference's own source, run by the language."""
+  from pluggybot.challenge import solutions
+  a, b = solutions.PASS_FORK_AT
+  for sy in (0.02, 0.05, solutions.PASS_FORK_LEFT - b + 0.002):
+    steps = []
+    x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps)
+    assert len(steps) == 1 and abs(steps[0][0]) < 1e-12, (sy, steps)
+    assert abs(steps[0][1] - (sy + b - solutions.PASS_FORK_MID)) < 1e-12, (sy, steps)
+    assert abs(x - (0.5 - a)) < 1e-9 and abs(y - solutions.PASS_FORK_MID) < 1e-9, (sy, x, y)
+  for sy in (solutions.PASS_FORK_LEFT - b - 0.002, 0.0, -0.04):
+    steps = []
+    x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps)
     assert not steps and abs(y - (sy + b)) < 1e-9, (sy, steps, y)
 
 
