@@ -618,9 +618,11 @@ def _standing_reach():
 
 
 class _Grip:
-  """A gripper as a bare reach reads it: holding what a test says."""
+  """A gripper as a bare reach reads it: holding what a test says, its jaws
+  read open their whole stroke (nothing thin in them: `reach.CARRY_THIN_M`)."""
 
   holding = False
+  gap_mean = hp.GRIPPER.stroke
 
   def held(self):
     return self.holding

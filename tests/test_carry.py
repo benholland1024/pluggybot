@@ -765,3 +765,182 @@ def test_only_a_walker_that_never_trained_carrying_is_shown_its_arms_at_rest():
     w.step(carrying=True)
     rested[name] = bool(np.all(shown[-1][_arm_entries(w)] == 0.0))
   assert rested == {"walk2": True, "seeing": True, "carry2": False}
+
+
+# ---- 8: a carried arm's way to its carry pose, judged by its hand (#682's round 2) ---
+
+
+#: The left arm as a pass flight left it holding the plate after its line out
+#: (85449ac8's, the census of the loop of 11-26b, its six joints): over the
+#: top, its shoulder rolled 3 rad, its hand 0.2 m ahead at the pass's height.
+OVER_THE_TOP = (-0.241, 2.987, -0.381, 1.784, 1.058, 1.195)
+
+
+def _posed(q0):
+  body = body_for(*_floor())
+  r = body.mission.reach
+  q0 = np.asarray(q0, dtype=float)
+  r.q_cmd["left"] = q0.copy()
+  r.self_model._set_arm("left", q0)
+  r.carry_q["left"] = r.carry_pose("left")
+  return body, r, q0
+
+
+def test_a_carried_arms_way_home_keeps_its_hand_up_past_where_it_began():
+  """#682's round 2 (the loop of 11-26b; SimNotes, "The place laid from the
+  pass"): a walk's hand-over walked a carried arm to its carry pose the way
+  home is judged -- by the arm alone, which a carry pose ahead of the
+  robot's front dips under wherever it goes -- so straight in joint space:
+  from the pass, its hand swung 0.1 m further out and came down while
+  0.25-0.3 m ahead, and the plate met the counter it was lifted from in 30
+  of 32 hand-overs, the fork in 19 of 31, every fork that turned past 10
+  deg in the jaws turning after such a touch. A carried way is judged by
+  its hand's descent while further out than both where it began and its
+  carry pose (`carry_descent`, `CARRY_AHEAD_M`): the side way, where it
+  comes down less there."""
+  body, r, q0 = _posed(OVER_THE_TOP)
+  try:
+    r.grippers["left"].gap_mean = 0.008                    # the plate's wall
+    carry = r.carry_q["left"]
+    way = r.way_home("left")
+    assert len(way) > 1 and np.allclose(way[-1], carry), "straight in joint space from over the top"
+    sm = r._planner_model()
+    sm.q = r.self_model.q.copy()
+    sm.d.qpos[:] = r.self_model.d.qpos
+    straight = rc.carry_descent(sm, "left", q0, [carry])
+    assert straight > rc.HOME_DIP_M, straight
+    assert rc.carry_descent(sm, "left", q0, way) < straight
+  finally:
+    body.close()
+
+
+def test_a_carried_arm_holding_something_thick_goes_straight():
+  """...but only a hand holding something thin (`CARRY_THIN_M`), held by an
+  edge or a handle, the rest of it out of the hand: one holding something
+  across its body, as the cup is, goes straight as before -- carried so from
+  the pass it never met the counter (0 of 30)."""
+  body, r, q0 = _posed(OVER_THE_TOP)
+  try:
+    r.grippers["left"].gap_mean = 0.07
+    carry = r.carry_q["left"]
+    assert [w.tolist() for w in r.way_home("left")] == [carry.tolist()]
+  finally:
+    body.close()
+
+
+def test_a_way_home_to_the_rest_is_judged_as_before_whatever_the_hand_holds():
+  """...and the judge is a carried way's alone: an arm let go -- or never
+  carried -- goes home to its rest by the way home's own judgment (`_picked`:
+  the arm's dip under what it worked over), thin jaws or not."""
+  # ...an arm over the top and turned in, where the two judges part
+  body, r, q0 = _posed((-0.307, 2.828, -1.262, 1.819, 0.737, 0.894))
+  try:
+    r.carry_q["left"] = None
+    r.grippers["left"].gap_mean = 0.008
+    sm = r._planner_model()
+    sm.q = r.self_model.q.copy()
+    sm.d.qpos[:] = r.self_model.d.qpos
+    rest = r.rest["left"]
+    dips = rc._dips(sm, "left", q0, q0, rc.front(sm, "left", rest))
+    straight = dips([rest])
+    aside = rc._aside("left", q0, rest, False)
+    assert straight <= rc.HOME_DIP_M or dips(aside) >= straight, "today's judge goes straight here"
+    down = rc.carry_descent(sm, "left", q0, [rest])
+    assert down > rc.HOME_DIP_M and rc.carry_descent(sm, "left", q0, aside) < down, \
+      "the carried way's judge would take the side way here"
+    assert [w.tolist() for w in r.way_home("left")] == [rest.tolist()]
+  finally:
+    body.close()
+
+
+def test_a_carried_way_goes_aside_only_where_that_comes_down_less(monkeypatch):
+  """...the judge's order, as the way home's (`HOME_DIP_M`): straight where
+  going straight comes down no more than that past where it began, else the
+  side way only where it comes down less there -- never one that comes down
+  as far or further."""
+  body, r, q0 = _posed(OVER_THE_TOP)
+  try:
+    r.grippers["left"].gap_mean = 0.008
+    for straight, aside, want in ((rc.HOME_DIP_M, 0.0, 1), (0.05, 0.02, 4), (0.05, 0.05, 1), (0.05, 0.08, 1)):
+      monkeypatch.setattr(rc, "carry_descent",
+                          lambda sm, side, q0, ways, a=straight, b=aside: a if len(ways) == 1 else b)
+      way = r.way_home("left")
+      assert len(way) == want, (straight, aside, len(way))
+  finally:
+    body.close()
+
+
+def test_a_carried_way_down_into_a_carry_pose_further_out_is_no_descent_past_it():
+  """...and the descent into the carry pose itself is no descent past it:
+  from the pass, the plate's carry pose lies 3 cm further out than where its
+  way begins (0.213 m ahead, 0.183), and judged past where the way began
+  alone, the coming down into it counted for every way alike (0.366 m each)
+  and the plate went straight, meeting the counter as before. Over the top,
+  its carry pose put further out (its shoulder pitched forward), it goes the
+  side way, which comes down less past both (SimNotes, "The place laid from
+  the pass")."""
+  body, r, q0 = _posed(OVER_THE_TOP)
+  try:
+    r.grippers["left"].gap_mean = 0.008                    # the plate's wall
+    carry = r.carry_q["left"].copy()
+    carry[hm.ARM.index("shoulder_pitch")] -= 0.2
+    r.carry_q["left"] = carry
+    sm = r._planner_model()
+    sm.q = r.self_model.q.copy()
+    sm.d.qpos[:] = r.self_model.d.qpos
+    sm._set_arm("left", carry)
+    out = float(sm.grip_pose("left")[0][0])
+    sm._set_arm("left", q0)
+    assert out > float(sm.grip_pose("left")[0][0]) + rc.CARRY_AHEAD_M, "the carry pose is not further out"
+    way = r.way_home("left")
+    assert len(way) > 1 and np.allclose(way[-1], carry), "straight down into a carry pose further out"
+  finally:
+    body.close()
+
+
+#: The left arm as `carry_spike.py` poses it holding the plate level out in
+#: front (its `out`: shoulder pitch -0.9, roll 0.15, elbow 0.6, the wrist
+#: levelling the plate), its six joints.
+HELD_OUT = (-0.9, 0.15, 0.0, 0.6, -0.99, -1.319)
+
+
+def test_a_carried_arm_held_out_in_front_comes_home_straight():
+  """...but a hand held out in front, a plate level in it, whose straight way
+  comes down only as it comes in -- never further out than where it began --
+  goes straight: judged by its descent further out than the carry pose holds
+  it instead, it came home the side way, which rolls the arm out, and the
+  plate tipped 62-80 deg and fell from the hand in 4 more of 32 carries
+  round the house (`carry_spike.py --served --house`; SimNotes, "The place
+  laid from the pass")."""
+  body, r, q0 = _posed(HELD_OUT)
+  try:
+    r.grippers["left"].gap_mean = 0.008                    # the plate's wall
+    carry = r.carry_q["left"]
+    sm = r._planner_model()
+    sm.q = r.self_model.q.copy()
+    sm.d.qpos[:] = r.self_model.d.qpos
+    sm._set_arm("left", np.asarray(carry, dtype=float))
+    held = float(sm.grip_pose("left")[0][0])
+    sm._set_arm("left", q0)
+    assert float(sm.grip_pose("left")[0][0]) > held + 0.05, "the hand is not out in front of its carry pose"
+    assert [w.tolist() for w in r.way_home("left")] == [carry.tolist()], "the side way from out in front"
+  finally:
+    body.close()
+
+
+def test_a_carried_arm_that_never_comes_down_past_its_pose_goes_straight():
+  """...and one whose straight way keeps its hand up while further out than
+  where it began -- a hand that holds fingers forward, as the shelf's do --
+  goes straight, as before: the side way rolls the arm out with what it
+  holds."""
+  from pluggybot.humanoid.arms import FORWARD
+  body = body_for(*_floor())
+  r = body.mission.reach
+  try:
+    q0, _, _ = r.self_model.solve("left", (0.35, 0.2, 1.0), FORWARD)
+    body.close()
+    body, r, q0 = _posed(q0)
+    carry = r.carry_q["left"]
+    assert [w.tolist() for w in r.way_home("left")] == [carry.tolist()]
+  finally:
+    body.close()
