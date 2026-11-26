@@ -628,10 +628,11 @@ LIBRARY: dict = {"set_table_pass": PASS_LIBRARY}
 
 
 #: The jobs by their place: the counter's props and the restaurant's table
-#: (`world_config`'s `jobs`) -- the place laid from the pass is the table's.
+#: (`world_config`'s `jobs`) -- the place laid from the pass, and from the
+#: kitchen's shelf, is the table's.
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
            "open_chest": "chest", "set_table": "dining_table_0",
-           "set_table_pass": "dining_table_0"}
+           "set_table_pass": "dining_table_0", "set_table_shelf": "dining_table_0"}
 
 
 def _def_name(source: str) -> str:

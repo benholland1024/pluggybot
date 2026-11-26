@@ -9182,6 +9182,57 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     hand), the cup off 1, the fork off 1, a fork pick 1, the plate off 1; on
     the sealed draws the plate off 3, the cup let go 1, the cup's walk 1.
 
+## The place laid from the kitchen's shelf (#682's stage C, the full task)
+
+**What is true now.** Table 0's place can be offered laid from its pieces set
+out on the restaurant kitchen's shelf -- against the kitchen's east wall,
+across from the pass, its third board (top 0.96 m) -- each piece carried
+through the staff door, 10-13 m (`set_table_shelf`, NOT OFFERED and paid
+nothing; `counter.shelf_set_out`, the pass's row in the shelf's own frame;
+Challenges.md §12). No geometry was added: the reference finds the kitchen
+off the pass's pair (68, 69). Its bar was written before any reference flew:
+24 of 32 draws over the tour, a fall failing the try, then 32 draws sealed by
+the frozen commit. Measured first, before the kind was built, on a scratch
+set-out flying the pass's own pick halves from in front of the shelf (the
+loop of 11-26b's A2; `~/pluggybot-training/loop-1126b/a2-shelftable/`, 38
+flights, osmesa, each its own noise):
+
+- **The board above stands at the head's height.** Its underside is 1.34 m
+  up, and the standing head spans 1.20-1.48 m (the shoulders 1.15): only a
+  bow bringing the head about 0.3 m forward meets it. No reach, pull or
+  `move_hand` there took a bow (the deepest, a retry's `move_hand`, 0.30
+  rad), and nothing of the head touched the shelf.
+- **A look reads a piece only from close in.** `spot`'s picture's top stands
+  `SPOT_TOP_AT_FEET_M - SPOT_TOP_DROP x` over the floor (1.275 - 0.344 x m),
+  so the cup's lid tag, 1.05 m up on this board, reads only within about 0.6
+  m of the soles' middle, and the plate's and the fork's (0.97 m) within
+  about 0.8 (on the pass's top the same line gives 0.83 and 1.08). From the
+  pass's 0.90 m every look failed, all three of `near`'s in each of 9 flights;
+  from 0.60 m the plate read at 0.68-0.70 m and the fork at 0.64-0.67 at the
+  first look, the cup only after `near`'s 0.12 m step, at 0.54-0.56.
+- **The pass's left pre-pose meets the board's front edge.** Its shoulder
+  roll 0.9 and elbow 1.4 hold the gripper 0.40 m ahead of the pelvis, 0.93-0.97
+  m up (the robot's model of itself, standing): where the counter's top at
+  0.90 is under it, the shelf's board edge is in it (0.37 m ahead of the
+  pelvis at the fork's stance, the step having gone 2.6 cm long). Four forks
+  of four pressed their jaw on it, and two of them stopped short on the
+  reach's way out, "caught on something"; three plates of four pressed it at
+  44-112 N and were still picked. Bending the elbow to 1.8 alone did not
+  help (the elbow's sweep crosses the edge first: 1 fork of 4). Rolled out to
+  1.2, then bent to 1.9, no sweep of the arm meets the edge 0.33-0.36 m
+  ahead, and the gripper ends 1.03-1.17 m up, over the board's top and under
+  the board above: 4 forks and 4 plates of 4 picked and carried, nothing of
+  the robot touching the shelf.
+- **The cup's retry withdraws under the board above.** A descent held back on
+  the lid (the pass's case, 1 of 4 here) is tried again, and its `withdraw`
+  from the 10 cm hover rose to 1.29 m into the board above (13-39 N) and was
+  held there. With the hand first brought straight back to 0.25 m ahead, out
+  from under the board, it went home and the cup was picked again (1 of 1).
+- **A carried fork brushes the board above** in the walk's hand-over, on the
+  side way a thin grip takes to its carry pose (round 10 of the pass): 2.2-7.0
+  N for 0.2-0.4 s, in all 7 forks carried; none moved in the jaws (tilted
+  0.3-1.6 deg after the walk).
+
 ## The arms keep off the other robot (issue #678)
 
 **What happened.** #670 kept a step off the other robot as a walk is kept

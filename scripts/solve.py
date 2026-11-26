@@ -3,11 +3,12 @@ offered job flown the way the robot's own attempt runs and graded by the
 job's own grader -- so a passing verdict here is the verdict a robot would
 be paid for, and a robot that never earns it is a finding about the robot.
 
-  --feature drawer | door | cube | chest | table | pass
+  --feature drawer | door | cube | chest | table | pass | kitchen
                     a hand job: `open_drawer`, `open_door`, `place_cube` or
                     `open_chest` offered on the storeroom's counter, or
                     `set_table` at the restaurant's table (#560) -- or
-                    `set_table_pass`, its place laid from the pass (#682's
+                    `set_table_pass`, its place laid from the pass, or
+                    `set_table_shelf`, laid from the kitchen's shelf (#682's
                     stage C, never offered) -- as the cadence offers it -- the area's address and directions,
                     the prop's hidden dynamics drawn afresh (`--draw K`, the
                     board's own sequence where none is given) and the prop
@@ -18,7 +19,8 @@ be paid for, and a robot that never earns it is a finding about the robot.
                     humanoid a flight on a fresh map, from in front of its
                     station (`--from station`) or inside the storeroom's
                     door (`--from store`), or in front of the restaurant's
-                    pass (`--from pass`); `--n` draws from K, a process
+                    pass (`--from pass`) or of its kitchen's shelf (`--from
+                    shelf`); `--n` draws from K, a process
                     each (`--jobs`), a row each (`--into DIR`); `--view`
                     watches one, `--strip` its filmstrip, `solve.png`.
                     Each flight draws noise of its own, keyed by its job,
@@ -81,7 +83,8 @@ class _Mind:
 HAND_JOBS = {"drawer": ("open_drawer", "drawer"), "door": ("open_door", "door"),
              "cube": ("place_cube", "cube"), "chest": ("open_chest", "chest"),
              "table": ("set_table", "dining_table_0"),
-             "pass": ("set_table_pass", "dining_table_0")}
+             "pass": ("set_table_pass", "dining_table_0"),
+             "kitchen": ("set_table_shelf", "dining_table_0")}
 
 
 def work_view(target: str) -> tuple[tuple[float, float], list[float], float, float]:
@@ -108,6 +111,15 @@ def pass_view() -> tuple[tuple[float, float], list[float], float, float]:
   from pluggybot.evaluation import counter as ct
   px, py = ct.pass_to_world(0.0, 0.0)
   return (px, py), [px - 0.2, py, ct.PASS_H + 0.1], 2.2, 140.0
+
+
+def shelf_view() -> tuple[tuple[float, float], list[float], float, float]:
+  """The kitchen shelf's work, as `pass_view` gives the pass's: the middle of
+  its board's front edge, and a camera from the kitchen's south-west onto the
+  robot's hands at it (`--feature kitchen`'s pick-ups)."""
+  from pluggybot.evaluation import counter as ct
+  sx, sy = ct.shelf_to_world(0.0, 0.0)
+  return (sx, sy), [sx - 0.2, sy, ct.SHELF_H + 0.1], 2.2, 40.0
 #: Where a flight starts, (x, y, heading): in front of its station, the place
 #: a job is taken from, or inside the storeroom's door facing its counter --
 #: or, `tour`, each flight of `--n` at the next of eight places across the
@@ -123,6 +135,14 @@ def pass_start() -> tuple[float, float, float]:
   offline flight of the place laid from it starts (`counter.pass_set_out`)."""
   from pluggybot.evaluation import counter as ct
   return ct.pass_set_out(0).start
+
+
+def shelf_start() -> tuple[float, float, float]:
+  """In front of the restaurant kitchen's shelf, facing it (`--from shelf`):
+  where an offline flight of the place laid from it starts
+  (`counter.shelf_set_out`)."""
+  from pluggybot.evaluation import counter as ct
+  return ct.shelf_set_out(0).start
 
 
 def noise_of(kind: str, start: str, draw: int | None) -> str:
@@ -159,7 +179,8 @@ def hand_life(state_dir: str, start: str, viewer=None, noise: str | None = None)
   life.activities = acts
   from pluggybot.home import world as home
   at = (life.body.charge_standoff() if start == "station" else STORE_START if start == "store"
-        else pass_start() if start == "pass" else tuple(home.SPAWNS[start]))
+        else pass_start() if start == "pass" else shelf_start() if start == "shelf"
+        else tuple(home.SPAWNS[start]))
   life.body.start_at(*at)
   life.body.start_discovery()
   return life, viewer
@@ -193,7 +214,8 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
       viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = distance + 0.2, azimuth, -22.0
     shots = None if not strip else (
       _HandStrip(life, prop, also=(pass_view(),), tiles=20, work_every=15.0) if feature == "pass"
-      else _HandStrip(life, prop))
+      else _HandStrip(life, prop, also=(shelf_view(),), tiles=24, work_every=15.0)
+      if feature == "kitchen" else _HandStrip(life, prop))
 
     def fly():
       yield from body.look_around_routine()
@@ -381,15 +403,17 @@ def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--feature", choices=tuple(HAND_JOBS), default="drawer",
-                      help="the hand job: the drawer, the door, the cube, the chest or the table")
+                      help="the hand job: the drawer, the door, the cube, the chest or the "
+                           "table, or the table laid from the pass or from the kitchen's shelf")
   parser.add_argument("--view", action="store_true", help="watch one flight in the viewer")
   parser.add_argument("--n", type=int, default=1,
                       help="how many draws, from --draw, a process each")
-  parser.add_argument("--from", dest="start", choices=("station", "store", "pass", "tour"),
+  parser.add_argument("--from", dest="start", choices=("station", "store", "pass", "shelf", "tour"),
                       default="station",
                       help="each flight from in front of the station, inside the "
-                           "storeroom's door, in front of the restaurant's pass, or each "
-                           "of `--n` from the next of eight places across the house (`tour`)")
+                           "storeroom's door, in front of the restaurant's pass or of its "
+                           "kitchen's shelf, or each of `--n` from the next of eight places "
+                           "across the house (`tour`)")
   parser.add_argument("--draw", type=int, default=None,
                       help="the draw of its prop's hidden dynamics (default: the "
                            "board's own sequence, 0; with --n, the first)")

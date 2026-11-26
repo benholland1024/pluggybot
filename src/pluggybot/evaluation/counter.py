@@ -408,6 +408,81 @@ def pass_set_out(k: int) -> TableSetOut:
                      surface=PASS_H)
 
 
+#: THE PLACE LAID FROM THE KITCHEN'S SHELF (#682's stage C, the full task;
+#: Ben, 11-26): the same place at table 0, its card where `table_set_out`
+#: stands it, and its pieces set out on the restaurant kitchen's shelf
+#: (`home.world.SHELVES`' `kitchen_shelf`, against the kitchen's east wall
+#: across from the pass) -- a carry of 10-13 m through the staff door. The
+#: shelf, the board they lie on counted from the floor's (its top 0.96 m, the
+#: board above 0.38 m over it, at the standing head's height), and its top's
+#: height, m.
+SHELF, SHELF_BOARD = "kitchen_shelf", 2
+SHELF_H = _home.SHELF_BOARDS_Z[SHELF_BOARD] + _home.SHELF_T / 2
+#: The shelf's own frame, S: from the middle of that board's front edge, x
+#: into the shelf and y to the left of a robot facing it. Where each piece
+#: is set out in S (x, y, m), how far either way it is drawn off it (m) and
+#: how far its turn is (rad): the pass's row (`PASS_SOURCES`), near the
+#: board's front edge for the pass's reasons -- a carried piece hangs under
+#: the board's top, and standing a hand takes a piece no further in.
+SHELF_SOURCES = PASS_SOURCES
+#: Where an offline flight of it starts (`world`; never the served job's,
+#: which begins wherever the robot is): the soles' middle this far out of
+#: the board's edge, on its middle, facing it, m -- nearer than the pass's:
+#: on a board this high `spot`'s picture takes in the cup's lid only within
+#: about 0.6 m and the plate's and the fork's tags within about 0.8, and
+#: from 0.90 m every look failed (SimNotes, "The place laid from the
+#: kitchen's shelf").
+SHELF_GAP = 0.60
+#: `shelf_set_out(k)`'s stream is this and k: a stream of its own, never the
+#: table's set-out's, the pass's, nor the pieces' hidden draw's.
+SHELF_SEED = 5604
+
+
+def _shelf() -> tuple[np.ndarray, np.ndarray]:
+  """The middle of the shelf's board's front edge (x, y), and the shelf's
+  inward axis, a unit (x, y): its front faces its frame's +y turned by its
+  yaw (`home.world.SHELVES`)."""
+  _, cx, cy, _, depth, yaw, _ = next(s for s in _home.SHELVES if s[0] == SHELF)
+  out = np.array([-math.sin(yaw), math.cos(yaw)])
+  return np.array([cx, cy]) + depth / 2 * out, -out
+
+
+def shelf_to_world(px: float, py: float) -> tuple[float, float]:
+  """A point of the shelf's frame S in the world: the middle of its board's
+  front edge, x into the shelf, y to the left of a robot facing it."""
+  front, inward = _shelf()
+  left = np.array([-inward[1], inward[0]])
+  x, y = front + px * inward + py * left
+  return float(x), float(y)
+
+
+def shelf_set_out(k: int) -> TableSetOut:
+  """Place `k` laid from the kitchen's shelf (seeded): its pieces set out on
+  the shelf's board round `SHELF_SOURCES`, each drawn off it and turned, off
+  a stream of its own, with draw k's hidden weights and friction
+  (`dishware.draw`, the table's); the card at table 0 as `table_set_out`
+  stands it; an offline flight's robot in front of the shelf, facing it."""
+  from pluggybot.activity import dishware as dw
+  if k < 0:
+    raise ValueError(f"a set-out is a whole number from 0, not {k}")
+  rng = np.random.default_rng((SHELF_SEED, k))
+  _, inward = _shelf()
+  facing = math.atan2(inward[1], inward[0])
+  pieces = {}
+  for name in dw.PIECES:
+    (x, y), (dx, dy), turn = SHELF_SOURCES[name]
+    px, py = x + float(rng.uniform(-dx, dx)), y + float(rng.uniform(-dy, dy))
+    pieces[name] = (*shelf_to_world(px, py), facing + float(rng.uniform(-turn, turn)))
+  north = math.pi / 2
+  cx, cy = place_to_world(CARD_IN, 0.0)
+  sx, sy = shelf_to_world(-SHELF_GAP, 0.0)
+  # the start is the pelvis's: the soles' middle stands `_stance_ahead()` before it
+  start = (sx - _stance_ahead() * math.cos(facing), sy - _stance_ahead() * math.sin(facing),
+           facing)
+  return TableSetOut(k=k, load=dw.draw(k), pieces=pieces, card=(cx, cy, -north), start=start,
+                     surface=SHELF_H)
+
+
 def world(so, policy=None, noise: str | None = None):
   """A set-out's world: the house with the humanoid standing at its start,
   the counter and the prop on it -- the chest (`SetOut`), or a check's

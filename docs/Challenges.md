@@ -545,5 +545,20 @@ out where 21, no fall: the bar, 24 of 32, is met.
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 
+**Laid from the kitchen's shelf: `set_table_shelf`** (#682's stage C, its
+full task; Ben, 2026-11-26). The same place, graded by this check's evaluator
+under a row of its own, its pieces set out on the restaurant kitchen's shelf
+instead -- against the kitchen's east wall, across from the pass -- on its
+third board (its top 0.96 m, the board above 0.38 m over it): the pass's row,
+near the board's front edge, for the pass's reasons (`counter.shelf_set_out`).
+Each piece is a trip through the staff door, 10-13 m each way. Its set-out is
+the kind's (`restaurant.SET_OUTS`); the dishware, the shelf and the house are
+the served ones, and no tag was added: our reference finds the kitchen off the
+pass's pair. NOT OFFERED and paid nothing (`shown: false`), its minutes a
+generous 45 (`tasks.SHELF_MINUTES`); its bar is the pass's, written before its
+reference flew -- 24 of 32 draws over the tour, a fall failing its try, then
+32 draws sealed by the frozen commit (`scripts/solve.py --feature kitchen`;
+SimNotes, "The place laid from the kitchen's shelf").
+
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

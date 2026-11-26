@@ -54,6 +54,21 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a second task kind no world offers (`set_table_shelf`, pluggybot #682's stage C)
+
+`taskKinds` (every kind the producer knows) gains `set_table_shelf`: table
+0's place laid from its pieces set out on the restaurant kitchen's shelf,
+on its third board, its target `dining_table_0` and its `targetKind`
+`table`, graded as `set_table` is -- `set_table_pass`'s shape. No world's
+cadence offers it, so no stream carries one; a page that ever sees one may
+draw it as it draws `set_table`. The pieces it sets out are the place's own
+(`dining_table_0`'s activity, the same four bodies), on the shelf, and
+`<piece>Lifted` reads a piece over where it was set out, as it does for the
+pass's. No geometry moves: the shelf and the dishware are the served
+house's already, so no scene or recording moves either.
+
+No bump: a kind is additive.
+
 ### 0.21.0, no new shape: a person's chat is their own, and the narration says neither whose nor what (rooftop-media-2026 #518)
 
 Ben's call of 2026-11-17: a chat is like texting one robot. The website
@@ -286,7 +301,8 @@ its bar). What a consumer sees:
 - **An activity, additive**: `dining_table_0`, the place's -- its flags
   `setOut` (live: the dishware out where a job set it), `plateLifted`,
   `cupLifted` and `forkLifted` (live, each over where it was set out while
-  out: the table, or the pass for `set_table_pass`). A page
+  out: the table, or the pass for `set_table_pass`, or the kitchen's shelf
+  for `set_table_shelf`). A page
   may hide the four bodies while `setOut` is false; under the floor nothing
   shows them anyway.
 - **A task kind**: `set_table` joins `taskKinds`, its target

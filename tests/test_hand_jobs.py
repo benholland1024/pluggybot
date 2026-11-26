@@ -1201,7 +1201,8 @@ def test_a_bare_offer_gives_its_kinds_minutes_and_is_graded_on_them(tmp_path):
     assert f"within {KINDS[kind].minutes} minutes" in task.description, kind
     assert task.params["minutes"] == KINDS[kind].minutes
   assert {KINDS[k].minutes for k in HAND_JOBS
-          if k not in ("set_table", "place_cube", "set_table_pass")} == {HAND_MINUTES}
+          if k not in ("set_table", "place_cube", "set_table_pass", "set_table_shelf")} \
+    == {HAND_MINUTES}
   life = _life(tmp_path)
   task = life.tasks.offer("open_drawer", "drawer", ttl=3000.0, t=float(life.data.time))
   life.tasks.tasks[task.id] = replace(task, params={})
@@ -1334,8 +1335,9 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   offered = list(maker.cadence.kinds)
   # ...each once its reference passed there (cadence.json's note): the table's
   # 24 of 32 and the cube's 28 of 32 over the tour (#560) -- all but the place
-  # laid from the pass, never offered (#682's stage C, Ben's call)
-  assert set(HAND_JOBS) - set(offered) == {"set_table_pass"}
+  # laid from the pass and from the kitchen's shelf, never offered (#682's
+  # stage C, Ben's call)
+  assert set(HAND_JOBS) - set(offered) == {"set_table_pass", "set_table_shelf"}
   here = world_targets(HUMANOID_HOME, procedures=True)
   for kind in offered:
     task = maker._offer(kind, here[KINDS[kind].target_kind][0], 0.0)
