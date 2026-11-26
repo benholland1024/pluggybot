@@ -340,6 +340,11 @@ PASS_CUP_FACING = -0.07
 #: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
 #: from that stance set it down (the reference before aimed at 0.075, 0.24).
 PASS_CUP_AT = (0.066, 0.209)
+#: Where the plate's hand is put down from the card's tag, in the stance
+#: frame (m short of the tag ahead, m left of it), and the fork's: moved by
+#: where dev flights set each piece down.
+PASS_PLATE_AT = (0.20, 0.073)
+PASS_FORK_AT = (0.18, 0.146)
 #: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
 #: ahead: in one pull, one 0.24 m or longer (a grip 0.45 m out or more) took
 #: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
@@ -449,7 +454,7 @@ PASS_PLATE = '''def lay_plate():
   to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - 0.20, read("spot.y") + 0.073, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - %(plate_at_a)s, read("spot.y") + %(plate_at_b)s, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   if not close_hand("left", 5):
     pass
@@ -494,13 +499,20 @@ PASS_FORK = '''def lay_fork():
   to_place(%(facing)g)
   spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
-  reach("left", read("spot.x") - 0.18, read("spot.y") + 0.146, tz, 0.5, 0, -0.866, 0, -1, 0)
+  reach("left", read("spot.x") - %(fork_at_a)s, read("spot.y") + %(fork_at_b)s, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
   open_hand("left")
   wait(0.4)
   pull("left", 0, 0, 1, 20, 0.09, give=0)
   withdraw("left")
 '''
+
+
+def _aim(v: float) -> str:
+  """A put-down's aim as its source writes it: two decimals where they say
+  it exactly, as the reference was first typed, else every digit."""
+  two = f"{v:.2f}"
+  return two if float(two) == v else repr(float(v))
 
 
 def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -522,7 +534,9 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
            "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_mid": PASS_FORK_MID,
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
-           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS}
+           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
+           "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
+           "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
