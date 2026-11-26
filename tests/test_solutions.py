@@ -322,6 +322,60 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(mo
         (gx, gy, moves)
 
 
+def _put_down(monkeypatch, run: int, spot: dict, env: dict) -> tuple[float, float]:
+  """Where the pass reference's run `run` (0 the cup, 1 the plate, 2 the
+  fork) aims its put-down: the first `reach` after its walk to the place,
+  its x and y worked out by the language's own evaluator (`lang._eval`)
+  from the card's tag read at `spot` (`spot.*`) and the locals of `env`
+  (set at the pass), the statements between run as the run sets them."""
+  from types import SimpleNamespace
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import library as lib
+  facts = world_facts(HUMANOID_HOME)
+  library = lib.Library(facts)
+  for source in (*solutions.LIBRARY["set_table_pass"], *solutions.PROCEDURES["set_table_pass"]):
+    library.define(solutions._def_name(source), source)
+  body = library.entries[("lay_cup", "lay_plate", "lay_fork")[run]].procedure.body
+  for k, v in spot.items():
+    monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, v=v: v))
+  env = dict(env)
+  walked = next(i for i, s in enumerate(body) if s[0] == "call" and s[1] == "to_place")
+  for s in body[walked + 1:]:
+    if s[0] == "set":
+      env[s[1]] = lang._eval(s[2], env, SimpleNamespace(), facts)
+    elif s[0] == "verb" and s[1] == "reach":
+      return tuple(lang._eval(s[2][a], env, SimpleNamespace(), facts) for a in ("x", "y"))
+  raise AssertionError("the run puts nothing down after its walk to the place")
+
+
+def test_the_pass_put_downs_are_aimed_off_the_pass_own_constants(monkeypatch):
+  """#682's stage C on #751's cure (the loop of 11-26b, round 1): blind to
+  its carrying arm, walk2 walks the carried trips true, and every put-down
+  tuned on the seeing walker's errors landed a constant away from its spot
+  (SimNotes, "The place laid from the pass"). Each piece's aim is the
+  pass's own constant, moved by where dev flights on the cure set it down:
+  the cup's in the card's own frame, turned by the card's angle in the
+  stance (`PASS_CUP_AT`: toward the robot, to its right), the plate's and
+  the fork's in the stance frame (`PASS_PLATE_AT`, `PASS_FORK_AT`: short of
+  the tag ahead, left of it). Off the reference's own source, run by the
+  language."""
+  import math
+  from pluggybot.challenge import solutions
+  for sx, sy, a in ((0.52, 0.04, 0.0), (0.49, -0.03, 0.05), (0.55, 0.08, -0.04)):
+    spot = {"x": sx, "y": sy, "z": 0.75, "nx": math.cos(a), "ny": math.sin(a)}
+    ox, oy, oz = 0.012, -0.007, 0.07
+    cx, cy = _put_down(monkeypatch, 0, spot, {"ox": ox, "oy": oy, "oz": oz})
+    ca, cb = solutions.PASS_CUP_AT
+    assert math.isclose(cx, sx - ca * math.cos(a) + cb * math.sin(a) - ox, abs_tol=1e-9), (cx, a)
+    assert math.isclose(cy, sy - ca * math.sin(a) - cb * math.cos(a) - oy, abs_tol=1e-9), (cy, a)
+    for run, at in ((1, solutions.PASS_PLATE_AT), (2, solutions.PASS_FORK_AT)):
+      x, y = _put_down(monkeypatch, run, spot, {"oz": oz})
+      assert math.isclose(x, sx - at[0], abs_tol=1e-9) and math.isclose(y, sy + at[1], abs_tol=1e-9), \
+        (run, x, y, at)
+
+
 def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
   """#682's stage C, round 3: the cup is reached for 10 cm over its grip and
   then brought down to it. Brought down by a `pull`, its grip at the shut

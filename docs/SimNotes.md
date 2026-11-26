@@ -8298,8 +8298,8 @@ interleaved; the loop of 11-25b, C3):
   the cup is let go 4 cm from where the base's are, the fork 3. The card is
   read within 5 mm and 0.2 deg on both (a spy beside each look). The cure's
   let-goes are as tight as the base's (the cup's 1.4 cm a side against 1.3), a
-  constant away: moved by it, 27 of 30 cups and 28 of 29 forks would land (by
-  arithmetic, not flown).
+  constant away; aimed again by it, most land (the pass's section, below,
+  round 9).
 - **carry_spike** (`--served`; 12 cases over 9 courses on a bare floor and
   the house's route, 4 draws each): no fall on either tree. On a bare floor
   the open-loop courses ended 0.19 m from where they were asked (median),
@@ -8330,15 +8330,11 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), nine times, and has not met it (the reference as it stands, round
-5's, read 17 of 32 beside round 7's lever and again beside round 8's, the
-same flights on two trees and two pods of one CPU type, and 15 and 16 held
-out on 5060fe0's pool and eba1489f's -- round 8's tree 9ee9298b, before
-#693's withdraw case, which the pass has not flown; on the same 32 draws it read 15 on
-round 5's tree and pod and 14 on round 6's: the tree and the CPU changed
-together each time, and the count moved with them; the bar is still 7
-away). What
-developing it took, each
+below), ten times, and has not met it: the reference as it stands, round
+5's with its put-downs aimed again on #751's cure (round 9, below), lays 12
+of 32 on the bar's draws and 16 of 32 sealed by 302f369, no fall, where the
+reference before it laid 4 and 1 on the same pod -- the bar is 12 away.
+What developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
 `~/pluggybot-training/loop-1113/l4-shelf/`, round 3's in
@@ -8529,8 +8525,8 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   read twice on one pod (an AMD EPYC 7B13, osmesa), then a third time on
   another (an AMD EPYC 7K62), a fourth on another (an AMD EPYC 7763), and a
   fifth and a sixth on another (an AMD EPYC 9684X), a seventh on another
-  (an AMD EPYC 7742), an eighth on another (an AMD EPYC 9654), and a
-  ninth on another of that kind:
+  (an AMD EPYC 7742), an eighth on another (an AMD EPYC 9654), a
+  ninth on another of that kind, and a tenth on a Xeon E7-8890 v4:
   - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
     0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
     (walk2's bar and held-out draws, then the carry walker's): the cup let
@@ -8705,6 +8701,15 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     reference's slipped in 18, and was laid 49 times where 45. Not better on
     the bar's draws, and it fell once more: it was taken back out (round 8,
     below).
+  - At 302f369f (round 9, below: the cup's and the fork's put-downs aimed
+    again on #751's cure), on walk2 shown its arms at rest while it carries:
+    12 of 32; held out (sealed by 302f369), 16; no fall. On the same pod, the
+    reference before it (85449ac8) laid 4 of 32 and 1 held out. The first
+    piece not laid (the bar's draws, then the held-out): the cup's put-down 8
+    and 5, the cup let go carried 2 and 1; the plate's put-down 4 and 0, the
+    plate let go carried 2 and 0; the fork 4 and 10 (lost at the hand-over 0
+    and 3, set down off its spot or dropped 3 and 7, let go carried 1 and
+    0). Kept.
 - **What round 3 left, measured beside its reading** (not in the
   reference; round 3 ended with the reading):
   - **The fork's pull-back as a fixed length** from where its hand gripped
@@ -8997,6 +9002,38 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     - the plate, 9: let go carried 6, its pick 1, its put-down 2.
 
     The cup's put-down and the fork's are more than half of it (36 of 63).
+- **Round 9** (the loop of 11-26b, its lane A's round 1;
+  `~/pluggybot-training/loop-1126b/a1-pass9/`, one pod, a Xeon E7-8890 v4,
+  osmesa, each draw its own noise; the tree 85449ac8 carried #751's cure,
+  #681's pair, #724 and #693's second path): the put-downs aimed again on
+  the cure.
+  - **A census first**, round 5's reference at the bar's draws with a carry
+    recorder (shown passive: draws 0-7 flown plain too, the same end state
+    to the bit): 4 of 32, no fall -- 31 of the flights C3 read on the cure
+    (3 of 32, a Xeon E5-2699 v4) to 0.1 mm, the 32nd parted by #681's pair
+    in the cup's find of the card and laid. First pieces not laid: the cup's
+    put-down 22, the cup let go carried 2, the fork 4.
+  - **Each put-down a constant away, measured on dev draws** (W4's
+    3600-3663, the base 0 of 64): in the grader's frame -- toward the diner,
+    to the diner's left -- the cups came down a median -1.5, +3.2 cm off
+    their spot, the forks -2.0, -1.7, the plates +0.2, -1.0 (59 of 61 within
+    2.5 cm). The cup's aim moved by its offset in the card's frame
+    (`PASS_CUP_AT` 0.066, 0.209 -> 0.081, 0.24), the fork's in the stance
+    frame (now `PASS_FORK_AT`, 0.18, 0.146 -> 0.20, 0.163), the plate's
+    named (`PASS_PLATE_AT`) and not moved. On the dev draws: 33 of 64 where
+    0, the medians near the spots (the cup -0.4, +0.2; the fork -0.1,
+    -0.1) -- but the spread wider than the arithmetic hoped (the cup's sd
+    1.1 / 1.6 cm where 0.8 / 1.0; within 2.5 cm 49 of 60, not 58): the
+    cups set down off it stood turned the wrong way or too far at the
+    put-down. Read on the bar's draws and sealed draws (above): 12 and 16 of
+    32.
+  - **What it leaves** (its first pieces not laid over the bar's 32 and the
+    sealed 32): the cup's put-down 13, the fork 14, the plate 6, the cup let
+    go carried 3. And what the carried pieces meet: traced through every
+    walk's hand-over, the census's plate met the pass's counter in 30 of 32
+    hand-overs and the fork in 19 of 31 -- in the arm's way to its carry
+    pose, not as the walk turned away -- and every fork that turned past 10
+    deg in the jaws turned after such a touch (round 10's lead).
 
 ## The arms keep off the other robot (issue #678)
 
