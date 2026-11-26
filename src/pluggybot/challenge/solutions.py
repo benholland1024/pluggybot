@@ -401,6 +401,19 @@ PASS_CUP_RIGHT, PASS_CUP_MID = 0.20, 0.15
 #: crouched and swivelled the feet as the cup's did -- 25 of 37 put-downs
 #: within 2.5 cm there, 54 of 57 at 0.11-0.17 m.
 PASS_FORK_LEFT, PASS_FORK_MID = 0.18, 0.14
+#: How far the cup set down may lie from where the card, looked at again with
+#: the cup down and still held, puts its place before it is lifted 1.5 cm,
+#: moved there and set down again, m: the reach and the pull down turned the
+#: stance under the hand 1-2.5 deg (a stance stepped sideways before them, 2.5
+#: deg), each degree 0.6 cm at the cup's place (SimNotes, "The place laid from
+#: the pass").
+PASS_CUP_AGAIN = 0.01
+#: How far the plate's trip turns left after its walk to the pass, rad, before
+#: it walks up to the plate: the walk's `face` stops 5.6 deg short of square to
+#: the pass (median; sd 2.9), and turned right of square 8 deg or more, the
+#: walk's hand-over swung the plate into the pass's top (12 of 25, square 1 of
+#: 38) and the plate came loose in the jaws for an instant, a drop.
+PASS_PLATE_TURN = 0.10
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -460,6 +473,15 @@ PASS_CUP = '''def lay_cup():
   tz = read("spot.z") - 0.055 + oz + 0.10
   reach("right", tx, ty, tz, 0.707, 0, -0.707, 0, 1, 0)
   pull("right", 0, 0, -1, 6, 0.15, give=0)
+  if spot(93):
+    a = atan2(read("spot.ny"), read("spot.nx"))
+    dx = read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox - tx
+    dy = read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy - ty
+    if dx * dx + dy * dy > %(cup_again)g * %(cup_again)g:
+      pull("right", 0, 0, 1, 20, 0.015, give=0)
+      if not move_hand("right", read("right.x") + dx, read("right.y") + dy, read("right.z")):
+        pass
+      pull("right", 0, 0, -1, 6, 0.05, give=0)
   open_hand("right")
   wait(0.4)
   pull("right", 0, 0, 1, 20, 0.08, give=0)
@@ -468,6 +490,8 @@ PASS_CUP = '''def lay_cup():
 PASS_PLATE = '''def lay_plate():
   budget(steps=120, seconds=1200)
   to_pass(-0.18)
+  if not step(0, 0, %(plate_turn)g):
+    pass
   near(90, 0.50, %(plate_aim)g)
   move("left_shoulder_roll", 0.9)
   move("left_elbow", 1.4)
@@ -584,7 +608,8 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
            "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
            "plate_least": PASS_PLATE_LEAST, "cup_right": PASS_CUP_RIGHT, "cup_mid": PASS_CUP_MID,
-           "fork_left": PASS_FORK_LEFT, "fork_mid": PASS_FORK_MID,
+           "fork_left": PASS_FORK_LEFT, "fork_mid": PASS_FORK_MID, "cup_again": PASS_CUP_AGAIN,
+           "plate_turn": PASS_PLATE_TURN,
            "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
            "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),

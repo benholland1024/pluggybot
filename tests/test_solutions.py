@@ -12,6 +12,7 @@ The rules, each pinned without a mission (docs/Testing.md):
 """
 
 import ast
+import math
 from pathlib import Path
 
 SRC = Path(__file__).parent.parent / "src" / "pluggybot"
@@ -519,6 +520,152 @@ def test_the_pass_fork_steps_left_where_its_put_down_goes_too_far_left(monkeypat
     steps = []
     x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps)
     assert not steps and abs(y - (sy + b)) < 1e-9, (sy, steps, y)
+
+
+def _cup_set_down(monkeypatch, card: dict, moved: dict | None, env: dict, seen: bool = True) -> list:
+  """The pass reference's cup run from its put-down's reach to its let-go,
+  the language's own evaluator working each argument out (`lang._eval`): the
+  card read at `card` until the reach, then -- the stance turned under the
+  held cup by the reach and the pull down -- at `moved` (`seen` False: not
+  in the picture), the hand's sensed place where the reach sent it. Each
+  verb's name and worked-out arguments, in order, the reach first."""
+  from types import SimpleNamespace
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import library as lib
+  facts = world_facts(HUMANOID_HOME)
+  library = lib.Library(facts)
+  for source in (*solutions.LIBRARY["set_table_pass"], *solutions.PROCEDURES["set_table_pass"]):
+    library.define(solutions._def_name(source), source)
+  body = library.entries["lay_cup"].procedure.body
+  now = dict(card)
+  hand = {}
+  for k in ("x", "y", "z", "nx", "ny"):
+    monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, k=k: now[k]))
+  for k in ("x", "y", "z"):
+    monkeypatch.setitem(axes.SENSORS, f"right.{k}", SimpleNamespace(read=lambda life, k=k: hand[k]))
+  env = dict(env)
+  calls = []
+
+  def value(expr):
+    return lang._eval(expr, env, SimpleNamespace(), facts)
+
+  def verb(name, args):
+    got = {k: v[1] if isinstance(v, tuple) and v[0] == "str" else value(v) for k, v in args.items()}
+    calls.append((name, got))
+    if name == "reach":
+      hand.update(x=got["x"], y=got["y"], z=got["z"] - 0.09)
+      if moved is not None:
+        now.update(moved)
+    elif name == "move_hand":
+      hand.update(x=got["x"], y=got["y"], z=got["z"])
+    return name != "spot" or seen
+
+  def walk(stmts):
+    for st in stmts:
+      if st[0] == "set":
+        env[st[1]] = value(st[2])
+      elif st[0] == "verb":
+        verb(st[1], st[2])
+        if st[1] == "open_hand":
+          return True
+      elif st[0] == "if":
+        for cond, then in st[1]:
+          if cond[0] == "try":
+            ok = verb(cond[2][1], cond[2][2])
+            held = (not ok) if cond[1] else ok
+          else:
+            held = lang._truth(value(cond))
+          if held:
+            if walk(then):
+              return True
+            break
+        else:
+          if walk(st[2]):
+            return True
+      elif st[0] != "pass":
+        raise AssertionError(f"the cup's set-down holds a {st[0]} this walk does not follow")
+    return False
+  last_reach = max(i for i, st in enumerate(body) if st[0] == "verb" and st[1] == "reach")
+  for k in ("tx", "ty", "tz", "a", "ox", "oy", "oz"):
+    env.setdefault(k, 0.0)
+  # the put-down's aim as the run worked it out, then everything from its reach on
+  a = math.atan2(card["ny"], card["nx"])
+  ca, cb = solutions.PASS_CUP_AT
+  env.update(a=a, tx=card["x"] - ca * math.cos(a) + cb * math.sin(a) - env["ox"],
+             ty=card["y"] - ca * math.sin(a) - cb * math.cos(a) - env["oy"], tz=0.89)
+  assert walk(body[last_reach:]), "the cup is never let go"
+  return calls
+
+
+def test_the_pass_cup_set_down_is_looked_at_again_and_moved_where_the_stance_turned(monkeypatch):
+  """#682's stage C on #751's cure (the loop of 11-26b, round 5): the reach
+  and the pull down turned the stance under the held cup 1-2.5 deg, each
+  degree 0.6 cm at the cup's place, and a stance stepped sideways first
+  turned it 2.5 deg: the cup came down 2-3.5 cm off (SimNotes, "The place
+  laid from the pass"). Set down and still held, the cup's run looks at
+  the card again; where the cup's place it works out lies `PASS_CUP_AGAIN`
+  or further from where the hand was sent, it lifts the cup 1.5 cm, moves
+  the hand by that much, sets it down again and lets go; nearer, or the
+  card not in the picture, it lets go as it is. Off the reference's own
+  source, run by the language."""
+  from pluggybot.challenge import solutions
+  card = {"x": 0.47, "y": 0.06, "z": 0.775, "nx": math.cos(0.05), "ny": math.sin(0.05)}
+  env = {"ox": 0.004, "oy": -0.006, "oz": 0.075}
+  ca, cb = solutions.PASS_CUP_AT
+
+  def place(c):
+    a = math.atan2(c["ny"], c["nx"])
+    return c["x"] - ca * math.cos(a) + cb * math.sin(a), c["y"] - ca * math.sin(a) - cb * math.cos(a)
+  # the stance turned 2.5 deg right under the cup: the card seen turned and moved the other way
+  d = math.radians(2.5)
+  turned = {"x": card["x"] * math.cos(d) - card["y"] * math.sin(d),
+            "y": card["x"] * math.sin(d) + card["y"] * math.cos(d), "z": card["z"],
+            "nx": math.cos(0.05 + d), "ny": math.sin(0.05 + d)}
+  calls = _cup_set_down(monkeypatch, card, turned, env)
+  names = [n for n, _ in calls]
+  assert names[:3] == ["reach", "pull", "spot"], names
+  assert names[3:7] == ["pull", "move_hand", "pull", "open_hand"], names
+  (x0, y0), (x1, y1) = place(card), place(turned)
+  up, move, down = calls[3][1], calls[4][1], calls[5][1]
+  assert up["dz"] == 1 and math.isclose(up["distance"], 0.015) and down["dz"] == -1, (up, down)
+  reach = calls[0][1]
+  assert math.isclose(move["x"] - reach["x"], x1 - x0, abs_tol=1e-9), (move, reach)
+  assert math.isclose(move["y"] - reach["y"], y1 - y0, abs_tol=1e-9), (move, reach)
+  assert math.hypot(x1 - x0, y1 - y0) > solutions.PASS_CUP_AGAIN
+  # within PASS_CUP_AGAIN, or the card not in the picture: let go as it is
+  for moved, seen in ((None, True), (turned, False)):
+    names = [n for n, _ in _cup_set_down(monkeypatch, card, moved, env, seen=seen)]
+    assert names == ["reach", "pull", "spot", "open_hand"], (moved is None, seen, names)
+  small = math.radians(0.8)
+  near = {"x": card["x"] * math.cos(small) - card["y"] * math.sin(small),
+          "y": card["x"] * math.sin(small) + card["y"] * math.cos(small), "z": card["z"],
+          "nx": math.cos(0.05 + small), "ny": math.sin(0.05 + small)}
+  assert math.hypot(*(p - q for p, q in zip(place(near), place(card)))) < solutions.PASS_CUP_AGAIN
+  names = [n for n, _ in _cup_set_down(monkeypatch, card, near, env)]
+  assert names == ["reach", "pull", "spot", "open_hand"], names
+
+
+def test_the_pass_plate_trip_squares_itself_to_the_pass_before_it_walks_up_to_the_plate():
+  """#682's stage C on #751's cure (the loop of 11-26b, round 5): the walk to
+  the pass's `face` stops 5.6 deg short of square (median), and a plate
+  carried off from a stance turned right of square 8 deg or more was swung
+  by the walk's hand-over into the pass's top and came loose in the jaws for
+  an instant (SimNotes, "The place laid from the pass"). The plate's run
+  turns left `PASS_PLATE_TURN` after its walk to the pass and before it
+  walks up to the plate. Off the reference's own source."""
+  from pluggybot.challenge import solutions
+  calls = _calls(solutions.PROCEDURES["set_table_pass"][1])
+  walked = _index(calls, lambda c: c[0] == "to_pass", "walk to the pass")
+  up = _index(calls, lambda c: c[0] == "near", "walk up to the plate", walked)
+  between = calls[walked + 1:up]
+  assert between == [("step", [0, 0, solutions.PASS_PLATE_TURN])], between
+  assert 0.05 < solutions.PASS_PLATE_TURN < 0.15, solutions.PASS_PLATE_TURN
+  for run in (0, 2):
+    calls = _calls(solutions.PROCEDURES["set_table_pass"][run])
+    walked = _index(calls, lambda c: c[0] == "to_pass", "walk to the pass")
+    assert calls[walked + 1][0] == "near", (run, calls[walked + 1])
 
 
 def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
