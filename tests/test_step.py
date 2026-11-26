@@ -617,8 +617,8 @@ def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
   stance (SimNotes, "Stepping toward the work"): its stop rule, reading the
   pelvis, ended a short left ask in the lean and nothing moved -- 47 of 245
   left asks over eight stances read `too short`, and 40 of the robots' own
-  212 left steps of 6 cm. Held on until its legs count its stance
-  `STEP_LEAST_M` along its way, it takes that first move."""
+  212 left steps of 6 cm. A step straight to the left, held on until its
+  legs count its stance `STEP_LEAST_M` along its way, takes that first move."""
   rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.0, 0.04)
   assert rep["why"] == "stepped", "a left walk ended in its lean, its feet unmoved"
   # ...held only that long, then its stop rule as before: here at once, its
@@ -628,10 +628,11 @@ def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
   body = _walker(Walk(coast_s=0.0, planted_s=0.3))
   body.held = True
   assert _step(body, 0.0, 0.04)["why"] == "stepped"
-  # ...and an oblique step's walk to the left, its second, as much (its
-  # verdict is the whole step's, judged along its oblique way)
+  # ...never an oblique step's second walk to the left: after a walk ahead
+  # the legs count the stance well short, and held on, a 4 cm left part after
+  # a turn went 13-18 cm
   rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.02, 0.06)
-  assert rep["dy"] >= hb.STEP_LEAST_M, rep
+  assert abs(rep["dy"]) < hb.STEP_LEAST_M / 2, rep
   # ...LEFT ONLY: to the right, ahead and back the walker's first move is a
   # whole stride, and held on, a short ask went a stride too far
   for ask in ((0.0, -0.04), (0.04, 0.0), (-0.04, 0.0)):

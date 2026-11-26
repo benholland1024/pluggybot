@@ -2828,6 +2828,49 @@ walk's first 0.3 s being all lean. The same flights' verdicts now:
   20, 0.7 against 1.3 past 20. A `too short` walk happened once, in a table
   draw that failed on both trees.
 
+**A short walk to the left, held on until its first foot moves (the loop of
+11-26/30, B1).** Measured on 85449ac8, on a bare floor, by instruments kept
+outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
+- *Where a step lands is set by its feet after the stop.* A step's walk was
+  stopped at T = 0.02-1.20 s, from eight stances (the boot, after a 12 cm
+  step, after a withdraw, a turn, a `spot`'s bow and a `face` turn, and after
+  a pick, the hand let go or carried), each way, and handed back as a step
+  ends. Where the stance ended rises with T in ramps (a foot swinging) and
+  plateaus (one planted). The best stop on that grid lands sideways asks of
+  3-25 cm within 0.2 cm at the median (0.8 at q90); the stop rule (the
+  pelvis's count plus its speed times `STEP_STOP_S`) lands them within 1.8
+  (3.9). The pelvis's speed at the stop tells almost nothing of what follows.
+  No fitted stop rule off what the legs read (the pelvis, the stance, each
+  sole and its height) beat today's tail held out, and per-way retunes of
+  `STEP_STOP_S` lost where a hand is carried.
+- *No slower step.* The walker does not move sideways at 0.10, 0.15 or 0.20
+  m/s from a stand (commanded 1.2-2.4 s, 0.0 cm), so a step cannot creep up
+  on its ask.
+- *The walker's first move is a whole stride, but to the left.* Its first
+  0.16-0.58 s are the pelvis leaning over planted feet (0.54-0.58 after a
+  `face` turn). To the left, the first move is the right foot closing in,
+  2.4-3.5 cm of stance. To the right, ahead and back, it is a stride of 5-15
+  cm: it loads its right foot first whichever way. Stopped in the lean, a
+  short ask goes nowhere. Over eight stances and three draws, 47 of 245 left
+  asks read `too short`, and so did 40 of the 212 left steps of 6 cm in the
+  robots' own 200 tries (X5's, at their live draws): 22 of them truly moved
+  0.2-2.1 cm, and 18 moved 2.8-5.6 cm while the legs counted under 1 (the
+  reckoning's undercount of a slide).
+- *The rule* (`STEP_LEFT_HOLD_S`): a walk straight to the left -- a pure left
+  step, or the second walk of an oblique walked as two -- is ended by its stop
+  rule only once the legs' reckoning has its stance `STEP_LEAST_M` along its way
+  (half its length where less), or after 1.0 s of its walking, the other
+  robot's runs not counted. Over the same flights its left asks land a mean
+  2.00 cm off where they landed 2.27, `too short` 10 times where 47; 3-4 cm
+  asks 0.95 off where 1.89. Asks of 8 cm and more land as before. After a
+  `face` turn it reads worse (2.76 -> 3.05: there the first left move is 7-8
+  cm). Held on to the right, ahead or back, a short ask went a whole stride
+  too far, so they stop as before.
+- *What it leaves:* a 6-12 cm left ask still overshoots, often by 2-5 cm (the
+  leftward ramp: stopped as its left foot swings out, the foot lands, then the
+  right closes in). The spread to the right, ahead's 1.1 of its ask and back's
+  0.87 are as they were.
+
 **The cube in the hand.** The Dex1-1's fingers are 8 cm long and its grip
 point is their middle (`humanoid/model.py`, `jaw_z`), so at the 60 deg tilt
 that reaches a 26 mm cube on a board, the fingertips are 3.5 cm below the

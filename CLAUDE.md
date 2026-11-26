@@ -1414,7 +1414,13 @@ save a filmstrip PNG named after the script.
   LEGS RECKON WENT UNDER `STEP_LEAST_M` READS `too short`, never `stepped`
   (#649: a walk's first 0.3 s are the pelvis leaning over planted feet, so a
   short ask could end before a foot lifted and read `stepped`), its stop
-  rule as it was; ⚠ A TURN IS CLOSED ON THE STANCE'S HEADING (`_turn_routine`,
+  rule as it was -- ⚠ BUT A WALK STRAIGHT TO THE LEFT IS HELD ON UNTIL ITS
+  LEGS COUNT ITS STANCE `STEP_LEAST_M` ALONG (half its length where less),
+  `STEP_LEFT_HOLD_S` (1 s) of walking at most, the other robot's runs not
+  counted (the loop of 11-26/30's B1; SimNotes, "Stepping toward the work"):
+  stopped in its lean, a short left ask went nowhere (47 of 245 over eight
+  stances); ⚠ LEFT ONLY, the walker's first move any other way being a whole
+  stride; ⚠ A TURN IS CLOSED ON THE STANCE'S HEADING (`_turn_routine`,
   `TURN_*`, #649, #643's (b): stopped on the pelvis's heading the feet did not
   follow its last degrees, asked 3 the stance turned 0.3), measured from
   where the stance stood when the step began, the walker's own turn first

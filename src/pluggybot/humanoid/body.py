@@ -93,8 +93,8 @@ STEP_LEAST_M = 0.01
 #: there, four stances and three draws an ask: 3 and 4 cm back never moved,
 #: left went 0.7-3 cm, and from here up every ask went at least 2.7 cm).
 STEP_SHORT_M = 0.06
-#: A WALK STRAIGHT TO THE LEFT IS HELD ON UNTIL ITS FIRST FOOT MOVES (SimNotes,
-#: "Stepping toward the work"): its stop rule ends it only once the legs'
+#: A STEP STRAIGHT TO THE LEFT IS HELD ON UNTIL ITS FIRST FOOT MOVES (SimNotes,
+#: "Stepping toward the work"): its walk's stop rule ends it only once the legs'
 #: reckoning has its stance `STEP_LEAST_M` along its way (half its length where
 #: that is less), or once it has walked this long, s, the other robot's runs not
 #: counted. MEASURED: a leftward walk's first 0.16-0.58 s are its pelvis leaning
@@ -103,7 +103,9 @@ STEP_SHORT_M = 0.06
 #: short`, 47 of 245 left asks over eight stances). ⚠ LEFT ONLY: the walker
 #: loads its right foot first whichever way it walks, so to the right, ahead and
 #: back its first move is a whole stride (5-15 cm), and held on there a short
-#: ask went a stride too far.
+#: ask went a stride too far. ⚠ NEVER AN OBLIQUE STEP'S SECOND WALK: left after
+#: a walk ahead, the legs count the stance well short (`STEP_DY_LEFT_AFTER_M`),
+#: and held on, a 4 cm left part after a turn went 13-18 cm.
 STEP_LEFT_HOLD_S = 1.0
 #: A sidestep's `step.dy` reads this much less than its feet went, m, each
 #: way (#649; the same sweep): the walker slides before its first stride, under
@@ -1362,8 +1364,8 @@ class HumanoidBody(Body):
     a walk stops once what its legs reckon it has walked, and its speed times
     `STEP_STOP_S`, reach its length, so a stride, about 5 cm of the
     stance's, is the least it goes (asked under `STEP_SHORT_M` a walk may
-    take none) -- one straight to the left not before its first foot moves
-    (`STEP_LEFT_HOLD_S`). Its legs are the walking policy's meanwhile. Returns how it
+    take none) -- a step straight to the left not before its first foot
+    moves (`STEP_LEFT_HOLD_S`). Its legs are the walking policy's meanwhile. Returns how it
     ended (`why`: "stepped", "too short" -- the walk its legs reckon went
     under `STEP_LEAST_M`, asked at least that -- "turned short" -- its feet
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
@@ -1436,7 +1438,11 @@ class HumanoidBody(Body):
       if why == "stepped":
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
-        why, kept, stuck = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
+        why, kept, stuck = yield from self._walk_routine(
+          a_, l_, over, by_legs, since=t0,
+          # ...a step straight to the left held on until its first foot moves
+          # (`STEP_LEFT_HOLD_S`), never an oblique's second walk
+          hold=len(walks) == 1 and not ahead and left > 0.0)
         if stuck is not None and len(walks) > 1:
           # ...one of an oblique step's two walks counts its own way alone,
           # never the step's (#751)
@@ -1554,7 +1560,7 @@ class HumanoidBody(Body):
       pulses, settle = pulses + 1, TURN_SETTLE_S
     return why
 
-  def _walk_routine(self, ahead, left, over, by_legs, since):
+  def _walk_routine(self, ahead, left, over, by_legs, since, hold=False):
     """One straight walk of a step, its legs the walker's: "stepped" once
     what its legs reckon it has walked (`by_legs`), and its speed times
     `STEP_STOP_S`, reach its length; "blocked" where it gets nowhere in a
@@ -1563,10 +1569,10 @@ class HumanoidBody(Body):
     scans taken since `since`, the step's start); else what `over` says.
     Returns (why, how it kept off, or None, and how it got nowhere, or None:
     under `m` m along its way in a window of `s` s, `underWay` once an earlier
-    window had passed -- what its legs counted, never why, #751). ⚠ A WALK
-    STRAIGHT TO THE LEFT IS HELD ON UNTIL ITS FIRST FOOT MOVES: its stop rule
-    ends it only once its stance by the legs has gone `STEP_LEAST_M` (half its
-    length where less) along its way, or after `STEP_LEFT_HOLD_S` of walking."""
+    window had passed -- what its legs counted, never why, #751). ⚠ `hold`
+    (a step straight to the left): its stop rule ends it only once its stance
+    by the legs has gone `STEP_LEAST_M` (half its length where less) along its
+    way, or after `STEP_LEFT_HOLD_S` of walking -- its first foot moved."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -1581,9 +1587,8 @@ class HumanoidBody(Body):
     # ...and walls and furniture (#717), off every scan the step has taken
     # as a walk's front stop reads the other robot's
     room = _Room(mi, ux, uy, since, float(self._d.time))
-    # ...and a walk straight to the left held on until its first foot moves
-    # (`STEP_LEFT_HOLD_S`): where its stance began, by the legs, and when
-    hold = not ahead and left > 0.0
+    # ...and held on until its first foot moves (`hold`, `STEP_LEFT_HOLD_S`):
+    # where its stance began, by the legs, and when
     s0, began = (by_legs(self.stance) if hold else None), float(self._d.time)
     while True:
       if mi.held_s != held:
