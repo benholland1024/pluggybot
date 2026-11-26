@@ -322,12 +322,17 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(mo
         (gx, gy, moves)
 
 
-def _put_down(monkeypatch, run: int, spot: dict, env: dict) -> tuple[float, float]:
+def _put_down(monkeypatch, run: int, spot: dict, env: dict,
+              steps: list | None = None) -> tuple[float, float]:
   """Where the pass reference's run `run` (0 the cup, 1 the plate, 2 the
   fork) aims its put-down: the first `reach` after its walk to the place,
   its x and y worked out by the language's own evaluator (`lang._eval`)
   from the card's tag read at `spot` (`spot.*`) and the locals of `env`
-  (set at the pass), the statements between run as the run sets them."""
+  (set at the pass), the statements between run as the run sets them --
+  an `if` by the language's own truth, every verb it tests doing what it
+  said, a `step` moving the card as the stance moves under it (each step's
+  ahead and left put in `steps`) and a `spot` reading it where it is. A
+  statement this walk does not know fails, never one followed otherwise."""
   from types import SimpleNamespace
   from pluggybot.challenge import solutions
   from pluggybot.lifecycle import HUMANOID_HOME, world_facts
@@ -338,16 +343,60 @@ def _put_down(monkeypatch, run: int, spot: dict, env: dict) -> tuple[float, floa
   for source in (*solutions.LIBRARY["set_table_pass"], *solutions.PROCEDURES["set_table_pass"]):
     library.define(solutions._def_name(source), source)
   body = library.entries[("lay_cup", "lay_plate", "lay_fork")[run]].procedure.body
-  for k, v in spot.items():
-    monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, v=v: v))
+  card, seen = dict(spot), dict(spot)
+  for k in card:
+    monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, k=k: seen[k]))
   env = dict(env)
+  taken = [] if steps is None else steps
+
+  def value(expr):
+    return lang._eval(expr, env, SimpleNamespace(), facts)
+
+  def verb(name, args):
+    if name == "reach":
+      return tuple(value(args[a]) for a in ("x", "y"))
+    if name == "step":
+      ahead, left = value(args["ahead"]), value(args["left"])
+      assert "turn" not in args or value(args["turn"]) == 0, "the put-down's step turns"
+      taken.append((ahead, left))
+      card["x"], card["y"] = card["x"] - ahead, card["y"] - left
+    elif name == "spot":
+      seen.update(card)
+    else:
+      raise AssertionError(f"the put-down's walk meets a {name} it does not follow")
+    return None
+
+  def walk(stmts):
+    for s in stmts:
+      if s[0] == "set":
+        env[s[1]] = value(s[2])
+      elif s[0] == "verb":
+        aim = verb(s[1], s[2])
+        if aim is not None:
+          return aim
+      elif s[0] == "if":
+        for cond, then in s[1]:
+          if cond[0] == "try":
+            verb(cond[2][1], cond[2][2])
+            held = not cond[1]  # the verb did what it said
+          else:
+            held = lang._truth(value(cond))
+          if held:
+            aim = walk(then)
+            if aim is not None:
+              return aim
+            break
+        else:
+          aim = walk(s[2])
+          if aim is not None:
+            return aim
+      elif s[0] != "pass":
+        raise AssertionError(f"the put-down's walk holds a {s[0]} it does not follow")
+    return None
   walked = next(i for i, s in enumerate(body) if s[0] == "call" and s[1] == "to_place")
-  for s in body[walked + 1:]:
-    if s[0] == "set":
-      env[s[1]] = lang._eval(s[2], env, SimpleNamespace(), facts)
-    elif s[0] == "verb" and s[1] == "reach":
-      return tuple(lang._eval(s[2][a], env, SimpleNamespace(), facts) for a in ("x", "y"))
-  raise AssertionError("the run puts nothing down after its walk to the place")
+  aim = walk(body[walked + 1:])
+  assert aim is not None, "the run puts nothing down after its walk to the place"
+  return aim
 
 
 def test_the_pass_put_downs_are_aimed_off_the_pass_own_constants(monkeypatch):
@@ -363,7 +412,7 @@ def test_the_pass_put_downs_are_aimed_off_the_pass_own_constants(monkeypatch):
   language."""
   import math
   from pluggybot.challenge import solutions
-  for sx, sy, a in ((0.52, 0.04, 0.0), (0.49, -0.03, 0.05), (0.55, 0.08, -0.04)):
+  for sx, sy, a in ((0.52, 0.04, 0.0), (0.49, -0.02, 0.05), (0.55, 0.08, -0.04)):
     spot = {"x": sx, "y": sy, "z": 0.75, "nx": math.cos(a), "ny": math.sin(a)}
     ox, oy, oz = 0.012, -0.007, 0.07
     cx, cy = _put_down(monkeypatch, 0, spot, {"ox": ox, "oy": oy, "oz": oz})
@@ -371,9 +420,39 @@ def test_the_pass_put_downs_are_aimed_off_the_pass_own_constants(monkeypatch):
     assert math.isclose(cx, sx - ca * math.cos(a) + cb * math.sin(a) - ox, abs_tol=1e-9), (cx, a)
     assert math.isclose(cy, sy - ca * math.sin(a) - cb * math.cos(a) - oy, abs_tol=1e-9), (cy, a)
     for run, at in ((1, solutions.PASS_PLATE_AT), (2, solutions.PASS_FORK_AT)):
-      x, y = _put_down(monkeypatch, run, spot, {"oz": oz})
-      assert math.isclose(x, sx - at[0], abs_tol=1e-9) and math.isclose(y, sy + at[1], abs_tol=1e-9), \
-        (run, x, y, at)
+      steps = []
+      x, y = _put_down(monkeypatch, run, spot, {"oz": oz}, steps)
+      assert not steps and math.isclose(x, sx - at[0], abs_tol=1e-9) and \
+        math.isclose(y, sy + at[1], abs_tol=1e-9), (run, x, y, at, steps)
+
+
+def test_the_pass_plate_steps_its_card_ahead_where_its_put_down_comes_near_the_middle(monkeypatch):
+  """#682's stage C on #751's cure (the loop of 11-26b, round 10): the walk
+  to the place ends with a step forward that leaves the card 2-5 cm across,
+  and where the plate's hand was to go under 0.045 m left of the stance's
+  middle its reach was out of reach, or took a 0.95 rad bow with the waist
+  turned 0.5-0.8 rad and dropped the plate or fell -- 7 of 21 such
+  put-downs, where over it no such bow came in 297 (SimNotes, "The place
+  laid from the pass"). Looked at after the walk, a card that puts the
+  plate's hand nearer the middle than `PASS_PLATE_LEAST` is stepped ahead
+  of the stance and looked at again; one that does not is put down as
+  read. Off the reference's own source, run by the language."""
+  from pluggybot.challenge import solutions
+  a, b = solutions.PASS_PLATE_AT
+
+  def stepped(sy):
+    steps = []
+    x, y = _put_down(monkeypatch, 1, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps)
+    assert len(steps) == 1 and abs(steps[0][0]) < 1e-12 and abs(steps[0][1] - sy) < 1e-12, (sy, steps)
+    assert abs(x - (0.5 - a)) < 1e-9 and abs(y - b) < 1e-9, (sy, x, y)
+  for sy in (-0.045 - b, -0.035):
+    stepped(sy)
+  least = solutions.PASS_PLATE_LEAST
+  stepped(least - b - 0.002)
+  for sy in (least - b + 0.002, 0.0, 0.06):
+    steps = []
+    x, y = _put_down(monkeypatch, 1, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps)
+    assert not steps and abs(y - (sy + b)) < 1e-9, (sy, steps, y)
 
 
 def test_the_pass_cup_descends_to_its_grip_by_a_position_move():
@@ -423,23 +502,26 @@ def test_the_pass_cup_pick_is_tried_again_where_its_descent_is_held_back():
   assert verbs[again][1][1:4] == descent[1:4], (
     f"the second descent goes to {verbs[again][1][1:4]}, the first to {descent[1:4]}")
 
-def test_the_pass_fork_is_brought_back_from_the_pass_in_two_pulls():
-  """#682's stage C, round 4: the fork gripped at the pass is pulled back
-  over the counter's edge to 0.21 m before the walk. Pulled back 0.24 m or
-  more in one pull -- a grip 0.45 m out or further -- the pull took a 31
-  deg bow and a 20 cm crouch for its way, stood up out of it within 0.3 s
-  as its arm missed, and the robot fell in 6 of 21 (a shorter pull in none
-  of 79): every fall of round 3's reading (5 of 64) and of round 4's base on
-  dev draws. In two pulls, the first
-  stopping at `PASS_FORK_MID`, each asks a posture that reaches both its
-  ends standing (SimNotes, "The place laid from the pass"). Off the
-  reference's own source: after the lift off the pass, the fork's hand is
-  brought back by two moves, the first stopping short of the second."""
+def test_the_pass_fork_is_brought_back_from_the_pass_in_one_short_pull():
+  """#682's stage C: the fork gripped at the pass (`near` lands it 0.43-0.47
+  m out) is pulled back before the walk. Pulled back 0.24 m or more in one
+  pull, the pull took a 31 deg bow and a 20 cm crouch for its way, stood up
+  out of it within 0.3 s as its arm missed, and the robot fell in 6 of 21
+  (a shorter pull in none of 79; round 4). Pulled on from `PASS_FORK_BACK`
+  to 0.21 m in a second pull (round 4's), the gripped fork's pull took a
+  bow of its own about once in 300 fork legs and the body bore on it until
+  its feet moved, and the walk's hand-over in that bow fell -- where on
+  #751's cure, the hand-over judged by where its hand comes down, its way
+  clears the pass's top as high from 0.33 m as from 0.21 (the loop of
+  11-26b, round 10; SimNotes, "The place laid from the pass"). Off the
+  reference's own source: after the lift off the pass, one pull back to
+  `PASS_FORK_BACK`, under 0.24 m from the furthest grip, then the walk."""
   from pluggybot.challenge import solutions
   moves = _hand_moves(solutions.PROCEDURES["set_table_pass"][2], "left")
   shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the fork at the pass")
   lift = _index(moves, lambda m: m[0] == "pull", "lift off the pass", start=shut + 1)
-  back = moves[lift + 1:lift + 3]
-  assert [m[0] for m in back] == ["go", "go"], f"the fork is brought back by {back}"
-  first, last = (float(m[1][1]) for m in back)
-  assert first == solutions.PASS_FORK_MID and first - last >= 0.1, (first, last)
+  put = _index(moves, lambda m: m[0] == "reach", "put-down at the place", start=lift + 1)
+  back = moves[lift + 1:put]
+  assert [m[0] for m in back] == ["go"], f"the fork is brought back by {back}"
+  assert float(back[0][1][1]) == solutions.PASS_FORK_BACK, back
+  assert 0.47 - solutions.PASS_FORK_BACK < 0.24, solutions.PASS_FORK_BACK
