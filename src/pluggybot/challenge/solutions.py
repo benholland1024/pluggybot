@@ -388,6 +388,19 @@ PASS_PLATE_LEFT = PASS_PLATE_AIM + PASS_PLATE_ACROSS
 #: (the walk's last step forward leaves the card 2-5 cm across; SimNotes,
 #: "The place laid from the pass").
 PASS_PLATE_LEAST = 0.05
+#: How far right of the stance's middle the cup's put-down goes at the most,
+#: m, the card looked at after the walk to the place, and where a step puts
+#: it from further: further right than about 0.20 m the cup's reach took no
+#: waist turn and its pull down crouched, and the feet swivelled 3-7 deg
+#: under the posture's change and carried the cup 3-5 cm off its place --
+#: 25 of 44 put-downs within 2.5 cm past 0.19 m, where nearer 0.11-0.19 m all
+#: 75 were (SimNotes, "The place laid from the pass").
+PASS_CUP_RIGHT, PASS_CUP_MID = 0.20, 0.15
+#: How far left of the stance's middle the fork's put-down goes at the most,
+#: m, and where a step puts it from further: past about 0.18 m its pull down
+#: crouched and swivelled the feet as the cup's did -- 25 of 37 put-downs
+#: within 2.5 cm there, 54 of 57 at 0.11-0.17 m.
+PASS_FORK_LEFT, PASS_FORK_MID = 0.18, 0.14
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -435,8 +448,17 @@ PASS_CUP = '''def lay_cup():
   to_place(%(cup_facing)g)
   spot(93)
   a = atan2(read("spot.ny"), read("spot.nx"))
+  tx = read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox
+  ty = read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy
+  if ty < -%(cup_right)g:
+    if not step(0, ty + %(cup_mid)g):
+      pass
+    spot(93)
+    a = atan2(read("spot.ny"), read("spot.nx"))
+    tx = read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox
+    ty = read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy
   tz = read("spot.z") - 0.055 + oz + 0.10
-  reach("right", read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox, read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
+  reach("right", tx, ty, tz, 0.707, 0, -0.707, 0, 1, 0)
   pull("right", 0, 0, -1, 6, 0.15, give=0)
   open_hand("right")
   wait(0.4)
@@ -520,6 +542,10 @@ PASS_FORK = '''def lay_fork():
   go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)
   to_place(%(facing)g)
   spot(93)
+  if read("spot.y") + %(fork_at_b)s > %(fork_left)g:
+    if not step(0, read("spot.y") + %(fork_at_b)s - %(fork_mid)g):
+      pass
+    spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
   reach("left", read("spot.x") - %(fork_at_a)s, read("spot.y") + %(fork_at_b)s, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
@@ -557,7 +583,8 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
            "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_back": PASS_FORK_BACK,
            "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
            "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
-           "plate_least": PASS_PLATE_LEAST,
+           "plate_least": PASS_PLATE_LEAST, "cup_right": PASS_CUP_RIGHT, "cup_mid": PASS_CUP_MID,
+           "fork_left": PASS_FORK_LEFT, "fork_mid": PASS_FORK_MID,
            "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
            "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
