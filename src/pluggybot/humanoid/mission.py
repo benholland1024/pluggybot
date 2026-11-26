@@ -1398,8 +1398,9 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     yield from self._twist_routine(-self.BACKOFF_V, 0.0, 0.0)
 
   def face_routine(self, heading: float, budget: float = 12.0):
-    """Turn where it stands to a heading: a turn on the spot at a rate the
-    error sets, then stood still. False if its budget ran out."""
+    """Turn where it stands to a heading in its map (`pose`'s, the belief's):
+    a turn on the spot at a rate the error sets, then stood still. False if
+    its budget ran out."""
     dt = self.model.opt.timestep
     for _ in range(int(budget / dt)):
       err = math.remainder(heading - self.pose[2], 2 * math.pi)
