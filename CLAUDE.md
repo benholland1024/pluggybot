@@ -486,7 +486,24 @@ save a filmstrip PNG named after the script.
   jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm
   back, then slipped off and the arm snapped home -- over backward; ⚠ held,
   never at once: the door check's first ways home catch a jaw on the door's
-  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ BOTH WAYS KEEP OFF
+  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ AND
+  ANY WAY HOME IS HELD SO WHERE ITS DRIVERS READ THE ARM MORE THAN
+  `TIP_BACK_LAG_RAD` (0.2 rad) OFF ITS COMMAND WHILE THE TRUNK, AS ITS IMU
+  READS IT, TIPS BACK PAST `TIP_BACK_RAD` (2 deg) OFF THE POSTURE ITS LEGS
+  HOLD, FOR `TIP_BACK_S` (0.1 s) RUNNING (#693's second path, #753;
+  `Reach._leaning_back`, `trunk_back`; SimNotes, "A way home that tips the
+  body back"): a jaw dragged over a counter's top shoved the body back while
+  its arm neither stalled past 0.5 rad (a slip reset the count, or the command
+  reached the rest first) nor read the shove (the counter pushes the hand up:
+  its reading tipped the body TOWARD it) -- a withdraw's, and a walk's
+  hand-over sending an arm left held home again (#753); ⚠ NEVER ONE NOTHING
+  HOLDS: held for a lean an earlier drag left, a free way home after a raise
+  was held again and again, the arm left out, and the robot fell where the
+  base's came home; ⚠ A DOOR THAT GIVES READS AS A COUNTER: held, the bar's
+  door 112 reference read "held" and its run ended (as the tour's table 6 won
+  a pass); ⚠ OFF THE PITCH THE STANDING POLICY IS SHOWN, LESS ITS
+  TRIM (`held_pitch`), NEVER UPRIGHT: out of a bow the shown pitch walks down
+  ahead of the trunk, which mostly reads forward of it. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
