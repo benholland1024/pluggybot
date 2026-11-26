@@ -19,14 +19,15 @@ mean what they meant, and fewer left steps read "your step was too short to
 walk".
 
 **The change** (`STEP_LEFT_HOLD_S`; SimNotes, "Stepping toward the work"). A
-step asked straight to the left (after its turn, where it asks one) has its
-walk ended by its stop rule only once its legs count its stance 1 cm along its
-way (half its length where less), or after 1 s of its walking. The walker's
-first 0.16-0.58 s to the left are its pelvis leaning over planted feet, and
-its first move is the right foot closing in, about 3 cm of stance. Before, the
-stop rule ended a short left ask in that lean, and nothing moved. No other
-way, no oblique step and no turn changes, and neither does the stop rule's
-own reckoning.
+step asked straight to the left, 1 cm or more, has its walk ended by its stop
+rule only once its legs count its stance 1 cm along its way, or after 1 s of
+its walking, or once its pelvis has gone 5 cm past its ask. A step with a turn
+is held too, its walk after the turn. The walker's first 0.16-0.58 s to the
+left are its pelvis leaning over planted feet, and its first move is the right
+foot closing in, about 3 cm of stance. Before, the stop rule ended a short
+left ask in that lean, and nothing moved. No step to the right, ahead or back
+changes, nor an oblique step (one with a part ahead or back), nor the stop
+rule's own reckoning.
 
 **Why.** In the robots' own 200 tries (X5's, at their live draws, on
 85449ac8), 212 of their 866 steps are `step(0, 0.06, 0)`, and 40 of those read

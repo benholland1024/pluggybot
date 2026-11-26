@@ -94,19 +94,26 @@ STEP_LEAST_M = 0.01
 #: left went 0.7-3 cm, and from here up every ask went at least 2.7 cm).
 STEP_SHORT_M = 0.06
 #: A STEP STRAIGHT TO THE LEFT IS HELD ON UNTIL ITS FIRST FOOT MOVES (SimNotes,
-#: "Stepping toward the work"): its walk's stop rule ends it only once the legs'
-#: reckoning has its stance `STEP_LEAST_M` along its way (half its length where
-#: that is less), or once it has walked this long, s, the other robot's runs not
-#: counted. MEASURED: a leftward walk's first 0.16-0.58 s are its pelvis leaning
-#: over planted feet, and its first move is the right foot closing in, 2.4-3.5
-#: cm of stance; stopped in the lean, a short left ask went nowhere (`too
-#: short`, 47 of 245 left asks over eight stances). ⚠ LEFT ONLY: the walker
-#: loads its right foot first whichever way it walks, so to the right, ahead and
-#: back its first move is a whole stride (5-15 cm), and held on there a short
-#: ask went a stride too far. ⚠ NEVER AN OBLIQUE STEP'S SECOND WALK: left after
-#: a walk ahead, the legs count the stance well short (`STEP_DY_LEFT_AFTER_M`),
-#: and held on, a 4 cm left part after a turn went 13-18 cm.
+#: "Stepping toward the work"): asked `STEP_LEAST_M` or more, its walk's stop
+#: rule ends it only once the legs' reckoning has its stance `STEP_LEAST_M`
+#: along its way -- the `too short` verdict's own floor -- or once it has walked
+#: this long, s, the other robot's runs not counted. MEASURED: a leftward walk's
+#: first 0.16-0.58 s are its pelvis leaning over planted feet, and its first
+#: move is the right foot closing in, 2.4-3.5 cm of stance; stopped in the
+#: lean, a short left ask went nowhere (`too short`, 47 of 245 left asks over
+#: eight stances). ⚠ LEFT ONLY: the walker loads its right foot first whichever
+#: way it walks, so to the right, ahead and back its first move is a whole
+#: stride (5-15 cm), and held on there a short ask went a stride too far. ⚠
+#: NEVER AN OBLIQUE STEP'S SECOND WALK: left after a walk ahead, the legs count
+#: the stance well short (`STEP_DY_LEFT_AFTER_M`), and held on, a 4 cm left part
+#: after a turn went 13-18 cm. After the step's own turn it is held: turned 17
+#: deg either way first, 9 of 60 short left asks moved, 8 nearer their ask.
 STEP_LEFT_HOLD_S = 1.0
+#: ...nor once its pelvis, by its legs, has gone this far past its ask, m:
+#: before its first foot moved the left lean carried it 2.0-4.4 cm (eight
+#: stances), so a stance that cannot follow (pressed sideways) is driven on no
+#: further.
+STEP_LEFT_HOLD_M = 0.05
 #: A sidestep's `step.dy` reads this much less than its feet went, m, each
 #: way (#649; the same sweep): the walker slides before its first stride, under
 #: what the legs' reckoning can see -- to the left 1.2-3.7 cm over asks of 3-30
@@ -1442,7 +1449,7 @@ class HumanoidBody(Body):
           a_, l_, over, by_legs, since=t0,
           # ...a step straight to the left held on until its first foot moves
           # (`STEP_LEFT_HOLD_S`), never an oblique's second walk
-          hold=len(walks) == 1 and not ahead and left > 0.0)
+          hold=len(walks) == 1 and not ahead and left >= STEP_LEAST_M)
         if stuck is not None and len(walks) > 1:
           # ...one of an oblique step's two walks counts its own way alone,
           # never the step's (#751)
@@ -1570,9 +1577,11 @@ class HumanoidBody(Body):
     Returns (why, how it kept off, or None, and how it got nowhere, or None:
     under `m` m along its way in a window of `s` s, `underWay` once an earlier
     window had passed -- what its legs counted, never why, #751). ⚠ `hold`
-    (a step straight to the left): its stop rule ends it only once its stance
-    by the legs has gone `STEP_LEAST_M` (half its length where less) along its
-    way, or after `STEP_LEFT_HOLD_S` of walking -- its first foot moved."""
+    (a step straight to the left): its stop rule ends it only once its
+    stance by the legs has gone `STEP_LEAST_M` along its way (the `too
+    short` verdict's floor) -- its first foot moved -- or after
+    `STEP_LEFT_HOLD_S` of walking, or once its pelvis by the legs has gone
+    `STEP_LEFT_HOLD_M` past `length`."""
     mi, dt = self.mission, self._m.opt.timestep
     length = math.hypot(ahead, left)
     x0, y0, yaw = by_legs(mi.pose)
@@ -1606,7 +1615,8 @@ class HumanoidBody(Body):
       seen = mi.odo.corrected.copy()
       if went + max(speed, 0.0) * STEP_STOP_S >= length and (
           not hold or float(self._d.time) - began >= STEP_LEFT_HOLD_S
-          or _along(by_legs(self.stance), s0, ahead, left) >= min(STEP_LEAST_M, 0.5 * length)):
+          or went >= length + STEP_LEFT_HOLD_M
+          or _along(by_legs(self.stance), s0, ahead, left) >= STEP_LEAST_M):
         return "stepped", None, None
       kept = self._kept_off(ux, uy, max(speed, 0.0) * STEP_STOP_S, since)
       if kept is None:

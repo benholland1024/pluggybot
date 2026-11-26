@@ -2856,11 +2856,14 @@ outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
   robots' own 200 tries (X5's, at their live draws): 22 of them truly moved
   0.2-2.1 cm, and 18 moved 2.8-5.6 cm while the legs counted under 1 (the
   reckoning's undercount of a slide).
-- *The rule* (`STEP_LEFT_HOLD_S`): a step asked straight to the left (after its
-  turn, where it asks one) has its walk ended by its stop rule only once the
-  legs' reckoning has its stance `STEP_LEAST_M` along its way (half its length
-  where less), or after 1.0 s of its walking, the other robot's runs not
-  counted. Over the same flights its left asks land a mean 1.98 cm off where
+- *The rule* (`STEP_LEFT_HOLD_S`): a step asked straight to the left, at least
+  `STEP_LEAST_M` (after its turn, where it asks one), has its walk ended by its
+  stop rule only once the legs' reckoning has its stance `STEP_LEAST_M` along
+  its way -- the `too short` verdict's own floor -- or after 1.0 s of its
+  walking, the other robot's runs not counted, or once its pelvis by the legs
+  has gone `STEP_LEFT_HOLD_M` (5 cm) past its ask: before the first foot moved
+  the lean carried the pelvis 2.0-4.4 cm, so a stance that cannot follow is
+  driven no further. Over the same flights its left asks land a mean 1.98 cm off where
   they landed 2.24, `too short` 10 times where 47; 3-4 cm asks 0.95 off where
   1.89. Asks of 8 cm and more land as before. After a `face` turn it reads
   worse: there the first left move is 7-8 cm, so a 3-5 cm ask went 7.1-8.7
@@ -2869,7 +2872,11 @@ outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
   second walk: left after a walk ahead the legs count the stance well short
   (`STEP_DY_LEFT_AFTER_M`), and held on, the left part of a step 1 cm ahead and
   4 cm left went 13-18 cm after a turn (5-11 after a pick carried or a `face`
-  turn).
+  turn). After the step's own turn the hold stands: turned 17 deg either way
+  first, then 3-6 cm left (five stances, two draws), it moved 9 flights of
+  60, their mean error 3.7 -> 2.8 cm. Eight came nearer their ask. One, after
+  a pick let go, turned to the left and asked 3 cm, went 7.2 where it went
+  5.7: its legs counted under 1 cm all the way.
 - *What it leaves:* a 6-12 cm left ask still overshoots, often by 2-5 cm (the
   leftward ramp: stopped as its left foot swings out, the foot lands, then the
   right closes in). The spread to the right, ahead's 1.1 of its ask and back's

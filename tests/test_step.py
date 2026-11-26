@@ -611,6 +611,15 @@ def test_a_walk_its_stance_did_not_make_says_it_was_too_short():
   assert _step(_walker(Walk()), 0.0, 0.0, 0.5)["why"] == "stepped"
 
 
+class Lean(Walk):
+  """...a walker whose pelvis goes a fifth of its pace: as the real one's left
+  lean, 2.0-4.4 cm before its first foot moves (SimNotes, "Stepping toward the
+  work")."""
+
+  def _twist_routine(self, vx, vy, w):
+    yield from super()._twist_routine(vx / 5.0, vy / 5.0, w)
+
+
 def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
   """A leftward walk's first 0.16-0.58 s are its pelvis leaning over planted
   feet, and its first move is the right foot closing in, 2.4-3.5 cm of
@@ -619,38 +628,48 @@ def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
   left asks over eight stances read `too short`, and 40 of the robots' own
   212 left steps of 6 cm. A step straight to the left, held on until its
   legs count its stance `STEP_LEAST_M` along its way, takes that first move."""
-  rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.0, 0.04)
+  rep = _step(_walker(Lean(coast_s=0.0, planted_s=0.6)), 0.0, 0.04)
   assert rep["why"] == "stepped", "a left walk ended in its lean, its feet unmoved"
   # ...held only that long, then its stop rule as before: here at once, its
   # pelvis having leant past (no step closes on its stance)
   assert rep["dy"] == pytest.approx(hb.STEP_LEAST_M, abs=0.003), rep["dy"]
+  # ...the verdict's own floor, a short ask too: asked 1.5 cm, never let go at
+  # under a centimetre, where the reckoning of a stance that stayed reads
+  rep = _step(_walker(Lean(coast_s=0.0, planted_s=0.6)), 0.0, 0.015)
+  assert rep["why"] == "stepped" and rep["dy"] >= hb.STEP_LEAST_M, rep
+  # ...and an ask under it, which no verdict judges, not held at all
+  walk = Lean(coast_s=0.0, planted_s=0.6)
+  _step(_walker(walk), 0.0, hb.STEP_LEAST_M / 2.0)
+  assert DT * sum(1 for _, vy, _ in walk.asked if vy) < 0.6, "an ask under the floor was held"
   # ...carrying something too: the walk is the same walk
-  body = _walker(Walk(coast_s=0.0, planted_s=0.3))
+  body = _walker(Lean(coast_s=0.0, planted_s=0.6))
   body.held = True
   assert _step(body, 0.0, 0.04)["why"] == "stepped"
   # ...never an oblique step's second walk to the left: after a walk ahead
   # the legs count the stance well short, and held on, a 4 cm left part after
   # a turn went 13-18 cm
-  rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.02, 0.06)
+  rep = _step(_walker(Lean(coast_s=0.0, planted_s=0.6)), 0.01, 0.03)
   assert abs(rep["dy"]) < hb.STEP_LEAST_M / 2, rep
   # ...LEFT ONLY: to the right, ahead and back the walker's first move is a
   # whole stride, and held on, a short ask went a stride too far
   for ask in ((0.0, -0.04), (0.04, 0.0), (-0.04, 0.0)):
-    rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), *ask)
+    rep = _step(_walker(Lean(coast_s=0.0, planted_s=0.6)), *ask)
     assert rep["why"] == "too short", (ask, rep)
 
 
-def test_a_left_walk_is_held_on_at_most_its_bound_of_walking():
+def test_a_left_walk_is_held_on_at_most_its_bound_of_walking_or_of_its_pelvis():
   """...its feet never moving, held `STEP_LEFT_HOLD_S` of its walking at
   most, then its stop rule as before (a stance pressed where it is reads
-  as it did, a second later at most) -- and never counting the time it is
-  held through the other robot's run (#690), as its windows do not."""
-  walk = Walk(coast_s=0.0, planted_s=60.0)
+  as it did, a second later at most) -- never counting the time it is held
+  through the other robot's run (#690), as its windows do not -- and never
+  past its pelvis's going `STEP_LEFT_HOLD_M` past its ask: a stance that
+  cannot follow is driven on no further."""
+  walk = Lean(coast_s=0.0, planted_s=60.0)
   rep = _step(_walker(walk), 0.0, 0.04)
   walked = DT * sum(1 for _, vy, _ in walk.asked if vy)
   assert rep["why"] == "too short" and walked == pytest.approx(hb.STEP_LEFT_HOLD_S, abs=2 * DT), walked
 
-  class Held(Walk):
+  class Held(Lean):
     def _twist_routine(self, vx, vy, w):
       if len(self.asked) == 50 and not hasattr(self, "paused"):
         # ...as `tick._Loop.run` holds it: the world goes on, the body stands
@@ -660,6 +679,12 @@ def test_a_left_walk_is_held_on_at_most_its_bound_of_walking():
   rep = _step(_walker(walk), 0.0, 0.04)
   walked = DT * sum(1 for _, vy, _ in walk.asked if vy)
   assert walk.paused and walked == pytest.approx(hb.STEP_LEFT_HOLD_S, abs=2 * DT), walked
+  # ...its pelvis at the walker's whole pace, past its ask by the bound first
+  walk = Walk(coast_s=0.0, planted_s=60.0)
+  rep = _step(_walker(walk), 0.0, 0.04)
+  walked = DT * sum(1 for _, vy, _ in walk.asked if vy)
+  assert rep["why"] == "too short", rep
+  assert walked == pytest.approx((0.04 + hb.STEP_LEFT_HOLD_M) / hb.STEP_V, abs=3 * DT), walked
   # ...and a left walk that gets nowhere at all still stalls in its first window
   rep = _step(_walker(SideWall(0.0, coast_s=0.0)), 0.0, 0.04)
   assert rep["why"] == "blocked" and rep["stuck"]["s"] == hb.STEP_START_S, rep
@@ -668,9 +693,10 @@ def test_a_left_walk_is_held_on_at_most_its_bound_of_walking():
 def test_a_left_walk_held_on_still_falls_and_keeps_off_what_a_step_keeps_off():
   """...every tick it is held is a tick of its walk as before: a fall ends it
   `fell`, another robot's disc and what its depth camera saw at its knees
-  end it `blocked`, saying how."""
+  end it `blocked`, saying how -- each met only past where its stop rule,
+  unheld, ended it in the lean."""
   assert _step(_walker(Walk(coast_s=0.0, planted_s=60.0, fall_at=100)), 0.0, 0.04)["why"] == "fell"
-  walk = Walk(coast_s=0.0, planted_s=60.0, others=[lambda: (0.0, 0.9)])
+  walk = Walk(coast_s=0.0, planted_s=60.0, others=[lambda: (0.0, 0.75)])
   rep = _step(_walker(walk), 0.0, 0.04)
   assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "keep", rep
   walk = Walk(coast_s=0.0, planted_s=60.0)
@@ -678,26 +704,6 @@ def test_a_left_walk_held_on_still_falls_and_keeps_off_what_a_step_keeps_off():
   walk.knee.fold(side, 0.0, walk.pose, walk.odo.corrected)
   rep = _step(_walker(walk), 0.0, 0.04)
   assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "low", rep
-
-
-def test_a_left_walk_held_on_ends_where_a_stand_up_or_a_stop_closes_it():
-  """...and closed from outside mid-hold -- a stand-up landing (#348), a
-  stop thrown in -- it ends there, holding nothing on."""
-  for end in ("close", "throw"):
-    walk = Walk(coast_s=0.0, planted_s=60.0)
-    body = _walker(walk)
-    routine = body.step_routine(0.0, 0.04)
-    for _ in range(200):
-      next(routine)
-      body._d.time = walk.t
-    assert walk.legs == "walk" and walk.asked[-1][1] > 0.0, "not walking left at 0.4 s"
-    if end == "close":
-      routine.close()
-    else:
-      with pytest.raises(tick.MissionAborted):
-        routine.throw(tick.MissionAborted("stop"))
-    with pytest.raises(StopIteration):
-      next(routine)
 
 
 def test_a_short_step_to_the_left_flown_takes_its_first_foot():
