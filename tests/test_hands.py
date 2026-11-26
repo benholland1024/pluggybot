@@ -592,8 +592,18 @@ def _bare_reach():
   r.standing = False
   r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
   r.motion = NS(read=lambda sm, qd, stand: None, sample=lambda *a: None)
-  r.stand, r.d = NS(), None
+  # ...its trunk upright by its IMU, at the posture its legs hold (#693's
+  # second path: every way home reads how far the trunk leans back, `_leaning_back`)
+  r.stand, r.d = NS(trunk=NS(gravity=_UPRIGHT), settled=True, goal=np.zeros(2),
+                    posture=np.zeros(2)), None
+  r.trim = np.zeros(2)
+  r._back = {s: 0.0 for s in hm.SIDES}
   return r
+
+
+def _UPRIGHT():
+  """Gravity as an upright trunk's IMU reads it, its own frame."""
+  return np.array([0.0, 0.0, -1.0])
 
 
 def _standing_reach():
@@ -1133,8 +1143,11 @@ def _bowed_reach(posture):
   rc._posed(r.self_model, posture[0], posture[1], q)
   r.posture = np.array(posture, dtype=float)
   r.stand_home = False
-  # ...its posture arrived where the policy was asked it
-  r.stand = NS(settled=True)
+  # ...its posture arrived where the policy was asked it, its trunk as bowed
+  # as the posture by its IMU (#693's second path: no way home leans back)
+  bow = float(posture[1])
+  r.stand = NS(settled=True, goal=np.array(posture[:2], dtype=float), posture=np.array(posture[:2], dtype=float),
+               trunk=NS(gravity=lambda: np.array([math.sin(bow), 0.0, -math.cos(bow)])))
   return r
 
 
@@ -2355,6 +2368,124 @@ def test_each_way_home_begins_its_stall_count_afresh():
   _sent_home(r, "left", RAISED)
   assert r.phase["left"] == "home" and r._stall["left"] == 0.0
   assert "_stall" in rc.Reach.KEPT
+
+
+def _leaning(r, back, bow=0.0):
+  """The trunk, as its IMU reads it, pitched `bow` forward (the posture the
+  legs hold) less `back`, rad: gravity in its own frame."""
+  p = bow - back
+  r.stand.trunk.gravity = lambda: np.array([math.sin(p), 0.0, -math.cos(p)])
+
+
+@pytest.mark.parametrize("watch", [False, True])
+@pytest.mark.parametrize("phase", ["home", "rest"])
+def test_a_way_home_the_trunk_leans_back_on_is_held_where_its_drivers_read_it(phase, watch, monkeypatch):
+  """#693's second path (C1's flights of the robots' own procedures at their
+  live draws, the loop of 11-25; D1's of the walk's hand-over, #753): a way
+  home that drags a jaw over a counter's top neither stalls past `STALL_RAD`
+  nor reads a shove away from the hand -- the counter pushes the hand up and
+  its reading tips the body TOWARD it -- and the robot went over backward,
+  in the way or at its rest inside `HELD_S`. What tells is the trunk leaning
+  back off the posture its legs hold as its IMU reads it. Any way home -- a
+  withdraw's, a walk's hand-over's -- on its way to its rest in joint space,
+  or its rest commanded and not yet read there, whose trunk leans back past
+  `HOME_BACK_RAD` for `HOME_BACK_S` running is held where its drivers read
+  it, as a way home held at its rest is: pressing on nothing, then raised
+  and sent home again, its lifts spent left there."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  r, _ = _walking_home(phase=phase, watch=watch)
+  read = r.sensed[r.self_model.arm["left"]].copy()
+  _leaning(r, 1.05 * rc.HOME_BACK_RAD)
+  ticks = round(rc.HOME_BACK_S / 0.01)
+  assert 2 <= ticks < round(rc.HELD_S / 0.01), "the premise: before the rest's own hold"
+  for k in range(ticks - 1):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert not r.held("left"), k
+  r.feel(np.zeros(3))
+  r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and r.home_over("left")
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read), \
+    "still pressed on toward its rest"
+  # ...and raised and sent home again, its lifts not spent (as `HELD_S`'s)
+  monkeypatch.setattr(rc, "LIFTS", 1)
+  r, _ = _walking_home(phase=phase, watch=watch)
+  read = r.sensed[r.self_model.arm["left"]].copy()
+  _leaning(r, 1.05 * rc.HOME_BACK_RAD)
+  for _ in range(ticks):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  assert np.allclose(r.q_cmd["left"], read)
+
+
+def test_a_way_home_whose_trunk_leans_under_the_line_briefly_or_forward_walks_on(monkeypatch):
+  """⚠ HELD, NEVER AT ONCE, AND OFF THE POSTURE THE LEGS HOLD: a lean under
+  `HOME_BACK_RAD` walks on however long; past it for less than `HOME_BACK_S`,
+  its count begins again; a trunk pitched forward (a bow the legs hold, or a
+  trunk ahead of the stand it rises to) is no lean back; and a carry's way to
+  its pose (#682) never is."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  ticks = round(rc.HOME_BACK_S / 0.01)
+  n = 3 * ticks
+  # ...each watched while its command is still on its way (`_walking_home`'s, 1 rad off)
+  assert n * 0.01 * rc.JOINT_RATE < 1.0, "the premise: its command not yet at the rest"
+  for back in (0.95 * rc.HOME_BACK_RAD, -0.5):
+    r, _ = _walking_home(watch=False)
+    _leaning(r, back)
+    for k in range(n):
+      r.feel(np.zeros(3))
+      r._update(0.01)
+      assert r.phase["left"] == "home", (back, k)
+  r, _ = _walking_home(watch=False)
+  for k in range(n):
+    _leaning(r, 0.0 if k % ticks == ticks - 1 else 1.05 * rc.HOME_BACK_RAD)
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+  r, _ = _walking_home(watch=False)
+  r.carry_q["left"] = np.array([0.15, 0.25, 0.0, 2.0, 0.0, 0.0])
+  _leaning(r, 3.0 * rc.HOME_BACK_RAD)
+  for k in range(n):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+
+
+def test_the_lean_back_is_read_off_the_bow_the_legs_hold(monkeypatch):
+  """Off the posture the legs hold (`held_pitch`), never off upright: a way
+  home begun in a bow, the trunk as bowed as the posture, leans back none; the
+  trunk risen past the line out of that bow, while the legs still hold it, is
+  a lean back."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  bow = 0.4
+  assert rc.PITCH_RANGE[0] <= bow <= rc.PITCH_RANGE[1], "the premise: a bow the policy holds"
+  ticks = round(rc.HOME_BACK_S / 0.01)
+  for back, held in ((0.0, False), (1.05 * rc.HOME_BACK_RAD, True)):
+    r, _ = _walking_home(watch=False)
+    r.posture = np.array([0.0, bow, 0.0])
+    r.stand.goal = np.array([0.0, bow])
+    _leaning(r, back, bow=bow)
+    assert abs(r.trunk_back() - back) < 1e-9
+    for _ in range(ticks):
+      r.feel(np.zeros(3))
+      r._update(0.01)
+    assert r.held("left") == held, back
+
+
+def test_each_way_home_begins_its_lean_count_afresh():
+  """A way home's count of the trunk leant back (`HOME_BACK_S`) is its own:
+  one a way before it left running holds no new way home early -- and a
+  restart keeps a count running (`Reach.KEPT`)."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  r._back["left"] = rc.HOME_BACK_S - 0.01
+  _sent_home(r, "left", RAISED)
+  assert r.phase["left"] == "home" and r._back["left"] == 0.0
+  assert "_back" in rc.Reach.KEPT
 
 
 @pytest.mark.parametrize("phase", ["joints", "home", "rest"])
