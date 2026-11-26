@@ -2856,16 +2856,20 @@ outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
   robots' own 200 tries (X5's, at their live draws): 22 of them truly moved
   0.2-2.1 cm, and 18 moved 2.8-5.6 cm while the legs counted under 1 (the
   reckoning's undercount of a slide).
-- *The rule* (`STEP_LEFT_HOLD_S`): a walk straight to the left -- a pure left
-  step, or the second walk of an oblique walked as two -- is ended by its stop
-  rule only once the legs' reckoning has its stance `STEP_LEAST_M` along its way
-  (half its length where less), or after 1.0 s of its walking, the other
-  robot's runs not counted. Over the same flights its left asks land a mean
-  2.00 cm off where they landed 2.27, `too short` 10 times where 47; 3-4 cm
-  asks 0.95 off where 1.89. Asks of 8 cm and more land as before. After a
-  `face` turn it reads worse (2.76 -> 3.05: there the first left move is 7-8
-  cm). Held on to the right, ahead or back, a short ask went a whole stride
-  too far, so they stop as before.
+- *The rule* (`STEP_LEFT_HOLD_S`): a step asked straight to the left (after its
+  turn, where it asks one) has its walk ended by its stop rule only once the
+  legs' reckoning has its stance `STEP_LEAST_M` along its way (half its length
+  where less), or after 1.0 s of its walking, the other robot's runs not
+  counted. Over the same flights its left asks land a mean 1.98 cm off where
+  they landed 2.24, `too short` 10 times where 47; 3-4 cm asks 0.95 off where
+  1.89. Asks of 8 cm and more land as before. After a `face` turn it reads
+  worse: there the first left move is 7-8 cm, so a 3-5 cm ask went 7.1-8.7
+  where it went 0.4-1.9. Held on to the right, ahead or back, a short ask went
+  a whole stride too far, so they stop as before. ⚠ Never an oblique step's
+  second walk: left after a walk ahead the legs count the stance well short
+  (`STEP_DY_LEFT_AFTER_M`), and held on, the left part of a step 1 cm ahead and
+  4 cm left went 13-18 cm after a turn (5-11 after a pick carried or a `face`
+  turn).
 - *What it leaves:* a 6-12 cm left ask still overshoots, often by 2-5 cm (the
   leftward ramp: stopped as its left foot swings out, the foot lands, then the
   right closes in). The spread to the right, ahead's 1.1 of its ask and back's
