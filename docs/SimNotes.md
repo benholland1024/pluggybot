@@ -793,6 +793,24 @@ specified (Parts.md) -- halving either would halve its share, and that is a
 decision about the sensor, not a speed-up; and the tag camera's renders,
 whose resolution is what the decode needs.
 
+**A History line renders its view off the newest rows alone** (loop-1126's
+D3). `History.md` is a roll, the newest lines that fit its 6,000
+characters, and every History line re-rendered it by reading EVERY active
+History row of the living generation, each built into a `Record`, to keep
+the newest few dozen: about 9 µs a row a line on the dev box, 0.84 s a line
+at 10^5 rows, on the physics thread with both robots held. The live robots
+cite record ids past #144,000, and a decision writes several lines: the
+11-18, 11-21/22 and 11-25 wakes' minutes price a decision's answer at 0.8,
+1.4 and 2.9 s of a stalled world. The roll now reads the newest
+`HISTORY_VIEW_BATCH` (64) rows, doubled until the cap is passed or the rows
+run out, and counts `dropped` off the index: 7 ms a line at 10^5 rows, the
+view and `dropped` as before byte for byte (`tests/test_thoughts.py`). ⚠
+The count still grows with the rows (4.4 ms of those 7 at 10^5, about 45 ms
+at 10^6), years of lines at the ~2,500 records a week a robot writes. The
+mind's context never read the view: it reads `history_tail()`. A stream's
+opening `records` snapshot still reads every think row of the generation
+(`snapshot_rows`), once an open.
+
 **The server.** #377 had asked for at least 1.3× real time — a margin,
 never argued. A candidate core was rented by the hour (Runpod's `cpu5c`, 4
 vCPUs): an **AMD EPYC 4564P** — the Ryzen 9 7950X's silicon on AM5, Zen 4

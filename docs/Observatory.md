@@ -43,6 +43,30 @@ the walk goes with it held.
   0.12-0.24 s before the fall), and a fall that begins in #693's raise, the
   next way home free.
 
+### A History line no longer holds the world while its view re-renders (D3, `loop-d3-history`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` and the
+session host's hello `9dcf6202` are byte for byte as they were, and so are
+`History.md`'s view and its `dropped` count (`tests/test_thoughts.py`). What
+moves is the served world's pace.
+
+**The change** (`ThoughtFiles._render`, `HISTORY_VIEW_BATCH`; SimNotes,
+"The served sim's speed"). Every History line re-rendered the view off every
+active History row of the generation, about 9 µs a row on the physics
+thread, both robots held: 0.84 s a line at 10^5 rows on the dev box. It now
+reads the newest rows only: 7 ms a line there, most of it the count of the
+rows, which still grows with them (about 45 ms a line at 10^6).
+
+**What it does.** The wakes' minutes priced a decision's answer, its few
+History lines, at 0.8 s (11-18), 1.4 s (11-21/22) and 2.9 s (11-25) of a
+stalled world, about half an answer a minute: 1.5-3 % of the world's time,
+growing with every wake's lines. The pace's within-day slide on a weekday
+afternoon is not this: it is the box (D3's report, loop-1126).
+
+**To read.** `vitals.txt`'s rate a minute, and the minutes with an answer
+in them against those without: an answer should cost the world well under
+a second.
+
 ### A fall backward out of a bow is taken once the trunk is nearer upright, as from the stand (#724, D2, `loop-watch2`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `264ac7f6…` (72,130
