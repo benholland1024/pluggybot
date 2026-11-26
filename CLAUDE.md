@@ -1171,14 +1171,13 @@ save a filmstrip PNG named after the script.
   (one of 0.24 m or more bowed 31 deg, stood up out of it and fell, 6 of
   21) and ⚠ tries the cup's pick again where its descent is held back on
   the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
-  over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
-  (round 5), held out 15, the carry walker 0 (each miss, and round 4's
-  reference read beside it: SimNotes) -- ⚠ and with walk2 shown its arms at
-  rest while it carries (#751's cure), 3 of 32 where the tree before laid 16
-  on one pod: its put-downs were tuned on a settle the seeing walker's
-  carried turns left, and land a constant 3-4 cm off, which a retune would
-  most likely take back (SimNotes, "The walker shown its arms at rest while
-  a hand is carried").
+  over the tour, a fall failing the try) IS NOT MET: with walk2 shown its
+  arms at rest while it carries (#751's cure) its put-downs, tuned on a
+  settle the seeing walker's carried turns left, landed a constant 2-3.5 cm
+  off (4 of 32); ⚠ aimed again by where dev flights on the cure set each
+  piece down (the cup's `PASS_CUP_AT`, the fork's `PASS_FORK_AT`; the loop
+  of 11-26b's round 1), 12 of 32 where the base laid 4, and 16 of 32 sealed
+  where 1, no fall, one pod (SimNotes, "The place laid from the pass").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
