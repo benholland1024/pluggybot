@@ -263,7 +263,9 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def face_routine(self, heading: float) -> Routine:
-    """Turn where it stands to a heading; False if its budget ran out."""
+    """Turn where it stands to a heading in its map -- its belief's, as
+    `pose` reads it, never a turn from where it stands (`face`'s line says
+    so, #754); False if its budget ran out."""
 
   @abc.abstractmethod
   def hold_routine(self, seconds: float) -> Routine:
