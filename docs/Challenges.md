@@ -535,7 +535,10 @@ held out where 1, no fall, one pod. With the walk's hand-over judging a thin
 piece's way by where its hand comes down, the plate's card stepped ahead where
 its put-down would come near the body's middle and the fork pulled back once
 (rounds 2 and 3), it lays 17 of 32 where round 1's laid 12, and 20 of 32 held
-out where 17, no fall.
+out where 17, no fall. With the cup's and the fork's cards stepped toward,
+sideways, where their put-down would go far enough to the side that its reach
+changed posture under it (round 4), it lays 20 of 32 where 17, and 20 of 32
+held out where 18, no fall.
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

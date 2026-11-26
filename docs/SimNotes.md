@@ -8283,13 +8283,14 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), eleven times, and has not met it: the reference as it stands, round
+below), twelve times, and has not met it: the reference as it stands, round
 5's with its put-downs aimed again on #751's cure (round 9), the walk's
 hand-over judging a thin piece's way by where its hand comes down (round 10,
-served) and the plate's card stepped ahead, the fork pulled back once (round
-11; all below), lays 17 of 32 on the bar's draws and 20 of 32 sealed by
-532e6bb, no fall, where round 9's laid 12 and 17 on the same pod -- the bar
-is 7 away.
+served), the plate's card stepped ahead, the fork pulled back once (round
+11) and the cup's and the fork's cards stepped toward where their reach keeps
+one posture (round 12; all below), lays 20 of 32 on the bar's draws and 20 of
+32 sealed by 3bfbb07, no fall, where round 11's laid 17 and 18 on the same
+pod -- the bar is 4 away.
 What developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
@@ -9109,6 +9110,43 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     32 identical; carry_spike's courses, which it was chosen after, 32 of 32
     round the house and 411 of 432 on the bare floor identical, the 21 the
     table reference's grip over the top (one more let go there).
+- **Round 12** (the loop of 11-26b, its lane A's round 4; one pod, a Xeon
+  E7-8890 v4, osmesa; rows in `~/pluggybot-training/batches/a1b_pass/`): the
+  cup's and the fork's put-downs from a stance that keeps their reach in one
+  posture.
+  - **What the cup's misses were.** Over round 11's flights and a census of 64
+    on fresh draws, the cup's put-down missed where its posture changed under
+    it: reached with no waist turn and pulled down in a crouch, the feet
+    swivelled 3-7 deg under the change and carried the cup 3-5 cm off its
+    place. Its error tracked the pelvis's turn from the last look to the
+    let-go, 0.6 cm a degree (correlation 0.95); the card's angle was read right
+    to about a degree. That came where the cup's hand was to go further right
+    of the stance's middle than about 0.20 m: on round 11's dev rows 25 of 44
+    put-downs within 2.5 cm past 0.19 m and all 75 at 0.11-0.19 m; on the
+    census 2 of 18 past 0.20 m and 35 of 36 at 0.10-0.19 m. The fork's was the
+    same mirrored, past 0.18 m left (25 of 37 within there, 54 of 57 nearer),
+    and its 0.9 cm toward the diner (round 11) lay mostly in that crouch: a
+    constant re-aim would have gained little.
+  - **The lever.** Looked at after the walk to the place, a card that puts the
+    cup's hand further right than `PASS_CUP_RIGHT` (0.20 m) is stepped toward
+    sideways so that the hand goes `PASS_CUP_MID` (0.15 m) right, and looked
+    at again; the fork's further left than `PASS_FORK_LEFT` (0.18 m) so that
+    it goes `PASS_FORK_MID` (0.14 m) left.
+  - **On fresh dev draws** (3800-3863, beside the census): 47 of 64 laid where
+    33 (+14 -0), no fall either way; the cup's step in 19 flights (the cup
+    within 2.5 cm in 14 where 2), the fork's in 13 (13 where 11); the 36
+    flights neither acted on identical to round 11's tree by path and end
+    state -- frozen. The sideways step went 1.6 times its ask (7-14 cm for
+    5-8), and from the stepped stance the reach and the pull down turned it a
+    median 2.5 deg back right (unstepped, 0.2): those cups came down a median
+    (+0.9, -1.8) cm off, 4 of 19 past 2.5 cm.
+  - **Read on the bar's draws and sealed draws** (beside round 11's tree, one
+    pod): 20 of 32 on the bar's draws where 17 (+4 -1) and 20 of 32 sealed by
+    3bfbb07 where 18 (+3 -1), no fall in the 128; the flights no step acted on
+    identical to round 11's (17 and 19). Kept. ⚠ The posture classes were found
+    first on rows that include the bar's draws 0-31 and 532e6bb's sealed
+    draws, so the bar's reading carries that; the draws 3bfbb07 sealed are
+    independent of it.
 
 ## The arms keep off the other robot (issue #678)
 

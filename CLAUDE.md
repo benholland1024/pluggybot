@@ -1173,7 +1173,12 @@ save a filmstrip PNG named after the script.
   once in 300 legs, its feet moved and the hand-over fell), ⚠ steps the card
   ahead before the plate's put-down where its hand would go nearer the body's
   middle than 5 cm (under 4.5 cm it found no posture or bowed 0.95 rad, the
-  waist turned, and dropped the plate or fell, 7 of 21) and ⚠ tries the
+  waist turned, and dropped the plate or fell, 7 of 21), ⚠ steps sideways
+  before the cup's put-down where its hand would go further right of the
+  middle than 20 cm, and before the fork's where further left than 18 cm
+  (there the reach took no waist turn, its pull down crouched and the feet
+  swivelled 3-7 deg under it: 25 of 44 cups within 2.5 cm, 75 of 75 nearer)
+  and ⚠ tries the
   cup's pick again where its descent is held back on the lid (every such pick
   was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
   over the tour, a fall failing the try) IS NOT MET: with walk2 shown its
@@ -1184,7 +1189,9 @@ save a filmstrip PNG named after the script.
   of 11-26b's round 1), 12 of 32 where the base laid 4, and 16 of 32 sealed
   where 1, no fall, one pod; ⚠ with round 2's judged way and round 3's steps
   (above), 17 of 32 where round 1's tree laid 12, and 20 of 32 sealed by
-  532e6bb where 17, no fall (SimNotes, "The place laid from the pass").
+  532e6bb where 17, no fall; ⚠ with round 4's sideways steps (above), 20 of
+  32 where round 3's tree laid 17, and 20 of 32 sealed by 3bfbb07 where 18,
+  no fall (SimNotes, "The place laid from the pass").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
