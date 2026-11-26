@@ -2865,7 +2865,8 @@ outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
   the lean carried the pelvis 2.0-4.4 cm, so a stance that cannot follow is
   driven no further. Over the same flights its left asks land a mean 1.98 cm off where
   they landed 2.24, `too short` 10 times where 47; 3-4 cm asks 0.95 off where
-  1.89. Asks of 8 cm and more land as before. After a `face` turn it reads
+  1.89. Asks of 10 cm and more land as before, and 3 of the 24 asks of 8 cm
+  moved (3.23 -> 3.10 cm off). After a `face` turn it reads
   worse: there the first left move is 7-8 cm, so a 3-5 cm ask went 7.1-8.7
   where it went 0.4-1.9. Held on to the right, ahead or back, a short ask went
   a whole stride too far, so they stop as before. ⚠ Never an oblique step's
@@ -2874,7 +2875,8 @@ outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
   4 cm left went 13-18 cm after a turn (5-11 after a pick carried or a `face`
   turn). After the step's own turn the hold stands: turned 17 deg either way
   first, then 3-6 cm left (five stances, two draws), it moved 9 flights of
-  60, their mean error 3.7 -> 2.8 cm. Eight came nearer their ask. One, after
+  60, their mean error 3.7 -> 2.8 cm. Seven came nearer their ask, one landed
+  where it had (to 0.01 mm), and one, after
   a pick let go, turned to the left and asked 3 cm, went 7.2 where it went
   5.7: its legs counted under 1 cm all the way.
 - *What it leaves:* a 6-12 cm left ask still overshoots, often by 2-5 cm (the
