@@ -138,8 +138,9 @@ class Walk:
     self.handover_s, self.handover_m, self.fall_at = handover_s, handover_m, fall_at
     #: how far a turn's feet settle as the legs are handed back, m
     self.settle_m = settle_m
-    #: where the pelvis stands ahead of the feet's middle, m
-    self.lean = -handover_m
+    #: where the pelvis stands ahead of the feet's middle, m -- and where a
+    #: walk's first `planted_s` leant it over feet that stayed, m in the world
+    self.lean, self.lean_xy = -handover_m, np.zeros(2)
     #: its reckoning's ledger of corrections (`StanceOdometry.corrected`),
     #: and one a matcher makes `correct_at` its command: (dx, dy, dyaw)
     self.odo = NS(corrected=np.zeros(3))
@@ -153,7 +154,8 @@ class Walk:
   @property
   def stance(self):
     x, y, yaw = self.pose
-    return (x - math.cos(yaw) * self.lean, y - math.sin(yaw) * self.lean,
+    return (x - math.cos(yaw) * self.lean - self.lean_xy[0],
+            y - math.sin(yaw) * self.lean - self.lean_xy[1],
             yaw if self.feet == 1.0 else self.stance_yaw)
 
   def _getup_routine(self):
@@ -200,8 +202,8 @@ class Walk:
       if self.walked_s <= self.shuffle_s:
         nx, ny = x, y
     if self.planted_s and self.walked_s <= self.planted_s and (vx or vy):
-      # its pelvis goes on over feet that stay
-      self.lean += math.hypot(nx - x, ny - y)
+      # its pelvis goes on over feet that stay, whichever way it walks
+      self.lean_xy = self.lean_xy + (nx - x, ny - y)
     self.stance_yaw += self.feet * w * DT
     if w and not (vx or vy):
       nx += self.turn_drift
@@ -607,6 +609,100 @@ def test_a_walk_its_stance_did_not_make_says_it_was_too_short():
   assert rep["why"] == "stepped"
   # ...nor does a turn with no walk asked read short
   assert _step(_walker(Walk()), 0.0, 0.0, 0.5)["why"] == "stepped"
+
+
+def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
+  """A leftward walk's first 0.16-0.58 s are its pelvis leaning over planted
+  feet, and its first move is the right foot closing in, 2.4-3.5 cm of
+  stance (SimNotes, "Stepping toward the work"): its stop rule, reading the
+  pelvis, ended a short left ask in the lean and nothing moved -- 47 of 245
+  left asks over eight stances read `too short`, and 40 of the robots' own
+  212 left steps of 6 cm. Held on until its legs count its stance
+  `STEP_LEAST_M` along its way, it takes that first move."""
+  rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.0, 0.04)
+  assert rep["why"] == "stepped", "a left walk ended in its lean, its feet unmoved"
+  assert rep["dy"] >= hb.STEP_LEAST_M
+  # ...carrying something too: the walk is the same walk
+  body = _walker(Walk(coast_s=0.0, planted_s=0.3))
+  body.held = True
+  assert _step(body, 0.0, 0.04)["why"] == "stepped"
+  # ...and an oblique step's walk to the left, its second, as much (its
+  # verdict is the whole step's, judged along its oblique way)
+  rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), 0.02, 0.06)
+  assert rep["dy"] >= hb.STEP_LEAST_M, rep
+  # ...LEFT ONLY: to the right, ahead and back the walker's first move is a
+  # whole stride, and held on, a short ask went a stride too far
+  for ask in ((0.0, -0.04), (0.04, 0.0), (-0.04, 0.0)):
+    rep = _step(_walker(Walk(coast_s=0.0, planted_s=0.3)), *ask)
+    assert rep["why"] == "too short", (ask, rep)
+
+
+def test_a_left_walk_is_held_on_at_most_its_bound_of_walking():
+  """...its feet never moving, held `STEP_LEFT_HOLD_S` of its walking at
+  most, then its stop rule as before (a stance pressed where it is reads
+  as it did, a second later at most) -- and never counting the time it is
+  held through the other robot's run (#690), as its windows do not."""
+  walk = Walk(coast_s=0.0, planted_s=60.0)
+  rep = _step(_walker(walk), 0.0, 0.04)
+  walked = DT * sum(1 for _, vy, _ in walk.asked if vy)
+  assert rep["why"] == "too short" and walked == pytest.approx(hb.STEP_LEFT_HOLD_S, abs=2 * DT), walked
+
+  class Held(Walk):
+    def _twist_routine(self, vx, vy, w):
+      if len(self.asked) == 50 and not hasattr(self, "paused"):
+        # ...as `tick._Loop.run` holds it: the world goes on, the body stands
+        self.paused, self.t, self.held_s = True, self.t + 30.0, self.held_s + 30.0
+      yield from super()._twist_routine(vx, vy, w)
+  walk = Held(coast_s=0.0, planted_s=60.0)
+  rep = _step(_walker(walk), 0.0, 0.04)
+  walked = DT * sum(1 for _, vy, _ in walk.asked if vy)
+  assert walk.paused and walked == pytest.approx(hb.STEP_LEFT_HOLD_S, abs=2 * DT), walked
+  # ...and a left walk that gets nowhere at all still stalls in its first window
+  rep = _step(_walker(SideWall(0.0, coast_s=0.0)), 0.0, 0.04)
+  assert rep["why"] == "blocked" and rep["stuck"]["s"] == hb.STEP_START_S, rep
+
+
+def test_a_left_walk_held_on_still_falls_and_keeps_off_what_a_step_keeps_off():
+  """...every tick it is held is a tick of its walk as before: a fall ends it
+  `fell`, another robot's disc and what its depth camera saw at its knees
+  end it `blocked`, saying how."""
+  assert _step(_walker(Walk(coast_s=0.0, planted_s=60.0, fall_at=100)), 0.0, 0.04)["why"] == "fell"
+  walk = Walk(coast_s=0.0, planted_s=60.0, others=[lambda: (0.0, 0.9)])
+  rep = _step(_walker(walk), 0.0, 0.04)
+  assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "keep", rep
+  walk = Walk(coast_s=0.0, planted_s=60.0)
+  side = np.array([[x, 0.3, 0.3] for x in np.linspace(-0.3, 0.3, 31)])
+  walk.knee.fold(side, 0.0, walk.pose, walk.odo.corrected)
+  rep = _step(_walker(walk), 0.0, 0.04)
+  assert rep["why"] == "blocked" and rep["keptOff"]["by"] == "low", rep
+
+
+def test_a_left_walk_held_on_ends_where_a_stand_up_or_a_stop_closes_it():
+  """...and closed from outside mid-hold -- a stand-up landing (#348), a
+  stop thrown in -- it ends there, holding nothing on."""
+  for end in ("close", "throw"):
+    walk = Walk(coast_s=0.0, planted_s=60.0)
+    body = _walker(walk)
+    routine = body.step_routine(0.0, 0.04)
+    for _ in range(200):
+      next(routine)
+      body._d.time = walk.t
+    assert walk.legs == "walk" and walk.asked[-1][1] > 0.0, "not walking left at 0.4 s"
+    if end == "close":
+      routine.close()
+    else:
+      with pytest.raises(tick.MissionAborted):
+        routine.throw(tick.MissionAborted("stop"))
+    with pytest.raises(StopIteration):
+      next(routine)
+
+
+def test_a_short_step_to_the_left_flown_takes_its_first_foot():
+  """Flown (a few seconds of sim): from the stand, `step(0, 0.04)` went
+  0.8-1.0 cm and read `too short`, its walk stopped in the lean; held on, the
+  right foot closes in and it goes about 3 cm."""
+  rep, _, left, _ = _flown_stance_step(0.0, 0.04)
+  assert rep["why"] == "stepped" and left >= 0.02, (rep["why"], f"{100 * left:.1f} cm")
 
 
 def test_a_step_too_short_reads_false_with_its_reason_and_says_where_it_got():
