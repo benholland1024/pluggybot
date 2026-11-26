@@ -364,16 +364,21 @@ HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 STALL_RAD, STALL_S = 0.5, 0.3
 #: ...and any way home, a withdraw's and the loop's own too, is held so where
 #: the trunk, as its IMU reads it, tips back past this off the posture its legs
-#: hold, rad, this long running, s (`_leaning_back`, `trunk_back`; SimNotes, "A
-#: way home that tips the body back"): a jaw dragged over a counter's top shoved
-#: the body back while its arm neither stalled past `STALL_RAD` -- its stall
-#: begun and reset by a slip, or cut off as its command reached the rest -- nor
-#: read the shove, the counter pushing the hand up so that its reading tipped
-#: the body TOWARD it; the trunk went 2 deg back 0.4-1.3 s before each fall.
-#: ⚠ OFF THE POSTURE THE LEGS HOLD (`held_pitch`: the pitch the standing policy
-#: is shown, less its trim), NEVER UPRIGHT: a way home out of a bow has the
-#: stand walk down ahead of the trunk, which reads it forward, never back.
-HOME_BACK_RAD, HOME_BACK_S = math.radians(2.0), 0.1
+#: hold, rad, while its drivers read the arm more than this off its command,
+#: rad -- something holds it -- this long running, s (`_leaning_back`,
+#: `trunk_back`; SimNotes, "A way home that tips the body back"): a jaw dragged
+#: over a counter's top shoved the body back while its arm neither stalled past
+#: `STALL_RAD` -- its count reset by a slip, or cut off as its command reached
+#: the rest -- nor read the shove, the counter pushing the hand up so that its
+#: reading tipped the body TOWARD it; the trunk went 2 deg back 0.4-1.3 s before
+#: each fall, the arm 0.30-0.95 rad behind. ⚠ NEVER A WAY HOME NOTHING HOLDS:
+#: held for a lean an earlier drag left, a free way home after a raise was held
+#: again and again and the arm left out, and the robot fell where the base's came
+#: home and the body stood; and the hands checks' free ways home lean back past
+#: 2 deg too. ⚠ OFF THE POSTURE THE LEGS HOLD (`held_pitch`: the pitch the
+#: standing policy is shown, less its trim), NEVER UPRIGHT: a way home out of a
+#: bow has the stand walk down ahead of the trunk, which reads it forward.
+HOME_BACK_RAD, HOME_BACK_LAG_RAD, HOME_BACK_S = math.radians(2.0), 0.2, 0.1
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
 #: (`HELD_S`) -- what the stand's return waits on (`_go_home`), and what a
@@ -2984,14 +2989,17 @@ class Reach:
 
   def _leaning_back(self, side: str, dt: float) -> bool:
     """Whether an arm on its way to its rest -- in joint space, or its rest
-    commanded and not yet read there (`homing`, `home`) -- has had the trunk
-    tipped back past `HOME_BACK_RAD` off the posture its legs hold
-    (`trunk_back`) for `HOME_BACK_S` running, as its IMU reads it; `dt` its
-    tick. A carry's way to its pose never has (#682)."""
+    commanded and not yet read there (`homing`, `home`) -- and held back from
+    it, its drivers more than `HOME_BACK_LAG_RAD` off its command, any joint,
+    has had the trunk tipped back past `HOME_BACK_RAD` off the posture its legs
+    hold (`trunk_back`), as its IMU reads it, for `HOME_BACK_S` running; `dt`
+    its tick. A carry's way to its pose never has (#682)."""
+    arm = self.self_model.arm[side]
     homing = self.carry_q[side] is None and (
       self.phase[side] == "home"
       or (self.phase[side] == "rest" and self.homing[side] and not self.home(side)))
-    over = homing and self.trunk_back() > HOME_BACK_RAD
+    over = (homing and float(np.abs(self.sensed[arm] - self.q_cmd[side]).max()) > HOME_BACK_LAG_RAD
+            and self.trunk_back() > HOME_BACK_RAD)
     self._back[side] = self._back[side] + dt if over else 0.0
     return self._back[side] >= HOME_BACK_S - 1e-9
 
