@@ -582,18 +582,16 @@ the label's face, set down from in front of the board and let go of, then
 backed out before the arm goes home (never from over an edge, #736's item
 9). Its bar, written before it flew: 24 of 32 draws over the tour, a fall
 failing its try, each draw its own noise, on one pod, then 32 held out
-sealed by the frozen commit. **It is not met.** Round 3's reference
-(frozen at 5c74ead7: stage 2's first, c64b2fd2's, with round 2's three kept
-levers alone -- 0.6 of a step ahead at the cart; at a label no step back,
-ahead only past 5 cm, half; the walk's looks tested) reads, beside the first
-on its frozen tree on one pod, 13 of 32 over the tour (the first's 12) and
-17 at the check (18); held out, on 32 draws sealed by 5c74ead7, 19 over
-the tour (16) and 21 at the check (17), with no fall against the first's
-five -- over the four readings 70 passes of 128 against 63.
-Its lead on the dev draws (54 of 80 against 46, a rule written first) did
-not carry to the bar's. Round 2's (66ba56fa) was no gain over the first
-either (over its four readings 66 passes of 128 against 63, six falls
-against one). SimNotes, "Stocking the shop's shelf", has what
+sealed by the frozen commit. **It is not met.** Round 4's reference (frozen
+at 1e332737: round 3's, 5c74ead7, with a product its look missed at the cart
+sought to its left -- the frame 5 cm, the candle 8 cm -- and nothing else)
+reads, beside round 3's on one pod, 13 of 32 over the tour (round 3's 12)
+and 22 at the check (21); held out, on 32 draws sealed by 1e332737, 21 over
+the tour (15) and 26 at the check (26) -- 82 passes of 128 against 74, no
+fall on either and none lost: it acts only where round 3's missed a look,
+and round 3's failed every such flight. Round 3's own lead over stage 2's
+first (70 passes of 128 against 63) was all on its sealed draws, and round
+2's (66ba56fa) was no gain. SimNotes, "Stocking the shop's shelf", has what
 flying took.
 
 **The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,

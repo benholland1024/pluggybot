@@ -11924,11 +11924,13 @@ Our reference for `shelf` (`hands_check.SHELF`, the walk there
 2026-11-23, task X6) on a Xeon E5-2697A v4 share for its dev draws and an EPYC
 7532 share for the bar, round 2 of stage 2 (the loop of 2026-11-24, task Y5)
 on the merged tree 1cad3d99 on an EPYC 7B13 share for its dev draws and the
-bar, and round 3 (the loop of 2026-11-25, task A3) on a Xeon E7-8890 v4
+bar, round 3 (the loop of 2026-11-25, task A3) on a Xeon E7-8890 v4
 share, its dev draws on the merged tree 969746ef and its bar and sealed pool
-on its frozen commit 5c74ead7 (with #747) -- each stage-2 flight with a trail
-of every product's true place and the true stance after each verb. What
-flying took:
+on its frozen commit 5c74ead7 (with #747), and round 4 (the loop of
+2026-11-26, task D5) on a Xeon E5-2698 v4 share, its dev draws on the merged
+tree 38b0bfe4 (with #751's cure and #681's pair) and its bar and sealed pool
+on its frozen commit 1e332737 -- each stage-2 flight with a trail of every
+product's true place and the true stance after each verb. What flying took:
 
 - **The cart is 0.35 m deep, not #736's 0.5.** At 0.5 the robot standing
   0.13 m off its front stands 0.63 m off the shelf's, where neither board's
@@ -12129,16 +12131,15 @@ flying took:
   flights ended at that pick, out of reach), and every arm built on it read
   as low (the upper board's own step ahead, 4; the frame taken within 2 cm,
   3).
-- **What round 3 did not touch.** The first carried step after a pick
-  still stands still (#751: the standing policy's wider stance and walk2
-  seeing its carried arm): it read `blocked` in 113 of A1's 129 on the dev
-  checks, and the trip's next step stepped in 112 of them. And the set-down:
-  of A1's 10 products dropped on the dev checks, three frames were let go 25
-  cm over the upper board's edge -- its press, from full stretch about 0.58
-  m out, read out of reach and its posture search carried the hand 25 cm up
-  and back in front of the edge -- and fell 1.2 m; four toppled as they were
-  let go; one slipped out of the jaws in a carried step, and two candles fell
-  in the let-go's wait or the back-out.
+- **What round 3 did not touch.** The first carried step after a pick stood
+  still (`blocked` in 113 of A1's 129 dev checks) until #751's cure, on
+  which it steps (none of 95 trips, the loop of 2026-11-25b). And the
+  set-down: of A1's 10 products dropped on the dev checks, three frames were
+  let go 25 cm over the upper board's edge -- its press, from full stretch
+  about 0.58 m out, read out of reach and its posture search carried the
+  hand 25 cm up and back in front of the edge -- and fell 1.2 m; four
+  toppled as they were let go; one slipped out of the jaws in a carried
+  step, and two candles fell in the let-go's wait or the back-out.
 - **Round 3's numbers.** Its reference, frozen at 5c74ead7 (the first
   reference with round 2's three kept levers alone), beside the first on its
   frozen tree (with #747) on one pod: over the tour's draws 0-31 13 of 32 (no
@@ -12156,6 +12157,68 @@ flying took:
   its 4 picks out of reach all read the frame 0.177-0.193 m left. #747
   refused one reach in the 256 final flights, the first reference's, in a
   check that failed anyway.
+- **On #751's cure, where it missed.** Round 3's reference on the merged
+  tree with the cure and #681's pair (38b0bfe4) replays the cure's rows of
+  the loop of 2026-11-25b on 62 of the bar's 64 flights (the 2 that part,
+  #681's pair's, keep their grades): 12 of 32 over the tour and 21 of 32 at
+  the check, no fall. Of the tour's 20 failures, 8 are one fault: the walk's
+  step in, aimed to leave the frame 0.19 m left, left it 0.177-0.19 m left,
+  which `near` took as at its 0.21 mark (within 3.46 cm); there the frame's
+  turned reach was out of reach, and the straight one was too or came down
+  on the frame's top, held back, and the close and the back-out tipped the
+  frame, whose tag never read again. Over 323 flights of that reference on
+  record, a frame read 0.17-0.19 m left (55, every one a tour's) passed 15
+  times and one read at 0.21 m 54 of 75; its first reach reached 33 % of
+  the time there and 91 % at 0.23. The rest: the candle lost at the cart 3,
+  a frame dropped at the upper board's set-down 3, a label lost with a
+  product carried 3 (the carried product in its line of sight, or the stance
+  crept in: the check's lost lower labels read 0.435-0.465 m out, where a
+  carried look reads one only from about 0.48), the frame past the camera's
+  edge 1, off along 1, a find out of time 1.
+- **Uncarried sidesteps at the cart** (the candle's 955 in `near` on
+  record) go a median 0.71-0.80 of their ask to the right (1.17-1.47 at the
+  90th percentile) and 0.55-0.57 to the left, where one in five reads `too
+  short`; the frame's asks under 4 cm (round 4's first arms, 35) went a
+  median 2.7 times themselves, a stride. So the
+  candle, read 0.12 m left after the trip back, was asked 10.5 cm right and
+  went 15-17, past the camera's left edge at 0.27-0.29 m, and the search the
+  procedure was told stepped right again; every candle on record whose look
+  missed stood 0.27-0.80 m left. The walk's step in lands the frame -2.8 to
+  +3.3 cm of its aim (5-95 %, 140 tours), and the colour camera reads the
+  frame's tag from 0.28 m ahead and up to 0.24 m left, so the walk keeps its
+  0.19.
+- **Round 4's first arms on the dev draws** (the check's set-outs 200-263
+  and the tour's draws 300-331, each flight its own noise, one pod; the
+  reference 53 of 96, one fall): the frame brought to 0.225 m left within 2
+  cm before its pick and a frame its look missed sought 5 cm left, 54 and
+  two falls (paired 9 and 8); with a candle its look missed sought 8 cm left
+  too, 55 and two (10 and 8). The line written first, 57, was not met. The
+  frame's step took away the dev tours' two picks out of reach at 0.17-0.19
+  (one frame read 0.228 m left was still out of reach), but the 15 checks
+  and 24 tours it re-routed drew every hazard after the pick again: its four
+  lost checks failed after the pick, and one tour fell setting down at the
+  upper board from 0.39 m out. ⚠ Those arms wrote
+  the candle's mark as 0.225 and its search as 0.05-0.15*i where the
+  reference computes 0.21+0.015*i and -0.1*i: the last bit differs, and a
+  dev flight the levers never touched parted; written as the reference
+  computes them, they replayed it there.
+- **Round 4's reference: a product its look missed at the cart is sought to
+  its left** (frozen at 1e332737): round 3's with `near`'s search for the
+  frame 5 cm left (it stood still) and for the candle 8 cm left (it stepped
+  10 cm right), and nothing else, so a flight with no missed look is round
+  3's, bit for bit. Beside round 3's on one pod (the same tree but for the
+  procedure): over the tour's draws 0-31 13 of 32 (no fall; round 3's 12) --
+  short of the bar's 24 -- and at the check 22 (21); held out, on 32 draws
+  sealed by 1e332737, 21 over the tour (15) and 26 at the check (26) -- 82
+  passes of 128 against 74, no fall on either, and none lost. It acted on 22
+  of those 128 flights, each one round 3's reference failed, and won 8; on
+  the dev draws on 15, winning 5. What it finds is the frame a step right to
+  its mark carried past the camera's left edge, upright 0.25-0.27 m left: 11
+  of the 14 such flights passed. A candle found again after a step left that
+  went half its ask leaves `near` no try to bring it to its mark (one was
+  picked from 0.14 m left, out of reach): 2 of its 14 searches passed. A
+  frame tipped on the cart by a descent held back on its top reads from
+  nowhere (8 of 8 failed).
 
 ## A station's fix that moves the belief drops the map (issues #741, #681)
 
