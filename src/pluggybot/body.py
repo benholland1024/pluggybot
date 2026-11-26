@@ -298,7 +298,7 @@ class Body(abc.ABC):
   def forget_world(self) -> None:
     """Its map and its places cleared -- it knows where its dock is and
     nothing else: a true death (issue #419), a stand-up (#572), a fixture's
-    fix past the matcher's reach (#476)."""
+    fix that moves the belief (#476, #681)."""
 
   @abc.abstractmethod
   def plan_frontier(self, blacklist: set) -> tuple[list | None, str]:
@@ -709,7 +709,10 @@ class Body(abc.ABC):
     -- as the body walks: the humanoid's least step is a stride, and a walk asked less may
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
-    turn that could not get there -- "blocked" -- its walk got nowhere, or kept off another robot as a
+    turn that could not get there -- "blocked" -- its walk got nowhere, and then `stuck` says what
+    its legs counted in which window (`m`, m, along its way in `s` s, `underWay` where the step had
+    walked before it, and `way` -- "ahead", "back", "left" or "right" -- where that walk was one
+    of two, an oblique step's; #751), or kept off another robot as a
     walk does (#670), or a wall or what stands at its knees (#717), and then `keptOff` says how
     -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance
@@ -943,8 +946,8 @@ class Body(abc.ABC):
   rights_itself: bool
   #: The falls its own fall watch has taken, counted up: what a fall IS is
   #: the body's to say (#493's grader asks) -- the humanoid's trunk 35 deg
-  #: past the posture its legs hold, by its IMU, or its pelvis sunk
-  #: (`humanoid.getup`), each the moment its get-up takes over.
+  #: off the posture its legs hold and off upright both, by its IMU, or its
+  #: pelvis sunk (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
   #: rights itself, its get-up's MEASURED budget, timed from the get-up's
@@ -952,10 +955,10 @@ class Body(abc.ABC):
   stuck_after_s: float
   #: The trunk's pitch forward that the posture its legs hold puts it at,
   #: rad: what a topple is read past (`TOPPLE_TILT_RAD`: the lifecycle's
-  #: `down`, and the death seam's for a body that cannot right itself).
-  #: 0 for a body that stands only upright; the humanoid's bow
-  #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
-  #: (#559).
+  #: `down`, and the death seam's for a body that cannot right itself), off
+  #: it or off upright, the nearer (#724). 0 for a body that stands only
+  #: upright; the humanoid's bow (`Reach.held_pitch`), whose deepest, 63
+  #: deg, is past the seam's 60 (#559).
   held_pitch: float
 
   @abc.abstractmethod

@@ -581,7 +581,8 @@ charging rows below, as shapes.
     5 s between two get-ups not starting it again, #684: timed off its tilt
     past `TOPPLE_TILT_RAD`, a get-up sitting short of 60° never died), and
     one that cannot toppled past `TOPPLE_TILT_RAD` (60°, read off the
-    posture its legs hold) for `TOPPLE_HOLD_S`. Every `death` event
+    posture its legs hold or off upright, the nearer, #724) for
+    `TOPPLE_HOLD_S`. Every `death` event
     carries `at` since #362 (where the robot was and believed it was, what
     it was running, the nearest peer), read AS IT FELL for a topple;
     protocol/README.md has the shape.

@@ -1474,7 +1474,6 @@ def _pull(life, args: dict) -> Routine:
 #: Why a step stopped short, as its record says it (`Body.step_routine`).
 STEP_WHY = {"too short": "your step was too short to walk",
             "turned short": "your turn stopped short of where you asked",
-            "blocked": "your step got nowhere: something stands in your way",
             "fell": "you fell",
             "out of time": "your step ran out of time"}
 #: ...and one blocked where it kept off another robot (issue #670;
@@ -1491,6 +1490,28 @@ STEP_KEPT_OFF = {
   "low": "your step stopped short of something your depth camera saw in front of you at your "
          "knees' height: a step keeps it {keepM:.2f} m from your middle in the way you step "
          "({m:.2f} m now)"}
+#: ...and one whose walk got nowhere (`stuck`, #751; Observatory.md, the period
+#: of #751's words): what its legs counted, the way they counted it, and in
+#: which window -- its walk's first, or one once it was under way -- never what
+#: stood there, which the step does not measure. Its head, before the colon,
+#: is its shorter form, and no other reason's: "your step stopped short" is
+#: the bare fallback's and begins every keep-off's.
+STEP_STUCK = ("your step got nowhere: your legs counted under {cm} cm {way} in the first {s} s "
+              "of its walk")
+STEP_STALLED = ("your step stalled: once it was under way, your legs counted under {cm} cm {way} "
+                "in {s} s")
+#: ...the way: the step's own, or one walk's of an oblique step walked as two
+#: (`HumanoidBody._step_walks`), whose second counts its sidestep alone.
+STUCK_WAYS = {None: "along the way you stepped", "ahead": "ahead", "back": "back",
+              "left": "to your left", "right": "to your right"}
+
+
+def step_stuck_said(stuck: dict) -> str:
+  """A stalled walk's reason (#751), off its record's `stuck`: under `m` m
+  its `way` in a window of `s` s -- its first, or once `underWay`."""
+  return (STEP_STALLED if stuck.get("underWay") else STEP_STUCK).format(
+    cm=f"{100 * float(stuck['m']):g}", s=f"{float(stuck['s']):g}",
+    way=STUCK_WAYS[stuck.get("way")])
 
 
 def _step(life, args: dict) -> Routine:
@@ -1516,7 +1537,14 @@ def _step(life, args: dict) -> Routine:
          # ...and its legs gone back to standing before both soles read down (#740)
          **({"feetDown": False} if rep.get("feetDown") is False else {})}
   if rep["why"] != "stepped":
-    kept = rep.get("keptOff")
+    kept, stuck = rep.get("keptOff"), rep.get("stuck")
+    if rep["why"] == "blocked" and not kept and stuck:
+      # ...its head alone where the rest would move anything else History's
+      # line says (#728's shorter form, `lifecycle.procedure_outcome`): in
+      # full, the step's own reason fell off the line in up to 2 of the 23
+      # live runs with a stall, and a readout onto a line of its own in 5 (#751)
+      reason = step_stuck_said(stuck)
+      return {"ok": False, **out, "reason": reason, "brief": reason.partition(":")[0]}
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
               else STEP_PRESSED.format(**rep) if rep["why"] == "pressed"
               else STEP_WHY.get(rep["why"], "your step stopped short"))

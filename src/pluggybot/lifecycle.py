@@ -732,7 +732,9 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
 
   ⚠ A REASON WITH A SHORTER FORM (a step's `brief`, the start of its
   `reason`; #728: a `spot` that saw nothing names its picture's sides, its
-  `brief` the top alone) IS SAID IN FULL ONLY WHERE THAT MOVES NOTHING ELSE:
+  `brief` the top alone; #751: a `step` whose walk got nowhere says what its
+  legs counted, its `brief` the head before the colon) IS SAID IN FULL ONLY
+  WHERE THAT MOVES NOTHING ELSE:
   each in the order the run made them, the lines in full where they are the
   lines it had with that one reason the longer, inside the room, else in its
   shorter form -- so with every one in its shorter form the lines are the
@@ -1617,12 +1619,17 @@ class HubLifecycle:
   def _chassis_tilt(self) -> float:
     """Radians between the chassis's up axis and where the posture its legs
     hold puts it (`Body.held_pitch`): the world's up, but for a humanoid
-    bowed -- whose deepest bow, 63 deg off upright, is no topple (#559)."""
+    bowed -- whose deepest bow, 63 deg off upright, is no topple (#559) --
+    off the bow or off upright, the nearer, as its fall watch reads a tip
+    (`getup.tipped_past`, #724)."""
     w, x, y, z = self.body.orientation()
     # the world's up in the chassis's frame, R's third row, against the
     # posture's: (-sin p, 0, cos p), pitched p forward (`getup.tipped`)
     p = self.body.held_pitch
-    up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(p) - 2.0 * (x * z - w * y) * math.sin(p)
+    level = 1.0 - 2.0 * (x * x + y * y)
+    up = level * math.cos(p) - 2.0 * (x * z - w * y) * math.sin(p)
+    if p > 0.0:
+      up = max(up, level)
     return math.acos(max(-1.0, min(1.0, up)))
 
   def down(self) -> bool:
@@ -1772,11 +1779,19 @@ class HubLifecycle:
     row per event that moved the belief outside a match or lost it
     (`Body.belief_events`), and one every `DRIFT_EVERY_S` with the
     matcher's verdicts since the last -- the sim's own check, read by
-    nothing that decides (`_tell_belief` says the robot's part)."""
+    nothing that decides (`_tell_belief` says the robot's part). A fix that
+    dropped the map ends the explore that laid it, as a stand-up's drop
+    does (`_forget_world`): no floor explored, no frontier blacklisted
+    (#681: kept, the loop believed one dock's view explored)."""
     events = self.body.belief_events
     if events and events[-1]["seq"] > self._belief_seen:
       for rec in events:
         if rec["seq"] > self._belief_seen:
+          if rec["why"] == "fixed" and rec.get("dropped"):
+            # ...and the matcher's verdicts count afresh: a sample's are since
+            # this, never the new map's less the old's
+            self.floor_explored, self.blacklist = False, set()
+            self._drift_counts = {}
           self._emit(self._drift_row(rec))
           self._tell_belief(rec)
       self._belief_seen = events[-1]["seq"]
@@ -1816,20 +1831,27 @@ class HubLifecycle:
     """A belief event said, and the ones the robot should know of written
     to History: lost at a fixture, a map dropped, how the search after a
     loss ended, a map that has refused every scan for a minute and its
-    taking scans again (#697). A fix within the map's reach and a relocation are
+    taking scans again (#697). A relocation, and a fix that kept the map (a
+    body's whose fix keeps it: the humanoid's drops it at every move), are
     narrated only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
     # ...the station is the one fixture, and its search keeps the map until
-    # a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    # a fix moves the belief (`HumanoidBody.lost_routine`, `_fix_at`). ⚠ A
+    # fix measures the belief, never the map: a belief a last walk carried
+    # off had laid no askew map (#681), so it says how far, and what went
     if why == "lost":
       line = (f"I did not find {what} where I believed it was, so I may not be where I "
               "thought, and I am looking round for it")
     elif why == "fixed" and rec.get("dropped"):
-      line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
-              f"was: the map I had was laid askew, and it is gone")
+      # ...in cm under a metre and tenths of a degree under ten: at "0.1 m" or
+      # "0 deg" a fix past its 10 cm or 2 deg read as one under it (the unit
+      # chosen as rounded: 0.997 m is "1.0 m", never "100 cm")
+      far = f"{off * 100:.0f} cm" if round(off * 100) < 100 else f"{off:.1f} m"
+      turn = f"{turned:.1f} deg" if round(turned, 1) < 10.0 else f"{turned:.0f} deg"
+      line = f"{what} put me {far} and {turn} from where I believed I was: {MAP_GONE}"
     elif why == "searched" and rec.get("ended") == "seen, never near":
       line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and saw it, but never "
               "got near enough to it to know where I am")
@@ -3894,8 +3916,8 @@ class HubLifecycle:
     self.body.start_at(*pose)
     # ...on no map (#572, Ben's call): put right at its start, a belief is
     # pulled back onto the askew map it kept (Ben's reset of Rowan on 10-08
-    # was 7.7 m out within 500 s), so it goes with its places, as a fix past
-    # the matcher's reach drops them
+    # was 7.7 m out within 500 s), so it goes with its places, as a station's
+    # fix that moves the belief drops them
     self._forget_world()
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None

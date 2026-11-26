@@ -9,7 +9,7 @@ and search at its station are `test_station.py`'s; what they measure is
 import math
 
 from pluggybot.body import NOT_SEEN, StubBody
-from pluggybot.lifecycle import DRIFT_EVERY_S
+from pluggybot.lifecycle import DRIFT_EVERY_S, MAP_GONE
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.navigator import wire_pose
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -204,9 +204,13 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
   said = _history(life)
   assert any("I did not find my charging station where I believed it was" in ln
              and "looking round for it" in ln for ln in said)
-  assert any("my charging station put me 2.0 m and 17 deg" in ln and "is gone" in ln
-             for ln in said)
-  assert len(said) == 2, "a fix within the map's reach went into History"
+  # ...saying how far the station put it and what that cost, never a cause
+  # it did not measure (#681: the map "laid askew" -- a fix measures the
+  # belief, and one a last walk carried off had laid no askew map)
+  assert any(ln.endswith("my charging station put me 2.0 m and 17 deg from where I "
+                         f"believed I was: {MAP_GONE}") for ln in said), said
+  assert not any("askew" in ln for ln in said)
+  assert len(said) == 2, "a fix that kept the map went into History"
   # ...and the search after a loss ends in History, its fix's line or its own
   for seq, kw, words in ((5, dict(found=False, fixture="station"),
                           "I looked for my charging station for 156 s and did not see it"),
@@ -224,6 +228,65 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
     said = now
   # ...and no pose of the truth's in what the robot reads
   assert not any("3.0" in ln for ln in said)
+
+
+def test_a_fix_says_how_far_it_moved_the_belief_past_its_own_rounding():
+  # #681's pair's review: every fix that moves the belief 10 cm or 2 deg now
+  # writes History, and at "0.1 m" or "0 deg" one past its own threshold read
+  # as one under it -- so cm under a metre, tenths of a degree under ten
+  body = StubBody()
+  life = stub_life(body=body)
+  life._drift_due = math.inf
+  for seq, after, words in ((1, (1.12, 2.0, math.radians(0.4)), "put me 12 cm and 0.4 deg"),
+                            (2, (1.03, 2.0, math.radians(2.4)), "put me 3 cm and 2.4 deg"),
+                            (3, (3.5, 2.0, math.radians(17.0)), "put me 2.5 m and 17 deg"),
+                            # ...the unit chosen as rounded: never "100 cm" nor "10.0 deg"
+                            (4, (1.997, 2.0, math.radians(9.96)), "put me 1.0 m and 10 deg")):
+    body.belief_events.append(_event(seq, "fixed", (1.0, 2.0, 0.0), after, after,
+                                     fixture="station", moved=True, dropped=True))
+    life._belief_step()
+    assert _history(life)[-1].endswith(f"my charging station {words} from where I believed I "
+                                       f"was: {MAP_GONE}"), _history(life)[-1]
+
+
+def test_a_fix_that_dropped_the_map_ends_the_explore_that_laid_it():
+  # #681's pair's review: a stand-up's drop ends the explore that laid the map
+  # (`_forget_world`); a fix's must too, or the loop believes one dock's view
+  # explored, and the old map's frontiers stay blacklisted
+  body = StubBody()
+  life = stub_life(body=body)
+  life._drift_due = math.inf
+  life.floor_explored, life.blacklist = True, {(3, 4)}
+  body.belief_events.append(_event(1, "fixed", (1.0, 2.0, 0.0), (1.05, 2.0, 0.0), (1.05, 2.0, 0.0),
+                                   fixture="station", moved=True, dropped=False))
+  life._belief_step()
+  assert life.floor_explored and life.blacklist == {(3, 4)}, "a fix that kept the map"
+  body.belief_events.append(_event(2, "fixed", (1.0, 2.0, 0.0), (1.3, 2.0, 0.0), (1.3, 2.0, 0.0),
+                                   fixture="station", moved=True, dropped=True))
+  life._belief_step()
+  assert not life.floor_explored and life.blacklist == set()
+
+
+def test_a_drift_sample_after_a_dropped_map_counts_its_verdicts_afresh():
+  # #681's pair's review: the matcher's verdicts count from zero once a fix
+  # drops the map, and a sample's `matched` is its period's growth -- read
+  # against the old map's counts, 5 `ok` since the drop less 3 before it
+  # said 2 (and 3 against 3, none)
+  body = StubBody()
+  life = stub_life(body=body)
+  rows = []
+  life.on_event.append(rows.append)
+  life._drift_due = None
+  body.match_counts = {"ok": 3}
+  life._belief_step()                                # the period begins at 3
+  body.match_counts = {"ok": 5}                      # ...the map dropped: 5 since
+  body.belief_events.append(_event(1, "fixed", (1.0, 2.0, 0.0), (1.3, 2.0, 0.0), (1.3, 2.0, 0.0),
+                                   fixture="station", moved=True, dropped=True))
+  life._belief_step()
+  life.data.time += DRIFT_EVERY_S
+  life._belief_step()
+  sample = [r for r in rows if r.get("type") == "drift" and r["why"] == "sample"][-1]
+  assert sample["matched"] == {"ok": 5}, sample["matched"]
 
 
 def test_a_map_refusing_every_scan_is_one_line_and_a_scan_that_fits_one_more():

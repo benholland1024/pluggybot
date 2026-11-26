@@ -213,7 +213,8 @@ procedure's run where it comes, an `if`'s test or not (#671; Overseer.md
 failed, on a body still getting up. Said beside, and
 judged by nothing: its worst tilt (`Body.orientation`). What a fall is,
 is the body's to say, so the grader names none: the humanoid's watch is its
-trunk 35 deg past the posture its legs hold, by its IMU, or its pelvis sunk
+trunk 35 deg off the posture its legs hold and off upright both, by its
+IMU, or its pelvis sunk
 -- so a bow its reach asks is no fall (#520). The
 numbers are judged as measured and only shown
 rounded; the call is wherever the attempt ended (Evaluation.md §4); the
@@ -525,7 +526,11 @@ to no nearer the body's middle than 0.25 m), 15 of 32 (held out, 15 of 32;
 SimNotes has round 4's reference read beside it). The lever each of
 rounds 6, 7 and 8 froze was read on the bar and taken back out (the rest
 were read on dev draws only): the reference is round 5's (SimNotes, "The
-place laid from the pass", rounds 6-8).
+place laid from the pass", rounds 6-8). With walk2 shown its arms at rest
+while it carries (#751's cure), it lays 3 of 32 where the tree before laid 16,
+one pod: its put-downs were tuned on a settle the seeing walker's carried
+turns left, and land a constant 3-4 cm off (SimNotes, "The walker shown its
+arms at rest while a hand is carried").
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 
