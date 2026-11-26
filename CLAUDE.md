@@ -499,9 +499,11 @@ save a filmstrip PNG named after the script.
   hand-over sending an arm left held home again (#753); ⚠ NEVER ONE NOTHING
   HOLDS: held for a lean an earlier drag left, a free way home after a raise
   was held again and again, the arm left out, and the robot fell where the
-  base's came home; ⚠ OFF THE PITCH THE STANDING POLICY IS SHOWN, LESS ITS
+  base's came home; ⚠ A DOOR THAT GIVES READS AS A COUNTER: held, the bar's
+  door 112 reference read "held" and its run ended (as the tour's table 6 won
+  a pass); ⚠ OFF THE PITCH THE STANDING POLICY IS SHOWN, LESS ITS
   TRIM (`held_pitch`), NEVER UPRIGHT: out of a bow the shown pitch walks down
-  ahead of the trunk, which reads forward of it. ⚠ BOTH WAYS KEEP OFF
+  ahead of the trunk, which mostly reads forward of it. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a

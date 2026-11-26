@@ -376,8 +376,9 @@ STALL_RAD, STALL_S = 0.5, 0.3
 #: again and again and the arm left out, and the robot fell where the base's came
 #: home and the body stood; and the hands checks' free ways home lean back past
 #: 2 deg too. ⚠ OFF THE POSTURE THE LEGS HOLD (`held_pitch`: the pitch the
-#: standing policy is shown, less its trim), NEVER UPRIGHT: a way home out of a
-#: bow has the stand walk down ahead of the trunk, which reads it forward. ⚠
+#: standing policy is shown, less its trim), NEVER UPRIGHT: out of a bow the
+#: stand walks down ahead of the trunk, which mostly reads forward of it (of
+#: 900 such ways home on the base's flights, three tipped back past 2 deg). ⚠
 #: The tip is the whole body's: an arm held back past the line is held whichever
 #: hand's work tipped the trunk -- eased and raised, as any hold.
 TIP_BACK_RAD, TIP_BACK_LAG_RAD, TIP_BACK_S = math.radians(2.0), 0.2, 0.1

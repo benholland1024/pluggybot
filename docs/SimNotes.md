@@ -11818,7 +11818,7 @@ the top's push up shove the body back. Four shapes:
   arm 0.9 rad behind its command; the stall's count reads 0.27-0.28 s as the
   command reaches the rest, where it stops counting, and `HELD_S`'s count
   begins from nothing while the arm presses on at full stiffness: the trunk
-  went over 0.42-0.46 s after the command arrived.
+  went over 0.44-0.46 s after the command arrived.
 - **Slower ones** (a third way home after two raises, the next withdraw, C1's
   t_0846 k6 and t_0855 k6/k7): the lag climbs to 0.5 and a slip resets the
   count, or the command arrives under it.
@@ -11827,20 +11827,23 @@ the top's push up shove the body back. Four shapes:
   pitch within half a degree), the arm 0.3 rad behind, and the pitch goes
   over in the last 0.3 s.
 - **Begun in a raise** (t_0846 k3, t_0855 k4): #693b's raise taken with the
-  trunk already 5-6 deg back, and the next way home, nothing holding it, fell.
+  trunk already 4.4-5.9 deg back, and the next way home, nothing holding it,
+  fell.
 
 **What the robot reads.** The arm's own reading of a shove (`_shoved`, a
 walk's hand-over's) reads the drag as a tip TOWARD the hand, -1 to +6 N m
 (the top pushes the hand up): blind. The stall's count is reset or cut off.
 What tells is the trunk tipping back off the posture its legs hold, as its
 IMU reads it, the arm held back as it does: past 2 deg 0.42-1.34 s before
-every fall of the first two shapes, the drivers 0.30-0.95 rad behind the
-command then; 0.12-0.24 s before the crouched ones. Off the posture the legs
-hold (`held_pitch`: the pitch the standing policy is shown, less its trim),
-a way home out of a bow reads forward, never back: the stand asked as the
-arm sets off walks the shown pitch down ahead of the trunk, and of the 217
-such ways home on b61ce0b1's flights the most any tipped back was 4.4 deg,
-once, in one the base held anyway.
+every fall of the first two shapes, the drivers 0.42-0.95 rad behind the
+command then; 0.12-0.24 s before the crouched ones (k22's arm 0.30 behind).
+Off the posture the legs hold (`held_pitch`: the pitch the standing policy
+is shown, less its trim), a way home out of a bow mostly reads forward: the
+stand asked as the arm sets off walks the shown pitch down ahead of the
+trunk. Of the 900 ways home that began in a bow on the base's flights (these
+draws, Ben's bar, the robots' 200 tries, the held-out keys), the median
+tipped back 0.2-0.3 deg at most, and three past 2 deg: 4.4 (one the base held
+at its rest anyway), 2.2 and 2.1.
 
 **Not a way home nothing holds.** Read off the trunk alone (2 deg for 0.1 s,
 flown as a flight-only patch on the dev set), the rule took every hand-over
@@ -11870,6 +11873,45 @@ hand's work tipped the trunk; and the loop's own ways home (a charge's
 plug-in and unplug) are held as #693's other holds hold them, never refused:
 the charge reads no release's word and goes on, and the next release or walk
 sends the arm home again.
+
+**Flown** (each leg base b61ce0b1 and the rule at 249ef763 on one Vast pod,
+osmesa, Python 3.12.3; the robots' own procedures at their live draws):
+- C1's and D1's draws (164 flights, a Xeon E7-8890 v4): falls 26 -> 9, passes
+  54 -> 71; the rule acted in 49, and the other 115 are the base's but two
+  moved with no hold the trace shows apart (a charge walk's held 0.02 s
+  before the stall's; one that falls on both trees, after its fall). One
+  gained a fall, the sidestep's k10: the rule held its first withdraw's second
+  way home 0.008 s before the stall would have, the step after it then
+  stepped where the base's got nowhere, and from there its next withdraw's
+  way home was held, raised, and the free way home after it fell. With the
+  rule switched off at that withdraw it falls there too, sooner: the moved
+  trajectory's fall, not the hold's.
+- The same five draws at keys sealed by the rule's commit (80, a Xeon
+  Platinum 8160): falls 21 -> 11, passes 24 -> 32, no fall gained, no pass
+  lost.
+- The robots' own 200 tries at their live draws (A2's set, the wakes of
+  11-21/22): 195 the base's, 5 moved by a hold, every outcome the same.
+- The station's approaches, seats and lost starts (199): the base's, row for
+  row. The loop's charge walk after a job (12): the rule acted in 3, every one
+  plugged in. The pair's recorded day: the committed fixture's but its two
+  wall-clock stamps.
+- Ben's bar on the final code (736, the Xeon E7-8890 v4): 617 passes and 4
+  falls on both trees, two flights moved, both by a hold: the tour's table 6
+  now passes, and the held-out door 112 no longer does. Its reference's fourth
+  withdraw drags the jaw over the door's panel as the door gives (87 N, the arm
+  0.88 rad behind, the trunk 3.1 deg back); held there, its raises spent, it
+  reads "held", the reference's run ends, and the door stands 18 deg open where
+  the base's went on to 93 -- U2's door 112 of 11-19. By what the robot reads,
+  a door that gives is a counter.
+
+**What it does not take.** A crouched withdraw whose drag rolls the trunk
+before it tips it back (k22, t_0799 k3; at keys sealed by the rule, three
+more): the rule reads it 0.12-0.24 s before the fall, too late. A fall begun
+in #693's raise, the next way home free (four at the sealed keys), and a
+third way home held with its raises spent that still goes over (three). A
+tilt off where the trunk stood as the way home began, with the lag, reads the
+crouched ones 0.36-0.92 s ahead, but fires on 43 drags that come home on
+their own (the door's boss and panel at 99-230 N among them).
 
 ## A station the other robot is plugged into (issue #731)
 

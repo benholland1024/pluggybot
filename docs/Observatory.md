@@ -36,7 +36,9 @@ the walk goes with it held.
   the period before (the wake of 11-25: none inside a withdraw in 149, and
   Luca's one fall in the `step` after a held withdraw, `t_0818`).
 - **What it costs**: `withdraw`s that read "held" (a procedure step whose why
-  is "held") and whether the run then ended where it would have gone on; walks
+  is "held") and whether the run then ended where it would have gone on (flown:
+  Ben's bar's door 112, whose way home drags the door's panel as the door gives,
+  read "held" and its run ended, 18 deg open where the base's opened 93); walks
   that go with an arm held (`armHeld`) and what the arm meets on the way.
 - **What it leaves**: a crouched withdraw whose drag rolls the trunk before it
   tips it back (`t_0818` k22, `t_0799` k3 in the flights: the rule reads them
