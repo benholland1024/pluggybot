@@ -2400,18 +2400,18 @@ def test_a_way_home_held_back_as_the_trunk_tips_back_is_held_where_its_drivers_r
   the posture its legs hold as its IMU reads it, the arm held back as it
   does. Any way home -- a withdraw's, a walk's hand-over's -- on its way to
   its rest in joint space, or its rest commanded and not yet read there,
-  whose drivers read it more than `HOME_BACK_LAG_RAD` off its command while
-  the trunk tips back past `HOME_BACK_RAD`, for `HOME_BACK_S` running, is held
+  whose drivers read it more than `TIP_BACK_LAG_RAD` off its command while
+  the trunk tips back past `TIP_BACK_RAD`, for `TIP_BACK_S` running, is held
   where its drivers read it, as a way home held at its rest is: pressing on
   nothing, then raised and sent home again, its lifts spent left there."""
   from pluggybot.humanoid import reach as rc
   monkeypatch.setattr(rc, "LIFTS", 0)
-  lag = 1.05 * rc.HOME_BACK_LAG_RAD
+  lag = 1.05 * rc.TIP_BACK_LAG_RAD
   assert lag < rc.STALL_RAD, "the premise: no stall in it"
   r, _ = _walking_home(phase=phase, watch=watch)
   read = _held_back(r, lag)
-  _leaning(r, 1.05 * rc.HOME_BACK_RAD)
-  ticks = round(rc.HOME_BACK_S / 0.01)
+  _leaning(r, 1.05 * rc.TIP_BACK_RAD)
+  ticks = round(rc.TIP_BACK_S / 0.01)
   assert 2 <= ticks < round(rc.HELD_S / 0.01), "the premise: before the rest's own hold"
   for k in range(ticks - 1):
     r.feel(np.zeros(3))
@@ -2426,7 +2426,7 @@ def test_a_way_home_held_back_as_the_trunk_tips_back_is_held_where_its_drivers_r
   monkeypatch.setattr(rc, "LIFTS", 1)
   r, _ = _walking_home(phase=phase, watch=watch)
   read = _held_back(r, lag)
-  _leaning(r, 1.05 * rc.HOME_BACK_RAD)
+  _leaning(r, 1.05 * rc.TIP_BACK_RAD)
   for _ in range(ticks):
     r.feel(np.zeros(3))
     r._update(0.01)
@@ -2440,20 +2440,20 @@ def test_a_way_home_nothing_holds_or_whose_trunk_tips_under_the_line_briefly_or_
   k10: a lean an earlier drag left held the free way home after its raise,
   then the next, the arm was left out and the robot fell where the base's came
   home and it stood; and the hands checks' free ways home tip back past the
-  line): its drivers under `HOME_BACK_LAG_RAD` off its command, it walks on
+  line): its drivers under `TIP_BACK_LAG_RAD` off its command, it walks on
   however far the trunk tips back. ⚠ HELD, NEVER AT ONCE, AND OFF THE POSTURE
-  THE LEGS HOLD: a tip under `HOME_BACK_RAD` walks on however long; past it
-  for less than `HOME_BACK_S`, its count begins again; a trunk pitched forward
+  THE LEGS HOLD: a tip under `TIP_BACK_RAD` walks on however long; past it
+  for less than `TIP_BACK_S`, its count begins again; a trunk pitched forward
   (a bow the legs hold, or ahead of the stand it rises to) is no tip back; and
   a carry's way to its pose (#682) never is."""
   from pluggybot.humanoid import reach as rc
   monkeypatch.setattr(rc, "LIFTS", 0)
-  ticks = round(rc.HOME_BACK_S / 0.01)
+  ticks = round(rc.TIP_BACK_S / 0.01)
   n = 3 * ticks
-  lag = 1.05 * rc.HOME_BACK_LAG_RAD
+  lag = 1.05 * rc.TIP_BACK_LAG_RAD
   # ...each watched while its command is still on its way (`_walking_home`'s, 1 rad off)
   assert n * 0.01 * rc.JOINT_RATE < 1.0, "the premise: its command not yet at the rest"
-  for held, back in ((0.95 * rc.HOME_BACK_LAG_RAD, 3.0 * rc.HOME_BACK_RAD), (lag, 0.95 * rc.HOME_BACK_RAD),
+  for held, back in ((0.95 * rc.TIP_BACK_LAG_RAD, 3.0 * rc.TIP_BACK_RAD), (lag, 0.95 * rc.TIP_BACK_RAD),
                      (lag, -0.5)):
     r, _ = _walking_home(watch=False)
     _leaning(r, back)
@@ -2466,14 +2466,14 @@ def test_a_way_home_nothing_holds_or_whose_trunk_tips_under_the_line_briefly_or_
   r, _ = _walking_home(watch=False)
   _held_back(r, lag)
   for k in range(n):
-    _leaning(r, 0.0 if k % ticks == ticks - 1 else 1.05 * rc.HOME_BACK_RAD)
+    _leaning(r, 0.0 if k % ticks == ticks - 1 else 1.05 * rc.TIP_BACK_RAD)
     r.feel(np.zeros(3))
     r._update(0.01)
     assert r.phase["left"] == "home", k
   r, _ = _walking_home(watch=False)
   r.carry_q["left"] = np.array([0.15, 0.25, 0.0, 2.0, 0.0, 0.0])
   _held_back(r, lag)
-  _leaning(r, 3.0 * rc.HOME_BACK_RAD)
+  _leaning(r, 3.0 * rc.TIP_BACK_RAD)
   for k in range(n):
     r.feel(np.zeros(3))
     r._update(0.01)
@@ -2489,12 +2489,12 @@ def test_the_tip_back_is_read_off_the_bow_the_legs_hold(monkeypatch):
   monkeypatch.setattr(rc, "LIFTS", 0)
   bow = 0.4
   assert rc.PITCH_RANGE[0] <= bow <= rc.PITCH_RANGE[1], "the premise: a bow the policy holds"
-  ticks = round(rc.HOME_BACK_S / 0.01)
-  for back, held in ((0.0, False), (1.05 * rc.HOME_BACK_RAD, True)):
+  ticks = round(rc.TIP_BACK_S / 0.01)
+  for back, held in ((0.0, False), (1.05 * rc.TIP_BACK_RAD, True)):
     r, _ = _walking_home(watch=False)
     r.posture = np.array([0.0, bow, 0.0])
     r.stand.goal = np.array([0.0, bow])
-    _held_back(r, 1.05 * rc.HOME_BACK_LAG_RAD)
+    _held_back(r, 1.05 * rc.TIP_BACK_LAG_RAD)
     _leaning(r, back, bow=bow)
     assert abs(r.trunk_back() - back) < 1e-9
     for _ in range(ticks):
@@ -2504,12 +2504,12 @@ def test_the_tip_back_is_read_off_the_bow_the_legs_hold(monkeypatch):
 
 
 def test_each_way_home_begins_its_tip_back_count_afresh():
-  """A way home's count of the trunk tipped back (`HOME_BACK_S`) is its own:
+  """A way home's count of the trunk tipped back (`TIP_BACK_S`) is its own:
   one a way before it left running holds no new way home early -- and a
   restart keeps a count running (`Reach.KEPT`)."""
   from pluggybot.humanoid import reach as rc
   r = _stepped(_standing_reach())
-  r._back["left"] = rc.HOME_BACK_S - 0.01
+  r._back["left"] = rc.TIP_BACK_S - 0.01
   _sent_home(r, "left", RAISED)
   assert r.phase["left"] == "home" and r._back["left"] == 0.0
   assert "_back" in rc.Reach.KEPT

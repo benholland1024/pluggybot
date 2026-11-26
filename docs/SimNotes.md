@@ -11856,15 +11856,20 @@ trunk's tip caught (73 on those flights, Ben's bar's base's one), all but
 three read the arm 0.30 rad or more behind; those three were free ways home
 whose lean began before them (in a raise, and the bar's lid 12).
 
-**What is true now** (`Reach._leaning_back`, `trunk_back`, `HOME_BACK_RAD`,
-`HOME_BACK_LAG_RAD`, `HOME_BACK_S`; `tests/test_hands.py`): any way home --
+**What is true now** (`Reach._leaning_back`, `trunk_back`, `TIP_BACK_RAD`,
+`TIP_BACK_LAG_RAD`, `TIP_BACK_S`; `tests/test_hands.py`): any way home --
 a withdraw's, a walk's hand-over's, the loop's own -- but a carry's way to
 its pose, on its way in joint space or its rest commanded and not yet read
 there, whose drivers read the arm more than 0.2 rad off its command while
 the trunk tips back past 2 deg off the posture its legs hold, for 0.1 s
 running, is held where they read it, as #693's holds are: eased, raised 5 cm
 and sent home again twice, then left held; a withdraw then reads "held" and
-a walk goes with the arm held (`armHeld`), as before. No word moves.
+a walk goes with the arm held (`armHeld`), as before. No word moves. The tip
+is the whole body's, so an arm held back past the line is held whichever
+hand's work tipped the trunk; and the loop's own ways home (a charge's
+plug-in and unplug) are held as #693's other holds hold them, never refused:
+the charge reads no release's word and goes on, and the next release or walk
+sends the arm home again.
 
 ## A station the other robot is plugged into (issue #731)
 

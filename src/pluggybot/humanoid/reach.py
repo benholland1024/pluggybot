@@ -377,8 +377,10 @@ STALL_RAD, STALL_S = 0.5, 0.3
 #: home and the body stood; and the hands checks' free ways home lean back past
 #: 2 deg too. ⚠ OFF THE POSTURE THE LEGS HOLD (`held_pitch`: the pitch the
 #: standing policy is shown, less its trim), NEVER UPRIGHT: a way home out of a
-#: bow has the stand walk down ahead of the trunk, which reads it forward.
-HOME_BACK_RAD, HOME_BACK_LAG_RAD, HOME_BACK_S = math.radians(2.0), 0.2, 0.1
+#: bow has the stand walk down ahead of the trunk, which reads it forward. ⚠
+#: The tip is the whole body's: an arm held back past the line is held whichever
+#: hand's work tipped the trunk -- eased and raised, as any hold.
+TIP_BACK_RAD, TIP_BACK_LAG_RAD, TIP_BACK_S = math.radians(2.0), 0.2, 0.1
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
 #: (`HELD_S`) -- what the stand's return waits on (`_go_home`), and what a
@@ -1509,8 +1511,8 @@ class Reach:
     #: ...and how long its way home's drivers have read the arm past
     #: `STALL_RAD` behind its command, running (`STALL_S`).
     self._stall = {s: 0.0 for s in hm.SIDES}
-    #: ...and how long the trunk has tipped back past `HOME_BACK_RAD` off the
-    #: posture its legs hold while its way home runs, running (`HOME_BACK_S`).
+    #: ...and how long the trunk has tipped back past `TIP_BACK_RAD` off the
+    #: posture its legs hold while its way home runs, running (`TIP_BACK_S`).
     self._back = {s: 0.0 for s in hm.SIDES}
     self.every = max(1, round(EVERY_S / model.opt.timestep))
     self.steps = 0
@@ -2990,18 +2992,18 @@ class Reach:
   def _leaning_back(self, side: str, dt: float) -> bool:
     """Whether an arm on its way to its rest -- in joint space, or its rest
     commanded and not yet read there (`homing`, `home`) -- and held back from
-    it, its drivers more than `HOME_BACK_LAG_RAD` off its command, any joint,
-    has had the trunk tipped back past `HOME_BACK_RAD` off the posture its legs
-    hold (`trunk_back`), as its IMU reads it, for `HOME_BACK_S` running; `dt`
+    it, its drivers more than `TIP_BACK_LAG_RAD` off its command, any joint,
+    has had the trunk tipped back past `TIP_BACK_RAD` off the posture its legs
+    hold (`trunk_back`), as its IMU reads it, for `TIP_BACK_S` running; `dt`
     its tick. A carry's way to its pose never has (#682)."""
     arm = self.self_model.arm[side]
     homing = self.carry_q[side] is None and (
       self.phase[side] == "home"
       or (self.phase[side] == "rest" and self.homing[side] and not self.home(side)))
-    over = (homing and float(np.abs(self.sensed[arm] - self.q_cmd[side]).max()) > HOME_BACK_LAG_RAD
-            and self.trunk_back() > HOME_BACK_RAD)
+    over = (homing and float(np.abs(self.sensed[arm] - self.q_cmd[side]).max()) > TIP_BACK_LAG_RAD
+            and self.trunk_back() > TIP_BACK_RAD)
     self._back[side] = self._back[side] + dt if over else 0.0
-    return self._back[side] >= HOME_BACK_S - 1e-9
+    return self._back[side] >= TIP_BACK_S - 1e-9
 
   def _held_home(self, side: str) -> None:
     """A way home held (`_homed`, `_shoved`, `_stalled`, `_leaning_back`):

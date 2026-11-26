@@ -488,9 +488,9 @@ save a filmstrip PNG named after the script.
   never at once: the door check's first ways home catch a jaw on the door's
   top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ AND
   ANY WAY HOME IS HELD SO WHERE ITS DRIVERS READ THE ARM MORE THAN
-  `HOME_BACK_LAG_RAD` (0.2 rad) OFF ITS COMMAND WHILE THE TRUNK, AS ITS IMU
-  READS IT, TIPS BACK PAST `HOME_BACK_RAD` (2 deg) OFF THE POSTURE ITS LEGS
-  HOLD, FOR `HOME_BACK_S` (0.1 s) RUNNING (#693's second path, #753;
+  `TIP_BACK_LAG_RAD` (0.2 rad) OFF ITS COMMAND WHILE THE TRUNK, AS ITS IMU
+  READS IT, TIPS BACK PAST `TIP_BACK_RAD` (2 deg) OFF THE POSTURE ITS LEGS
+  HOLD, FOR `TIP_BACK_S` (0.1 s) RUNNING (#693's second path, #753;
   `Reach._leaning_back`, `trunk_back`; SimNotes, "A way home that tips the
   body back"): a jaw dragged over a counter's top shoved the body back while
   its arm neither stalled past 0.5 rad (a slip reset the count, or the command
