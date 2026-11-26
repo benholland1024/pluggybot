@@ -338,13 +338,19 @@ PASS_CUP_FACING = -0.07
 #: Where the cup's hand is put down from the card's foot, in the card's own
 #: frame (m toward the robot, m to its right), the cup's offset in the hand
 #: taken off: its spot, 0.07 out and 0.24 right, moved by where dev flights
-#: from that stance set it down (the reference before aimed at 0.075, 0.24).
-PASS_CUP_AT = (0.066, 0.209)
+#: from that stance set it down. ⚠ ON #751'S CURE: aimed at 0.066, 0.209 --
+#: tuned on the seeing walker, whose carried turn ended short and settled
+#: the cup 2 cm under its pull down -- the cure's cups came down a median
+#: 1.5 cm toward the card and 3.2 cm left of their spot (W4's dev draws
+#: 3600-3663; SimNotes, "The place laid from the pass").
+PASS_CUP_AT = (0.081, 0.24)
 #: Where the plate's hand is put down from the card's tag, in the stance
 #: frame (m short of the tag ahead, m left of it), and the fork's: moved by
-#: where dev flights set each piece down.
+#: where dev flights set each piece down -- the fork's on the cure, which set
+#: it 2.0 cm toward the card and 1.7 cm right from 0.18, 0.146; the plate's
+#: came down within 2.5 cm in 59 of 61 there, and is not moved.
 PASS_PLATE_AT = (0.20, 0.073)
-PASS_FORK_AT = (0.18, 0.146)
+PASS_FORK_AT = (0.20, 0.163)
 #: Where the fork's pull-back off the pass stops on its way to 0.21 m, m
 #: ahead: in one pull, one 0.24 m or longer (a grip 0.45 m out or more) took
 #: a 31 deg bow and a 20 cm crouch for its way, stood up out of it within
