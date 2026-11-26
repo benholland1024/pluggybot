@@ -940,6 +940,7 @@ def test_a_carried_arm_that_never_comes_down_past_its_pose_goes_straight():
     q0, _, _ = r.self_model.solve("left", (0.35, 0.2, 1.0), FORWARD)
     body.close()
     body, r, q0 = _posed(q0)
+    r.grippers["left"].gap_mean = 0.008                    # something thin: judged by its hand
     carry = r.carry_q["left"]
     assert [w.tolist() for w in r.way_home("left")] == [carry.tolist()]
   finally:
