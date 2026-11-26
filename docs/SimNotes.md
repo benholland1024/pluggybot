@@ -8283,14 +8283,15 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), twelve times, and has not met it: the reference as it stands, round
-5's with its put-downs aimed again on #751's cure (round 9), the walk's
-hand-over judging a thin piece's way by where its hand comes down (round 10,
-served), the plate's card stepped ahead, the fork pulled back once (round
-11) and the cup's and the fork's cards stepped toward where their reach keeps
-one posture (round 12; all below), lays 20 of 32 on the bar's draws and 20 of
-32 sealed by 3bfbb07, no fall, where round 11's laid 17 and 18 on the same
-pod -- the bar is 4 away.
+below), thirteen times, and met it the thirteenth: the reference as it
+stands, round 5's with its put-downs aimed again on #751's cure (round 9),
+the walk's hand-over judging a thin piece's way by where its hand comes down
+(round 10, served), the plate's card stepped ahead, the fork pulled back once
+(round 11), the cup's and the fork's cards stepped toward where their reach
+keeps one posture (round 12), the cup looked at again once set down and the
+plate's trip squared to the pass (round 13; all below), lays 26 of 32 on the
+bar's draws and 27 of 32 on draws sealed by 63886fe, no fall, where round
+12's laid 20 and 21 on the same pod. Offering it is Ben's call.
 What developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
@@ -9147,6 +9148,39 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     first on rows that include the bar's draws 0-31 and 532e6bb's sealed
     draws, so the bar's reading carries that; the draws 3bfbb07 sealed are
     independent of it.
+- **Round 13** (the loop of 11-26b, its lane A's round 5; same pod): the cup
+  looked at again once set down, and the plate's trip squared to the pass.
+  - **The cup still moved with the stance after its last look.** From a
+    stance stepped sideways (round 12) the reach and the pull down turned it a
+    median 2.5 deg right under the held cup (unstepped, 0.2), 0.6 cm a degree
+    at the cup's place; the heading stood still through the look itself, so
+    there was nothing to wait out. Set down and still held, the cup's run looks
+    at the card again; where the cup's place it works out lies
+    `PASS_CUP_AGAIN` (1 cm) or more from where the hand was sent, it lifts the
+    cup 1.5 cm, moves the hand by that much, sets it down again and lets go.
+  - **The plate's drops at the pass.** Graded "came down ... with nothing
+    holding it": the walk's hand-over's side way (round 10) swept the plate
+    into the pass's top in its roll-in -- 12 of 25 hand-overs from a stance
+    turned right of square by 8 deg or more, 1 of 38 nearer square -- and the
+    plate came loose in the jaws for an instant. The stance stood turned right
+    because the walk's `face` to the pass stops a median 5.6 deg short of
+    square (the humanoid's 4 deg tolerance, then a settle against the turn;
+    the belief reads the truth there to 0.2 deg), and `near`'s oblique step
+    adds 2-5 deg. The plate's trip turns left `PASS_PLATE_TURN` (0.10 rad)
+    after its walk to the pass, before it walks up to the plate.
+  - **On fresh dev draws** (3900-3963, beside round 12's tree): 46 of 64 laid
+    where 38 (+15 -7), one fall either way -- frozen. The second look moved 39
+    cups (within 2.5 cm 34 where 31); the plate's hand-overs that met the pass
+    5 where 18, its drops 3 where 7. Its one new fall was round 11's deep bow
+    at the plate's put-down, aimed 0.052 m left of the middle, just over
+    `PASS_PLATE_LEAST`, downstream of the turn that parted that flight.
+  - **Read on the bar's draws and sealed draws** (beside round 12's tree, one
+    pod): 26 of 32 on the bar's draws where 20 (+9 -3) and 27 of 32 sealed by
+    63886fe where 21 (+7 -1), no fall in the 128 -- the bar met. Left: on the
+    bar's draws the cup let go by the walk's hand-over 2 (its pull-back off the
+    pass ran out of reach after 13-15 cm, its command left 6 cm beyond the
+    hand), the cup off 1, the fork off 1, a fork pick 1, the plate off 1; on
+    the sealed draws the plate off 3, the cup let go 1, the cup's walk 1.
 
 ## The arms keep off the other robot (issue #678)
 
