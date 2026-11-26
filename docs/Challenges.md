@@ -538,7 +538,10 @@ its put-down would come near the body's middle and the fork pulled back once
 out where 17, no fall. With the cup's and the fork's cards stepped toward,
 sideways, where their put-down would go far enough to the side that its reach
 changed posture under it (round 4), it lays 20 of 32 where 17, and 20 of 32
-held out where 18, no fall.
+held out where 18, no fall. With the cup looked at again once set down and
+moved where the stance turned under it, and the plate's trip squared to the
+pass before its pick (round 5), it lays 26 of 32 where 20, and 27 of 32 held
+out where 21, no fall: the bar, 24 of 32, is met.
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

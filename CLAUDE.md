@@ -1177,21 +1177,20 @@ save a filmstrip PNG named after the script.
   before the cup's put-down where its hand would go further right of the
   middle than 20 cm, and before the fork's where further left than 18 cm
   (there the reach took no waist turn, its pull down crouched and the feet
-  swivelled 3-7 deg under it: 25 of 44 cups within 2.5 cm, 75 of 75 nearer)
-  and ⚠ tries the
+  swivelled 3-7 deg under it: 25 of 44 cups within 2.5 cm, 75 of 75 nearer),
+  ⚠ looks at the card again once the cup is set down and still held, and
+  where the cup's place lies 1 cm or more from where its hand was sent lifts
+  it 1.5 cm, moves it there and sets it down again (the reach and the pull
+  down turned the stance under it, 0.6 cm a degree), ⚠ turns the plate's trip
+  left 0.10 rad after its walk to the pass (the walk's `face` stops a median
+  5.6 deg short of square, and from a stance turned right 8 deg or more the
+  hand-over swung the plate into the pass's top, a drop) and ⚠ tries the
   cup's pick again where its descent is held back on the lid (every such pick
-  was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
-  over the tour, a fall failing the try) IS NOT MET: with walk2 shown its
-  arms at rest while it carries (#751's cure) its put-downs, tuned on a
-  settle the seeing walker's carried turns left, landed a constant 2-3.5 cm
-  off (4 of 32); ⚠ aimed again by where dev flights on the cure set each
-  piece down (the cup's `PASS_CUP_AT`, the fork's `PASS_FORK_AT`; the loop
-  of 11-26b's round 1), 12 of 32 where the base laid 4, and 16 of 32 sealed
-  where 1, no fall, one pod; ⚠ with round 2's judged way and round 3's steps
-  (above), 17 of 32 where round 1's tree laid 12, and 20 of 32 sealed by
-  532e6bb where 17, no fall; ⚠ with round 4's sideways steps (above), 20 of
-  32 where round 3's tree laid 17, and 20 of 32 sealed by 3bfbb07 where 18,
-  no fall (SimNotes, "The place laid from the pass").
+  was lost): `test_solutions`. ⚠ ITS BAR (24 of 32 over the tour, a fall
+  failing the try) IS MET (the loop of 11-26b's round 5): 26 of 32 on the
+  bar's draws and 27 of 32 on 32 draws sealed by 63886fe, no fall, one pod,
+  where the reference before it laid 20 and 21 (SimNotes, "The place laid
+  from the pass", has every round); offering it is Ben's call.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
