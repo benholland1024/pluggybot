@@ -1122,7 +1122,7 @@ def _shelf_tags(k: int = 0):
 
 
 def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, undercount=0.0,
-                 label_far=0.0, cart_far=0.0):
+                 label_far=0.0, cart_far=0.0, frame=None):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
   turning `drift` rad more than it asked and counting `undercount` short of where it went (a
@@ -1130,10 +1130,14 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   front than the start stands; its first
   `held_back` descents onto a product held back and its first `short` set-down reaches stopped
   short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
-  stub's pose then); and the products `cart_far` m further out than they stand."""
+  stub's pose then); and the products `cart_far` m further out than they stand; `frame` (dy, turn): the
+  frame's tag `dy` m further left than it stands and facing `turn` rad."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   so, tags = _shelf_tags(k)
+  if frame is not None:
+    x, y, z, _ = tags[77]
+    tags = {**tags, 77: (x, y + frame[0], z, (math.cos(frame[1]), math.sin(frame[1]), 0.0))}
   log = []
 
   class Seeing(StubBody):
@@ -1182,6 +1186,41 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   facts = st.hand_facts()
   ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(hc.SHELF % so.slots, facts), facts))
   return body, ran, log, so, tags
+
+
+@pytest.mark.parametrize("dy, turn, grip, down", [
+    (-0.012, math.radians(8), -0.1, -0.23962634016),
+    (-0.012, math.radians(-12), -0.209439510239, 0.0),
+    (0.02, math.radians(8), 0.0, -0.13962634016),
+    (0.02, math.radians(-3), -0.05235987756, 0.0)])
+def test_the_frames_grip_is_capped_short_of_an_outward_face(dy, turn, grip, down):
+  """⚠ THE FRAME'S GRIP IS NEVER TURNED TO AN OUTWARD FACE, AND 0.1 RAD INWARD NEARER THAN 0.20 M LEFT (#736 stage
+  2, round 5): turned as the frame faced outward (its fingers to the left), the reach was refused or its descent
+  came down on the frame's top and the close knocked it over (of round 4's 26 refused first reaches over its bar's
+  and sealed tours, 24 read the frame facing +2.9 to +13 deg; a straight grip read nearer than 0.20 m came down on
+  the top too). Set-out 0's frame read 0.198 m (near) and 0.23 m (far) left, facing as asked."""
+  body, ran, log, so, tags = _shelf_flown(frame=(dy, turn))
+  first = next(a for v, a, _ in log if v == "reach")
+  assert (first["fx"], first["fy"]) == pytest.approx((math.cos(grip), math.sin(grip)), abs=1e-9), (first, grip)
+
+
+@pytest.mark.parametrize("dy, turn, grip, down", [
+    (-0.012, math.radians(8), -0.1, -0.23962634016),
+    (-0.012, math.radians(-12), -0.209439510239, 0.0),
+    (0.02, math.radians(8), 0.0, -0.13962634016),
+    (0.02, math.radians(-3), -0.05235987756, 0.0)])
+def test_a_capped_frame_is_set_down_turned_by_the_turn_it_rides_in_the_jaws(dy, turn, grip, down):
+  """⚠ A FRAME ITS GRIP TURNED IS SET DOWN WITH THE GRIP TURNED BY THE TURN IT RIDES IN THE JAWS (#736 stage 2,
+  round 7): gripped short of its face, the frame rides turned against the jaws by its facing less the grip, and a
+  square set-down landed it so (one of round 1's capped frames faced 20.5 deg off the aisle, past the grader's
+  20); its set-down's reach asks the grip turned by that, and where the cap did not act it asks the reference's
+  square grip, bit for bit."""
+  body, ran, log, so, tags = _shelf_flown(frame=(dy, turn))
+  assert ran["ok"], ran
+  frame_down = next(a for v, a, pose in log if v == "reach" and pose[3])
+  assert (frame_down["fx"], frame_down["fy"]) == pytest.approx((math.cos(down), math.sin(down)), abs=1e-9), \
+    (frame_down, down)
+
 
 
 def _after(log, verb, tag):
