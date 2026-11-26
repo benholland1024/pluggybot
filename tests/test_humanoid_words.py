@@ -275,8 +275,12 @@ def test_faces_line_says_its_heading_is_in_the_map_as_every_place_reading_names_
   served prompt, as the robot reads it."""
   text = "\n\n".join(t for _, t in _sections(procedures=True))
   line = next(t for t in text.splitlines() if t.startswith("  face("))
+  places = [s for s in world_facts(HUMANOID_HOME).sensors
+            if axes.SENSORS[s].doc.startswith("where")]
+  assert "find.x" in places and "spot.y" in places
+  for s in places:
+    assert any(f in axes.SENSORS[s].doc for f in ("stance frame", "in your map")), s
   assert "in your map" in axes.SENSORS["find.facing"].doc
-  assert "your stance frame" in axes.SENSORS["spot.y"].doc
   assert "in your map" in line and "`find.facing`" in line, line
   assert "stance frame" not in line, line
 
