@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A way home something holds back is held where the trunk tips back (#693's second path, #753; D4, `loop-693e`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No word is new: a `withdraw` reads false more often,
+"your left arm did not get home: something holds it there" (its text already
+says an arm something holds on its way home is raised 5 cm and sent home
+again, and still held stays where it is held), and a walk's report says
+`armHeld` where a hand-over's way home was held.
+
+**The change** (`Reach._leaning_back`, `trunk_back`; SimNotes, "A way home
+that tips the body back"). Any way home -- a withdraw's, a walk's
+hand-over's, the loop's own; never a carry's way to its pose -- whose
+drivers read the arm more than 0.2 rad off its command while the trunk, as
+its IMU reads it, tips back past 2 deg off the posture its legs hold, for 0.1
+s running, is held where they read it, as #693's holds are: eased, raised 5
+cm and sent home again twice, then left held. It answers #753 too: the walk's
+hand-over that sends an arm left held home again holds it the same way, and
+the walk goes with it held.
+
+**What the period is for.**
+- **The acceptance**: falls in a way home at the counter -- inside a
+  `withdraw`, and in a walk's hand-over after one that read "held" -- against
+  the period before (the wake of 11-25: none inside a withdraw in 149, and
+  Luca's one fall in the `step` after a held withdraw, `t_0818`).
+- **What it costs**: `withdraw`s that read "held" (a procedure step whose why
+  is "held") and whether the run then ended where it would have gone on; walks
+  that go with an arm held (`armHeld`) and what the arm meets on the way.
+- **What it leaves**: a crouched withdraw whose drag rolls the trunk before it
+  tips it back (`t_0818` k22, `t_0799` k3 in the flights: the rule reads them
+  0.12-0.24 s before the fall), and a fall that begins in #693's raise, the
+  next way home free.
+
 ### A fall backward out of a bow is taken once the trunk is nearer upright, as from the stand (#724, D2, `loop-watch2`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `264ac7f6…` (72,130

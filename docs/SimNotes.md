@@ -11779,6 +11779,75 @@ has run, which #693b's 0.5 s holds, as it did (the family's new drawer
 fall) -- counted on into the rest, the hold would come 0.2 s sooner on 14 of
 the bar's cube set-outs that pass.
 
+## A way home that tips the body back (issue #693's second path, #753)
+
+The loop of 11-25, the second (C1), flew the robots' own procedures at the
+wake of 11-25's live draws: 6 of 242 withdraws fell on the live tree, each
+dragging a jaw over the storeroom counter's top, a door or a drawer at
+50-200 N without stalling 0.5 rad. The loop of 11-26 (D1) found #753's falls
+-- a walk's hand-over sending an arm left held home again -- the same way
+home, begun from the held pose. On `loop-staging` b61ce0b1 (D4: one pod,
+every way home recorded tick by tick with the robot's own readings beside
+the truth; `~/pluggybot-training/loop-1126/d4-693/`), 73 of 254 flights of
+the robots' own procedures at those draws fell, every one in such a way
+home: 8 withdraws, #753's hand-overs at the same keys under every walk (the
+hand-over is one routine), and the robot's own next withdraw after a walk
+with the arm held.
+
+**Why.** The jaw drags over the top as the arm comes home, and the drag and
+the top's push up shove the body back. Four shapes:
+- **The hand-over's way home from the held pose** (#753): 135-213 N, the
+  arm 0.9 rad behind its command; the stall's count reads 0.27-0.28 s as the
+  command reaches the rest, where it stops counting, and `HELD_S`'s count
+  begins from nothing while the arm presses on at full stiffness: the trunk
+  went over 0.42-0.46 s after the command arrived.
+- **Slower ones** (a third way home after two raises, the next withdraw, C1's
+  t_0846 k6 and t_0855 k6/k7): the lag climbs to 0.5 and a slip resets the
+  count, or the command arrives under it.
+- **Crouched withdraws with the stand kept** (t_0818 k22 at (-0.16, 0, 0.26),
+  t_0799 k3): the trunk rolls first (k22: -1.8 -> -7.9 deg over 0.7 s, its
+  pitch within half a degree), the arm 0.3 rad behind, and the pitch goes
+  over in the last 0.3 s.
+- **Begun in a raise** (t_0846 k3, t_0855 k4): #693b's raise taken with the
+  trunk already 5-6 deg back, and the next way home, nothing holding it, fell.
+
+**What the robot reads.** The arm's own reading of a shove (`_shoved`, a
+walk's hand-over's) reads the drag as a tip TOWARD the hand, -1 to +6 N m
+(the top pushes the hand up): blind. The stall's count is reset or cut off.
+What tells is the trunk tipping back off the posture its legs hold, as its
+IMU reads it, the arm held back as it does: past 2 deg 0.42-1.34 s before
+every fall of the first two shapes, the drivers 0.30-0.95 rad behind the
+command then; 0.12-0.24 s before the crouched ones. Off the posture the legs
+hold (`held_pitch`: the pitch the standing policy is shown, less its trim),
+a way home out of a bow reads forward, never back: the stand asked as the
+arm sets off walks the shown pitch down ahead of the trunk, and of the 217
+such ways home on b61ce0b1's flights the most any tipped back was 4.4 deg,
+once, in one the base held anyway.
+
+**Not a way home nothing holds.** Read off the trunk alone (2 deg for 0.1 s,
+flown as a flight-only patch on the dev set), the rule took every hand-over
+fall at `t_0818` (6 of 6, the door then passing) but gained a fall at the
+sidestep's k10: a lean an earlier drag left held the next, free way home
+after its raise (its drivers 0.04 rad off), then the one after, the arm was
+left out, and the robot fell where the base's way home came home and the
+body stood up from 8.5 deg back. And the hands checks' free ways home tip
+back past 2 deg too (Ben's bar's base: door 31, drawer 26, lid 19 and 30,
+place 31). A hold eases a press; on a way home nothing holds, it only keeps
+the arm out. So the arm must be held back as well: of the 74 falls the
+trunk's tip caught (73 on those flights, Ben's bar's base's one), all but
+three read the arm 0.30 rad or more behind; those three were free ways home
+whose lean began before them (in a raise, and the bar's lid 12).
+
+**What is true now** (`Reach._leaning_back`, `trunk_back`, `HOME_BACK_RAD`,
+`HOME_BACK_LAG_RAD`, `HOME_BACK_S`; `tests/test_hands.py`): any way home --
+a withdraw's, a walk's hand-over's, the loop's own -- but a carry's way to
+its pose, on its way in joint space or its rest commanded and not yet read
+there, whose drivers read the arm more than 0.2 rad off its command while
+the trunk tips back past 2 deg off the posture its legs hold, for 0.1 s
+running, is held where they read it, as #693's holds are: eased, raised 5 cm
+and sent home again twice, then left held; a withdraw then reads "held" and
+a walk goes with the arm held (`armHeld`), as before. No word moves.
+
 ## A station the other robot is plugged into (issue #731)
 
 From 14:52 to 16:39 UTC on 11-18 Rowan was plugged in at the research center
