@@ -1418,7 +1418,7 @@ save a filmstrip PNG named after the script.
   `STEP_LEFT_HOLD_S` (1 s) of walking at most, the other robot's runs not
   counted, and its pelvis no more than `STEP_LEFT_HOLD_M` (5 cm) past its ask
   (the loop of 11-26/30's B1; SimNotes, "Stepping toward the work"): stopped in
-  its lean, a short left ask went nowhere (47 of 245 over eight stances); ⚠
+  its lean, a short left ask went nowhere (47 of 264 over eight stances); ⚠
   LEFT ONLY, the walker's first move any other way being a whole stride, ⚠ and
   never an oblique's second walk (left after ahead the legs count short: held,
   4 cm went 13-18); ⚠ A TURN IS CLOSED ON THE STANCE'S HEADING (`_turn_routine`,

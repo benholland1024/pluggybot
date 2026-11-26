@@ -624,7 +624,7 @@ def test_a_short_walk_to_the_left_is_held_on_until_its_first_foot_moves():
   """A leftward walk's first 0.16-0.58 s are its pelvis leaning over planted
   feet, and its first move is the right foot closing in, 2.4-3.5 cm of
   stance (SimNotes, "Stepping toward the work"): its stop rule, reading the
-  pelvis, ended a short left ask in the lean and nothing moved -- 47 of 245
+  pelvis, ended a short left ask in the lean and nothing moved -- 47 of 264
   left asks over eight stances read `too short`, and 40 of the robots' own
   212 left steps of 6 cm. A step straight to the left, held on until its
   legs count its stance `STEP_LEAST_M` along its way, takes that first move."""

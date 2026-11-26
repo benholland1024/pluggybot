@@ -2846,12 +2846,12 @@ outside the repo (`~/pluggybot-training/loop-1126b/b1-stepacc/`):
 - *No slower step.* The walker does not move sideways at 0.10, 0.15 or 0.20
   m/s from a stand (commanded 1.2-2.4 s, 0.0 cm), so a step cannot creep up
   on its ask.
-- *The walker's first move is a whole stride, but to the left.* Its first
+- *The walker's first move is a whole stride, except to the left.* Its first
   0.16-0.58 s are the pelvis leaning over planted feet (0.54-0.58 after a
   `face` turn). To the left, the first move is the right foot closing in,
   2.4-3.5 cm of stance. To the right, ahead and back, it is a stride of 5-15
   cm: it loads its right foot first whichever way. Stopped in the lean, a
-  short ask goes nowhere. Over eight stances and three draws, 47 of 245 left
+  short ask goes nowhere. Over eight stances and three draws, 47 of 264 left
   asks read `too short`, and so did 40 of the 212 left steps of 6 cm in the
   robots' own 200 tries (X5's, at their live draws): 22 of them truly moved
   0.2-2.1 cm, and 18 moved 2.8-5.6 cm while the legs counted under 1 (the

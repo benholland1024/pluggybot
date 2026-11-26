@@ -100,7 +100,7 @@ STEP_SHORT_M = 0.06
 #: this long, s, the other robot's runs not counted. MEASURED: a leftward walk's
 #: first 0.16-0.58 s are its pelvis leaning over planted feet, and its first
 #: move is the right foot closing in, 2.4-3.5 cm of stance; stopped in the
-#: lean, a short left ask went nowhere (`too short`, 47 of 245 left asks over
+#: lean, a short left ask went nowhere (`too short`, 47 of 264 left asks over
 #: eight stances). ⚠ LEFT ONLY: the walker loads its right foot first whichever
 #: way it walks, so to the right, ahead and back its first move is a whole
 #: stride (5-15 cm), and held on there a short ask went a stride too far. ⚠
