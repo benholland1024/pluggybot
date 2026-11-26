@@ -10,6 +10,67 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `face`'s line says its heading is in the map (#754's option 1, C1, `loop-754`) — opens when this PR is deployed
+
+**What the robots read** moves by one line, on purpose: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) becomes `aeffc2b8…` (72,188
+characters, 17 sections), one section moved, PROCEDURES YOU MAY WRITE. The
+session host's hello `9dcf6202` is byte for byte as it was: a session's verbs
+are the practice's, and `face` is not one of them. No History line is new or
+reworded.
+`face`'s line in the verb list, a draft for Ben, BEFORE: "turn in place; ok
+when squared within the budget"; AFTER: "turn in place to `heading`, rad in
+your map (as `find.facing` reads it); ok when squared within the budget" (+58
+characters).
+
+**What a deployed robot does**: nothing new. `face` turns as it did, until
+its belief's heading in its map is within 4 deg of the one asked
+(`HumanoidMission.face_routine`; a direct call pins it), and no procedure
+reads a verb's text.
+
+**Why** (#754). The procedures' opening says it once, for both walks ("its
+walks (`drive_to`, `face`) go by your map"), but `face`'s own line never named
+a frame, while each reading of a place names its own: `spot.*` the stance
+frame, `find.facing` "rad, in your map". Nothing reads the robot's own heading
+in its map, so the map headings a procedure holds are `find.facing`'s and
+numbers it writes. Rowan turned to bearings `spot` had read in its stance
+frame, `face(atan2(spot.y, spot.x))`: in `t_0800` (11-25, t=363223) the
+drawer's knob read 0.21 rad to its right, `face(-0.21)` turned it from map
+heading -0.98 to -0.21, 44 deg left where 12 deg right was meant, and the knob
+left the picture. It found the frame itself at t=382797, and Ben's ticket
+replies of 11-25 told it the same.
+
+**The baseline**, the wakes of 11-18, 11-21/22 and 11-25, off each wake's
+`procedure` rows and the sim's log (`count_face.py EXPORT_DIR` in
+`~/pluggybot-training/loop-1126b/c1-754/`: each `face` call's argument classed
+by what feeds it in the source its run ran, its nearest assignment first). A
+call with `atan2` of `spot`'s place written in it, #754's count: 78 calls in
+16 runs, the next `spot` refused after 61. With the same bearing passed
+through a variable as well (`f = atan2(ky, kx)`, then `face(f)`; 11-18
+only): 88 calls in 23 runs. All are Rowan's:
+
+| wake | written in the call: calls (runs), next `spot` refused | through a variable: calls (runs), next `spot` refused |
+|---|---|---|
+| 11-18 | 15 (4), 12 | 10 (7), 0 |
+| 11-21/22 | 22 (6), 10 | 0 |
+| 11-25 | 41 (6), 39 | 0 |
+
+None of Luca's 137 `face` calls takes a stance bearing: 132 take
+`find.facing` plus or minus a half turn, and the next `spot` was refused after
+12 of them; 5 take constants. By the end of 11-25, Rowan had dropped all
+eight procedures the issue names (the last, `door_p7`, at its own finding).
+One written before that finding still passes a stance bearing
+(`probe_cube2`, line 78), and its one run stopped before reaching it.
+
+**What to read.** The weekend's wakes (11-28 and 11-29, build 4e486aa1) fly
+the old line: they are a second reading before, after Rowan's own finding.
+On the wakes after this deploys: `face` calls fed a stance bearing, in either
+form, and the `spot` after them, against the baseline; whether a turn toward a
+tag `spot` read goes by `step`'s `turn` instead; and a `face` fed
+`find.facing` with no half turn. The parenthetical names the one map angle a
+robot holds, and it points out of the tag, toward where the tag is read from:
+`face(find.facing)` turns the robot's back on it.
+
 ### A way home something holds back is held where the trunk tips back (#693's second path, #753; D4, `loop-693e`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `264ac7f6…` (72,130

@@ -14,7 +14,7 @@ The verbs: the walks and a look, and the hands' (`HANDS_VERBS`, #525;
 docs/Hands.md has each one's meaning, report and failure):
 
   drive_to(x, y)       walk to a world point            `Body.go_to_routine`
-  face(heading)        turn in place                    `Body.face_routine`
+  face(heading)        turn to a map heading            `Body.face_routine`
   find(tag, x, y)      a task area found by its tag     `Body.find_tag_routine`
   wait(seconds)        stand still
   move(axis, target)   one axis to a setpoint           `procedure/axes.py`
@@ -1697,8 +1697,11 @@ VERBS: dict[str, Verb] = {
                                 "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                                 default=DRIVE_TIMEOUT_S)},
                    _drive_to, drive_to_doc(WALK_KEEP_M)),
+  # its heading is in the robot's MAP (`face_routine` closes on the belief's),
+  # and its line says so (#754)
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
-               _face, "turn in place; ok when squared within the budget"),
+               _face, "turn in place to `heading`, rad in your map (as `find.facing` "
+               "reads it); ok when squared within the budget"),
   # PLACES (issue #419): a task area found by its tag and remembered -- the
   # robot's own knowledge, never a coordinate handed over
   "find": Verb("find", {"tag": Arg("float", choices="places"), "x": Arg("float"),

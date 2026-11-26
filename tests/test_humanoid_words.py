@@ -265,6 +265,50 @@ def test_a_humanoids_procedure_rule_is_its_practices_language_and_body():
   assert rule in text, "the humanoid's prompt carries it"
 
 
+def test_faces_line_says_its_heading_is_in_the_map_as_every_place_reading_names_its_frame():
+  """#754: `face` turns to a heading in the robot's MAP, and its line said
+  only "turn in place": Rowan turned to bearings `spot` had read in its
+  stance frame, `face(atan2(spot.y, spot.x))`, and the tag it meant to face
+  left its picture. A reading of a place or a way names its frame --
+  `spot.*` the stance frame, `find.*` the map -- and so does the verb that
+  takes a heading, in the words `find.facing` says its own in: read off the
+  served prompt, as the robot reads it."""
+  text = "\n\n".join(t for _, t in _sections(procedures=True))
+  line = next(t for t in text.splitlines() if t.startswith("  face("))
+  assert "in your map" in axes.SENSORS["find.facing"].doc
+  assert "your stance frame" in axes.SENSORS["spot.y"].doc
+  assert "in your map" in line and "`find.facing`" in line, line
+  assert "stance frame" not in line, line
+
+
+def test_face_turns_until_its_belief_reads_the_heading_so_its_line_is_true():
+  """...and the line is the routine's rule (#754): `face` turns until the
+  robot's pose in its map -- its belief, all a fake body has -- reads the
+  heading, never by a turn from where it stands: asked the heading it holds
+  it turns nothing, and from map heading -0.98 `face(-0.21)` turns 0.77 rad
+  left (t_0800's, where 0.21 right was meant)."""
+  from types import SimpleNamespace
+  from pluggybot.humanoid.mission import HumanoidMission
+  dt, tol = 0.002, HumanoidMission.FACING_TOLERANCE
+
+  def turned(start: float, heading: float) -> float:
+    body = SimpleNamespace(model=SimpleNamespace(opt=SimpleNamespace(timestep=dt)),
+                           FACING_TOLERANCE=tol, pose=(0.0, 0.0, start))
+
+    def twist(vx, vy, w):
+      body.pose = (0.0, 0.0, body.pose[2] + w * dt)
+      yield None
+    body._twist_routine = twist
+    run = HumanoidMission.face_routine(body, heading)
+    with pytest.raises(StopIteration) as done:
+      while True:
+        next(run)
+    assert done.value.value is True, "squared within its budget"
+    return body.pose[2] - start
+  assert turned(1.0, 1.0) == 0.0
+  assert turned(-0.98, -0.21) == pytest.approx(0.77, abs=tol)
+
+
 def test_the_body_says_how_far_its_fingertips_reach_past_the_grip_off_the_model():
   """#711: told only "its fingers 8 cm long", nothing said where the grip
   lies along them, and from straight above the pads stopped on the cube's
