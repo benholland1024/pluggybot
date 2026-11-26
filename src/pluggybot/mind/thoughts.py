@@ -67,7 +67,7 @@ from pluggybot.mind import changelog
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import text as registry
 from pluggybot.mind.constitution import Constitution
-from pluggybot.mind.memory import FIND_LIMIT, RecordStore
+from pluggybot.mind.memory import ACTIVE, FIND_LIMIT, RecordStore
 from pluggybot.mind.store import FileStore, MemoryStore, Store
 from pluggybot.mind.text import (
   DEFAULT_MAIN, FINDINGS, GOALS, HISTORY, HUMAN, MAIN, NOTES, ROBOT, SYSTEM,
@@ -146,6 +146,12 @@ CHAT_RECALLED_CHARS = RECALLED_CHAIN_CHARS
 #: that window, so the interleaved diary a consumer builds is complete over
 #: the span it shows. Core and note rows are few and ride whole.
 SNAPSHOT_HISTORY = 100
+#: How many of the newest History rows the view's roll reads first, doubled
+#: until the cap is passed or the rows run out. ⚠ NEVER EVERY ROW: read whole,
+#: each History line built every active row of the generation, ~9 us a row,
+#: and at 10^5 rows held the physics loop 0.84 s a line (SimNotes, "The served
+#: sim's speed").
+HISTORY_VIEW_BATCH = 64
 
 #: Env knob, resolved the way every other deploy setting is: a directory for
 #: the documents and the store (`/var/lib/pluggybot` in the image).
@@ -886,15 +892,22 @@ class ThoughtFiles:
       self.texts[name] = "\n".join(r.text for r in self._core(name))
     elif name == HISTORY:
       # The ROLL, as a view: the newest lines that fit the cap.
-      rows = self.records.active(self.robot, "history")
-      kept: list[str] = []
-      size = 0
-      for r in reversed(rows):
-        size += len(r.text) + (1 if kept else 0)
-        if size > SPECS[HISTORY].cap:
+      n = HISTORY_VIEW_BATCH
+      while True:
+        rows = self.records.tail(self.robot, "history", n)
+        kept: list[str] = []
+        size, full = 0, False
+        for r in reversed(rows):
+          size += len(r.text) + (1 if kept else 0)
+          if size > SPECS[HISTORY].cap:
+            full = True
+            break
+          kept.append(r.text)
+        if full or len(rows) < n:
           break
-        kept.append(r.text)
-      self.dropped[HISTORY] = len(rows) - len(kept)
+        n *= 2
+      self.dropped[HISTORY] = (self.records.count(self.robot, "history", status=ACTIVE)
+                               - len(kept))
       self.texts[name] = "\n".join(reversed(kept))
     elif name == FINDINGS:
       self.texts[name] = _grouped(self._findings(), lambda r: r.text)

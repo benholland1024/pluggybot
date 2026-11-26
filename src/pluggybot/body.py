@@ -298,7 +298,7 @@ class Body(abc.ABC):
   def forget_world(self) -> None:
     """Its map and its places cleared -- it knows where its dock is and
     nothing else: a true death (issue #419), a stand-up (#572), a fixture's
-    fix past the matcher's reach (#476)."""
+    fix that moves the belief (#476, #681)."""
 
   @abc.abstractmethod
   def plan_frontier(self, blacklist: set) -> tuple[list | None, str]:
@@ -709,7 +709,10 @@ class Body(abc.ABC):
     -- as the body walks: the humanoid's least step is a stride, and a walk asked less may
     take none. Returns how it ended (`why`:
     "stepped", "too short" -- a walk its legs reckon went nowhere -- "turned short" -- a
-    turn that could not get there -- "blocked" -- its walk got nowhere, or kept off another robot as a
+    turn that could not get there -- "blocked" -- its walk got nowhere, and then `stuck` says what
+    its legs counted in which window (`m`, m, along its way in `s` s, `underWay` where the step had
+    walked before it, and `way` -- "ahead", "back", "left" or "right" -- where that walk was one
+    of two, an oblique step's; #751), or kept off another robot as a
     walk does (#670), or a wall or what stands at its knees (#717), and then `keptOff` says how
     -- "fell", "out of time"), in
     how long, and where its stance went by its own reckoning, in the stance
@@ -807,8 +810,10 @@ class Body(abc.ABC):
     which), "until" (`stop_hand` stopped it), "kept off" (#678:
     every way out, or home from there, would meet another robot's body;
     `hand_kept`), "own body" (#722: every way out would pass through its
-    own trunk, so nothing moved), "fell", "out of time" -- or "" where it
-    held (#493)."""
+    own trunk, so nothing moved), "swing" (#747: every posture that puts it
+    there would swing an arm into what its depth camera saw, so nothing
+    moved; `hand_swung`), "fell", "out of time" -- or "" where it held
+    (#493)."""
 
   @abc.abstractmethod
   def hand_stopped(self, side: str) -> dict | None:
@@ -818,6 +823,14 @@ class Body(abc.ABC):
     `n`, N, that reading), "reach" (on its way in, out of reach from how
     the body truly stood) or "caught" (on its way out, what its arm read
     would have tipped the body toward the hand) -- else None."""
+
+  @abc.abstractmethod
+  def hand_swung(self, side: str) -> dict | None:
+    """What a hand's last `reach_routine` would have swung an arm into, where
+    `hand_why` says "swing" (#747): `side` the arm, `part` its part, `m`
+    how near it would have come, `at` where its depth camera saw what it
+    would meet (x ahead, y left, z up, m, from where the body stood) --
+    else None."""
 
   @abc.abstractmethod
   def hand_kept(self, side: str) -> dict | None:
@@ -933,8 +946,8 @@ class Body(abc.ABC):
   rights_itself: bool
   #: The falls its own fall watch has taken, counted up: what a fall IS is
   #: the body's to say (#493's grader asks) -- the humanoid's trunk 35 deg
-  #: past the posture its legs hold, by its IMU, or its pelvis sunk
-  #: (`humanoid.getup`), each the moment its get-up takes over.
+  #: off the posture its legs hold and off upright both, by its IMU, or its
+  #: pelvis sunk (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
   #: rights itself, its get-up's MEASURED budget, timed from the get-up's
@@ -942,10 +955,10 @@ class Body(abc.ABC):
   stuck_after_s: float
   #: The trunk's pitch forward that the posture its legs hold puts it at,
   #: rad: what a topple is read past (`TOPPLE_TILT_RAD`: the lifecycle's
-  #: `down`, and the death seam's for a body that cannot right itself).
-  #: 0 for a body that stands only upright; the humanoid's bow
-  #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
-  #: (#559).
+  #: `down`, and the death seam's for a body that cannot right itself), off
+  #: it or off upright, the nearer (#724). 0 for a body that stands only
+  #: upright; the humanoid's bow (`Reach.held_pitch`), whose deepest, 63
+  #: deg, is past the seam's 60 (#559).
   held_pitch: float
 
   @abc.abstractmethod
@@ -1127,6 +1140,9 @@ class StubBody(Body):
     #: ...and what a test says stopped a hand's reach on its way (#743,
     #: `hand_stopped`'s shape)
     self.stopped: dict[str, dict] = {}
+    #: ...and what its posture would have swung an arm into (#747,
+    #: `hand_swung`'s shape)
+    self.swung: dict[str, dict] = {}
     self.forgot = 0
     #: ...what moved its belief (a test puts records in), the fixtures it
     #: was lost at, and whether a search finds one (a test sets it)
@@ -1526,6 +1542,10 @@ class StubBody(Body):
   def hand_stopped(self, side) -> dict | None:
     """What a test put `stopped`: no reach of a stub's stops on its way."""
     return self.stopped.get(side)
+
+  def hand_swung(self, side) -> dict | None:
+    """What a test put `swung`: no stub's posture swings into anything."""
+    return self.swung.get(side)
 
   def hand_kept(self, side) -> dict | None:
     """No other robot's body in any arm's way: none."""

@@ -545,6 +545,10 @@ def _bare_reach():
   # ...nor a hand stopped on its way, nor a run behind a stop (#743)
   r.stopped = {s: None for s in hm.SIDES}
   r._pushes = {s: (0, 0, 0.0) for s in hm.SIDES}
+  # ...nor what its depth camera saw where its arms swing, nor a swing refused (#747)
+  r.seen, r.swung = None, {s: None for s in hm.SIDES}
+  r.seen_at = {s: None for s in hm.SIDES}
+  r._tree_seen, r._tree_key, r._tree = None, None, (None, None)
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}
@@ -588,8 +592,18 @@ def _bare_reach():
   r.standing = False
   r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
   r.motion = NS(read=lambda sm, qd, stand: None, sample=lambda *a: None)
-  r.stand, r.d = NS(), None
+  # ...its trunk upright by its IMU, at the posture its legs hold (#693's
+  # second path: every way home reads how far the trunk leans back, `_leaning_back`)
+  r.stand, r.d = NS(trunk=NS(gravity=_UPRIGHT), settled=True, goal=np.zeros(2),
+                    posture=np.zeros(2)), None
+  r.trim = np.zeros(2)
+  r._back = {s: 0.0 for s in hm.SIDES}
   return r
+
+
+def _UPRIGHT():
+  """Gravity as an upright trunk's IMU reads it, its own frame."""
+  return np.array([0.0, 0.0, -1.0])
 
 
 def _standing_reach():
@@ -1129,8 +1143,11 @@ def _bowed_reach(posture):
   rc._posed(r.self_model, posture[0], posture[1], q)
   r.posture = np.array(posture, dtype=float)
   r.stand_home = False
-  # ...its posture arrived where the policy was asked it
-  r.stand = NS(settled=True)
+  # ...its posture arrived where the policy was asked it, its trunk as bowed
+  # as the posture by its IMU (#693's second path: no way home leans back)
+  bow = float(posture[1])
+  r.stand = NS(settled=True, goal=np.array(posture[:2], dtype=float), posture=np.array(posture[:2], dtype=float),
+               trunk=NS(gravity=lambda: np.array([math.sin(bow), 0.0, -math.cos(bow)])))
   return r
 
 
@@ -1748,7 +1765,7 @@ def test_a_hand_stopped_on_its_way_keeps_the_rule_that_stopped_it(miss, push, sa
   # ...and a new reach forgets the last, whatever it does
   from pluggybot.humanoid.arms import HandGoal
   r.stopped["left"] = said
-  r._planned = lambda side, goal, approach, postures, flip: (None, goal, None)
+  r._planned = lambda side, goal, approach, postures, flip, **kw: (None, goal, None, None)
   assert not r.reach("left", HandGoal(np.array([0.45, 0.30, 0.90]), None, 1.0))
   assert r.stopped["left"] is None
 
@@ -1801,6 +1818,174 @@ def test_the_humanoids_hand_stopped_is_its_reachs_own_rule_where_it_stopped_shor
     body.mission.reach = reach
     assert body.run(body.reach_routine("left", (0.4, 0.2, 0.9))) is (end == "hold")
     assert body.hand_why("left") == why and body.hand_stopped("left") == said
+
+
+@functools.lru_cache(maxsize=1)
+def _model_of_itself():
+  """One model of the robot, posed afresh for each grip read off it."""
+  from pluggybot.humanoid.arms import SelfModel
+  return SelfModel()
+
+
+def _grip_at(r, side, q):
+  """Where the arm at joints `q` puts `side`'s grip, (pos, rot), stance frame:
+  a model of the robot posed as `r`'s stands."""
+  sm = _model_of_itself()
+  sm.q = r.self_model.q.copy()
+  sm.d.qpos[:] = r.self_model.d.qpos
+  mujoco.mj_kinematics(sm.m, sm.d)
+  sm._set_arm(side, q)
+  pos, rot = sm.grip_pose(side)
+  return pos.copy(), rot.copy()
+
+
+def _twisted(rot, rad):
+  """`rot` turned `rad` about its own z axis, its fingers' line: a wrist a
+  press rolled."""
+  c, s_ = math.cos(rad), math.sin(rad)
+  return np.asarray(rot, dtype=float) @ np.array([[c, -s_, 0.0], [s_, c, 0.0], [0.0, 0.0, 1.0]])
+
+
+def _pressed_stop(push=52.0, goal_turn=True, solve="own"):
+  """`_coming_in`'s left hand stopped on its way in -- by a push of `push` N --
+  its drivers reading the arm held back off the command it drove on to, its
+  senses putting the grip where that arm does, the press having rolled the
+  hand 0.15 rad off the turn its command had (its pre-grasp's, as every
+  reach's command has on its way in); its goal at that turn (`goal_turn`) or
+  at none, a reach asked none. The stop's tick runs on the robot's own model
+  of itself ("own") or on `_coming_in`'s ("stub"). Returns (r, rc, the read
+  arm, where the hand is, the turn its senses read, the command's turn, the
+  goal before the stop)."""
+  r, rc = _coming_in(0.05, push)
+  read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
+  r.sensed[r.self_model.arm["left"]] = read
+  at, sagged = _grip_at(r, "left", read)
+  turn = _twisted(sagged, 0.15)
+  r.cmd["left"].rot = turn.copy()
+  r.goal["left"].rot = turn.copy() if goal_turn else None
+  r.self_model.grip_pose = lambda side: ((at.copy(), sagged.copy()) if side == "left"
+                                         else (np.array([0.4, -0.3, 0.9]), np.eye(3)))
+  asked = r.goal["left"]
+  for _ in range(round(rc.BLOCKED_S / 0.01) - 1):
+    r._update(0.01)
+  del r.self_model.grip_pose
+  r.self_model._set_arm("left", read)
+  if solve == "own":
+    del r.self_model.solve
+  r._update(0.01)
+  return r, rc, read, at, sagged, turn, asked
+
+
+@pytest.mark.parametrize("push, goal_turn", [(True, True), (True, False), (False, True)])
+def test_a_hand_stopped_on_a_push_is_held_where_it_is_at_the_turn_it_was_asked(push, goal_turn):
+  """#750 (the lid check's set-out 14 with its fourth try moving nothing): a
+  reach stopped on its way in by a push was held at the command it drove on
+  to, 6.6 cm across its fingers from its goal, a jaw on a chest's bracket and
+  the arm's spring pressing it down; the withdraw's line out from that command
+  dragged the jaw back over the bracket at 30-57 N, the robot rolled 5 deg off
+  its hand and its soles turned 4 deg, and as the jaw slipped off it went over
+  (the base's drawer at set-out 12: pressed on the drawer's top, the next
+  reach's way out dragged it). Stopped on a push, it is held where it IS: its
+  command the place its senses put the grip at, at the turn the command had,
+  never the one the press rolled it to (a carry after keeps the command's
+  turn: `carry`, #493), its arm solved there from where its drivers read it,
+  pressing on nothing; its goal that place at the reach's own turn -- none
+  where it was asked none -- so a withdraw comes out along the way it went in:
+  back along the asked fingers, or straight back toward the body (review 2).
+  A stop that was no push -- out of reach -- holds its command as before."""
+  r, rc, read, at, sagged, turn, asked = _pressed_stop(52.0 if push else 10.0, goal_turn,
+                                                       solve="own" if push else "stub")
+  assert r.phase["left"] == "blocked"
+  assert r.stopped["left"]["by"] == ("pushed" if push else "reach"), "the premise"
+  if not push:
+    assert r.goal["left"] is asked, "an out-of-reach stop eased"
+    return
+  assert np.allclose(r.cmd["left"].pos, at) and np.allclose(r.goal["left"].pos, at), \
+    "held at the command it drove on to, pressing on what it met"
+  assert np.allclose(r.cmd["left"].rot, turn), \
+    "held at the turn the press rolled it to, which a carry after would keep"
+  if goal_turn:
+    assert np.allclose(r.goal["left"].rot, turn)
+  else:
+    assert r.goal["left"].rot is None, "a turn written into a reach asked none"
+  assert r.cmd["left"].stiffness == asked.stiffness
+  grip, held_turn = _grip_at(r, "left", r.q_cmd["left"])
+  assert np.linalg.norm(grip - at) < 0.005, "its arm not commanded where the hand is"
+  assert _angle_of(held_turn.T @ turn) < 0.02, "its arm not at its command's turn"
+  assert np.allclose(r.q_to["left"], r.q_cmd["left"]) and r.miss["left"] < 0.005
+  left = [(q, k) for s, q, k in r.sent if s == "left"]
+  assert np.allclose(left[-1][0], r.q_cmd["left"]) and left[-1][1] == asked.stiffness, \
+    "commanded there the tick it stopped, at its reach's stiffness"
+  held = r.q_cmd["left"].copy()
+  for _ in range(5):
+    r._update(0.01)
+  assert r.phase["left"] == "blocked" and np.allclose(r.q_cmd["left"], held), "it moved on its own"
+  # ...a withdraw comes out along the way it went in -- and the way home
+  # judged against another robot before it moves (#678, `home_clear`) begins
+  # where that line out ends
+  judged_from = r._home_from("left")
+  r.retreat("left")
+  assert r.phase["left"] == "retreat"
+  back = turn[:, 2] if goal_turn else np.array([-1.0, 0.0, 0.0])
+  assert np.allclose(r.goal["left"].pos, at + rc.APPROACH_M * back)
+  end, _ = _grip_at(r, "left", judged_from)
+  assert np.linalg.norm(end - r.goal["left"].pos) <= rc.REPLAN_M, \
+    "its way home judged from where its line out would not end"
+
+
+@pytest.mark.parametrize("miss", ["place", "turn"])
+def test_a_hand_stopped_on_a_push_out_of_reach_of_its_turn_eases_nothing(miss):
+  """#750 (the walked-in grid's left hand 0.30 m off the counter, turned 10
+  deg, its goal 0.20 m to its right, the waist turned 45 deg): where the
+  solve from the arm as its drivers read it to where the hand is, at its
+  command's turn, misses past `REPLAN_M` or `REPLAN_ROT`, the stop eases
+  nothing -- it holds the command it drove on to, solved from the model of
+  itself as it stood, as before #750, its goal untouched. Held as read
+  there, a jaw pushed onto the cube's board stayed on it where the base's
+  slid off, the withdraw's way home dragged it over the counter's top at
+  27-79 N, and the robot went over backward."""
+  from pluggybot.humanoid import reach as rc
+  r, _ = _coming_in(0.05, 52.0)
+  arm = r.self_model.arm["left"]
+  read = r.q_cmd["left"] - np.array([0.05, -0.04, 0.03, 0.06, 0.0, 0.02])
+  r.sensed[arm] = read
+  at = np.array([0.38, 0.29, 0.88])
+  r.self_model.grip_pose = lambda side: ((at.copy(), np.eye(3)) if side == "left"
+                                         else (np.array([0.4, -0.3, 0.9]), np.eye(3)))
+  asked = r.goal["left"]
+  for _ in range(round(rc.BLOCKED_S / 0.01) - 1):
+    r._update(0.01)
+  # ...the model of itself as the loop's own solve leaves it, apart from the
+  # arm as read
+  stood = r.q_cmd["left"].copy()
+  r.self_model._set_arm("left", stood)
+  held = r.cmd["left"].pos.copy(), np.array(r.cmd["left"].rot, dtype=float)
+  aimed = r.q_to["left"].copy()
+  off = (1.2 * rc.REPLAN_M, 0.0) if miss == "place" else (0.0, 1.2 * rc.REPLAN_ROT)
+  drove = np.linspace(0.1, 0.6, len(hm.ARM))
+  calls = []
+
+  def solve(side, pos, rot=None, iters=None):
+    calls.append((np.array(pos, dtype=float), r.self_model.q[arm].copy()))
+    if len(calls) == 2:
+      return np.zeros(len(hm.ARM)), off[0], off[1]
+    return drove.copy(), 0.001, 0.0
+  r.self_model.solve = solve
+  r._update(0.01)
+  assert r.phase["left"] == "blocked" and r.stopped["left"]["by"] == "pushed", "the premise"
+  assert np.allclose(calls[1][0], at), "the premise: the ease aims where the hand is"
+  assert len(calls) == 3, "a solve that missed eased the stop"
+  assert np.allclose(calls[2][0], held[0]) and np.allclose(calls[2][1], stood), \
+    "not solved at the command it drove on to from the model as it stood"
+  assert np.allclose(r.q_cmd["left"], drove) and r.miss["left"] == 0.001
+  assert np.allclose(r.cmd["left"].pos, held[0]) and np.allclose(r.cmd["left"].rot, held[1])
+  assert r.goal["left"] is asked, "a stop it did not ease moved its goal"
+  assert np.allclose(r.q_to["left"], aimed), "a stop it did not ease moved where its arm was going"
+
+
+def _angle_of(rot) -> float:
+  """How far the rotation `rot` turns, rad."""
+  return math.acos(max(-1.0, min(1.0, (float(np.trace(rot)) - 1.0) / 2.0)))
 
 
 def _walking_home(phase="home", watch=True):
@@ -2183,6 +2368,151 @@ def test_each_way_home_begins_its_stall_count_afresh():
   _sent_home(r, "left", RAISED)
   assert r.phase["left"] == "home" and r._stall["left"] == 0.0
   assert "_stall" in rc.Reach.KEPT
+
+
+def _leaning(r, back, bow=0.0):
+  """The trunk, as its IMU reads it, pitched `bow` forward (the posture the
+  legs hold) less `back`, rad: gravity in its own frame."""
+  p = bow - back
+  r.stand.trunk.gravity = lambda: np.array([math.sin(p), 0.0, -math.cos(p)])
+
+
+def _held_back(r, lag):
+  """The left arm's drivers reading it `lag` rad further from its rest than
+  its command, on its first joint: something holds it there."""
+  arm = r.self_model.arm["left"]
+  r.sensed[arm] = r.q_cmd["left"]
+  r.sensed[arm[0]] += lag
+  return r.sensed[arm].copy()
+
+
+@pytest.mark.parametrize("watch", [False, True])
+@pytest.mark.parametrize("phase", ["home", "rest"])
+def test_a_way_home_held_back_as_the_trunk_tips_back_is_held_where_its_drivers_read_it(
+    phase, watch, monkeypatch):
+  """#693's second path (C1's flights of the robots' own procedures at their
+  live draws, the loop of 11-25; D1's of the walk's hand-over, #753): a way
+  home that drags a jaw over a counter's top neither stalls past `STALL_RAD`
+  -- a slip resets its count, or its command reaches the rest first -- nor
+  reads a shove away from the hand -- the counter pushes the hand up and its
+  reading tips the body TOWARD it -- and the robot went over backward, in the
+  way or at its rest inside `HELD_S`. What tells is the trunk tipping back off
+  the posture its legs hold as its IMU reads it, the arm held back as it
+  does. Any way home -- a withdraw's, a walk's hand-over's -- on its way to
+  its rest in joint space, or its rest commanded and not yet read there,
+  whose drivers read it more than `TIP_BACK_LAG_RAD` off its command while
+  the trunk tips back past `TIP_BACK_RAD`, for `TIP_BACK_S` running, is held
+  where its drivers read it, as a way home held at its rest is: pressing on
+  nothing, then raised and sent home again, its lifts spent left there."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  lag = 1.05 * rc.TIP_BACK_LAG_RAD
+  assert lag < rc.STALL_RAD, "the premise: no stall in it"
+  r, _ = _walking_home(phase=phase, watch=watch)
+  read = _held_back(r, lag)
+  _leaning(r, 1.05 * rc.TIP_BACK_RAD)
+  ticks = round(rc.TIP_BACK_S / 0.01)
+  assert 2 <= ticks < round(rc.HELD_S / 0.01), "the premise: before the rest's own hold"
+  for k in range(ticks - 1):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert not r.held("left"), k
+  r.feel(np.zeros(3))
+  r._update(0.01)
+  assert r.held("left") and not r.homing["left"] and r.home_over("left")
+  assert np.allclose(r.q_cmd["left"], read) and np.allclose(r.q_to["left"], read), \
+    "still pressed on toward its rest"
+  # ...and raised and sent home again, its lifts not spent (as `HELD_S`'s)
+  monkeypatch.setattr(rc, "LIFTS", 1)
+  r, _ = _walking_home(phase=phase, watch=watch)
+  read = _held_back(r, lag)
+  _leaning(r, 1.05 * rc.TIP_BACK_RAD)
+  for _ in range(ticks):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+  assert r.phase["left"] == "retreat" and r.lifted["left"] == 1
+  assert np.allclose(r.q_cmd["left"], read)
+
+
+def test_a_way_home_nothing_holds_or_whose_trunk_tips_under_the_line_briefly_or_forward_walks_on(
+    monkeypatch):
+  """⚠ NEVER A WAY HOME NOTHING HOLDS (D4's dev flights, `t_0818` side-left
+  k10: a lean an earlier drag left held the free way home after its raise,
+  then the next, the arm was left out and the robot fell where the base's came
+  home and it stood; and the hands checks' free ways home tip back past the
+  line): its drivers under `TIP_BACK_LAG_RAD` off its command, it walks on
+  however far the trunk tips back. ⚠ HELD, NEVER AT ONCE, AND OFF THE POSTURE
+  THE LEGS HOLD: a tip under `TIP_BACK_RAD` walks on however long; past it
+  for less than `TIP_BACK_S`, its count begins again; a trunk pitched forward
+  (a bow the legs hold, or ahead of the stand it rises to) is no tip back; and
+  a carry's way to its pose (#682) never is."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  ticks = round(rc.TIP_BACK_S / 0.01)
+  n = 3 * ticks
+  lag = 1.05 * rc.TIP_BACK_LAG_RAD
+  # ...each watched while its command is still on its way (`_walking_home`'s, 1 rad off)
+  assert n * 0.01 * rc.JOINT_RATE < 1.0, "the premise: its command not yet at the rest"
+  for held, back in ((0.95 * rc.TIP_BACK_LAG_RAD, 3.0 * rc.TIP_BACK_RAD), (lag, 0.95 * rc.TIP_BACK_RAD),
+                     (lag, -0.5)):
+    r, _ = _walking_home(watch=False)
+    _leaning(r, back)
+    for k in range(n):
+      # ...its drivers following its command at that lag, as an arm does
+      _held_back(r, held)
+      r.feel(np.zeros(3))
+      r._update(0.01)
+      assert r.phase["left"] == "home", (held, back, k)
+  r, _ = _walking_home(watch=False)
+  _held_back(r, lag)
+  for k in range(n):
+    _leaning(r, 0.0 if k % ticks == ticks - 1 else 1.05 * rc.TIP_BACK_RAD)
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+  r, _ = _walking_home(watch=False)
+  r.carry_q["left"] = np.array([0.15, 0.25, 0.0, 2.0, 0.0, 0.0])
+  _held_back(r, lag)
+  _leaning(r, 3.0 * rc.TIP_BACK_RAD)
+  for k in range(n):
+    r.feel(np.zeros(3))
+    r._update(0.01)
+    assert r.phase["left"] == "home", k
+
+
+def test_the_tip_back_is_read_off_the_bow_the_legs_hold(monkeypatch):
+  """Off the posture the legs hold (`held_pitch`), never off upright: a way
+  home begun in a bow, the trunk as bowed as the posture, tips back none; the
+  trunk risen past the line out of that bow, while the legs still hold it, is
+  a tip back."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "LIFTS", 0)
+  bow = 0.4
+  assert rc.PITCH_RANGE[0] <= bow <= rc.PITCH_RANGE[1], "the premise: a bow the policy holds"
+  ticks = round(rc.TIP_BACK_S / 0.01)
+  for back, held in ((0.0, False), (1.05 * rc.TIP_BACK_RAD, True)):
+    r, _ = _walking_home(watch=False)
+    r.posture = np.array([0.0, bow, 0.0])
+    r.stand.goal = np.array([0.0, bow])
+    _held_back(r, 1.05 * rc.TIP_BACK_LAG_RAD)
+    _leaning(r, back, bow=bow)
+    assert abs(r.trunk_back() - back) < 1e-9
+    for _ in range(ticks):
+      r.feel(np.zeros(3))
+      r._update(0.01)
+    assert r.held("left") == held, back
+
+
+def test_each_way_home_begins_its_tip_back_count_afresh():
+  """A way home's count of the trunk tipped back (`TIP_BACK_S`) is its own:
+  one a way before it left running holds no new way home early -- and a
+  restart keeps a count running (`Reach.KEPT`)."""
+  from pluggybot.humanoid import reach as rc
+  r = _stepped(_standing_reach())
+  r._back["left"] = rc.TIP_BACK_S - 0.01
+  _sent_home(r, "left", RAISED)
+  assert r.phase["left"] == "home" and r._back["left"] == 0.0
+  assert "_back" in rc.Reach.KEPT
 
 
 @pytest.mark.parametrize("phase", ["joints", "home", "rest"])

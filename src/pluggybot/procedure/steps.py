@@ -1083,6 +1083,9 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
                               "how you truly stand, or pushing on something",
              "own body": "every way your {hand} arm takes from where it is to there passes "
                          "through your own body, so it did not move",
+             # ...said with what it would meet (`REACH_SWUNG`), where the body says
+             "swing": "every posture that puts your {hand} hand there would swing an arm into "
+                      "something your depth camera saw, so your arm did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one that stopped short, by the rule its body says stopped it
@@ -1094,6 +1097,21 @@ REACH_STOPPED_BY = {
   "reach": "your {hand} hand stopped short on its way in: out of reach from how you truly stand",
   "caught": "your {hand} hand stopped on its way out: it caught on something, which would have "
             "tipped you toward it"}
+#: ...and one whose every posture would swing an arm into what its depth
+#: camera saw (#747, `Body.hand_swung`): the first posture's arm and part,
+#: and where that was in the stance frame it stood in, as a reach is asked
+#: -- or, kept in the posture it is in by the other hand's grip (#719), that
+#: posture's.
+REACH_SWUNG = ("every posture that puts your {hand} hand there would swing an arm into "
+               "something your depth camera saw -- the first your {side} {part}, at x {x:.2f}, "
+               "y {y:.2f}, z {z:.2f} in your stance frame -- so your arm did not move")
+REACH_SWUNG_KEPT = ("your {other} hand is out holding something, so your body keeps the posture "
+                    "it is in, and from it your {hand} hand's way there would swing your {side} "
+                    "{part} into something your depth camera saw, at x {x:.2f}, y {y:.2f}, "
+                    "z {z:.2f} in your stance frame, so your arm did not move")
+#: ...the arm's parts as the robot says them.
+SWUNG_PARTS = {"upper_arm": "upper arm", "forearm": "forearm", "gripper": "hand",
+               "jaw_a_pad": "fingers", "jaw_b_pad": "fingers"}
 #: ...and one out of reach with the other hand holding something, whose grip
 #: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
 REACH_KEPT = ("your {other} hand is out holding something, so your body keeps the posture it "
@@ -1177,7 +1195,11 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    # ...and one out holding something, which kept the body's posture (#719)
                    "holds": "; your {other} hand is out holding something",
                    # ...and one whose every way there passes through your own body (#722)
-                   "own": "; your {other} hand's every way there passes through your own body"}
+                   "own": "; your {other} hand's every way there passes through your own body",
+                   # ...and one whose every posture there would swing an arm into what
+                   # its depth camera saw (#747)
+                   "swing": "; your {other} hand's every posture there would swing an arm into "
+                            "something your depth camera saw"}
 
 
 def _where(kept: dict) -> str:
@@ -1269,13 +1291,25 @@ def _reach(life, args: dict) -> Routine:
     # along or across fingers that had not begun their way in
     reason += _short_of(life, place, None if cause.get("by") == "caught" else rot, felt)
   other = {"left": "right", "right": "left"}.get(hand)
+  swung = life.body.hand_swung(hand) if why == "swing" else None
+  if swung is not None:
+    x, y, z = swung["at"]
+    part = SWUNG_PARTS.get(swung["part"], swung["part"])
+    held_by = life.body.posture_kept_by(hand)
+    if held_by:
+      # ...the one posture the other hand's grip keeps (#719): that hand is
+      # at its work, so nothing is said of what it could do
+      return {"ok": False, "hand": hand, "why": why, "reason": REACH_SWUNG_KEPT.format(
+        hand=hand, other=held_by, side=swung["side"], part=part, x=x, y=y, z=z), **said,
+        "felt": felt}
+    reason = REACH_SWUNG.format(hand=hand, side=swung["side"], part=part, x=x, y=y, z=z)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
       hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
       + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
-  if why == "own body" and other is not None and life.body.hand_reaches(other, place, rot,
-                                                                         verb=True):
+  if why in ("own body", "swing") and other is not None and life.body.hand_reaches(
+      other, place, rot, verb=True):
     # ...and whether the other hand could (#722): a turn or a step is not all
     reason += f"; your {other} hand could reach it as asked"
   if why == "out of reach" and turned():
@@ -1440,7 +1474,6 @@ def _pull(life, args: dict) -> Routine:
 #: Why a step stopped short, as its record says it (`Body.step_routine`).
 STEP_WHY = {"too short": "your step was too short to walk",
             "turned short": "your turn stopped short of where you asked",
-            "blocked": "your step got nowhere: something stands in your way",
             "fell": "you fell",
             "out of time": "your step ran out of time"}
 #: ...and one blocked where it kept off another robot (issue #670;
@@ -1457,6 +1490,28 @@ STEP_KEPT_OFF = {
   "low": "your step stopped short of something your depth camera saw in front of you at your "
          "knees' height: a step keeps it {keepM:.2f} m from your middle in the way you step "
          "({m:.2f} m now)"}
+#: ...and one whose walk got nowhere (`stuck`, #751; Observatory.md, the period
+#: of #751's words): what its legs counted, the way they counted it, and in
+#: which window -- its walk's first, or one once it was under way -- never what
+#: stood there, which the step does not measure. Its head, before the colon,
+#: is its shorter form, and no other reason's: "your step stopped short" is
+#: the bare fallback's and begins every keep-off's.
+STEP_STUCK = ("your step got nowhere: your legs counted under {cm} cm {way} in the first {s} s "
+              "of its walk")
+STEP_STALLED = ("your step stalled: once it was under way, your legs counted under {cm} cm {way} "
+                "in {s} s")
+#: ...the way: the step's own, or one walk's of an oblique step walked as two
+#: (`HumanoidBody._step_walks`), whose second counts its sidestep alone.
+STUCK_WAYS = {None: "along the way you stepped", "ahead": "ahead", "back": "back",
+              "left": "to your left", "right": "to your right"}
+
+
+def step_stuck_said(stuck: dict) -> str:
+  """A stalled walk's reason (#751), off its record's `stuck`: under `m` m
+  its `way` in a window of `s` s -- its first, or once `underWay`."""
+  return (STEP_STALLED if stuck.get("underWay") else STEP_STUCK).format(
+    cm=f"{100 * float(stuck['m']):g}", s=f"{float(stuck['s']):g}",
+    way=STUCK_WAYS[stuck.get("way")])
 
 
 def _step(life, args: dict) -> Routine:
@@ -1482,7 +1537,14 @@ def _step(life, args: dict) -> Routine:
          # ...and its legs gone back to standing before both soles read down (#740)
          **({"feetDown": False} if rep.get("feetDown") is False else {})}
   if rep["why"] != "stepped":
-    kept = rep.get("keptOff")
+    kept, stuck = rep.get("keptOff"), rep.get("stuck")
+    if rep["why"] == "blocked" and not kept and stuck:
+      # ...its head alone where the rest would move anything else History's
+      # line says (#728's shorter form, `lifecycle.procedure_outcome`): in
+      # full, the step's own reason fell off the line in up to 2 of the 23
+      # live runs with a stall, and a readout onto a line of its own in 5 (#751)
+      reason = step_stuck_said(stuck)
+      return {"ok": False, **out, "reason": reason, "brief": reason.partition(":")[0]}
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
               else STEP_PRESSED.format(**rep) if rep["why"] == "pressed"
               else STEP_WHY.get(rep["why"], "your step stopped short"))

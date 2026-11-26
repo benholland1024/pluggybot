@@ -330,6 +330,58 @@ def test_a_tip_is_read_off_the_posture_its_legs_hold_whichever_way():
     assert tipped(att.matrix().T @ down, 0.0) == att.tilt()
 
 
+def test_a_trunk_thrown_back_from_its_bow_is_tipped_off_upright_not_off_the_bow(head):
+  # #724 (the research center's lobby, #679's comment of 11-15): its head on
+  # a wall it had bowed into, the trunk was thrown back from a 26 deg bow to
+  # 12.5 deg behind upright, 38 deg off the bow, and the watch handed the
+  # body to the get-up there, on its feet. A trunk is tipped off its bow and
+  # off upright both, the nearer of the two -- so never more than off the
+  # bow, and a flight that falls nowhere is the same flight, bit for bit --
+  # and a posture leaning back off itself; at the stand and under the
+  # walker, the IMU's tilt to the bit.
+  from pluggybot.humanoid.getup import FALL_TILT_RAD, FallWatch, tipped, tipped_past
+  from pluggybot.humanoid.policy import PITCH_RANGE, TrunkSense
+  from pluggybot.humanoid.senses import JointSense
+  from pluggybot.perception.imu import Attitude
+  down = np.array([0.0, 0.0, -1.0])
+  for pitch in (0.45, 1.1):
+    for own in (0.0, -0.218, -0.6):
+      g = _turn((0.0, 1.0, 0.0), own).T @ down
+      assert tipped_past(g, pitch) == pytest.approx(-own, abs=1e-9), (pitch, own)
+    for own, nearer in ((0.2 * pitch, 0.0), (0.8 * pitch, pitch), (pitch + 0.1, pitch),
+                        (pitch + 0.7, pitch)):
+      g = (_turn((1.0, 0.0, 0.0), 0.3) @ _turn((0.0, 1.0, 0.0), own)).T @ down
+      assert tipped_past(g, pitch) == tipped(g, nearer), (pitch, own)
+  rng = np.random.default_rng(724)
+  for _ in range(200):
+    q = rng.normal(size=4)
+    att = Attitude(q / np.linalg.norm(q))
+    g = att.matrix().T @ down
+    assert tipped_past(g, 0.0) == att.tilt()
+    pitch = rng.uniform(*PITCH_RANGE)
+    assert tipped_past(g, pitch) <= tipped(g, pitch)
+    lean = rng.uniform(PITCH_RANGE[0], 0.0)
+    assert tipped_past(g, lean) == tipped(g, lean)
+  model, _ = head
+
+  def leaned(pitch):
+    d = mujoco.MjData(model)
+    mujoco.mj_resetDataKeyframe(model, d, 0)
+    quat = np.zeros(4)
+    mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
+    d.qpos[3:7] = quat
+    mujoco.mj_forward(model, d)
+    return d, FallWatch(TrunkSense(model, d), JointSense(model))
+
+  d, watch = leaned(math.radians(-12.5))
+  assert tipped(watch.trunk.gravity(), 0.45) > FALL_TILT_RAD          # off the bow: the premise
+  assert not watch.falling(d, 0.45)
+  d, watch = leaned(0.0)
+  assert not watch.falling(d, 1.1)
+  d, watch = leaned(math.radians(-45.0))
+  assert watch.falling(d, 0.45)
+
+
 def _posed(model, height: float, pitch: float):
   """The body standing as the standing policy holds a posture: the
   statue's legs for it (`reach.static_legs`) and the trunk pitched."""
@@ -393,6 +445,29 @@ def test_the_mission_reads_a_tip_off_the_posture_its_legs_hold():
   m.legs, m._steps = "walk", 0
   body.run(body.settle_routine(model.opt.timestep))
   assert m.falls == 1 and m.legs == "getup"
+
+
+def test_the_mission_takes_no_fall_of_a_trunk_upright_under_the_bow_its_legs_hold():
+  # #724: the mission hands its watch the bow the legs hold, and the watch
+  # reads a trunk nearer upright off upright -- so a body standing upright
+  # while its reach holds the floor's 1.1 rad bow, 63 deg off that bow, is
+  # no fall (read off the bow alone, it was one: the get-up took the legs).
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  m = body.mission
+  body.run(body.settle_routine(0.5))
+  m.reach.trim[1] = 0.05                                    # an ask past 1.1 rad is held at it
+  m.reach.hold_posture(-0.25, 1.1)
+  m.stand.posture[:] = m.stand.goal                         # shown the bow it holds
+  assert m.reach.held_pitch() == pytest.approx(1.1)
+  assert m.stand.trunk.attitude.tilt() < math.radians(3.0), "the premise: upright"
+  m._steps = 0                                              # the watch looks next step
+  body.run(body.settle_routine(model.opt.timestep))
+  assert m.falls == 0 and m.legs == "stand"
 
 
 def test_standing_across_two_treads_is_standing(head):

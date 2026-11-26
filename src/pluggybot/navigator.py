@@ -36,8 +36,7 @@ from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import GRAZE_M, OccupancyGrid
-from pluggybot.mapping.scan_match import (ACCEPTED, REFUSED, RELAY_BEHIND_M, ScanMatcher,
-                                          relay_keeps)
+from pluggybot.mapping.scan_match import ACCEPTED, REFUSED, ScanMatcher
 from pluggybot.perception.lidar import LIDAR_ORIGIN, LIDAR_PERIOD, Lidar, Scan, robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
@@ -309,8 +308,8 @@ class Refusals:
     return None
 
   def forget(self) -> None:
-    """The map that refused is gone (a true death, a stand-up, a fix past
-    the map's reach): nothing of it to say."""
+    """The map that refused is gone (a true death, a stand-up, a station's
+    fix that moves the belief): nothing of it to say."""
     self.since, self.told, self.fits_since = None, False, None
 
   def kept_state(self) -> dict:
@@ -664,17 +663,11 @@ class Navigator:
       origin = self.LIDAR_ORIGIN if origin is None else origin
       if self.maps():
         m = self._match(angles, ranges, origin)
-        if m is None or self.matcher.fuses(m, self.data.time):
-          if m is not None and self.matcher.relaying:
-            # ...laid over what it sees forgotten (#741, `ScanMatcher.relay`)
-            self.grid.forget_seen(self.pose, angles, ranges, self.lidar.max_range,
-                                  origin=origin, behind_m=RELAY_BEHIND_M,
-                                  keep_near=relay_keeps(free_from))
-            self.matcher.relaid()
+        if m is None or self.matcher.fuses(m):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
                            origin=origin, free_from=free_from, graze_m=GRAZE_M)
           if m is not None:
-            self.matcher.fused(self.pose, self.data.time)
+            self.matcher.fused(self.pose)
       elif self.matcher is not None:
         self.matcher.fuse_next()
         self._refused(None)

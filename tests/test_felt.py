@@ -222,9 +222,9 @@ def test_the_mission_says_whether_the_standing_policy_has_the_legs(legs, standin
   from pluggybot.humanoid.mission import HumanoidMission
   m = object.__new__(HumanoidMission)
   m.getup, m.legs = None, legs
-  m.walker = NS(ask=lambda *a: None, step=lambda: None)
+  m.walker = NS(ask=lambda *a: None, step=lambda carrying=False: None)
   m.stand = NS(step=lambda: None)
-  m.reach = NS(step=lambda: None, standing=None)
+  m.reach = NS(step=lambda: None, standing=None, carried=lambda side: False)
   m._before_step((0.0, 0.0, 0.0))
   assert m.reach.standing is standing
 

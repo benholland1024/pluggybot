@@ -42,7 +42,8 @@ def _holding(left="hold", held=True):
 def test_a_reach_plans_only_in_the_posture_it_is_in_while_the_other_hand_holds(left, held, verb, kept):
   r = _holding(left, held)
   asked = []
-  r._planned = lambda side, goal, approach, postures, flip: (asked.append(postures), (None, goal, None))[1]
+  r._planned = lambda side, goal, approach, postures, flip, **kw: (
+    asked.append(postures), (None, goal, None, None))[1]
   assert not r.reach("right", rc.HandGoal(np.array([0.4, -0.1, 0.8])), verb=verb)
   assert asked[0] == ((BOWED,) if kept else rc.REACH_POSTURES)
   assert r.kept_by["right"] == ("left" if kept else None)
@@ -269,7 +270,8 @@ def test_a_hand_reaches_as_its_reach_would_plan_it_kept_or_not():
   r = _holding()
   asked = []
   r.plans = lambda side, goal, postures=rc.REACH_POSTURES, **kw: asked.append(postures) or True
-  body = NS(reach=r, stance=np.zeros(3), to_stance=lambda p: np.asarray(p, dtype=float))
+  body = NS(reach=r, stance=np.zeros(3), to_stance=lambda p: np.asarray(p, dtype=float),
+            mission=NS(arms_seen=lambda: np.zeros((0, 3))))
   assert hb.HumanoidBody.hand_reaches(body, "right", (0.4, -0.1, 0.8), verb=True)
   assert hb.HumanoidBody.hand_reaches(body, "right", (0.4, -0.1, 0.8))
   assert hb.HumanoidBody.hand_reaches(body, "left", (0.4, 0.2, 0.8), verb=True)
@@ -318,7 +320,8 @@ def test_a_reach_kept_off_judges_the_other_hands_way_as_its_reach_would_be_plann
   judged = []
   r.clear_way = lambda side, goal, postures=rc.REACH_POSTURES, **kw: judged.append((side, postures))
   body = NS(reach=r, _why={}, _kept={},
-            mission=NS(keep_out=lambda seen: [], look_round=lambda: None))
+            mission=NS(keep_out=lambda seen: [], look_round=lambda: None,
+                       arms_seen=lambda: np.zeros((0, 3))))
   goal = rc.HandGoal(np.array([0.4, 0.2, 0.9]))
   assert not hb.HumanoidBody._reached(body, "left", goal, rc.REACH_POSTURES, False, words=True,
                                       verb=True)

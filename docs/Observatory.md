@@ -10,6 +10,404 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A way home something holds back is held where the trunk tips back (#693's second path, #753; D4, `loop-693e`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No word is new: a `withdraw` reads false more often,
+"your left arm did not get home: something holds it there" (its text already
+says an arm something holds on its way home is raised 5 cm and sent home
+again, and still held stays where it is held), and a walk's report says
+`armHeld` where a hand-over's way home was held.
+
+**The change** (`Reach._leaning_back`, `trunk_back`; SimNotes, "A way home
+that tips the body back"). Any way home -- a withdraw's, a walk's
+hand-over's, the loop's own; never a carry's way to its pose -- whose
+drivers read the arm more than 0.2 rad off its command while the trunk, as
+its IMU reads it, tips back past 2 deg off the posture its legs hold, for 0.1
+s running, is held where they read it, as #693's holds are: eased, raised 5
+cm and sent home again twice, then left held. It answers #753 too: the walk's
+hand-over that sends an arm left held home again holds it the same way, and
+the walk goes with it held.
+
+**What the period is for.**
+- **The acceptance**: falls in a way home at the counter -- inside a
+  `withdraw`, and in a walk's hand-over after one that read "held" -- against
+  the period before (the wake of 11-25: none inside a withdraw in 149, and
+  Luca's one fall in the `step` after a held withdraw, `t_0818`).
+- **What it costs**: `withdraw`s that read "held" (a procedure step whose why
+  is "held") and whether the run then ended where it would have gone on (flown:
+  Ben's bar's door 112, whose way home drags the door's panel as the door gives,
+  read "held" and its run ended, 18 deg open where the base's opened 93); walks
+  that go with an arm held (`armHeld`) and what the arm meets on the way.
+- **What it leaves**: a crouched withdraw whose drag rolls the trunk before it
+  tips it back (`t_0818` k22, `t_0799` k3 in the flights: the rule reads them
+  0.12-0.24 s before the fall), and a fall that begins in #693's raise, the
+  next way home free.
+
+### A History line no longer holds the world while its view re-renders (D3, `loop-d3-history`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` and the
+session host's hello `9dcf6202` are byte for byte as they were, and so are
+`History.md`'s view and its `dropped` count (`tests/test_thoughts.py`). What
+moves is the served world's pace.
+
+**The change** (`ThoughtFiles._render`, `HISTORY_VIEW_BATCH`; SimNotes,
+"The served sim's speed"). Every History line re-rendered the view off every
+active History row of the generation, about 9 µs a row on the physics
+thread, both robots held: 0.84 s a line at 10^5 rows on the dev box. It now
+reads the newest rows only: 7 ms a line there, most of it the count of the
+rows, which still grows with them (about 45 ms a line at 10^6).
+
+**What it does.** The wakes' minutes priced a decision's answer, its few
+History lines, at 0.8 s (11-18), 1.4 s (11-21/22) and 2.9 s (11-25) of a
+stalled world, about half an answer a minute: 1.5-3 % of the world's time,
+growing with every wake's lines. The pace's within-day slide on a weekday
+afternoon is not this: it is the box (D3's report, loop-1126).
+
+**To read.** `vitals.txt`'s rate a minute, and the minutes with an answer
+in them against those without: an answer should cost the world well under
+a second.
+
+### A fall backward out of a bow is taken once the trunk is nearer upright, as from the stand (#724, D2, `loop-watch2`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were, and no line's words change. What they report comes
+at another moment: History's fall line ("I fell over and got up again N s
+later") and a grade's "you fell" come at the fall's take, which out of a bow
+is later, and a body propped back under a bow is told no fall at all.
+
+**The change** (`getup.tipped_past`, read by `FallWatch.falling`; SimNotes,
+"A fall backward out of a bow"). The fall watch read a tip off the posture
+the legs hold (#520), so a trunk going back from a bow was a fall 35 deg
+behind the bow: 9 deg behind upright under the look's 26 deg bow, still 28
+in front of it under the floor's 63. It now reads the trunk off the bow and
+off upright, the nearer of the two (a posture leaning back off itself), so
+never more than off the bow: at the stand and under the walker nothing
+moves, to the bit. The death seam's topple (`HubLifecycle._chassis_tilt`:
+`down`, what the other robot keeps clear of, and the stuck clock) reads a
+bow so too. Ben's call of 11-25 on #724.
+
+**What it does.** A fall out of a bow whose trunk comes back toward upright
+-- shoved back, or sideways as the bow comes up (the bow table's left and
+right shoves moved as its back ones did; a roll off the bow alone is read as
+before) -- is handed to the get-up later, and the body goes down before it
+gets up: in M12's lobby case
+(flown on its own tree, 8edc3e54) the early take ran nine falls 1.6-2.7 m
+backward on their feet, into the wall behind in three and to a stuck death
+in one; taken behind upright all nine went down on their backs and stood in
+2.5-2.7 s, 1.0-1.1 m back. On a bare floor 24 of the bow table's 80 served
+shoves moved, each taken 0.08-0.24 s later, and every fall stood either way.
+On `loop-staging` dc843dc0 three of Ben's bar's four falls are takes out of
+a bow (two tables', a drawer's); read off the nearer each still falls,
+0.06-0.24 s later, with the same verdict. Ben's bar, beside dc843dc0 on one
+pod: 615 of 736 and 4 falls on both trees, 3 flights moved (falls out of a
+bow, taken later, with the same verdicts), the other 733 identical. Of the
+robots' own procedures, Rowan's `chest_run13` (t_0746) shows the old take
+live: taken 21 deg behind upright, the get-up ran the body 3.1 m backward on
+its feet and left its belief 3.1 m off; read off the nearer it went down,
+stood 1 m back, and its belief came back to 0.4 m.
+
+**To read.** The `fall` rows (#707): how far each get-up carried the body
+and how long it took (`movedM`, `seconds`), how many ended `stuck`, and what
+the robot was doing as it fell (`at`) -- a fall out of a bow now goes down
+first, so expect its `seconds` nearer the floor's 2.5-3 s and its `movedM`
+about a metre, where an early take ran a body 1.6-2.7 m on its feet.
+
+### A station's fix that moves the belief drops the map and its places, and standing still no scan is laid on time alone (#681's pair, C4, `loop-681f`) — opens when this PR is deployed
+
+**What the robots read** moves by one History line and one field of the
+turn: the prompt `264ac7f6…` (72,130 characters, 17 sections) and the
+session host's hello `9dcf6202` are byte for byte as they were. A station fix that dropped the map (only one
+past the matcher's 0.6 m search did) said "my charging station put me 0.7 m
+and 2 deg from where I believed I was: the map I had was laid askew, and it
+is gone" (123-126 characters with its stamp, of History's 400). Every fix
+that moves the belief 10 cm or 2 deg now says "my charging station put me
+20 cm and 0.4 deg from where I believed I was: the map I had and the places
+I had found are gone" (129-131), the stand-up's own words (`MAP_GONE`), its
+distance in cm under a metre and its turn in tenths of a degree under ten
+(at "0.1 m" or "0 deg" a fix past its own threshold read as one under it);
+a fix under 0.6 m was narrated only. And the turn's `floorExplored` reads
+false after such a fix, as after a stand-up: the explore that laid the map
+went with it. "Laid askew" was a cause the fix never measured: it
+measures the belief, and a belief its last walk carried off laid no askew
+map. A draft for Ben.
+
+**The change** (`HumanoidBody._fix_at`, `ScanMatcher.fuses`; SimNotes, "A
+station's fix that moves the belief drops the map"). Every station fix that
+moves the belief drops the map, the depth camera's layer and the places
+found on it; the dock's fix lays its next 30 scans at the belief put right,
+as they come (never the lost search's, which walks on at once); #741's
+relay (re-laying what the fix's next scan saw) is gone. And a robot
+standing still lays a scan into its map only once its belief has moved 1 cm
+or turned half a degree since the last -- never on time alone, where it
+laid one every 5 s -- but inside that window.
+
+**Why** (#681). Back at the storeroom's counter after a lobby fix that kept
+the map, the storeroom's kept error came back at once (Rowan on 11-25:
+-13.9 cm at 08:32 after its 07:00 fix, -13.5 to -18.8 before it) and walked
+west toward the copies standing still had laid (-55.7 cm by 12:53); the one
+map a fix dropped (11-22 09:17) held the counter to 0.9 cm a try for 8.5
+hours.
+
+**Measured** (one pod beside `loop-staging` 0505dfc1; SimNotes has it whole):
+- The station's checks: no dock lost and none gained but one lost far start (118 -> 119), and no fall.
+  Every lost-search flight with a fix was the base's but the 2 whose fix had kept the map.
+- The drift batch and #572's probe: identical.
+- Ben's bar: 617 of 736 and 4 falls on both trees, 6 moved by option 4 with the same verdicts.
+- A4's counter chains with a lobby charge between: the counter's belief after it 4.7 cm off at the median,
+  against the base's 8.7, and the first `find` after the drop as quick as the base's. The base passed 3 of
+  32 tries there and the pair none; Rowan's chest flown again at 16 new keys a tree read 0 and 1 (sign p
+  0.40), a reshuffle.
+- The pair's recording (`protocol/telemetry.home_humanoid_pair.jsonl.gz`) moved (96 grid images to 171; the
+  bodies part 298.6 s in). It is re-recorded here, and the site re-vendors it at the release.
+
+**What the period is for.**
+- **The acceptance**: after a lobby or house fix, the counter's belief
+  starts within a few cm of the truth (no kept storeroom error to come back),
+  and no docked or standing belief walks with the body still.
+- **What it costs**: the map and the places found on it at every charge
+  whose fix moves the belief (Rowan's four lobby fixes of 11-25, 0.11-0.54 m,
+  would each have dropped it; Luca's two house docks, under 10 cm, none). The
+  counter's props are found again by their tags on the next try; and a
+  robot standing still lays nothing new of what changes round it until it
+  moves -- a bow's view included, laid once the feet move (laid where the
+  sensor moved, the far check lost 4 docks the base made and every drift
+  flight was redrawn, for no gain).
+- **What it leaves**: a copy under 10 cm fires no fix (Luca's house dock of
+  11-25, 8.4-9.4 cm west for 80 minutes: #741's option 1 or 2, Ben's next
+  choice); the counter's work still walks a belief toward a copy within the
+  fit's reach until the next such fix; Luca's heading excursion at the
+  counter on 11-25 (0.0 to -1.8 deg in 20 minutes, back over 1.7 hours) is
+  untouched.
+
+### While a hand is carried, the walker is shown its arms at rest (#751's cure, C3, `loop-751b`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte for
+byte as they were, and no verb's text, report or History line changes.
+
+**What the robots do** moves where a walk carries a hand, and nowhere else. A
+walk verb's hand-over carries a hand that holds something to its carry pose
+at the hip (#682); while either hand is carried, walk2 -- the served walker
+-- is now shown every arm joint it sees (both arms' six; never a gripper or
+the waist) at its own default and still: its arms hanging, as its scripted
+arms hung half the time in training. It balances blind to the carried arm.
+The drivers are read as ever, so a flight with no hand carried is bit for bit
+what it was: Ben's bar's 736 flights (none carries; 617 laid and 4 falls on
+both trees) and the pair's fixture day (9 walk hand-overs, none carrying)
+replay exactly. A walker trained to carry (carry2, not served) would be
+shown its arms as they are.
+
+**Why** (#751). The carry pose folds the elbow to 1.6-2.0 rad, where walk2's
+scripted arms went to 1.15. Seeing it, from the stance the standing policy
+held through a pick, walk2 lifted neither sole: the first carried step after
+a pick read "got nowhere" with nothing in its way (93 of 109 trips of the
+shelf's reference, about 6 s a trip), and every carried walk veered toward
+the carrying arm (9-12 deg a metre on the pass's walks). Settling the arm
+first (option 1) did not start the step; hiding the arm did.
+
+**Measured** (one Vast pod, a Xeon E5-2699 v4, osmesa; `loop-staging` 0505dfc1
+against the cure; SimNotes, "The walker shown its arms at rest while a hand is
+carried", has each leg). The shelf's reference (#736): the first carried step
+after a pick read "got nowhere" in 87 of 98 trips, and with the cure in none
+of 95; its checks laid 21 of 32 with no fall, where they laid 17 with 1, and
+its tours 12, where they laid 13, no fall on either. The pass's reference
+(#682): its carried walks walk true (they veered toward the carrying arm 9.3
+and 11.6 deg a metre; now 0.4 and 3.3), and it lays 3 of 32, where it laid 16
+with 1 fall -- its put-downs were tuned on a settle the seeing walker's
+carried turns left, which a retune would most likely recover (not flown).
+carry_spike's served carries: no fall on either tree; its open-loop courses
+end 0.19 m from their asks, where they ended 0.69; in the house 29 of 32
+carries arrive, where 24 did, dropping 3 pieces, where they dropped 9. Neither
+the shelf nor the pass is offered: none of this reaches a robot until a job
+carries.
+
+**What to read**: a robot's own procedure that walks carrying. There has
+been none yet: 0 of X5's 200 replayed live tries, and 0 of 11-25's 86 runs (a
+walk verb after a `close_hand` with no `open_hand` or `withdraw` between, read
+off each run's source). When one does, read its first carried step's word
+("stepped", never "got nowhere" with nothing there), a fall while carrying, a
+piece dropped on a carried walk (`dropped`), and how a carried `step`'s stance
+turned (`step.turn`).
+
+### A step whose walk got nowhere says what its legs counted, in the window that ended it (#751's words, C2, `loop-751w`) — opens when this PR is deployed
+
+**What the robots read** moves by one failure's words: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) and the session host's hello
+`9dcf6202` are byte for byte as they were, and `step`'s text is unchanged.
+A `step` whose walk's legs count under 1 cm along its way in a window, no
+keep-off holding it, said (51 characters) "your step got nowhere: something
+stands in your way". It now says what its legs counted and in which window:
+"your step got nowhere: your legs counted under 1 cm along the way you
+stepped in the first 2 s of its walk" (106), or, after an earlier window of
+the walk went, "your step stalled: once it was under way, your legs counted
+under 1 cm along the way you stepped in 1 s" (103). An oblique step the
+walker would skew, walked as two (ahead or back, then to one side), names the
+way of the walk that stalled ("...under 1 cm ahead in the first 2 s of its
+walk", "...under 1 cm to your left in 2 s", 82-94), and its sidestep is under
+way only where the walk before it walked by its stance (#649's rule): one
+step call of 2,315 over five wakes was such a step. Its numbers are the
+walk's constants. History's run line says each whole only
+where that moves nothing else on it, else its head ("your step got nowhere",
+"your step stalled": #728's shorter form, no other reason's -- "your step
+stopped short" is the bare fallback's and begins every keep-off's); the
+sim's log, a `procedure` event's `failedReason` and a practice's report say
+it whole. A draft for Ben.
+
+**Why** (#751). A carried hand's first step after a pick stood still with
+nothing in its way and read "something stands in your way"; and a walk that
+went a few cm before a later window with none read "got nowhere". The step
+measures what its legs counted, and that no keep-off held it -- never what
+stood there: on 11-25 Rowan's `door_p7` read, on one line within minutes, a
+knee keep-off (the counter's face 0.21-0.22 m off), a press (its legs 5 cm,
+its scans less) and eight plain stalls. A1's draft (126 characters, "...in 2 s
+(1 s once under way), and nothing a step keeps off held it") said both
+windows at once and claimed a cause.
+
+**Measured** (nothing flown that moves: the record gains `stuck`, read by
+the words alone). History's room on a run line the real code writes (a stub
+run, read back from the robot's store): the reason has 262-297 of the 384
+past the stamp, beside a readout, a 4-digit line or the longest name. Each
+run with a plain stall rebuilt off the sim's log (its tests that read false,
+its failed step, its end; its locals off its `procedure` event; `spot`'s
+shorter form as live): 11-14 3, 11-15 15, 11-18 1, 11-22 1, 11-25 3. In
+full, the new words would have taken the step's own reason off the line in
+up to 2 of the 23, where the old words were said, and put the readout on a
+line of its own in 5; with the head as the shorter form, none. Two local
+flights of `door_p7`'s loop at a door set-out's counter (15 steps) read kept
+off or stepped, never a plain stall: what held the live ones is unmeasured.
+
+Today's wake's nine and the weekend's one, all Rowan's, all tests that read
+false, none carried (their reasons said by the log alone: History's line
+said none, before or after -- a `spot`'s refusal took the line, or the
+step's line had first read false as kept off, and History says each line's
+first reason):
+
+| UTC | run, line | step asked | s | BEFORE | AFTER |
+|---|---|---|---|---|---|
+| 11-22 17:04 | `drawer_run10`, 100 | (0, -0.15), its left arm left held by a withdraw | 3.3 | "...something stands in your way" | the first window's |
+| 11-25 06:49 | `drawer_run11`, 107 | the same | 3.3 | the same | the first window's |
+| 11-25 11:21-11:50 | `door_p7`, 39 (x8) | (0.11, 0), hands home | 5.3 x5, 6.3 x3 | the same | not told by its time |
+
+A first-window stall with its hand-over at once takes 3.3 s (the window's 2,
+the stand's 0.8 settle, the step's 0.5); a later window's takes 4.3 s or more,
+as does a first window after a slower hand-over.
+
+**What to read**: the sim log's PROCEDURE lines with the new words, and how
+many say the first window against once under way (what the timing could not
+tell); whether a robot told its step got nowhere steps again (at #751's stall
+the next identical step stepped 28 times of 29) rather than writing a note
+about what stands in its way; no "something stands in your way" anywhere.
+
+### A procedure's reach takes no posture whose swing meets what its depth camera saw (#747's option 1, Z3, `loop-747`) — opens when this PR is deployed
+
+**What the robots read** moves by one refusal's words: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) and the session host's hello
+`9dcf6202` are byte for byte as they were (the release's, with #728's
+sentence in: the period of #744, #746 and #728, below), and `reach`'s text
+is unchanged. A `reach` whose every posture would swing an arm into what
+the robot's depth camera saw now reads false, nothing moved: "every posture
+that puts your left hand there would swing an arm into something your depth
+camera saw -- the first your left fingers, at x 0.24, y -0.11, z 0.66 in
+your stance frame -- so your arm did not move", and, where the other hand's
+plan keeps clear, "; your right hand could reach it as asked" (208 and 249
+characters: a run's History line ending there with three short locals, 340
+and 381 of the 384 a line leaves past its stamp). Kept in its posture by the
+other hand's grip (#719) it says so ("your right hand is out holding
+something, so your body keeps the posture it is in, and from it your left
+hand's way there would swing your left fingers into something your depth
+camera saw, at ...", 263), and a reach kept off another robot says of the
+other hand "; your right hand's every posture there would swing an arm
+into something your depth camera saw" where that is why. Before, the same
+reach went, and pressed the counter or fell. A draft for Ben.
+
+**The change** (`Reach._swing`, `swing_clock`, `plan`'s `swing`,
+`mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
+counter"). A procedure's reach plans each posture's swing -- the body
+walked to it on the standing policy's and the waist's own clocks while the
+arm walks out to its pre-grasp 0.2 s behind -- on the robot's model of
+itself against a new memory of what its depth camera saw at the arms'
+heights (walked in, a counter's face to a centimetre; placed up close,
+none of it), and passes over a posture that would bring a part of either
+arm more than 5 mm into a face; the one taken then is the one its hand
+goes in from, its look taking none, and where every one would, nothing
+moves. A look's second posture where nothing was passed over is judged
+too. The loop's own reach (a charge's) is never judged.
+
+**What the period is for.**
+- **The acceptance**: fewer falls inside a `reach` at a counter (a `fall`
+  row whose `at` names a `reach` or the `withdraw` after it), and the
+  refusals counted (a run line ending "...so your arm did not move"): what
+  the robots do with them -- the other hand, a step back, or the same
+  reach again. Walked in to the storeroom's counter (the census, 400 left
+  hands across the body), it fell once where the base fell 26.
+- **What it costs**: Ben's bar on the final code against loop-staging with
+  #750 and its fix (ec75d5ce), 617 of 736 passed (base 612) and 4 falls
+  (4), no job held out worse by more than one; the robots' own 200 live
+  tries, no pass lost and two of three tries with a fall shed; walked in,
+  falls 33 to 7, its one new fall the counter's top in a deep bow (below).
+  A refusal searches every posture:
+  6.2-6.6 s of the one physics thread on the dev box, where a plan out of
+  reach takes 0.03 s; and every plan a refusal's words ask (the other
+  hand's, and out of reach the grip turned another way) is judged too, each
+  as long again where its every posture swings; a passing plan 40 ms more;
+  the pair 1.45 % slower walking (the memory's fold).
+- **What it misses**: a face never seen from about 0.33 m or further (a
+  robot that turned to it up close), and one seen more than a minute
+  before, as its knees' memory forgets one: up close the camera sees the
+  top alone, so a later procedure's reach at the counter is judged on what
+  the minute before it saw (112 of the 200 live tries X5 flies began at the
+  counter; none of them fell on the base). A thing moved since it was seen,
+  a column's top 3 cm (a counter's front edge: the census's one new fall
+  caught it), the legs, the trunk and the head. And it may refuse a reach
+  for a prop's old face: one it moved within 0.55 m is kept up to that
+  minute.
+
+### A hand stopped on a push is held where it is, at its command's turn (#750, A2, `loop-750`) — opens when this PR is deployed
+
+**What the robots read** does not move: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No sentence changes, but a stopped reach's numbers
+can: it says how far from where it was asked its grip was as it stopped,
+read off the hand a tick after the stop, and where the stop is eased that
+reading can move by about 0.1 cm and its push by 1-2 N (on the dev flights
+the form acted on, 22 of 26 said it word for word). `withdraw`'s "bring the
+hand back out along the way it went in" reads as true of a hand that comes
+back along its fingers from where it stopped.
+
+**What changed in the world.** A reach that stops on its way in because its
+hand pushed on something ("it pushed on something before it got there")
+held its arm where it had driven on to, its spring pressing the hand on what
+it met, and whatever came next began from there: a withdraw's line out
+dragged it back across what it pressed (at the lid check's set-out 14 a jaw
+on a chest's bracket at 30-57 N rolled the robot 5 deg off its hand, and as
+it slipped off the robot went over), and so did a next reach's way out (the
+drawer check's set-out 12, the same fall). Such a hand is now held where it
+is, at its command's turn, pressing on nothing, the moment it stops: a
+withdraw, a walk's or a step's hand-over, the next reach, a carry and the
+loop's own after a charge's reach all begin from where the hand is, and a
+withdraw comes out along the way the hand went in (a reach asked no turn --
+the robots' own, nearly all -- straight back toward the body, as before).
+Where its arm cannot hold that turn there, it is held at the command it
+drove on to and presses as before. It
+reaches the robots' own procedures after every pushed stop: 65 of the weekend
+of 11-21/22's 200 tries flown at their live draws have one. A stop out of
+reach holds its command as before.
+
+**What the period is for.**
+- **The acceptance**: no fall in the verb after a `reach` that stopped short
+  because it "pushed on something" -- a `fall` row whose `at` names the
+  `withdraw`, `reach` or walk that came next.
+- **Offline, before it** (the final code, a stop whose solve misses easing
+  nothing): at the hands checks' set-outs 128-191, falls 6 -> 3 and passes
+  248 -> 252, 20 of 320 flights moved; Ben's bar, falls 5 -> 4 and passes
+  609 -> 612, 39 of 736 moved, its one new fall the base's own from the
+  posture its next reach took; the robots' own 200 tries, the same two
+  passes and the same three tries with a fall (SimNotes, "A hand stopped on
+  a push, held where it is").
+
 ### A restore books the step it steps again, and the keeper saves after every step hook (#749, Z6, `loop-749`) — opens when this PR is deployed
 
 **What the robots read** does not move: the prompt `264ac7f6…` (72,130
@@ -379,8 +777,9 @@ over X5's 200 flights' run lines, 33 change and none grows (the longest 396
 byte for byte; no History line is new or reworded. A `step` whose legs went
 back to standing before both its soles read planted -- its settle's bound
 run out -- says `feetDown: false` in its report, a field the verb's text
-does not describe: a practice's report and the `procedure` event carry it;
-History, which says an ok step's report nowhere, does not.
+does not describe: a practice's report carries it; on the served world
+nothing records it, since the `procedure` event carries no step's report
+and History says an ok step's report nowhere.
 
 **The change** (`HumanoidMission.to_stand_routine`, `odometry.PlantedRun`;
 `DOWN_M` 4 mm, `STILL_M` 3 mm, `SPREAD_M` 15 mm, `PLANTED_S` 0.1 s,

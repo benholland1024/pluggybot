@@ -436,6 +436,110 @@ def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_walks():
   assert rep["why"] == "stepped" and walk.asked != []
 
 
+class SideWall(Walk):
+  """...its sideways walk held `side_m` along (0: none of it walked): what
+  an oblique step's second walk (`hb._step_walks`) meets."""
+
+  def __init__(self, side_m=0.0, **kw):
+    super().__init__(**kw)
+    self.side_m = side_m
+
+  def _twist_routine(self, vx, vy, w):
+    yield from super()._twist_routine(vx, vy, w)
+    x, y, yaw = self.pose
+    if abs(y) > self.side_m:
+      self.pose, self.v = (x, math.copysign(self.side_m, y), yaw), (self.v[0], 0.0)
+
+
+class Planted(SideWall):
+  """...and its stance never moving, its pelvis leaning over planted feet
+  (#649): an oblique step's walk ahead ends on its stop rule so, never
+  having walked."""
+
+  @property
+  def stance(self):
+    return (0.0, 0.0, self.pose[2])
+
+
+#: A stall's words, typed: the test reads the template, never formats it.
+GOT_NOWHERE = ("your step got nowhere: your legs counted under 1 cm along the way you stepped "
+               "in the first 2 s of its walk")
+STALLED_1S = ("your step stalled: once it was under way, your legs counted under 1 cm along the "
+              "way you stepped in 1 s")
+
+
+@pytest.mark.parametrize("walk, ask, window, under_way, way, said", [
+  # P1: never got going, its walk's first window out
+  (lambda: Walk(shuffle_s=60.0), (0.0, -0.21), "start", False, None, GOT_NOWHERE),
+  # P2: 5 cm, then a later window with none
+  (lambda: Walk(wall=0.05), (0.3,), "stuck", True, None, STALLED_1S),
+  # an oblique step walked as two, its walk ahead never getting going: its own way
+  (lambda: Walk(shuffle_s=60.0), (0.03, 0.15), "start", False, "ahead",
+   GOT_NOWHERE.replace("along the way you stepped", "ahead")),
+  # P3: ...its walk ahead walked, its sidestep never got going
+  (lambda: SideWall(0.0), (0.03, 0.15), "start", True, "left",
+   STALLED_1S.replace("along the way you stepped in 1 s", "to your left in 2 s")),
+  # ...its walk ahead ended on its stop rule over planted feet (round 2 of the
+  # review): it never walked, and the step got nowhere
+  (lambda: Planted(0.0, coast_s=0.0), (0.03, -0.15), "start", False, "right",
+   GOT_NOWHERE.replace("along the way you stepped", "to your right")),
+  # P4: ...or its sidestep got 5 cm and then none in a later window
+  (lambda: SideWall(0.05), (0.03, 0.15), "stuck", True, "left",
+   STALLED_1S.replace("along the way you stepped", "to your left")),
+])
+def test_a_stalled_step_says_what_its_legs_counted_in_the_window_that_ended_it(
+    walk, ask, window, under_way, way, said):
+  """#751: a carried hand's first step after a pick stood still and read
+  "your step got nowhere: something stands in your way" with nothing there;
+  and a walk that got 5 cm before a window with none read "got nowhere" too.
+  A walk whose legs count under `STEP_STUCK_M` along its way in a window says
+  so, in that window's words -- its first, or one once under way -- and never
+  what stood there, which the step does not measure. One of an oblique
+  step's two walks names its own way, and the second is under way only where
+  the first walked, by its stance (#649's rule)."""
+  w = walk()
+  rep = _step(_walker(w), *ask)
+  assert rep["why"] == "blocked" and "keptOff" not in rep, rep
+  assert rep["stuck"] == {"m": hb.STEP_STUCK_M,
+                          "s": hb.STEP_START_S if window == "start" else hb.STEP_STUCK_S,
+                          "underWay": under_way, **({"way": way} if way else {})}, rep
+  assert st.step_stuck_said(rep["stuck"]) == said
+  assert "in your way" not in said
+  # ...its head, the shorter form History may say, no other reason's: not the
+  # bare fallback's, nor the start of a keep-off's
+  head = said.partition(":")[0]
+  assert head != "your step stopped short"
+  assert not any(t.startswith(head) for t in st.STEP_KEPT_OFF.values())
+
+
+def test_a_stall_is_the_only_step_record_that_says_how_its_walk_got_nowhere():
+  """...a step that walked, one kept off another robot and one that fell in
+  its settle after a stall carry no `stuck`."""
+  assert "stuck" not in _step(_walker(Walk(coast_s=hb.STEP_STOP_S)), 0.3)
+  kept = _step(_walker(Walk(coast_s=hb.STEP_STOP_S, others=[lambda: (1.0, 0.0)])), 0.5)
+  assert kept["why"] == "blocked" and "keptOff" in kept and "stuck" not in kept, kept
+  fell = _step(_walker(Walk(shuffle_s=60.0)), 0.0, -0.21, fall_in_settle=True)
+  assert fell["why"] == "fell" and "stuck" not in fell, fell
+
+
+def test_a_stalls_words_say_their_numbers_off_the_constants(monkeypatch):
+  """#640's rule: moved, the words move with them -- the distance its legs
+  must count, and each window's length, as the walk judged them."""
+  monkeypatch.setattr(hb, "STEP_STUCK_M", 0.02)
+  monkeypatch.setattr(hb, "STEP_START_S", 3.0)
+  monkeypatch.setattr(hb, "STEP_STUCK_S", 1.5)
+  rep = _step(_walker(Walk(shuffle_s=60.0)), 0.0, -0.21)
+  assert rep["stuck"] == {"m": 0.02, "s": 3.0, "underWay": False}
+  assert st.step_stuck_said(rep["stuck"]) == (
+    "your step got nowhere: your legs counted under 2 cm along the way you stepped in the "
+    "first 3 s of its walk")
+  rep = _step(_walker(Walk(wall=0.05)), 0.3)
+  assert rep["stuck"] == {"m": 0.02, "s": 1.5, "underWay": True}
+  assert st.step_stuck_said(rep["stuck"]) == (
+    "your step stalled: once it was under way, your legs counted under 2 cm along the way you "
+    "stepped in 1.5 s")
+
+
 def test_a_step_held_through_the_other_robots_run_counts_none_of_it():
   """#690's second review: a robot held standing through the other robot's
   blocking run mid-step (its stepper told, into `held_s`) reads the step as
@@ -678,8 +782,68 @@ def test_a_step_kept_off_another_robot_reads_false_saying_how():
     step = ran["steps"][0]
     assert not step["ok"] and step["why"] == "blocked" and step["reason"] == said
     assert ran["locals"]["d"] == pytest.approx(0.04)
-  # ...and a walk that got nowhere says what it always did
-  assert st.STEP_WHY["blocked"] == "your step got nowhere: something stands in your way"
+
+
+def test_a_stalled_step_reads_false_saying_what_its_legs_counted_on_historys_line():
+  """#751: a step its walk got nowhere in reads false saying what its legs
+  counted and in which window -- in its report, and on the run's line
+  History keeps, as a test that read false and as the step the run stopped
+  at -- never "something stands in your way"; a body that says neither how
+  it kept off nor how its walk got nowhere is told its step stopped short."""
+  from pluggybot import lifecycle as lc
+  from pluggybot.lifecycle import errand_from
+  from pluggybot.mind.overseer import Decision
+  from pluggybot.mind.thoughts import HISTORY
+  from pluggybot.procedure import library as lib
+  from test_body import stub_life
+  life = stub_life()
+  stalls = iter([{"m": 0.01, "s": 2.0, "underWay": False}, {"m": 0.01, "s": 1.0, "underWay": True}])
+  life.body.step_routine = lambda *a, **kw: tick.result(
+    {"why": "blocked", "seconds": 3.3, "dx": 0.002, "dy": 0.0, "turn": 0.0, "stuck": next(stalls)})
+  L = lib.Library(lc.world_facts("home_humanoid"))
+  L.define("creep", 'def creep():\n  if not step(0, -0.15):\n    d = read("step.dx")\n'
+                    '  step(0.11)\n')
+  out = life.run_errand(errand_from(Decision(action="procedure:creep"), library=L))
+  assert [s["reason"] for s in out["procedure"]["steps"]] == [GOT_NOWHERE, STALLED_1S]
+  [line] = [x for x in life.thoughts.lines(HISTORY) if "procedure creep" in x]
+  assert line.endswith(
+    f"the procedure creep did not finish -- it stopped at line 4, step: {STALLED_1S} (1 step "
+    f"had run; 1 test read false -- line 2, step: {GOT_NOWHERE}) -- it ended with d = 0.002")
+  assert "in your way" not in life.thoughts.read("History.md")
+  # ...and a record that says neither is told only what is true of any
+  body = StubBody(*_bare())
+  body.step_routine = lambda *a, **kw: tick.result(
+    {"why": "blocked", "seconds": 3.3, "dx": 0.0, "dy": 0.0, "turn": 0.0})
+  step = _fly('def a():\n    if not step(0.1):\n        pass\n', body)["steps"][0]
+  assert not step["ok"] and step["reason"] == "your step stopped short"
+
+
+@pytest.mark.parametrize("stuck, head", [({"m": 0.01, "s": 2.0, "underWay": False},
+                                          "your step got nowhere"),
+                                         ({"m": 0.01, "s": 1.0, "underWay": True},
+                                          "your step stalled")])
+def test_a_stalls_words_give_way_to_their_head_where_historys_line_has_no_room(stuck, head):
+  """#751 on #728's shorter form: rebuilt off five wakes (11-14 to 11-25),
+  the stall's words in full took the step's own reason off the run's line in
+  up to 2 of the 23 runs with one, where the old 51 characters were said,
+  and a readout onto a line of its own in 5. Its head, before the colon, is
+  its shorter form: said where the rest would move anything else, and the
+  line otherwise as one with no shorter form."""
+  from pluggybot import lifecycle as lc
+  body = StubBody(*_bare())
+  body.step_routine = lambda *a, **kw: tick.result(
+    {"why": "blocked", "seconds": 3.3, "dx": 0.0, "dy": 0.0, "turn": 0.0, "stuck": stuck})
+  step = _fly('def a():\n    if not step(0.1):\n        pass\n', body)["steps"][0]
+  assert step["brief"] == head and step["reason"].startswith(head + ": ")
+  walk = {"verb": "drive_to", "line": 4, "ok": False, "tested": True, "reason": "w" * 220}
+  run = {"ok": True, "completed": 9, "total": 9, "steps": [walk, {**step, "line": 10}]}
+  [line] = lc.procedure_outcome("p", run)
+  assert line == (f"ran the procedure p to its end (9 steps; 2 tests read false -- line 4, "
+                  f"drive_to: {'w' * 220}; line 10, step: {head})")
+  # ...and in full where it moves nothing else
+  walk["reason"] = "w" * 100
+  [line] = lc.procedure_outcome("p", run)
+  assert line.endswith(f"line 10, step: {step['reason']})")
 
 
 def test_a_step_stops_short_of_a_wall_its_lidar_reads_at_its_heads_height():
@@ -764,9 +928,13 @@ def test_the_knee_memory_is_placed_by_the_belief_and_forgets_where_it_cannot_be(
   assert not len(k.near((0.0, 0.0, 0.0), np.array([0.0, 0.0, hmis.KNEE_JUMP_RAD + 0.01]))), \
     "a heading's jump kept what it saw"
   k.fold(np.array([[0.4, 0.0, 0.3]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
-  mission = NS(falls=0, legs="stand", knee=k, getup=NS(begin=lambda: None))
+  # ...and what it saw where its arms swing with it (#747)
+  swing = hmis.ArmsMemory()
+  swing.fold(np.array([[0.4, 0.0, 0.7]]), 2.0, (0.0, 0.0, 0.0), np.zeros(3))
+  mission = NS(falls=0, legs="stand", knee=k, swing=swing, getup=NS(begin=lambda: None))
   HumanoidMission._fell(mission)
   assert not len(k.pts), "a fall kept what it saw"
+  assert not len(swing.pts), "a fall kept what it saw where its arms swing"
 
 
 def test_a_steps_own_scan_draws_noise_of_its_own():

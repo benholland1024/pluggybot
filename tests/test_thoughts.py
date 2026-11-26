@@ -30,8 +30,9 @@ from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import board_book, world_config
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import (
-  FINDINGS, GOALS, HISTORY, HUMAN, MAIN, MAX_LINE_CHARS, NOTES, ROBOT,
-  SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused, cut_mark,
+  CHAT, CHAT_HEARD, CHAT_SAID, FINDINGS, GOALS, HISTORY, HISTORY_VIEW_BATCH, HUMAN, MAIN,
+  MAX_LINE_CHARS, NOTES, ROBOT, SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused,
+  cut_mark,
 )
 from pluggybot.telemetry.protocol import (
   THOUGHT_VERBS,
@@ -253,6 +254,96 @@ def test_a_history_line_that_is_cut_says_so_inside_its_cap(files):
                         room=len(quoted)).endswith(f": {quoted}")
   # ...and room is History's to give: the robot's own lines keep their cap.
   assert len(files.pin("y" * (MAX_LINE_CHARS * 3), t=8.0)) == MAX_LINE_CHARS
+
+
+def _old_history_view(files):
+  """The roll as it was rendered before D3 (loop-1126): every active History
+  row of the living generation read, the newest that fit the cap kept -- the
+  oracle the batched render must equal, its text and `dropped` alike."""
+  rows = files.records.active(files.robot, "history")
+  kept, size = [], 0
+  for r in reversed(rows):
+    size += len(r.text) + (1 if kept else 0)
+    if size > SPECS[HISTORY].cap:
+      break
+    kept.append(r.text)
+  return "\n".join(reversed(kept)), len(rows) - len(kept)
+
+
+def _fill_history(files, n, longest, seed=0):
+  """`n` made-up History rows, each 1..`longest` long: the first written by
+  `RecordStore.add`, the rest copies of the row it stored (every column as
+  `add` wrote it, but their `t` and text) put in by one insert --
+  `remember` a row would render the view n times."""
+  import random
+  if n == 0:
+    return
+  rng = random.Random(seed)
+  texts = [f"[t={i}s] " + "x" * rng.randint(1, longest) for i in range(n)]
+  db = files.records.db
+  first = files.records.add(files.robot, "history", SYSTEM, texts[0], t=0.0)
+  cur = db.execute("SELECT * FROM records WHERE id = ?", (first.id,))
+  cols = [c[0] for c in cur.description]
+  row = dict(zip(cols, cur.fetchone()))
+  cols.remove("id")
+  db.executemany(f"INSERT INTO records ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                 [tuple({**row, "t": float(i), "text": texts[i]}[c] for c in cols) for i in range(1, n)])
+  db.commit()
+
+
+def test_a_history_line_renders_its_view_off_the_newest_rows_alone(files, monkeypatch):
+  """⚠ The view is the newest lines that fit `History.md`'s cap, and a line
+  that re-rendered it off EVERY active row of the generation spent ~9 us a
+  row on the physics thread: at the live robots' 10^5 rows ~0.9 s a line, a
+  few lines a decision, both robots held (D3, loop-1126). It reads the
+  newest rows alone, a batch at a time, until the cap is passed. Shown to
+  fail without the fix: the line built every one of the 4,001 rows."""
+  from pluggybot.mind import memory
+  _fill_history(files, 4000, 80)
+  built = []
+  row = memory._row
+  monkeypatch.setattr(memory, "_row", lambda r: built.append(1) or row(r))
+  files.remember("one more thing happened", t=4000.0)
+  shown = files.read(HISTORY).count("\n") + 1
+  assert len(built) <= 4 * max(shown, HISTORY_VIEW_BATCH), \
+    f"a History line built {len(built)} rows to show {shown}"
+  assert (files.read(HISTORY), files.dropped[HISTORY]) == _old_history_view(files)
+
+
+@pytest.mark.parametrize("n, longest", [(0, 50), (1, 50), (5, 50), (63, 90), (64, 90), (65, 90),
+                                        (300, 6), (3000, 1), (12000, 300)])
+def test_the_history_view_is_the_newest_lines_that_fit_as_it_was(files, n, longest):
+  """The batched roll (D3) against the whole read it replaced, text and
+  `dropped` (which the `thought` message carries) alike: stores of every
+  size round a batch and the cap, and lines short enough to need several
+  batches."""
+  _fill_history(files, n, longest, seed=n)
+  files.remember("the newest line", t=float(n))
+  assert (files.read(HISTORY), files.dropped[HISTORY]) == _old_history_view(files)
+
+
+def test_the_history_view_skips_retired_rows_and_old_generations_and_keeps_chat(files):
+  """What the whole read left out, the batched roll leaves out: a retired
+  row, a dead robot's generation; and what it kept it keeps: the chat's
+  lines (#485), a line over the whole cap (it shows nothing, as before)."""
+  _fill_history(files, 200, 120)
+  for r in files.records.active(files.robot, "history")[::3]:
+    files.records.retire(r.id, t=1.0)
+  files.remember("after the retirements", t=201.0)
+  assert (files.read(HISTORY), files.dropped[HISTORY]) == _old_history_view(files)
+  for i in range(30):
+    files.remember(f"somebody said thing {i}", t=300.0 + i, chat=CHAT_HEARD if i % 2 else CHAT_SAID)
+  assert "somebody said thing 29" in files.read(HISTORY)
+  assert (files.read(HISTORY), files.dropped[HISTORY]) == _old_history_view(files)
+  assert files.records.tail(files.robot, "history", 1, topic=CHAT)[0].title == CHAT_HEARD
+  files.archive(t=400.0)
+  _fill_history(files, 40, 200, seed=7)
+  files.remember("the next robot's first line", t=401.0)
+  assert "somebody said" not in files.read(HISTORY), "a dead robot's lines in the view"
+  assert (files.read(HISTORY), files.dropped[HISTORY]) == _old_history_view(files)
+  files.remember("z" * (SPECS[HISTORY].cap + 1000), t=402.0, room=SPECS[HISTORY].cap + 1000)
+  assert files.read(HISTORY) == "" and files.dropped[HISTORY] == 42
+  assert (files.read(HISTORY), files.dropped[HISTORY]) == _old_history_view(files)
 
 
 def test_unpin_is_how_the_robot_changes_its_mind(files):

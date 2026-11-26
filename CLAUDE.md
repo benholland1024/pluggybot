@@ -199,7 +199,8 @@ Before doing anything, read the doc that owns what you are about to touch:
   FAILS THE TRY (Ben, 2026-10-25, #544; it was lost time from 10-17, and
   learned skills fell to open a door): every grader's criterion, a fall
   the body's own watch counted (`Body.falls`; the humanoid's is its trunk
-  35 deg past the posture its legs hold, so a bow is none, #520) from the
+  35 deg off the posture its legs hold and off upright both, so a bow is
+  none, #520, #724) from the
   attempt's start to the hold's end, said FIRST in the verdict
   (`lid.judged`) and stated in the job the robot is told (`practice.JOBS`).
   The job is the lid inside the TASK's time limit, the budget
@@ -346,8 +347,19 @@ save a filmstrip PNG named after the script.
   `Body.hand_stopped`, `steps.REACH_STOPPED_BY`; Observatory.md, its period):
   the push where it held at least half the run, at its hardest, else out of
   reach -- on the stop's tick alone, a last dip or a lone spike named the
-  other. ⚠ ON ITS WAY OUT, THE TICK WHAT
-  IT READS WOULD TIP THE BODY TOWARD THE HAND PAST `reach.OUT_TIP_NM` (20 N
+  other. ⚠ STOPPED ON A PUSH, IT IS HELD WHERE IT IS, AT ITS COMMAND'S
+  TURN (#750; `Reach._eased_stop`; SimNotes, "A hand stopped on a push, held
+  where it is"), pressing on nothing, whatever comes next, its goal at the
+  reach's own turn (a withdraw out the way it went in): held at the command
+  it drove on to, a jaw pressed on a chest's bracket was dragged back over
+  it by the withdraw's line out at 30-57 N, and the robot went over; held
+  at the turn the press rolled it to, a carry after keeps that (`carry`,
+  #493). ⚠ WHERE THE ARM CANNOT HOLD ITS COMMAND'S TURN THERE (`REPLAN_M`,
+  `REPLAN_ROT`) IT EASES NOTHING, held at the command it drove on to as
+  before: held as read, a jaw on the cube's board stayed on it, the way home
+  dragged it over the counter's top, and the robot went over backward. ⚠ ON ITS
+  WAY OUT, THE TICK WHAT IT READS WOULD TIP THE BODY TOWARD THE HAND PAST
+  `reach.OUT_TIP_NM` (20 N
   m) -- or, WHILE THE BODY STILL TAKES THE POSTURE IT WAS ASKED
   (`POSTURE_TOL`), ONCE IT HAS FOR `OUT_TIP_S` (0.03 s) RUNNING -- its pull
   toward the body at the hand's height, less its press down at the hand's
@@ -422,7 +434,26 @@ save a filmstrip PNG named after the script.
   look at the pre-grasp passes over a posture whose plan from the arm as it is
   lies in it: unjudged, three of the 11-15 wake's door reaches from the arm
   hanging pressed the torso at 23-52 N. ⚠ MuJoCo 3.10 reads two boxes apart as
-  0.0 at some poses (`reach.apart` reads them again). ⚠
+  0.0 at some poses (`reach.apart` reads them again). ⚠ A PROCEDURE'S PLAN IS
+  JUDGED AS IT SWINGS, AGAINST WHAT ITS DEPTH CAMERA SAW AT A FACE WHERE ITS
+  ARMS SWING (#747; `Reach._swing`, `swing_clock`, `plan`'s `swing`,
+  `mission.ArmsMemory`; SimNotes, "A reach's posture swung into the
+  counter"): its posture walked on the commands' clocks while its arm walks
+  out `SWING_ARM_LAG_S` (0.2 s) behind them, every part of both arms no more
+  than `SWING_CLEAR_M` (5 mm) into a face -- a column's top `ARMS_TOP_M` deep
+  is none, nor the work round its goal -- else, begun further in, no
+  further; one that would is passed over, none and it moves nothing,
+  "swing" (`Body.hand_swung`): the census's left hand across the body, 400
+  reaches walked in, fell once where the base fell 26. ⚠ ONE IT PASSED OVER
+  FOR ITS SWING, ITS LOOK TAKES NO SECOND POSTURE: free, the look took back
+  what the plan passed over or went on to the deepest bows, whose trunk and
+  head no swing judges, and fell 3-5 times in 128 where the base fell 2. ⚠ IT
+  SEES ONLY WHAT ITS CAMERA SAW, AND FOR A MINUTE (`KNEE_S`): placed up
+  close, a counter's face is none (its picture ends 69 deg down), so a
+  flight that stands still with a bare `STILL` -- which steps no
+  `_after_step` -- judges nothing. ⚠ A refusal searches every posture,
+  6.2-6.6 s of the one physics thread, and each plan its words ask too (a
+  passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
@@ -455,7 +486,24 @@ save a filmstrip PNG named after the script.
   jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm
   back, then slipped off and the arm snapped home -- over backward; ⚠ held,
   never at once: the door check's first ways home catch a jaw on the door's
-  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ BOTH WAYS KEEP OFF
+  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ AND
+  ANY WAY HOME IS HELD SO WHERE ITS DRIVERS READ THE ARM MORE THAN
+  `TIP_BACK_LAG_RAD` (0.2 rad) OFF ITS COMMAND WHILE THE TRUNK, AS ITS IMU
+  READS IT, TIPS BACK PAST `TIP_BACK_RAD` (2 deg) OFF THE POSTURE ITS LEGS
+  HOLD, FOR `TIP_BACK_S` (0.1 s) RUNNING (#693's second path, #753;
+  `Reach._leaning_back`, `trunk_back`; SimNotes, "A way home that tips the
+  body back"): a jaw dragged over a counter's top shoved the body back while
+  its arm neither stalled past 0.5 rad (a slip reset the count, or the command
+  reached the rest first) nor read the shove (the counter pushes the hand up:
+  its reading tipped the body TOWARD it) -- a withdraw's, and a walk's
+  hand-over sending an arm left held home again (#753); ⚠ NEVER ONE NOTHING
+  HOLDS: held for a lean an earlier drag left, a free way home after a raise
+  was held again and again, the arm left out, and the robot fell where the
+  base's came home; ⚠ A DOOR THAT GIVES READS AS A COUNTER: held, the bar's
+  door 112 reference read "held" and its run ended (as the tour's table 6 won
+  a pass); ⚠ OFF THE PITCH THE STANDING POLICY IS SHOWN, LESS ITS
+  TRIM (`held_pitch`), NEVER UPRIGHT: out of a bow the shown pitch walks down
+  ahead of the trunk, which mostly reads forward of it. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
@@ -686,13 +734,17 @@ save a filmstrip PNG named after the script.
   is the open half: the belief lags 0.7-1.9 m at the foot (it runs down
   faster than asked; its odometry follows a sole in the air, skids and
   flights; the hall gives the matcher nothing along it). A FALL is the get-up policy's (`models/humanoid_getup.npz`,
-  getupwall14 of `-Getup-Wall3-Mirror` since #679, every joint): tilt `FALL_TILT_RAD` past the posture the
-  legs hold or the pelvis under `COLLAPSED_M` over the LOWER sole, handed
-  back once stood still; ⚠ A TIP IS READ OFF THE POSTURE, NEVER OFF
-  UPRIGHT (#520; `getup.tipped`, `Reach.held_pitch`, exactly upright at the
-  stand): the IMU is on the pelvis, under a waist that only turns, and off upright the reach's
-  deepest bows were falls; a forward fall from a bow is the collapse's to
-  take (lying on its face is 27 deg past the deepest bow). ⚠ The head is
+  getupwall14 of `-Getup-Wall3-Mirror` since #679, every joint): tilt `FALL_TILT_RAD` off the posture
+  the legs hold and off upright both, or the pelvis under `COLLAPSED_M` over
+  the LOWER sole, handed back once stood still; ⚠ A TIP IS READ OFF THE BOW
+  THE LEGS HOLD AND OFF UPRIGHT, THE NEARER (#520, #724; `getup.tipped_past`,
+  `Reach.held_pitch`, exactly upright at the stand; a posture leaning back
+  off itself; SimNotes, "A fall backward out of a bow"): the IMU is on the
+  pelvis, under a waist that only turns, so off upright alone the reach's
+  deepest bows were falls, and off the bow alone a trunk going back from one
+  was a fall the bow's depth sooner than from the stand, the get-up running
+  the body backward on its feet; a forward fall from a bow is the collapse's
+  to take (lying on its face is 27 deg past the deepest bow). ⚠ The head is
   charged on its own in training, or it struck at 5.5-6.9 m/s; the
   mission waits out a get-up before a walk takes the legs or the standing
   policy takes them back, and on standing forgets its ground map and
@@ -746,7 +798,9 @@ save a filmstrip PNG named after the script.
   off it. ⚠ A TOPPLE IS READ OFF THE POSTURE THE LEGS HOLD
   (`Body.held_pitch`, stage 3; `HubLifecycle.down`, what the other robot
   keeps clear of): a reach's deepest bow is 63 deg of pelvis tilt, past
-  `TOPPLE_TILT_RAD`'s 60.
+  `TOPPLE_TILT_RAD`'s 60 -- and off upright where that is nearer, as the
+  fall watch reads a tip (#724: off the bow alone, a body upright under it
+  was `down` while its watch had it standing).
 - **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
   `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
   SimNotes, "The humanoid's charging station"): a station on the living
@@ -1119,7 +1173,12 @@ save a filmstrip PNG named after the script.
   the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
   over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
   (round 5), held out 15, the carry walker 0 (each miss, and round 4's
-  reference read beside it: SimNotes).
+  reference read beside it: SimNotes) -- ⚠ and with walk2 shown its arms at
+  rest while it carries (#751's cure), 3 of 32 where the tree before laid 16
+  on one pod: its put-downs were tuned on a settle the seeing walker's
+  carried turns left, and land a constant 3-4 cm off, which a retune would
+  most likely take back (SimNotes, "The walker shown its arms at rest while
+  a hand is carried").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1312,7 +1371,16 @@ save a filmstrip PNG named after the script.
   floor as it was -- ⚠ SOLVED ON THE STAND'S STATUE, where the walk carries
   it (solved bowed, a plate lifted from a reach's 0.3 rad bow rode 15-17 deg
   tipped) -- and held there through every walk, a `step` too, until a reach
-  or a let-go ends it (`Reach.drop_carry`); ⚠ NEVER WALKED WHERE THE REACH
+  or a let-go ends it (`Reach.drop_carry`); ⚠ WHILE IT IS, THE WALKER IS
+  SHOWN ITS ARMS AT REST (#751's cure; `WalkDriver.observation(arms_at_rest=)`,
+  `carry_blind`; SimNotes, "The walker shown its arms at rest while a hand is
+  carried"): every arm joint it sees at its own default -- where the served
+  arms hang -- and still, the drivers read as ever (the same draws), told at
+  each of its policy's steps off the reach as it stands: seeing the folded
+  elbow (1.6-2.0 rad; its scripted arms went to 1.15), walk2 stood still at
+  the first carried step after a pick (93 of 109 trips) and veered 9-12 deg a
+  metre toward the carrying arm; ⚠ never a walker trained to carry
+  (`CARRY_TASK`, carry2), which trained seeing them; ⚠ NEVER WALKED WHERE THE REACH
   LEFT IT (over the table's top, walk2 fell in 16 of 37); a walk verb's
   report says `carried` (and `dropped`, its grip read empty by the end), the
   body text beside the let-go (`practice.WALK_LETS_GO`); with another robot
@@ -2669,8 +2737,14 @@ save a filmstrip PNG named after the script.
   not fix keeps odometry's estimate; a fit the map disagrees with, or one
   that slid past `MAX_STEP_M`, is searched round (±0.6 m, ±6°) and refused,
   NOT FUSED, if nothing agrees; and a scan is fused only once the robot has
-  moved or 5 s have passed (docked, fusing every scan walked the map 0.15 m)
-  -- an anchor's window's excepted, laid as they come (below, #741).
+  moved (docked, fusing every scan walked the map 0.15 m) -- ⚠ NEVER ON TIME
+  ALONE BUT IN AN ANCHOR'S WINDOW, laid there as they come (#741's option 4,
+  #681; `ScanMatcher.fuses`): laid every 5 s standing still, a kept map's
+  docked belief walked 13 cm to 43 cm in an hour and the counter's 0.8-8.8
+  cm in 28 minutes; laid only as it moves, 13.1 cm flat and 0.4-0.8. ⚠ A
+  BOW'S VIEW IS LAID ONLY ONCE THE FEET MOVE: laid where the sensor moved,
+  the far check lost 4 docks the base made, and every drift flight was
+  redrawn for no gain.
   ⚠ A FIT THE WALLS ONLY PARTLY AGREE WITH IS SEARCHED (#681; SimNotes,
   "The storeroom keeps an error"): one that held a direction, or whose
   weakest direction rests on under `DOUBT_WEAK_SHARE` (a tenth) of its
@@ -2755,15 +2829,10 @@ save a filmstrip PNG named after the script.
   looked round for good). ⚠ THE WIDE SEARCH'S OWN TAKE, AND THE SEARCH AT
   EVERY HEADING'S, IS CHECKED BY THE NEXT LOOK (`_put`: the doubt begins
   again where the belief was put, its looks and its 2 m). ⚠ UP FROM A FALL
-  AN ANCHOR'S WINDOW IS OVER, AND A RELAY STILL TO COME IS DROPPED (#741,
-  where #681 left the window open; `ScanMatcher.fell`; SimNotes, "A
-  station's fix that keeps the map lays again what it sees"): shoved a
-  second after the lost search's fix, the open window laid 17 scans at the
-  belief the get-up moved and ended 1.30 m off; closed, what the fix saw
-  already laid again, 0.01 m, and it plugged in. ⚠ The price: a fall begun
-  in the 0.1 s between a fix and its relay's scan leaves nothing laid
-  again, and the closed window hands the right belief back to the copy
-  (#681's 0.2-0.45 m). ⚠ ONLY UP FROM
+  AN ANCHOR'S WINDOW IS OVER (#741's review; `ScanMatcher.fell`): laid
+  unmatched at a belief the get-up moved, its scans lay the room again where
+  it is not (measured when the lost search's fix still opened one: shoved a
+  second after it, 17 scans laid and 1.30 m off). ⚠ ONLY UP FROM
   A FALL: a robot that has not fallen is matched as it was, verdict for
   verdict (202 recorded falls replayed with the doubt off: the base's). ⚠
   IT BELIEVES THE MAP: a copy of the room `UNIQUE_M` or more away that
@@ -2785,32 +2854,21 @@ save a filmstrip PNG named after the script.
   `TURNED_NEAR_M` (0.5 m) OF WHERE THE BELIEF STOOD UP (walked on, it took
   5 of 118 onto that half turn). There it refuses about half the lobby's
   knocked get-ups.
-  ⚠ THE STATION OUTRANKS THE MAP: anchored off its tags (a fix, below),
-  the next `ANCHORED_SCANS` (30) scans are laid at the belief unmatched
-  (`ScanMatcher.anchored`), or a copy of the room laid askew pulls the
-  robot 0.6 m back into it; `start_at` closes the window. ⚠ ONLY A FIX
-  THAT KEEPS THE MAP OPENS ONE, AND IT LAYS AGAIN WHAT ITS NEXT SCAN SEES
-  (#741; `ScanMatcher.relay`, `OccupancyGrid.forget_seen`; SimNotes, "A
-  station's fix that keeps the map lays again what it sees"): every cell
-  whose nearest bearing of that scan's lies within a degree of it, out to
-  that bearing's end, forgotten before the scan is laid -- kept, the region round the station held the
-  offset of the belief that laid it and took the belief back as the window
-  closed (the lobby on the save of 11-22: 10-11 cm within 3 minutes). ⚠ NONE MORE THAN
-  `RELAY_BEHIND_M` (0.15 m) PAST ITS BEARING'S END (uncapped, the lobby's
-  relay forgot 928 walls behind what it saw, never laid again from there),
-  ⚠ AND NO WALL
-  NEARER THAN ITS BEARING'S `free_from` AND 1 M, NONE ON A BEARING THAT
-  CLEARS NONE (`relay_keeps`: bowed, or behind another robot): forgotten,
-  `update` lays it floor (the house's couch behind a robot the lost search
-  fixes, its part within 1 m; past 1 m, out to the 2.6 m behind where the
-  head's panels leave free_from, it goes: Rowan's dock of 11-22 replayed laid
-  7-12 of its cells floor, and no walk went through them; Ben's to weigh. The
-  price, kept: a robot that walks away and back meets the lobby's copy
-  again, 13 cm). ⚠ THE WINDOW'S
-  SCANS ARE LAID AS THEY COME, ten a second, never held to `FUSE_S`: held,
-  it lasted 146 s docked and the legs carried a belief 3 cm through it, the
-  region laid along it; a window of one scan slid the fits 3 cm along the
-  lobby on walls one scan thick. ⚠ A RETURN NEARER
+  ⚠ THE STATION LAYS THE MAP AFRESH: its dock's fix drops the map (below)
+  and the next `ANCHORED_SCANS` (30) scans are laid at the belief it put
+  right, unmatched (`ScanMatcher.anchored`, #422, #681) -- ⚠ NEVER THE LOST
+  SEARCH'S, which walks on at once: its window laid the legs' reckoning into
+  the fresh map, and the far check's docks ended 1.9-3.1 cm off at the
+  median against 0.7 -- and `start_at` closes the window. ⚠ ONLY A FIX THAT DROPS THE MAP OPENS ONE (a test reads the
+  code): kept, the region round the station held the offset of the belief
+  that laid it and took the belief back as the window closed (the lobby on
+  the save of 11-22: 10-11 cm within 3 minutes), and #741's relay, which
+  laid again what the fix's next scan saw, left the storeroom's error to come
+  back at the counter (SimNotes, "A station's fix that moves the belief drops
+  the map"). ⚠ THE WINDOW'S SCANS ARE LAID AS THEY COME, ten a second: held
+  to one every 5 s, it lasted 146 s docked and the legs carried a belief 3
+  cm through it, the region laid along it; a window of one scan slid the
+  fits 3 cm along the lobby on walls one scan thick. ⚠ A RETURN NEARER
   THAN `MATCH_MIN_M` (1 m) IS NO POINT OF THE FIT (#581's stage 2): what the
   hands work on, struck by a ring or two at the part's noisiest -- matched,
   the band's matcher moved a dock's belief 40-67 cm in 16-19 s; and every
@@ -2819,7 +2877,8 @@ save a filmstrip PNG named after the script.
   AT THE STATION: after a step toward the seat the tags are out of view, and
   the belief carries the station between looks -- held on odometry alone,
   it drifted 4-7 cm over two steps and a seat came out 7 cm wrong.
-  The run, what it found and the window are kept state. ⚠ A scan is still
+  The run, what it found and the window are kept state (a save from before
+  #681's pair restores its window closed: it was a kept map's). ⚠ A scan is still
   laid in at half its points on walls: a stricter bar kept the living room
   from being laid over, and refused the scans that re-lay an eroded wall.
   ⚠ No BLAS product (einsum's own loop); the field is kept state.
@@ -2829,10 +2888,23 @@ save a filmstrip PNG named after the script.
   where the belief puts it is a robot LOST** (issue #476, on two legs #559;
   `HumanoidBody._fix_at`, `lost_routine`; SimNotes, "The humanoid's charging
   station"): each station is commissioned (#560: three), as the
-  quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` moves
-  the belief and lays again what its next scan sees (#741, above); ⚠ PAST THE MATCHER'S SEARCH (`ASKEW_*`) THE MAP AND ITS
-  PLACES ARE DROPPED: kept, a map laid while lost pulled a corrected belief
-  onto a copy within 20 s. The station not in sight from the standoff a
+  quadrupeds' dock was, and a look at its two tags past `FIX_TOL_*` (10 cm,
+  2 deg) moves the belief -- ⚠ AND DROPS THE MAP AND ITS PLACES, whatever
+  it moved by (#681; `forget_world`; SimNotes, "A station's fix that moves
+  the belief drops the map"), the dock's window laying the map afresh
+  (above; never the lost search's):
+  kept, each region held the offset of the belief that laid it and the
+  matcher held the belief to it -- back at the counter after a lobby fix,
+  the storeroom's error came back at once (live 11-25: -13.9 cm, as before
+  the fix), where on a map a fix had dropped (11-22) a try moved the belief
+  0.9 cm for 8.5 hours; and a map laid while lost pulled a corrected belief
+  onto a copy within 20 s. ⚠ ITS HISTORY LINE SAYS HOW FAR (cm under a
+  metre, tenths of a degree under ten) AND WHAT WENT, NEVER WHY (`MAP_GONE`):
+  it measures the belief, never the map. ⚠ The explore that laid the map
+  goes with it, as a stand-up's (`floorExplored` false, nothing
+  blacklisted). ⚠ A copy
+  under `FIX_TOL` fires none (Luca's house dock of 11-25 sat 8.4-9.4 cm
+  west for 80 minutes). The station not in sight from the standoff a
   charge reached (or within `NEAR_STANDOFF_M`) is a robot lost
   (`Body.lost_routine`, by its LIDAR, never its belief: above), searched
   ONCE a charge -- ⚠ NEVER WITH ANOTHER ROBOT PLUGGED IN THERE OR BY ITS
@@ -2898,7 +2970,8 @@ save a filmstrip PNG named after the script.
   out (#401) did. ⚠ The
   signs are put in at load (`humanoid/world.py`), after the robots. ⚠
   Places ride a restart WITH the map (no map back, no places) and a true
-  death or a stand-up forgets both (`Body.forget_world`). `find` is a verb where
+  death, a stand-up or a station's fix that moves the belief (#681) forgets
+  both (`Body.forget_world`). `find` is a verb where
   `world_config` has `places`.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `humanoid/senses.py`, Parts.md's
