@@ -10,6 +10,104 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `face`'s line says its heading is in the map (#754's option 1, C1, `loop-754`) — opens when this PR is deployed
+
+**What the robots read** moves by one line, on purpose: the prompt
+`264ac7f6…` (72,130 characters, 17 sections) becomes `3f8b2dc7…` (72,160
+characters, 17 sections), one section moved, PROCEDURES YOU MAY WRITE. The
+session host's hello `9dcf6202` is byte for byte as it was: a session's verbs
+are the practice's, and `face` is not one of them. No History line is new or
+reworded.
+`face`'s line in the verb list, a draft for Ben, BEFORE: "turn in place; ok
+when squared within the budget"; AFTER: "turn in place to `heading`, rad in
+your map; ok when squared within the budget" (+30 characters). #754's draft
+added "(as `find.facing` reads it)" after "map". It was written before anyone
+saw that this names the one map angle a robot holds, which points out of the
+tag, so `face(find.facing)` would turn the robot's back on it. What is built
+names the frame alone; that draft and a third wording are Ben's to choose
+among at the release.
+
+**What a deployed robot does**: nothing new. `face` turns as it did, until
+its belief's heading in its map is within 4 deg of the one asked
+(`HumanoidMission.face_routine`; a direct call pins it), and no procedure
+reads a verb's text.
+
+**Why** (#754). The procedures' opening says it once, for both walks ("its
+walks (`drive_to`, `face`) go by your map"), but `face`'s own line never named
+a frame, while each reading of a place names its own: `spot.*` the stance
+frame, `find.facing` "rad, in your map". Nothing reads the robot's own heading
+in its map, so the map headings a procedure holds are `find.facing`'s and
+numbers it writes. Rowan turned to bearings `spot` had read in its stance
+frame, `face(atan2(spot.y, spot.x))`: in `t_0800` (11-25, t=363223) the
+drawer's knob read 0.21 rad to its right, `face(-0.21)` turned it from map
+heading -0.98 to -0.21, 44 deg left where 12 deg right was meant, and the knob
+left the picture. It found the frame itself at t=382797, and Ben's ticket
+replies of 11-25 told it the same.
+
+**The baseline**, the wakes of 11-18, 11-21/22 and 11-25, off each wake's
+`procedure` rows and the sim's log (`count_face.py EXPORT_DIR` in
+`~/pluggybot-training/loop-1126b/c1-754/`: each `face` call's argument classed
+by what feeds it in the source its run ran, its nearest assignment first). A
+call with `atan2` of `spot`'s place written in it, #754's count: 78 calls in
+16 runs, the next `spot` refused after 61. With the same bearing passed
+through a variable as well (`f = atan2(ky, kx)`, then `face(f)`; 11-18
+only): 88 calls in 23 runs. All are Rowan's:
+
+| wake | written in the call: calls (runs), next `spot` refused | through a variable: calls (runs), next `spot` refused |
+|---|---|---|
+| 11-18 | 15 (4), 12 | 10 (7), 0 |
+| 11-21/22 | 22 (6), 10 | 0 |
+| 11-25 | 41 (6), 39 | 0 |
+
+None of Luca's 137 `face` calls takes a stance bearing: 132 take
+`find.facing` plus or minus a half turn, and the next `spot` was refused after
+12 of them; 5 take constants. By the end of 11-25, Rowan had dropped all
+eight procedures the issue names (the last, `door_p7`, at its own finding).
+One written before that finding still passes a stance bearing
+(`probe_cube2`, line 78), and its one run stopped before reaching it.
+
+**What to read.** The weekend's wakes (11-28 and 11-29, build 4e486aa1) fly
+the old line: they are a second reading before, after Rowan's own finding.
+On the wakes after this deploys: `face` calls fed a stance bearing, in either
+form, and the `spot` after them, against the baseline; whether a turn toward a
+tag `spot` read goes by `step`'s `turn` instead; and a `face` fed
+`find.facing` with no half turn (none in the baseline).
+
+### A way home something holds back is held where the trunk tips back (#693's second path, #753; D4, `loop-693e`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `264ac7f6…` (72,130
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No word is new: a `withdraw` reads false more often,
+"your left arm did not get home: something holds it there" (its text already
+says an arm something holds on its way home is raised 5 cm and sent home
+again, and still held stays where it is held), and a walk's report says
+`armHeld` where a hand-over's way home was held.
+
+**The change** (`Reach._leaning_back`, `trunk_back`; SimNotes, "A way home
+that tips the body back"). Any way home -- a withdraw's, a walk's
+hand-over's, the loop's own; never a carry's way to its pose -- whose
+drivers read the arm more than 0.2 rad off its command while the trunk, as
+its IMU reads it, tips back past 2 deg off the posture its legs hold, for 0.1
+s running, is held where they read it, as #693's holds are: eased, raised 5
+cm and sent home again twice, then left held. It answers #753 too: the walk's
+hand-over that sends an arm left held home again holds it the same way, and
+the walk goes with it held.
+
+**What the period is for.**
+- **The acceptance**: falls in a way home at the counter -- inside a
+  `withdraw`, and in a walk's hand-over after one that read "held" -- against
+  the period before (the wake of 11-25: none inside a withdraw in 149, and
+  Luca's one fall in the `step` after a held withdraw, `t_0818`).
+- **What it costs**: `withdraw`s that read "held" (a procedure step whose why
+  is "held") and whether the run then ended where it would have gone on (flown:
+  Ben's bar's door 112, whose way home drags the door's panel as the door gives,
+  read "held" and its run ended, 18 deg open where the base's opened 93); walks
+  that go with an arm held (`armHeld`) and what the arm meets on the way.
+- **What it leaves**: a crouched withdraw whose drag rolls the trunk before it
+  tips it back (`t_0818` k22, `t_0799` k3 in the flights: the rule reads them
+  0.12-0.24 s before the fall), and a fall that begins in #693's raise, the
+  next way home free.
+
 ### A History line no longer holds the world while its view re-renders (D3, `loop-d3-history`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `264ac7f6…` and the

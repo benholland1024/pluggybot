@@ -8251,8 +8251,8 @@ interleaved; the loop of 11-25b, C3):
   the cup is let go 4 cm from where the base's are, the fork 3. The card is
   read within 5 mm and 0.2 deg on both (a spy beside each look). The cure's
   let-goes are as tight as the base's (the cup's 1.4 cm a side against 1.3), a
-  constant away: moved by it, 27 of 30 cups and 28 of 29 forks would land (by
-  arithmetic, not flown).
+  constant away; aimed again by it, most land (the pass's section, below,
+  round 9).
 - **carry_spike** (`--served`; 12 cases over 9 courses on a bare floor and
   the house's route, 4 draws each): no fall on either tree. On a bare floor
   the open-loop courses ended 0.19 m from where they were asked (median),
@@ -8283,15 +8283,11 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), nine times, and has not met it (the reference as it stands, round
-5's, read 17 of 32 beside round 7's lever and again beside round 8's, the
-same flights on two trees and two pods of one CPU type, and 15 and 16 held
-out on 5060fe0's pool and eba1489f's -- round 8's tree 9ee9298b, before
-#693's withdraw case, which the pass has not flown; on the same 32 draws it read 15 on
-round 5's tree and pod and 14 on round 6's: the tree and the CPU changed
-together each time, and the count moved with them; the bar is still 7
-away). What
-developing it took, each
+below), ten times, and has not met it: the reference as it stands, round
+5's with its put-downs aimed again on #751's cure (round 9, below), lays 12
+of 32 on the bar's draws and 16 of 32 sealed by 302f369, no fall, where the
+reference before it laid 4 and 1 on the same pod -- the bar is 12 away.
+What developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
 `~/pluggybot-training/loop-1113/l4-shelf/`, round 3's in
@@ -8482,8 +8478,8 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   read twice on one pod (an AMD EPYC 7B13, osmesa), then a third time on
   another (an AMD EPYC 7K62), a fourth on another (an AMD EPYC 7763), and a
   fifth and a sixth on another (an AMD EPYC 9684X), a seventh on another
-  (an AMD EPYC 7742), an eighth on another (an AMD EPYC 9654), and a
-  ninth on another of that kind:
+  (an AMD EPYC 7742), an eighth on another (an AMD EPYC 9654), a
+  ninth on another of that kind, and a tenth on a Xeon E7-8890 v4:
   - At b531491 (the cup aimed 2.5 cm short): walk2 0 of 32, the carry walker
     0; held out, 1 (laid in 421 s) and 0. The first piece not laid, a flight
     (walk2's bar and held-out draws, then the carry walker's): the cup let
@@ -8658,6 +8654,15 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     reference's slipped in 18, and was laid 49 times where 45. Not better on
     the bar's draws, and it fell once more: it was taken back out (round 8,
     below).
+  - At 302f369f (round 9, below: the cup's and the fork's put-downs aimed
+    again on #751's cure), on walk2 shown its arms at rest while it carries:
+    12 of 32; held out (sealed by 302f369), 16; no fall. On the same pod, the
+    reference before it (85449ac8) laid 4 of 32 and 1 held out. The first
+    piece not laid (the bar's draws, then the held-out): the cup's put-down 8
+    and 5, the cup let go carried 2 and 1; the plate's put-down 4 and 0, the
+    plate let go carried 2 and 0; the fork 4 and 10 (lost at the hand-over 0
+    and 3, set down off its spot or dropped 3 and 7, let go carried 1 and
+    0). Kept.
 - **What round 3 left, measured beside its reading** (not in the
   reference; round 3 ended with the reading):
   - **The fork's pull-back as a fixed length** from where its hand gripped
@@ -8950,6 +8955,38 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     - the plate, 9: let go carried 6, its pick 1, its put-down 2.
 
     The cup's put-down and the fork's are more than half of it (36 of 63).
+- **Round 9** (the loop of 11-26b, its lane A's round 1;
+  `~/pluggybot-training/loop-1126b/a1-pass9/`, one pod, a Xeon E7-8890 v4,
+  osmesa, each draw its own noise; the tree 85449ac8 carried #751's cure,
+  #681's pair, #724 and #693's second path): the put-downs aimed again on
+  the cure.
+  - **A census first**, round 5's reference at the bar's draws with a carry
+    recorder (shown passive: draws 0-7 flown plain too, the same end state
+    to the bit): 4 of 32, no fall -- 31 of the flights C3 read on the cure
+    (3 of 32, a Xeon E5-2699 v4) to 0.1 mm, the 32nd parted by #681's pair
+    in the cup's find of the card and laid. First pieces not laid: the cup's
+    put-down 22, the cup let go carried 2, the fork 4.
+  - **Each put-down a constant away, measured on dev draws** (W4's
+    3600-3663, the base 0 of 64): in the grader's frame -- toward the diner,
+    to the diner's left -- the cups came down a median -1.5, +3.2 cm off
+    their spot, the forks -2.0, -1.7, the plates +0.2, -1.0 (59 of 61 within
+    2.5 cm). The cup's aim moved by its offset in the card's frame
+    (`PASS_CUP_AT` 0.066, 0.209 -> 0.081, 0.24), the fork's in the stance
+    frame (now `PASS_FORK_AT`, 0.18, 0.146 -> 0.20, 0.163), the plate's
+    named (`PASS_PLATE_AT`) and not moved. On the dev draws: 33 of 64 where
+    0, the medians near the spots (the cup -0.4, +0.2; the fork -0.1,
+    -0.1) -- but the spread wider than the arithmetic hoped (the cup's sd
+    1.1 / 1.6 cm where 0.8 / 1.0; within 2.5 cm 49 of 60, not 58): the
+    cups set down off it stood turned the wrong way or too far at the
+    put-down. Read on the bar's draws and sealed draws (above): 12 and 16 of
+    32.
+  - **What it leaves** (its first pieces not laid over the bar's 32 and the
+    sealed 32): the cup's put-down 13, the fork 14, the plate 6, the cup let
+    go carried 3. And what the carried pieces meet: traced through every
+    walk's hand-over, the census's plate met the pass's counter in 30 of 32
+    hand-overs and the fork in 19 of 31 -- in the arm's way to its carry
+    pose, not as the walk turned away -- and every fork that turned past 10
+    deg in the jaws turned after such a touch (round 10's lead).
 
 ## The arms keep off the other robot (issue #678)
 
@@ -11796,6 +11833,122 @@ their third way home); and a stall that reaches the rest before `STALL_S`
 has run, which #693b's 0.5 s holds, as it did (the family's new drawer
 fall) -- counted on into the rest, the hold would come 0.2 s sooner on 14 of
 the bar's cube set-outs that pass.
+
+## A way home that tips the body back (issue #693's second path, #753)
+
+The loop of 11-25, the second (C1), flew the robots' own procedures at the
+wake of 11-25's live draws: 6 of 242 withdraws fell on the live tree, each
+dragging a jaw over the storeroom counter's top, a door or a drawer at
+50-200 N without stalling 0.5 rad. The loop of 11-26 (D1) found #753's falls
+-- a walk's hand-over sending an arm left held home again -- the same way
+home, begun from the held pose. On `loop-staging` b61ce0b1 (D4: one pod,
+every way home recorded tick by tick with the robot's own readings beside
+the truth; `~/pluggybot-training/loop-1126/d4-693/`), 73 of 254 flights of
+the robots' own procedures at those draws fell, every one in such a way
+home: 8 withdraws, #753's hand-overs at the same keys under every walk (the
+hand-over is one routine), and the robot's own next withdraw after a walk
+with the arm held.
+
+**Why.** The jaw drags over the top as the arm comes home, and the drag and
+the top's push up shove the body back. Four shapes:
+- **The hand-over's way home from the held pose** (#753): 135-213 N, the
+  arm 0.9 rad behind its command; the stall's count reads 0.27-0.28 s as the
+  command reaches the rest, where it stops counting, and `HELD_S`'s count
+  begins from nothing while the arm presses on at full stiffness: the trunk
+  went over 0.44-0.46 s after the command arrived.
+- **Slower ones** (a third way home after two raises, the next withdraw, C1's
+  t_0846 k6 and t_0855 k6/k7): the lag climbs to 0.5 and a slip resets the
+  count, or the command arrives under it.
+- **Crouched withdraws with the stand kept** (t_0818 k22 at (-0.16, 0, 0.26),
+  t_0799 k3): the trunk rolls first (k22: -1.8 -> -7.9 deg over 0.7 s, its
+  pitch within half a degree), the arm 0.3 rad behind, and the pitch goes
+  over in the last 0.3 s.
+- **Begun in a raise** (t_0846 k3, t_0855 k4): #693b's raise taken with the
+  trunk already 4.4-5.9 deg back, and the next way home, nothing holding it,
+  fell.
+
+**What the robot reads.** The arm's own reading of a shove (`_shoved`, a
+walk's hand-over's) reads the drag as a tip TOWARD the hand, -1 to +6 N m
+(the top pushes the hand up): blind. The stall's count is reset or cut off.
+What tells is the trunk tipping back off the posture its legs hold, as its
+IMU reads it, the arm held back as it does: past 2 deg 0.42-1.34 s before
+every fall of the first two shapes, the drivers 0.42-0.95 rad behind the
+command then; 0.12-0.24 s before the crouched ones (k22's arm 0.30 behind).
+Off the posture the legs hold (`held_pitch`: the pitch the standing policy
+is shown, less its trim), a way home out of a bow mostly reads forward: the
+stand asked as the arm sets off walks the shown pitch down ahead of the
+trunk. Of the 900 ways home that began in a bow on the base's flights (these
+draws, Ben's bar, the robots' 200 tries, the held-out keys), the median
+tipped back 0.2-0.3 deg at most, and three past 2 deg: 4.4 (one the base held
+at its rest anyway), 2.2 and 2.1.
+
+**Not a way home nothing holds.** Read off the trunk alone (2 deg for 0.1 s,
+flown as a flight-only patch on the dev set), the rule took every hand-over
+fall at `t_0818` (6 of 6, the door then passing) but gained a fall at the
+sidestep's k10: a lean an earlier drag left held the next, free way home
+after its raise (its drivers 0.04 rad off), then the one after, the arm was
+left out, and the robot fell where the base's way home came home and the
+body stood up from 8.5 deg back. And the hands checks' free ways home tip
+back past 2 deg too (Ben's bar's base: door 31, drawer 26, lid 19 and 30,
+place 31). A hold eases a press; on a way home nothing holds, it only keeps
+the arm out. So the arm must be held back as well: of the 74 falls the
+trunk's tip caught (73 on those flights, Ben's bar's base's one), all but
+three read the arm 0.30 rad or more behind; those three were free ways home
+whose lean began before them (in a raise, and the bar's lid 12).
+
+**What is true now** (`Reach._leaning_back`, `trunk_back`, `TIP_BACK_RAD`,
+`TIP_BACK_LAG_RAD`, `TIP_BACK_S`; `tests/test_hands.py`): any way home --
+a withdraw's, a walk's hand-over's, the loop's own -- but a carry's way to
+its pose, on its way in joint space or its rest commanded and not yet read
+there, whose drivers read the arm more than 0.2 rad off its command while
+the trunk tips back past 2 deg off the posture its legs hold, for 0.1 s
+running, is held where they read it, as #693's holds are: eased, raised 5 cm
+and sent home again twice, then left held; a withdraw then reads "held" and
+a walk goes with the arm held (`armHeld`), as before. No word moves. The tip
+is the whole body's, so an arm held back past the line is held whichever
+hand's work tipped the trunk; and the loop's own ways home (a charge's
+plug-in and unplug) are held as #693's other holds hold them, never refused:
+the charge reads no release's word and goes on, and the next release or walk
+sends the arm home again.
+
+**Flown** (each leg base b61ce0b1 and the rule at 249ef763 on one Vast pod,
+osmesa, Python 3.12.3; the robots' own procedures at their live draws):
+- C1's and D1's draws (164 flights, a Xeon E7-8890 v4): falls 26 -> 9, passes
+  54 -> 71; the rule acted in 49, and the other 115 are the base's but two
+  moved with no hold the trace shows apart (a charge walk's held 0.02 s
+  before the stall's; one that falls on both trees, after its fall). One
+  gained a fall, the sidestep's k10: the rule held its first withdraw's second
+  way home 0.008 s before the stall would have, the step after it then
+  stepped where the base's got nowhere, and from there its next withdraw's
+  way home was held, raised, and the free way home after it fell. With the
+  rule switched off at that withdraw it falls there too, sooner: the moved
+  trajectory's fall, not the hold's.
+- The same five draws at keys sealed by the rule's commit (80, a Xeon
+  Platinum 8160): falls 21 -> 11, passes 24 -> 32, no fall gained, no pass
+  lost.
+- The robots' own 200 tries at their live draws (A2's set, the wakes of
+  11-21/22): 195 the base's, 5 moved by a hold, every outcome the same.
+- The station's approaches, seats and lost starts (199): the base's, row for
+  row. The loop's charge walk after a job (12): the rule acted in 3, every one
+  plugged in. The pair's recorded day: the committed fixture's but its two
+  wall-clock stamps.
+- Ben's bar on the final code (736, the Xeon E7-8890 v4): 617 passes and 4
+  falls on both trees, two flights moved, both by a hold: the tour's table 6
+  now passes, and the held-out door 112 no longer does. Its reference's fourth
+  withdraw drags the jaw over the door's panel as the door gives (87 N, the arm
+  0.88 rad behind, the trunk 3.1 deg back); held there, its raises spent, it
+  reads "held", the reference's run ends, and the door stands 18 deg open where
+  the base's went on to 93 -- U2's door 112 of 11-19. By what the robot reads,
+  a door that gives is a counter.
+
+**What it does not take.** A crouched withdraw whose drag rolls the trunk
+before it tips it back (k22, t_0799 k3; at keys sealed by the rule, three
+more): the rule reads it 0.12-0.24 s before the fall, too late. A fall begun
+in #693's raise, the next way home free (four at the sealed keys), and a
+third way home held with its raises spent that still goes over (three). A
+tilt off where the trunk stood as the way home began, with the lag, reads the
+crouched ones 0.36-0.92 s ahead, but fires on 43 drags that come home on
+their own (the door's boss and panel at 99-230 N among them).
 
 ## A station the other robot is plugged into (issue #731)
 

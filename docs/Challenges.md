@@ -527,10 +527,11 @@ SimNotes has round 4's reference read beside it). The lever each of
 rounds 6, 7 and 8 froze was read on the bar and taken back out (the rest
 were read on dev draws only): the reference is round 5's (SimNotes, "The
 place laid from the pass", rounds 6-8). With walk2 shown its arms at rest
-while it carries (#751's cure), it lays 3 of 32 where the tree before laid 16,
-one pod: its put-downs were tuned on a settle the seeing walker's carried
-turns left, and land a constant 3-4 cm off (SimNotes, "The walker shown its
-arms at rest while a hand is carried").
+while it carries (#751's cure), its put-downs, tuned on a settle the seeing
+walker's carried turns left, landed a constant 2-3.5 cm off: 4 of 32. Aimed
+again by where dev flights on the cure set each piece down (the loop of
+11-26b's round 1), it lays 12 of 32 where that base laid 4, and 16 of 32
+held out where 1, no fall, one pod.
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
 

@@ -362,6 +362,26 @@ HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: AT ONCE: the door check's first ways home catch a jaw on the door's top up
 #: to 0.97 rad behind, and slip free inside 0.45 s.
 STALL_RAD, STALL_S = 0.5, 0.3
+#: ...and any way home, a withdraw's and the loop's own too, is held so where
+#: the trunk, as its IMU reads it, tips back past this off the posture its legs
+#: hold, rad, while its drivers read the arm more than this off its command,
+#: rad -- something holds it -- this long running, s (`_leaning_back`,
+#: `trunk_back`; SimNotes, "A way home that tips the body back"): a jaw dragged
+#: over a counter's top shoved the body back while its arm neither stalled past
+#: `STALL_RAD` -- its count reset by a slip, or cut off as its command reached
+#: the rest -- nor read the shove, the counter pushing the hand up so that its
+#: reading tipped the body TOWARD it; the trunk went 2 deg back 0.4-1.3 s before
+#: each fall, the arm 0.30-0.95 rad behind. ⚠ NEVER A WAY HOME NOTHING HOLDS:
+#: held for a lean an earlier drag left, a free way home after a raise was held
+#: again and again and the arm left out, and the robot fell where the base's came
+#: home and the body stood; and the hands checks' free ways home lean back past
+#: 2 deg too. ⚠ OFF THE POSTURE THE LEGS HOLD (`held_pitch`: the pitch the
+#: standing policy is shown, less its trim), NEVER UPRIGHT: out of a bow the
+#: stand walks down ahead of the trunk, which mostly reads forward of it (of
+#: 900 such ways home on the base's flights, three tipped back past 2 deg). ⚠
+#: The tip is the whole body's: an arm held back past the line is held whichever
+#: hand's work tipped the trunk -- eased and raised, as any hold.
+TIP_BACK_RAD, TIP_BACK_LAG_RAD, TIP_BACK_S = math.radians(2.0), 0.2, 0.1
 #: The phases of an arm that keeps no hand at work: at its rest, carried at
 #: the side a walk carries it at (#682), or left where its way home was held
 #: (`HELD_S`) -- what the stand's return waits on (`_go_home`), and what a
@@ -1492,6 +1512,9 @@ class Reach:
     #: ...and how long its way home's drivers have read the arm past
     #: `STALL_RAD` behind its command, running (`STALL_S`).
     self._stall = {s: 0.0 for s in hm.SIDES}
+    #: ...and how long the trunk has tipped back past `TIP_BACK_RAD` off the
+    #: posture its legs hold while its way home runs, running (`TIP_BACK_S`).
+    self._back = {s: 0.0 for s in hm.SIDES}
     self.every = max(1, round(EVERY_S / model.opt.timestep))
     self.steps = 0
     #: The posture the plan wants -- the pelvis's height off the stand's,
@@ -2853,6 +2876,7 @@ class Reach:
     self.q_to[side] = self.homes[side].pop(0)
     self.phase[side] = "home"
     self.homing[side], self.held_for[side], self._stall[side] = True, 0.0, 0.0
+    self._back[side] = 0.0
     # ...and the stand once no hand is out at its work -- one carried at the
     # side is none (#682); kept the reach's bow, a withdraw left it bowed --
     # but off the stand, an arm with none of it ahead of the robot's front
@@ -2905,9 +2929,9 @@ class Reach:
       self.hold_posture(0.0, 0.0)
 
   def _raise_short(self, side: str) -> bool:
-    """Whether a raise (`_held_home`'s: `_homed`, `_shoved`, `_stalled`)
-    whose command has arrived has its arm short of it: its grip, by its
-    senses, more than `BLOCKED_M` from it."""
+    """Whether a raise (`_held_home`'s: `_homed`, `_shoved`, `_stalled`,
+    `_leaning_back`) whose command has arrived has its arm short of it: its
+    grip, by its senses, more than `BLOCKED_M` from it."""
     c, at = self.cmd[side], self.sensed_grip[side]
     return (self.lifted[side] > 0 and not self.homing[side] and c is not None
             and at is not None and float(np.linalg.norm(at - c.pos)) > BLOCKED_M)
@@ -2958,14 +2982,38 @@ class Reach:
     self._stall[side] = self._stall[side] + dt if over else 0.0
     return self._stall[side] >= STALL_S - 1e-9
 
+  def trunk_back(self) -> float:
+    """How far the trunk has tipped back off the posture its legs hold, rad
+    (+ backward), as its IMU reads it: the pitch the standing policy is shown,
+    less its trim (`held_pitch`), less the pelvis's pitch off the filter's
+    gravity (`policy.TrunkSense`, the one every policy steps)."""
+    g = self.stand.trunk.gravity()
+    return self.held_pitch() - math.atan2(float(g[0]), -float(g[2]))
+
+  def _leaning_back(self, side: str, dt: float) -> bool:
+    """Whether an arm on its way to its rest -- in joint space, or its rest
+    commanded and not yet read there (`homing`, `home`) -- and held back from
+    it, its drivers more than `TIP_BACK_LAG_RAD` off its command, any joint,
+    has had the trunk tipped back past `TIP_BACK_RAD` off the posture its legs
+    hold (`trunk_back`), as its IMU reads it, for `TIP_BACK_S` running; `dt`
+    its tick. A carry's way to its pose never has (#682)."""
+    arm = self.self_model.arm[side]
+    homing = self.carry_q[side] is None and (
+      self.phase[side] == "home"
+      or (self.phase[side] == "rest" and self.homing[side] and not self.home(side)))
+    over = (homing and float(np.abs(self.sensed[arm] - self.q_cmd[side]).max()) > TIP_BACK_LAG_RAD
+            and self.trunk_back() > TIP_BACK_RAD)
+    self._back[side] = self._back[side] + dt if over else 0.0
+    return self._back[side] >= TIP_BACK_S - 1e-9
+
   def _held_home(self, side: str) -> None:
-    """A way home held (`_homed`, `_shoved`, `_stalled`): eased where its
-    drivers read it, pressing on nothing, then raised `LIFT_M` and sent home
-    again `LIFTS` times a way home, else left there ("held"). Its counts begun
-    again: a raise's line never reads them, and the next way home has its
-    whole hold; its way still to walk forgotten, and left there, watched no
-    longer."""
-    self._shove[side] = self._stall[side] = 0.0
+    """A way home held (`_homed`, `_shoved`, `_stalled`, `_leaning_back`):
+    eased where its drivers read it, pressing on nothing, then raised `LIFT_M`
+    and sent home again `LIFTS` times a way home, else left there ("held").
+    Its counts begun again: a raise's line never reads them, and the next way
+    home has its whole hold; its way still to walk forgotten, and left there,
+    watched no longer."""
+    self._shove[side] = self._stall[side] = self._back[side] = 0.0
     self.homes[side] = []
     q = self._ease(side)
     if self.lifted[side] >= LIFTS or len(self.keep_out):
@@ -3071,7 +3119,7 @@ class Reach:
           "_off", "_tip", "steps", "posture", "trim", "tau", "qd", "standing", "force",
           "arm_force", "sensed_grip", "speed", "pulls", "report", "waist_cmd", "waist_speed",
           "allowed", "left", "looks", "looking", "carry_q", "stand_home", "homing",
-          "held_for", "lifted", "kept_by", "_shove", "watch_home", "_stall")
+          "held_for", "lifted", "kept_by", "_shove", "watch_home", "_stall", "_back")
 
   def kept_state(self) -> dict:
     return {"reach": {k: kept_value(getattr(self, k)) for k in self.KEPT},
@@ -3525,11 +3573,12 @@ class Reach:
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s], stiffness = 0.0, self.cmd[s].stiffness
       elif phase in ("rest", "move", "joints", "home", "carried", "held"):
-        if self._shoved(s, dt) or self._stalled(s, dt):
-          # ...a way home that would tip the body away from its hand, or whose
-          # arm stalls as its command walks on, is held where its drivers read
-          # it, as one its rest is held from (#693's live family, its withdraw
-          # case): eased, or raised, never on toward its rest
+        if self._shoved(s, dt) or self._stalled(s, dt) or self._leaning_back(s, dt):
+          # ...a way home that would tip the body away from its hand, whose
+          # arm stalls as its command walks on, or as the trunk tips back, is
+          # held where its drivers read it, as one its rest is held from
+          # (#693's live family, its withdraw case, its second path): eased,
+          # or raised, never on toward its rest
           self._held_home(s)
           phase = self.phase[s]
         elif phase == "rest" and self.homing[s]:

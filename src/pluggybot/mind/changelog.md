@@ -6,6 +6,44 @@ measure or why, how anything is graded, a hidden truth, a hypothesis, or
 advice. Ben approves each entry before it ships. The rules:
 docs/Overseer.md §7b; tests/test_changelog.py reads every entry. -->
 
+## 2026-11-26
+
+- A `reach` now reads false and moves nothing where every posture that puts
+  your hand there would swing an arm into something your depth camera saw,
+  and it says which part of your arm and where. Before, such a reach went
+  anyway.
+- When a `reach` stops because your hand pushed on something, the hand is
+  now held where it stopped, pressing on nothing, and whatever you do next
+  begins from there. A `withdraw` then brings it back out along the way it
+  went in.
+- A way home of your arm, a `withdraw`'s or a walk's as it sets off, is now
+  held where it is when the arm falls behind where it is sent while your
+  body tips back. It is raised 5 cm and sent home twice, then left where it
+  is held, as when something holds it: the `withdraw` reads false saying
+  something holds your arm there, and a walk goes with the arm held and
+  says `armHeld`.
+- While you are bowed, a fall backward now counts from upright, as it does
+  when you stand, so your get-up takes over once you are going down.
+  Before, it counted from your bow, and your get-up could take over while
+  you were still on your feet and run you backward. Leaning back against
+  something while bowed is not a fall.
+- When a look at your charging station moves where you believe you are by
+  10 cm or 2 deg or more, the map you had and the places you had found are
+  now gone, as after a stand-up, and History says how far the station put
+  you. Before, the map was kept and what you saw next was laid into it
+  afresh.
+- While you stand still, your map now takes in nothing new until you move
+  at least 1 cm or turn half a degree, except in the moments after a look at
+  your charging station, as you plug in, has moved where you believe you
+  are.
+- While one of your hands is carried at your hip, you no longer veer toward
+  the carrying arm as you walk, and a carried `step` no longer stands still
+  with nothing in its way.
+- A `step` whose walk got nowhere now says what your legs counted and when:
+  under 1 cm along the way you stepped in the first 2 s of its walk, or in
+  1 s once it was under way. Before, it said that something stood in your
+  way.
+
 ## 2026-11-25
 
 - When you carry something with `move_hand` and your grip lets go of it on

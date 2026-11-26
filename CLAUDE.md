@@ -486,7 +486,24 @@ save a filmstrip PNG named after the script.
   jaw on a top's edge wound the arm 0.7 rad behind, shoving the robot 13 cm
   back, then slipped off and the arm snapped home -- over backward; ⚠ held,
   never at once: the door check's first ways home catch a jaw on the door's
-  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ BOTH WAYS KEEP OFF
+  top up to 0.97 rad behind and slip free, past 0.5 rad 0.25 s at most. ⚠ AND
+  ANY WAY HOME IS HELD SO WHERE ITS DRIVERS READ THE ARM MORE THAN
+  `TIP_BACK_LAG_RAD` (0.2 rad) OFF ITS COMMAND WHILE THE TRUNK, AS ITS IMU
+  READS IT, TIPS BACK PAST `TIP_BACK_RAD` (2 deg) OFF THE POSTURE ITS LEGS
+  HOLD, FOR `TIP_BACK_S` (0.1 s) RUNNING (#693's second path, #753;
+  `Reach._leaning_back`, `trunk_back`; SimNotes, "A way home that tips the
+  body back"): a jaw dragged over a counter's top shoved the body back while
+  its arm neither stalled past 0.5 rad (a slip reset the count, or the command
+  reached the rest first) nor read the shove (the counter pushes the hand up:
+  its reading tipped the body TOWARD it) -- a withdraw's, and a walk's
+  hand-over sending an arm left held home again (#753); ⚠ NEVER ONE NOTHING
+  HOLDS: held for a lean an earlier drag left, a free way home after a raise
+  was held again and again, the arm left out, and the robot fell where the
+  base's came home; ⚠ A DOOR THAT GIVES READS AS A COUNTER: held, the bar's
+  door 112 reference read "held" and its run ended (as the tour's table 6 won
+  a pass); ⚠ OFF THE PITCH THE STANDING POLICY IS SHOWN, LESS ITS
+  TRIM (`held_pitch`), NEVER UPRIGHT: out of a bow the shown pitch walks down
+  ahead of the trunk, which mostly reads forward of it. ⚠ BOTH WAYS KEEP OFF
   ANOTHER ROBOT THE LIDAR SEES IN ONE LOOK AS THE MOVE BEGINS (#678;
   `Reach._kept_off`, `HumanoidMission.look_round` and `keep_out`;
   SimNotes, "The arms keep off the other robot"): a
@@ -1155,14 +1172,13 @@ save a filmstrip PNG named after the script.
   (one of 0.24 m or more bowed 31 deg, stood up out of it and fell, 6 of
   21) and ⚠ tries the cup's pick again where its descent is held back on
   the lid (every such pick was lost): `test_solutions`. ⚠ ITS BAR (24 of 32
-  over the tour, a fall failing the try) IS NOT MET: 15 of 32 on walk2
-  (round 5), held out 15, the carry walker 0 (each miss, and round 4's
-  reference read beside it: SimNotes) -- ⚠ and with walk2 shown its arms at
-  rest while it carries (#751's cure), 3 of 32 where the tree before laid 16
-  on one pod: its put-downs were tuned on a settle the seeing walker's
-  carried turns left, and land a constant 3-4 cm off, which a retune would
-  most likely take back (SimNotes, "The walker shown its arms at rest while
-  a hand is carried").
+  over the tour, a fall failing the try) IS NOT MET: with walk2 shown its
+  arms at rest while it carries (#751's cure) its put-downs, tuned on a
+  settle the seeing walker's carried turns left, landed a constant 2-3.5 cm
+  off (4 of 32); ⚠ aimed again by where dev flights on the cure set each
+  piece down (the cup's `PASS_CUP_AT`, the fork's `PASS_FORK_AT`; the loop
+  of 11-26b's round 1), 12 of 32 where the base laid 4, and 16 of 32 sealed
+  where 1, no fall, one pod (SimNotes, "The place laid from the pass").
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
