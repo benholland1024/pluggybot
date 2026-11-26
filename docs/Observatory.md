@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A short step straight to the left takes its first foot (B1, `loop-step-acc`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
+characters, 17 sections) and the session host's hello `9dcf6202` are byte
+for byte as they were. No word is new. A step's verdict and its `step.*`
+mean what they meant, and fewer left steps read "your step was too short to
+walk".
+
+**The change** (`STEP_LEFT_HOLD_S`; SimNotes, "Stepping toward the work"). A
+step asked straight to the left (after its turn, where it asks one) has its
+walk ended by its stop rule only once its legs count its stance 1 cm along its
+way (half its length where less), or after 1 s of its walking. The walker's
+first 0.16-0.58 s to the left are its pelvis leaning over planted feet, and
+its first move is the right foot closing in, about 3 cm of stance. Before, the
+stop rule ended a short left ask in that lean, and nothing moved. No other
+way, no oblique step and no turn changes, and neither does the stop rule's
+own reckoning.
+
+**Why.** In the robots' own 200 tries (X5's, at their live draws, on
+85449ac8), 212 of their 866 steps are `step(0, 0.06, 0)`, and 40 of those read
+`too short`. Twenty-two truly moved 0.2-2.1 cm; 18 moved 2.8-5.6 cm while
+their legs counted under 1 (the reckoning's undercount of a slide). A loop
+that reads `step.dy` after a step that reads false learns nothing and asks
+again.
+
+**What the period is for.**
+- **The acceptance**: History's "your step was too short to walk" lines (22
+  in the wake of 11-25, 6 over 11-21/22, 5 on 11-18), and the left steps of
+  6 cm or less among them, against the period before.
+- **What it costs**: a held step lasts 0.1-0.3 s longer. After a `face` turn
+  the first left move is 7-8 cm, so a 3-5 cm left step goes 7-9 cm where it
+  went under 2 (no robot's left step followed a `face` in the 200 tries). Watch
+  falls in a left step or right after one, against the period before.
+
 ### `face`'s line says its heading is in the map (#754's option 1, C1, `loop-754`) — opens when this PR is deployed
 
 **What the robots read** moves by one line, on purpose: the prompt
