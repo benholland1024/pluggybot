@@ -9196,7 +9196,8 @@ the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
 each piece fetched from the shelf and laid as the pass lays it (below).
 Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
 32 draws sealed by that commit, no fall, one pod: THE BAR IS NOT MET (its
-misses below). Measured first, before the kind was built, on a scratch
+misses below; a first round of levers, below, was tried and not frozen).
+Measured first, before the kind was built, on a scratch
 set-out flying the pass's own pick halves from in front of the shelf (the
 loop of 11-26b's A2; `~/pluggybot-training/loop-1126b/a2-shelftable/`, 38
 flights, osmesa, each its own noise):
@@ -9302,6 +9303,33 @@ where the pass's lay steps across only past 0.18 -- and the plate dropped at
 its put-down in 1; on the sealed draws the cup and the fork were put down
 off in 2 each, the plate off in 1 and let go carried in 1, and the cup's
 retry did not see it again in 1.
+
+**Round 1** (from 2bf94b77's misses, its rule sent before it flew; NOT
+FROZEN): the cup's retry turned toward it, the fork's let-go eased and its
+put-down stepping across past 0.17 m, the plate walked in from the card's
+south and not lowered, the fork not lowered. On dev draws 4000-4063 the
+whole place came out even with the frozen reference's 42 of 64 -- with every
+lever, 42 (paired +7 -7); with the cup's and the fork's alone, 42 (+1 -1) --
+though each did its job (every cup laid; no fork's descent out of reach, no
+fork let go at a drop's speed): the plate is the gap, let go carried in 9-10
+of 64 on every form tried. What the plate's drop is, read off the frozen
+reference's plate trips: its tilt in its pinch before the walk 6 deg or more
+in 22 of 124, 15 of them let go carried, under 6 deg in 102, 1; the pinch
+gives in every phase (of 10 let go carried, it slipped in the lowering in 4,
+the hand-over in 7, the walk in 8; of 53 kept, 2, 18 and 14), and the
+hand-over adds 6-8 deg more without a slip (its normal tips back and right:
+the live trunk against the statue the carry is solved on). Probes of the
+plate alone from the pass misled: walked in from the south and not lowered it
+was laid 50 times in 64 where the frozen reference's was 42 (+10 -2), on the
+whole place 9 let go carried against 9. On the whole place, squeezed at the
+gripper's most (120 N) it was let go carried 9 times in 61 where the cup's
+and the fork's levers alone left 10 (the place 42 against 40, +9 -7), and its
+lowering counter-turned against the carry's tilt -- which cut that tilt to
+about 3 deg -- 16 times (34 against 40): the drops are the pinch giving, not
+the tilt. Twice a fork's lift after its let-go took the waist to 60 deg, went
+out of reach, and the withdraw after it fell (the pass's lay; once in 16
+single-fork trips, once in 61 places). A `move_hand` that only turns the
+hand reads "arrived" before its turn is done (#767).
 
 **A thin piece's hand-over rises under a board above** (served code since the
 pass's round 10; reported to #682, not fixed). The walk's hand-over takes the
