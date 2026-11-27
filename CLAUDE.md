@@ -1232,8 +1232,8 @@ save a filmstrip PNG named after the script.
   (nearer, its pulls bowed the head onto the board), and ⚠ a put-down waits
   on its hand reading held (from the hanging arm the reach fell). ⚠ ITS BAR
   (the pass's) IS NOT MET: 20 of 32 on the bar's draws and 25 of 32 sealed,
-  by 2bf94b77, no fall; a first round of levers came out even and was not
-  frozen.
+  by 2bf94b77, no fall (SimNotes has each round tried since, none frozen;
+  the plate's wall is #771).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
