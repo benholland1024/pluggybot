@@ -1215,15 +1215,19 @@ save a filmstrip PNG named after the script.
   where the cup's place lies 1 cm or more from where its hand was sent lifts
   it 1.5 cm, moves it there and sets it down again (the reach and the pull
   down turned the stance under it, 0.6 cm a degree), ⚠ turns the plate's trip
-  left 0.10 rad after its walk to the pass (the walk's `face` stops a median
-  5.6 deg short of square, and from a stance turned right 8 deg or more the
-  hand-over swung the plate into the pass's top, a drop) and ⚠ tries the
+  left 0.10 rad after its walk to the pass (from a stance turned right 8 deg or
+  more the hand-over swung the plate into the pass's top, a drop; made for the
+  walk's `face` stopping 5.6 deg short of square, and kept when #765's came to
+  land square: without it the pass laid 53 of 64 places for 55) and ⚠ tries the
   cup's pick again where its descent is held back on the lid (every such pick
   was lost): `test_solutions`. ⚠ ITS BAR (24 of 32 over the tour, a fall
   failing the try) IS MET (the loop of 11-26b's round 5): 26 of 32 on the
   bar's draws and 27 of 32 on 32 draws sealed by 63886fe, no fall, one pod,
   where the reference before it laid 20 and 21 (SimNotes, "The place laid
-  from the pass", has every round); offering it is Ben's call. ⚠ ITS PLACE
+  from the pass", has every round); on #765's `face` (one pod, an EPYC 7702)
+  25 and 30 of 32 on two noise draws where the tree before it laid 26 and 25,
+  and 23 of 32 held out (sealed by ed99708) where it laid 25 and fell once;
+  offering it is Ben's call. ⚠ ITS PLACE
   LAID FROM THE KITCHEN'S SHELF IS A KIND OF ITS OWN TOO, NEVER OFFERED
   (`set_table_shelf`, #682's stage C, the full task; `counter.shelf_set_out`,
   the pass's row on the shelf's third board, top 0.96 m; `solve.py --feature
@@ -1508,6 +1512,17 @@ save a filmstrip PNG named after the script.
   it a foot lands and the stance jumps 7-14 deg), read after a settle (read
   0.3 s after the walker's own turn, a pulse moved it 7.8 deg, 2-3 from rest),
   and one still `TURN_MISS_RAD` off when its pulses run out reads `turned short`;
+  ⚠ THE VERB `face` IS THAT TURN ALONE (#765; `steps._face`; SimNotes, "`face`
+  turned as `step` turns"): from the heading the stance believes it has in
+  the map to the one asked (#754's line), the legs on the standing policy
+  after -- closed on the pelvis's, as the loop's own `face_routine` still is
+  (a find's, a dock's, the lost search's, the charge's look), its feet ended
+  6-10 deg short of a turn of 10 deg or more, reading ok, and turned back
+  further once the legs stood (on a bare floor a median 7.0 short at the
+  return and 12.3 four seconds after); so turned, they land within a degree
+  or two (a median 0.7), ⚠ and the turn's own settle still takes them back a
+  median 2.6 deg in 4 s (at most 4.8, carrying), as after any `step`'s turn:
+  `tests/test_face.py` bounds it at 5;
   -- ⚠ measured only
   once the walker has the legs (out of a bow the pelvis came 16 cm forward
   on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's

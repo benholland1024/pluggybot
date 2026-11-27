@@ -10,6 +10,66 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `face` turns as `step` turns, closed on the stance (#765, C17, `loop-765`) — opens when this PR is deployed
+
+**What the robots read** moves by one line, on purpose: the prompt `3f8b2dc7…`
+(72,160 characters, 17 sections) becomes `4278d194…` (72,266 characters, 17
+sections), one section moved, PROCEDURES YOU MAY WRITE. The session host's
+hello `9dcf6202` is byte for byte as it was: a session's verbs are the
+practice's, and `face` is not one of them. `face`'s line in the verb list, a
+draft for Ben, BEFORE: "turn in place to `heading`, rad in your map; ok when
+squared within the budget"; AFTER: "turn in place to `heading`, rad in your map:
+ok once your feet are turned to it within a degree or two and your legs stand
+again; a turn that does not get there reads false and says so" (+106
+characters). It names no `step`: a world whose verbs have none is told none.
+History's run line has two new reasons where a face does not get there, each
+a draft: "your turn stopped short of heading 1.20 rad" (its pulses spent, still 2
+deg off; 43 characters, against the 53 of the one beside it) and "you fell";
+"did not square up to heading 1.20 rad within its time" is as it was.
+
+**What a deployed robot does**: `face(heading)` turns from the heading its
+stance believes it has in its map, as `step` turns -- the walker's own turn
+to the pelvis's heading, then pulses closed on the stance's own heading --
+and ends with its legs on the standing policy. Before, it turned until its
+believed pelvis heading was within 4 deg and stood the walker still, and its
+feet ended 6-10 deg short of a turn of 10 deg or more, reading ok. A face of
+0.5-4 deg now hands its legs to the walker, and an arm that is out comes
+home first, where it moved nothing. The loop's own turn (a find's, a dock's,
+the lost search's, the charge's look) is unchanged. Our pass's plate trip still
+turns 0.10 rad left after its walk to the pass: made for the old face's 5.6
+deg, it now over-corrects, but without it the pass laid fewer (53 of 64
+places against 55). ⚠ The robots' own chest procedures stood on the old
+shortfall: replayed at their live draws, 200 tries passed 5 where they passed
+2 and fell 6 times where once, every new fall in a lid's pulls from the square
+stance the new face gives, and none when the face was asked to where the old
+one left the feet (SimNotes, "`face` turned as `step` turns").
+
+**Why** (#765). The walker yaws the pelvis over planted feet before a foot lifts
+(#649), and the verb stopped on the pelvis: every face of 10 deg or more in
+A1b's census of the pass (505 of 505) and in C1's replays of the robots' own
+tries in the house (392 of 392) ended short, the stance a median 6-10 deg
+off, reading ok, and once the next verb handed the legs to the standing
+policy the body turned further back. The stance is the frame a `spot` reads
+in and a `reach` is aimed in, so a procedure that walked or reached straight
+after a face was off by the shortfall, and one that read a tag first was off
+by what the body turned back after it. Nothing the robot reads told it.
+
+**The baseline.** The live robots made 1,285 `face` calls over the five wakes
+from 11-14 to 11-25 (Rowan 1,053, Luca 232; a `spot` next in 1,043), and in
+C1's replays of the 11-25 wake's tries at their live draws, every face of 10
+deg or more ended short (392 of 392), the stance a median 6-10 deg off. The
+weekend's wakes (11-28 and 11-29, build 4e486aa1) fly the old verb: a second
+reading before.
+
+**What to read** on the wakes after this deploys: each face's stance at its
+return, off replays of the live runs at their draws (X5's verb recorder), and
+the `spot` after it (refused or not) against the baseline; the falls in the
+chest procedures' lid pulls, and whether the robots rewrite them (the replays
+above: 1 to 6 in 200); how many faces read false (`turned short`; none in the
+replays); how long a face takes (a median 3.8 s in the replays, where it took
+2.5); and whether the procedures that turned again off a tag after a face
+(`step`'s `turn`) still need to.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the

@@ -11,8 +11,10 @@ flights that measured it are SimNotes' "`face` turned as `step` turns".
      ends within a degree or two of a turn of 45 deg each way, its legs back
      on the standing policy, and 4 s later has turned back no further than
      `SETTLE_BACK_DEG`;
-  3. one that does not get there reads false saying how, off its reasons,
-     and its text says it turns as `step` does.
+  3. one that does not get there reads false saying how, off its reasons;
+     one whose legs went back before both soles read down says so, as a
+     step's (#740); and its text says where its feet end, as `step`'s says
+     its turns, never naming `step`.
 (Its turn asked from where the stance faces in the map, #754's line: in
 `tests/test_humanoid_words.py`.)
 """

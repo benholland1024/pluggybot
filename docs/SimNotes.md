@@ -8413,10 +8413,11 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 - **A far find reads one tag's own facing 16 deg off**, and from the tour
   the robot faced the pass that far off, the cup out of the colour camera's
   picture; the wall's facing is taken off the line through its two tags. A
-  face lands up to 16 deg off its 4 deg tolerance anyway: a piece the
-  picture misses is looked for by a turn toward its side, then a step in
-  (`near`), and the fork, whose tag is 19 mm, is taken from 0.20 m to the
-  side, not 0.25 (at 32 deg it sat on the picture's edge).
+  face landed up to 16 deg off its 4 deg tolerance anyway (a degree or two
+  since #765: "`face` turned as `step` turns"): a piece the picture misses is
+  looked for by a turn toward its side, then a step in (`near`), and the
+  fork, whose tag is 19 mm, is taken from 0.20 m to the side, not 0.25 (at 32
+  deg it sat on the picture's edge).
 - **The table's approach, carrying,** ended up to 0.2 m further back than
   it expects and once asked its last step 0.53 m (refused over 0.5): taken in
   two. A step aside the lay took after it, carrying the cup, fell once, and
@@ -9212,7 +9213,8 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     square (the humanoid's 4 deg tolerance, then a settle against the turn;
     the belief reads the truth there to 0.2 deg), and `near`'s oblique step
     adds 2-5 deg. The plate's trip turns left `PASS_PLATE_TURN` (0.10 rad)
-    after its walk to the pass, before it walks up to the plate.
+    after its walk to the pass, before it walks up to the plate (kept when
+    #765's `face` came to land square: "`face` turned as `step` turns").
   - **On fresh dev draws** (3900-3963, beside round 12's tree): 46 of 64 laid
     where 38 (+15 -7), one fall either way -- frozen. The second look moved 39
     cups (within 2.5 cm 34 where 31); the plate's hand-overs that met the pass
@@ -13207,6 +13209,132 @@ a minute where no step came between: such a ghost can pass a posture over
 too). The arm against its own trunk in a carry's posture is #726's, which
 judges a reach's plan alone (the checkout's carry met its own gripper with
 its head at 21-116 N).
+
+## `face` turned as `step` turns (issue #765)
+
+`face(heading)` turned the robot until its believed heading in its map --
+its pelvis's -- was within `FACING_TOLERANCE` (4 deg) of the one asked, then
+held the walking policy still for 0.5 s: the loop's own turn,
+`HumanoidMission.face_routine`, which the verb called. The walker yaws the
+pelvis over planted feet before a foot lifts (#649), so the feet -- the
+stance, the frame every reach and every place a procedure reads is in --
+ended short of the turn, never past it, and read ok: every `face` of 10 deg
+or more in A1b's census of the pass (505 of 505) and in C1's replays of the
+robots' own tries in the house (392 of 392), the stance a median 6-10 deg
+short (C3's re-count, #765). Once the next verb handed the legs back to the
+standing policy, the body went on turning back the way it came.
+
+**What it is now.** The verb asks the body for the turn from the heading its
+stance believes it has in its map to the heading, and takes it as `step`
+takes its turn (`Body.step_routine(0, 0, turn)`; `_turn_routine`, #649):
+for a turn over 6 deg the walker's own turn to the pelvis's heading first,
+then pulses closed on the stance's own heading, each read after a settle,
+its legs back on the standing policy after. The heading is still in the map (#754's
+line). The loop's own `face_routine` is unchanged: a find's turn and its
+look round, a dock's, the lost search's and the charge's look each look
+again after it.
+
+**Measured on a bare floor** (local, osmesa; `c17-face/c/face_verb_probe.py`,
+the verb itself as a procedure drives it; 20 flights a tree -- from the boot
+held 1 s, from a stand held 45 s, after a 0.5 m walk, carrying a cup at the
+side -- turns of 10-90 deg each way; no fall, every one ok). The true stance
+(the soles' mean heading) against the turn asked, signed along it (- short),
+median (range):
+
+| | at the return | 4 s after the legs stand | 16 s after |
+|---|---|---|---|
+| closed on the pelvis (loop-staging 1e0bf6ab) | -7.0 (-11.6 to -3.1) | -12.3 (-22.1 to -9.0) | -16.3 (-28.8 to -9.9) |
+| as `step` turns (loop-765) | -0.7 (-1.5 to +0.4) | -2.6 (-4.8 to +0.8) | -4.9 (-7.6 to +1.7) |
+
+By where it began (the same flights; the count in brackets):
+
+| | at the return | 4 s after the legs stand | 16 s after |
+|---|---|---|---|
+| from a stand, held 45 s, closed on the pelvis (8) | -7.3 (-10.3 to -5.2) | -12.2 (-18.3 to -9.0) | -15.8 (-25.8 to -9.9) |
+| from a stand, held 45 s, as `step` turns (8) | -0.7 (-1.3 to +0.4) | -2.7 (-3.8 to +0.8) | -4.9 (-6.8 to +1.7) |
+| from the boot, held 1 s, closed on the pelvis (8) | -5.5 (-8.4 to -3.1) | -12.0 (-14.2 to -10.8) | -16.9 (-20.7 to -14.1) |
+| from the boot, held 1 s, as `step` turns (8) | -0.5 (-1.0 to +0.4) | -2.4 (-3.1 to +0.1) | -4.2 (-6.2 to +0.2) |
+| after a 0.5 m walk, closed on the pelvis (2) | -9.5 (-11.6 to -7.3) | -16.5 (-19.1 to -13.9) | -21.5 (-25.3 to -17.8) |
+| after a 0.5 m walk, as `step` turns (2) | -1.1 (-1.5 to -0.7) | -2.5 (-3.8 to -1.2) | -4.0 (-6.6 to -1.4) |
+| carrying a cup at its side, closed on the pelvis (2) | -9.4 (-10.9 to -7.9) | -16.6 (-22.1 to -11.1) | -20.8 (-28.8 to -12.7) |
+| carrying a cup at its side, as `step` turns (2) | -0.8 (-1.5 to -0.1) | -2.2 (-4.8 to +0.3) | -3.2 (-7.6 to +1.1) |
+
+The belief followed the truth to under half a degree at the return on both
+trees: they differ in where the feet end, not in what the robot believes of
+them.
+
+The settle that remains is `step`'s turn's own (C3's finding: with no turn
+before it the standing policy holds its heading to 0.03 deg over 16 s, so it
+is the turn's): `tests/test_face.py` bounds it at `SETTLE_BACK_DEG` (5 deg)
+4 s after the legs stand, flown from the boot at +-45 deg (the branch 3.2 and
+1.1, the tree before it 11.5 and 12.5). What it costs: a face of 0.5-4 deg
+now hands the legs to the walker, and an arm that is out comes home first,
+where before it moved nothing; the legs end on the standing policy (they
+ended the walker's); and it took 2.4-5.3 s (median 3.5) on the floor where
+the old took 1.3-6.2 (median 3.1).
+
+**On one pod** (an AMD EPYC 7702, osmesa; the trees side by side flight by
+flight, under a rule written before any of it flew, `c17-face/merge_rule.md`;
+every base flight it flew that C15 or C16 had flown on an EPYC 7B12 replayed
+it, 434 of 434 -- the tour, the pass on both draws and a sample of 10 hands
+checks by end hash, the 200 tries by their ends, falls and verbs -- so the
+base's 576 hands checks are C15's rows):
+
+- **Ben's bar of 11-16** (736 flights): 618 passes and 3 falls on today's tree,
+  620 and 3 turned as `step` turns, every held-out job as it was. The 576 hands
+  checks call no `face` and are today's to the bit; the tour's 160 all moved
+  (each job's approach faces its wall), its verdicts 7 gained and 5 lost (the
+  door 30 to 32, the table 27 to 28, the cube 31 to 30), no fall either way.
+- **The pass** (`set_table_pass`, draws 0-31 on two noise draws, 64 places a
+  tree; no fall): today's tree laid 51 (26 and 25), the face turned as `step`
+  turns 55 (25 and 30), and with `PASS_PLATE_TURN` out as well 53 (23 and
+  30). The places it moved spread over all three pieces, as a re-roll of
+  put-downs that sit 1.1-1.5 cm from the grader's 2.5 does (today's tree
+  against the face's: 7 lost, 11 gained). The plate turn stays: without it
+  the pass laid 2 fewer (7 lost, 5 gained, sign p 0.39), by the rule written
+  before the flights. It was made for the old face's 5.6 deg; the face now
+  lands square and the turn leaves the plate's trip about 6 deg left of it,
+  where the plate met the pass's top in 4 hand-overs of 64 against 1 without
+  the turn: the turn over-correcting now, which a round of its own can take
+  out. Held out (32 draws sealed by ed99708): today's tree 25 with a fall,
+  the face's 23 with none (7 lost, 5 gained, sign p 0.39).
+- **The robots' own 200 tries** (X5's kit: the robots' kept procedures at
+  their live draws; every try runs a `face`, so every one moved): passes 2 to
+  5, falls 1 to 6 (paired, 6 against 1: one-sided sign p 0.06). Every new
+  fall is in their chest procedures (chest_open3, chest_run12), during the
+  lid's pulls with the left hand, and the mechanism is the same in each, read
+  off the verb records: the old face left the feet 3.0-10.1 deg off the
+  heading asked, in the robot's map, short on the side the turn came from;
+  the new one lands square; and from square the try's own repeated lid pulls
+  swing the stance to -24 to -36 deg (today's: +5 to -31) until a
+  `close_hand` or a `pull` falls. Flown again on this branch with each try's
+  first face asked to where today's face left the feet (+3.0 to +8.5 deg,
+  -10.1; the dev box replays the pod's tries exactly, so locally), each lands
+  within 0.1-3 deg of today's feet and none falls: the new falls ride the
+  square stance, and those procedures stood on the old shortfall. The fall
+  the branch loses (chest_run13 t_0746) does not come back with today's
+  offset either, and that try then passes.
+- **Where each face's feet ended** (every `face` of 10 deg or more; the
+  feet's true turn against the turn asked, signed along it, - short; beside
+  it, the true stance against the heading in the map, which folds in the
+  belief's own error -- the tries begin with the live robots' belief
+  offsets). Every face read ok on both trees, and a face took a median 3.6 s
+  on the tour on both, 3.8 in the tries where today's took 2.5 (it skipped
+  their small turns):
+
+| where | tree | faces of 10 deg or more | short | within 2 deg | median at the return | range | median at a `spot`'s end (n) | median against the map's heading |
+|---|---|---|---|---|---|---|---|---|
+| bare floor (local probe) | B | 20 | 20 | 0 | -7.0 | -11.6 to -3.1 | -- | -- |
+| bare floor (local probe) | CO | 20 | 18 | 20 | -0.7 | -1.5 to +0.4 | -- | -- |
+| the tour's five jobs | B | 154 | 154 | 5 | -7.1 | -12.7 to -1.5 | -7.2 (154) | -7.1 |
+| the tour's five jobs | CO | 154 | 119 | 149 | -0.6 | -3.3 to +0.9 | -0.7 (154) | -0.5 |
+| the pass, two draws | B | 519 | 519 | 5 | -7.1 | -13.3 to -0.8 | -6.8 (191) | -7.1 |
+| the pass, two draws | CK | 518 | 372 | 515 | -0.4 | -3.0 to +1.1 | -0.4 (192) | -0.4 |
+| the pass, two draws | CO | 519 | 395 | 514 | -0.4 | -2.7 to +1.0 | -0.5 (192) | -0.4 |
+| the pass held out | B | 250 | 250 | 3 | -6.7 | -13.4 to -1.8 | -6.4 (92) | -6.7 |
+| the pass held out | CK | 251 | 185 | 246 | -0.4 | -2.8 to +1.0 | -0.6 (94) | -0.4 |
+| the robots' own tries | B | 275 | 275 | 4 | -8.4 | -13.7 to -1.4 | -8.5 (179) | -8.6 |
+| the robots' own tries | CO | 287 | 245 | 261 | -0.7 | -4.3 to +1.2 | -1.0 (180) | -1.1 |
 
 ## Debugging workflow that worked
 
