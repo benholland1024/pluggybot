@@ -35,7 +35,9 @@ is the physics itself.
     ... --resume-at 400 --in-step
                                 # ...saved inside the hooks of the first step
                                 # past t=400 whose scan is still to come, as
-                                # the keeper saves (#749)
+                                # the keeper saves (#749), and with nothing in
+                                # flight that a restart ends (`in_flight`,
+                                # #780): the steps it passed over, said
 
 The world is the humanoids' house (`home_humanoid`, #559).
 """
@@ -57,6 +59,87 @@ TRACE_EVERY_S = 0.5
 def _h(a) -> str:
   import numpy as np
   return hashlib.sha256(np.ascontiguousarray(a).tobytes()).hexdigest()[:16]
+
+
+def in_flight(life, day) -> list[str]:
+  """WHAT A RESTART ENDS (#780), at a step: the routines the day loop `day`
+  (`HubLifecycle.begin`'s) is inside, outermost first, where one is the
+  loop's own -- its explore, a charge trip, an errand, a decision, a walk off
+  the rack -- with the body's routine it is in after them
+  (`explore_routine > drive_to_routine`); else none. A restore begins the
+  day loop again at its top, and what it was inside ends (Webserver.md: the
+  errand in flight ends), so the day after differs from the one flown
+  straight through. Only the body's routine the loop holds itself in, its
+  stand-by, the restored loop begins again as it was. ⚠ Before the loop's
+  first pass the day's start is in flight, which this cannot tell: a
+  restored day skips it (the caller's to know)."""
+  names, owned = [], False
+  g = getattr(day, "gi_yieldfrom", None)
+  while g is not None and getattr(g, "gi_frame", None) is not None:
+    mine = g.gi_frame.f_locals.get("self") is life
+    if owned and not mine:
+      names.append(g.gi_code.co_name)            # ...and the body's routine it is in
+      break
+    owned = owned or mine
+    if g.gi_code.co_name != "_until_stood_up_routine":
+      names.append(g.gi_code.co_name)
+    # ...through a routine driven by hand (`_until_stood_up_routine`'s)
+    g = g.gi_yieldfrom if g.gi_yieldfrom is not None else g.gi_frame.f_locals.get("routine")
+  return names if owned else []
+
+
+class Flight:
+  """What a restart would end, read at any step of one robot's day: hooked
+  on its lifecycle before `run`, it keeps the day routine `begin` makes,
+  whether the day loop has passed its top yet, and the steps `clean` was
+  asked at with something in flight (`passed`, the first of them `first`)."""
+
+  def __init__(self, life) -> None:
+    self.life, self.day, self.looped = life, None, False
+    self.passed, self.first = 0, None
+    real_begin = life.begin
+
+    def begin(*a, **kw):
+      self.day = real_begin(*a, **kw)
+      return self.day
+    life.begin = begin
+    life.at_loop_top.append(self._top)
+
+  def _top(self) -> None:
+    self.looped = True
+
+  def ending(self) -> list[str]:
+    """`in_flight` -- or, before the loop's first pass, the day's start,
+    which a restored day skips (its look round, #345)."""
+    return in_flight(self.life, self.day) if self.looped else ["the day's start"]
+
+  def clean(self, t: float) -> bool:
+    """Whether a save at this step, at sim time `t`, leaves nothing in flight
+    that a restart ends (`ending`); one that does not is counted, the first
+    kept with what was in flight."""
+    ending = self.ending()
+    if ending:
+      self.passed += 1
+      if self.first is None:
+        self.first = {"t": round(float(t), 4), "inFlight": ending}
+    return not ending
+
+
+def saved_words(row: dict, in_step: bool, at: float) -> str:
+  """Where the saving arm saved past `at` (its `saved` row), and the steps it
+  passed over with something in flight (`Flight.clean`) -- or that it saved
+  nowhere (its `nosave` row)."""
+  first = row.get("firstInFlight")
+  over = ("" if not first else
+          f" from t={first['t']} it passed over {row['passedOver']} with "
+          f"{' > '.join(first['inFlight'])} in flight, which a restart ends by design "
+          "(the errand in flight ends, #780)")
+  if row["k"] == "nosave":
+    return (f"NOT SAVED: no step from t={at} to the day's end had nothing in flight"
+            + (f";{over}" if over else ""))
+  where = "inside the hooks of the step" if in_step else "at the day loop's pass"
+  return f"saved {where} at t={row['t']}" + (f", the first with nothing in flight:{over}"
+                                             if over else "")
 
 
 # ---- the child ---------------------------------------------------------------
@@ -154,6 +237,10 @@ def child(cfg: dict, trace_path: Path) -> None:
         changed, seen[0] = seen[0] is not None and now != seen[0], now
         return changed
 
+      # ...and in a step, only where nothing a restart ends is in flight
+      # (`Flight`, #780)
+      flight = state["flight"] = Flight(life)
+
       def save_here(in_step: bool = False):
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
@@ -165,11 +252,15 @@ def child(cfg: dict, trace_path: Path) -> None:
             and life.body.posture not in continuation.MOVING_POSTURES
             and not (in_step and (fresh or not mi._owed or d.time < mi._next_scan
                                   or continuation._mid_move(life)))):
+          if in_step and not flight.clean(float(d.time)):
+            return
           continuation.write(continuation.capture([life], life.world_fingerprint,
                                                   last_step=last),
                              cfg["worldState"])
           log(k="saved", t=round(float(d.time), 4), inStep=in_step,
-              owed=bool(mi._owed) if in_step else None)
+              owed=bool(mi._owed) if in_step else None,
+              passedOver=flight.passed, firstInFlight=flight.first)
+          state["saved"] = True
           raise MissionAborted("saved")
       if cfg.get("inStep"):
         life.body.last_hooks.append(lambda: save_here(in_step=True))
@@ -195,6 +286,9 @@ def child(cfg: dict, trace_path: Path) -> None:
                tasks_state=str(st / "tasks.json") if economy else None,
                spend_state=str(st / "spend.json"), on_ready=on_ready,
                world_state=cfg["worldState"] if cfg.get("resume") else None)
+  if cfg.get("saveAt") is not None and not state.get("saved"):
+    # ...no step to the day's end had nothing in flight (`in_flight`)
+    log(k="nosave", passedOver=state["flight"].passed, firstInFlight=state["flight"].first)
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])
   out.close()
@@ -340,10 +434,12 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = Fal
   """Issue #345's parity check: straight through, against saved at `at` and
   carried on from the save. Three processes, one after another -- the
   resuming one needs the saving one's files. `in_step`: saved inside the
-  hooks of a step whose scan is still to come, as the keeper saves (#749)."""
+  hooks of a step whose scan is still to come, as the keeper saves (#749),
+  and with nothing in flight that a restart ends (`in_flight`, #780)."""
   state = out / "resumed-state"
   arms = {"straight": {}, "saving": {"saveAt": at, "inStep": in_step},
           "resumed": {"resume": True}}
+  row = None
   for name, extra in arms.items():
     arm = {**cfg, **extra, "stateDir": str(out / f"{name}-state"),
            "worldState": str(state / "world.npz")}
@@ -356,12 +452,17 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = Fal
                     str(out / f"{name}.trace.jsonl")],
                    env=env, stdout=open(out / f"{name}.log", "w"),
                    stderr=subprocess.STDOUT, check=True)
-  saved = next(r["t"] for r in load(out / "saving.trace.jsonl") if r["k"] == "saved")
+    if name == "saving":
+      row = next((r for r in load(out / "saving.trace.jsonl")
+                  if r["k"] in ("saved", "nosave")), None)
+      if row is None or row["k"] == "nosave":
+        print(saved_words(row or {"k": "nosave"}, in_step, at))
+        return 1
+  saved = row["t"]
   a = [r for r in load(out / "straight.trace.jsonl") if r["t"] > saved]
   b = [r for r in load(out / "resumed.trace.jsonl") if r["t"] > saved]
   rep = first_divergence(a, b)
-  where = "inside the hooks of the step" if in_step else "at the day loop's pass"
-  print(f"saved {where} at t={saved}; traces in {out}")
+  print(f"{saved_words(row, in_step, at)}; traces in {out}")
   # ...and what it sensed: a look the straight day never took moves no
   # joint, and every restore took one until the last look was kept
   sensed = first_perception_difference(a, b)
@@ -416,7 +517,9 @@ def main() -> int:
                        "save in a new process; the two must be identical after")
   ap.add_argument("--in-step", action="store_true",
                   help="--resume-at saves inside the hooks of the first step past T "
-                       "whose scan is still to come, as the keeper does (#749)")
+                       "whose scan is still to come, as the keeper does (#749), with "
+                       "nothing in flight that a restart ends -- a walk, an errand, "
+                       "the explore -- and says what it passed over (#780)")
   args = ap.parse_args()
   if args.child:
     child(json.loads(Path(args.child[0]).read_text()), Path(args.child[1]))
