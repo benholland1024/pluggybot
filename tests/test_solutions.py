@@ -680,19 +680,24 @@ def test_the_pass_cup_set_down_is_looked_at_again_and_moved_where_the_stance_tur
   assert names == ["reach", "pull", "spot", "open_hand"], names
 
 
-def test_each_pass_trip_walks_up_to_its_piece_straight_after_its_walk_to_the_pass():
-  """#765: the walk to the pass's `face` stopped 5.6 deg short of square
-  (median), turned right of square, and from 8 deg or more the walk's
-  hand-over swung a plate carried off into the pass's top, a drop: the
-  plate's run turned left 0.10 rad after its walk to the pass to make up
-  for it (#682's round 5; SimNotes, "The place laid from the pass"). Turned
-  as `step` turns, the face lands square, and that turn would leave it 6
-  deg past, the other way: every trip, the plate's too, walks up to its
-  piece straight after its walk to the pass. Off the reference's own
+def test_the_pass_plate_trip_squares_itself_to_the_pass_before_it_walks_up_to_the_plate():
+  """#682's stage C on #751's cure (the loop of 11-26b, round 5): a plate
+  carried off from a stance turned right of square 8 deg or more was swung
+  by the walk's hand-over into the pass's top and came loose in the jaws for
+  an instant (SimNotes, "The place laid from the pass"), and the walk to the
+  pass's `face` then stopped 5.6 deg short of square. The plate's run turns
+  left `PASS_PLATE_TURN` after its walk to the pass and before it walks up
+  to the plate -- kept when #765's `face` came to land square, since without
+  it the pass laid fewer (53 of 64 against 55). Off the reference's own
   source."""
   from pluggybot.challenge import solutions
-  assert not hasattr(solutions, "PASS_PLATE_TURN")
-  for run in (0, 1, 2):
+  calls = _calls(solutions.PROCEDURES["set_table_pass"][1])
+  walked = _index(calls, lambda c: c[0] == "to_pass", "walk to the pass")
+  up = _index(calls, lambda c: c[0] == "near", "walk up to the plate", walked)
+  between = calls[walked + 1:up]
+  assert between == [("step", [0, 0, solutions.PASS_PLATE_TURN])], between
+  assert 0.05 < solutions.PASS_PLATE_TURN < 0.15, solutions.PASS_PLATE_TURN
+  for run in (0, 2):
     calls = _calls(solutions.PROCEDURES["set_table_pass"][run])
     walked = _index(calls, lambda c: c[0] == "to_pass", "walk to the pass")
     assert calls[walked + 1][0] == "near", (run, calls[walked + 1])
