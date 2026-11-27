@@ -2491,11 +2491,12 @@ class Reach:
     only = {} if kept is None else {"postures": (kept,)}
     # ...a `verb`'s, a posture its trunk would meet what it saw in passed over
     # (#763): none, and it does not move
+    judged = {"judge": True} if verb else {}
     if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
-      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, judge=verb, **only)
+      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, **judged, **only)
     else:
-      posture = self.posture_for(side, end, rot=r, judge=verb, **only)
+      posture = self.posture_for(side, end, rot=r, **judged, **only)
     if posture is None:
       self.report[side] = {"why": "out of reach", "shortM": float(np.linalg.norm(end - h)),
                            "moved": 0.0, "seconds": 0.0,
@@ -2578,10 +2579,12 @@ class Reach:
     # ...kept (#719), the one the body stands in: one still coming held where it got to
     # -- and a `verb`'s, none its trunk would meet what it saw in (#763): held
     # where it is, it goes as far as its arm reaches from there
-    self.trunked[side] = None
+    if verb:
+      self.trunked[side] = None
     posture = (None if not gripped and self._pressed(self.force[side], force)
                else kept if kept is not None
-               else self.path_for(side, [h, h + float(distance_m) * w], rot=r, judge=verb))
+               else self.path_for(side, [h, h + float(distance_m) * w], rot=r,
+                                  **({"judge": True} if verb else {})))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved else None
     if moved:
@@ -3592,7 +3595,8 @@ class Reach:
       elif not st.get("given"):
         st["planned"] = st["t"]
         # ...a `verb`'s, none its trunk would meet what it saw in (#763)
-        posture = self.posture_for(side, c.pos, rot=c.rot, judge=bool(st.get("verb")))
+        posture = self.posture_for(side, c.pos, rot=c.rot,
+                                   **({"judge": True} if st.get("verb") else {}))
         if posture is None and st.get("verb") and self.trunked[side] is not None:
           st["trunk"] = dict(self.trunked[side])
         # ...and one decided reading light, whatever it found, withheld
@@ -3614,7 +3618,7 @@ class Reach:
       g = self.goal[side]
       posture = self.path_for(side, [c.pos, g.pos] + [p for p, _ in st["ways"]],
                               rot=[c.rot, g.rot] + [t for _, t in st["ways"]],
-                              judge=bool(st.get("verb")))
+                              **({"judge": True} if st.get("verb") else {}))
       if posture is None and st.get("verb") and self.trunked[side] is not None:
         st["trunk"] = dict(self.trunked[side])
       if posture is not None and tuple(posture) != tuple(float(v) for v in self.posture):
@@ -3787,7 +3791,7 @@ class Reach:
         # ...a `verb`'s, none its trunk would meet what it saw in (#763): held
         # where it is, it reaches no further
         posture = self.posture_for(side, c.pos, rot=c.rot, onward=True, past=left_,
-                                   judge=bool(st.get("verb")))
+                                   **({"judge": True} if st.get("verb") else {}))
         if posture is None and st.get("verb") and self.trunked[side] is not None:
           st["trunk"] = dict(self.trunked[side])
         if posture is not None and tuple(posture) != tuple(self.posture):
