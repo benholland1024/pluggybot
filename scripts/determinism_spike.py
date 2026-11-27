@@ -35,7 +35,9 @@ is the physics itself.
     ... --resume-at 400 --in-step
                                 # ...saved inside the hooks of the first step
                                 # past t=400 whose scan is still to come, as
-                                # the keeper saves (#749)
+                                # the keeper saves (#749), and with nothing in
+                                # flight that a restart ends (`in_flight`,
+                                # #780): the steps it passed over, said
 
 The world is the humanoids' house (`home_humanoid`, #559).
 """
@@ -57,6 +59,166 @@ TRACE_EVERY_S = 0.5
 def _h(a) -> str:
   import numpy as np
   return hashlib.sha256(np.ascontiguousarray(a).tobytes()).hexdigest()[:16]
+
+
+#: The day loop's routine that drives the one it wraps by hand, in its local
+#: `routine` (`HubLifecycle._until_stood_up_routine`): what `in_flight` walks
+#: through where a stack has no `gi_yieldfrom`.
+HAND_DRIVEN = "_until_stood_up_routine"
+
+
+def in_flight(life, day) -> list[str]:
+  """WHAT A RESTART ENDS (#780), at a step: the routines the day loop `day`
+  (`HubLifecycle.begin`'s) is inside, outermost first, where one is the
+  loop's own -- its explore, a charge trip, an errand, a decision, a walk off
+  the station -- with the body's routine it is in after them
+  (`explore_routine > drive_to_routine`); else none, the loop in its
+  stand-by, which a restored loop holds again but from a fresh 5 s (SimNotes,
+  "A save in the middle of a walk"). ⚠ Before the loop's first pass the day's
+  start is in flight, which this cannot tell (`Flight` can)."""
+  names, owned = [], False
+  g = getattr(day, "gi_yieldfrom", None)
+  while g is not None and getattr(g, "gi_frame", None) is not None:
+    mine = g.gi_frame.f_locals.get("self") is life
+    if owned and not mine:
+      names.append(g.gi_code.co_name)            # ...and the body's routine it is in
+      break
+    owned = owned or mine
+    names.append(g.gi_code.co_name)
+    # ...through the one routine that drives another by hand
+    g = (g.gi_frame.f_locals.get("routine")
+         if g.gi_yieldfrom is None and g.gi_code.co_name == HAND_DRIVEN else g.gi_yieldfrom)
+  if not owned:
+    return []
+  # ...the hand driver's own name only where what it drives could not be read: never none
+  return [n for n in names if n != HAND_DRIVEN] or names
+
+
+class Flight:
+  """What a restart would end, read at any step of one robot's day: hooked
+  on its lifecycle before `run`, it keeps the day routine `begin` makes,
+  whether the day loop has passed its top yet, every hold its body makes
+  (`holds`), and the steps `clean` was asked at with something in flight
+  (`passed`, the first of them `first`)."""
+
+  def __init__(self, life) -> None:
+    import weakref
+    self.life, self.day, self.looped = life, None, False
+    self.passed, self.first = 0, None
+    self.holds = weakref.WeakSet()
+    real_begin, real_hold = life.begin, life.body.hold_routine
+
+    def begin(*a, **kw):
+      self.day = real_begin(*a, **kw)
+      return self.day
+
+    def hold_routine(*a, **kw):
+      held = real_hold(*a, **kw)
+      self.holds.add(held)
+      return held
+    life.begin, life.body.hold_routine = begin, hold_routine
+    life.at_loop_top.append(self._top)
+
+  def _top(self) -> None:
+    self.looped = True
+
+  def ending(self) -> list[str]:
+    """`in_flight` -- or, before the loop's first pass, the day's start,
+    which a restored day skips (its look round, #345) -- and none only where
+    the day loop is in a hold its body made (`holds`), its stand-by: any
+    other routine of the body's it is in, by its name."""
+    if not self.looped:
+      return ["the day's start"]
+    names = in_flight(self.life, self.day)
+    if names:
+      return names
+    g = getattr(self.day, "gi_yieldfrom", None)
+    return [] if g is not None and g in self.holds else [getattr(g, "__name__", "_day_routine")]
+
+  def clean(self, t: float) -> bool:
+    """Whether a save at this step, at sim time `t`, leaves nothing in flight
+    that a restart ends (`ending`); one that does not is counted, the first
+    kept with what was in flight."""
+    ending = self.ending()
+    if ending:
+      self.passed += 1
+      if self.first is None:
+        self.first = {"t": round(float(t), 4), "inFlight": ending}
+    return not ending
+
+
+def saved_words(row: dict, in_step: bool, at: float) -> str:
+  """Where the saving arm saved past `at` (its `saved` row), and the steps it
+  passed over with something in flight (`Flight.clean`) -- or that it saved
+  nowhere (its `nosave` row)."""
+  first = row.get("firstInFlight")
+  over = ("" if not first else
+          f" from t={first['t']} it passed over {row['passedOver']} steps the keeper "
+          f"would have saved in, the first with {' > '.join(first['inFlight'])} in "
+          "flight, which a restart ends by design (the errand in flight ends, #780)")
+  if row["k"] == "nosave" and not in_step:
+    return f"NOT SAVED: the day loop never passed its top from t={at} to the day's end"
+  if row["k"] == "nosave" and not first:
+    return (f"NOT SAVED: no step from t={at} to the day's end was one the keeper saves "
+            "in (owed, its scan due, nothing mid-move)")
+  if row["k"] == "nosave":
+    return f"NOT SAVED: no step from t={at} to the day's end had nothing in flight;{over}"
+  where = "inside the hooks of the step" if in_step else "at the day loop's pass"
+  return f"saved {where} at t={row['t']}" + (f", the first with nothing in flight:{over}"
+                                             if over else "")
+
+
+def unsaved_words(row: dict | None, in_step: bool, at: float, out) -> str:
+  """The line a check whose saving arm saved nowhere ends with: why (its
+  `nosave` row, `saved_words`), or that it said nothing, and where the
+  traces are."""
+  return (("NOT SAVED: the saving arm said neither where it saved nor why not"
+           if row is None else saved_words(row, in_step, at)) + f"; traces in {out}")
+
+
+def branched_apart(rep: dict, a: list[dict], b: list[dict]) -> tuple[str, float] | None:
+  """Where two days part as #780's limit parts them, the branch and how far
+  apart they took it, s; else None: at their first difference one day is
+  still in the state both were in and the other has left it, and the first
+  takes the same branch within one stand-by slice after (`WAIT_FOR_WORK_S`,
+  and a sample's `TRACE_EVERY_S`)."""
+  from pluggybot.lifecycle import WAIT_FOR_WORK_S
+  sa = {r["t"]: r["s"] for r in a if r["k"] == "step"}
+  sb = {r["t"]: r["s"] for r in b if r["k"] == "step"}
+  t, t0 = rep["firstDiffT"], rep["lastSameT"]
+  was = sa.get(t0)
+  if was is None or sb.get(t0) != was:
+    return None
+  for still, gone in ((sa, sb), (sb, sa)):
+    if still.get(t) == was and gone.get(t) not in (None, was):
+      branch = gone[t]
+      later = [u for u, s in sorted(still.items())
+               if t < u <= t + WAIT_FOR_WORK_S + TRACE_EVERY_S and s == branch]
+      return (branch, round(later[0] - t, 3)) if later else None
+  return None
+
+
+def verdict(rep: dict, sensed: dict | None, in_step: bool,
+            a: list[dict] = (), b: list[dict] = ()) -> tuple[str, int]:
+  """The check's last line and its exit code, off `first_divergence` and
+  `first_perception_difference` over the two days' traces `a`, `b`. ⚠ A
+  save in a step lands in the stand-by, which a restored loop holds again
+  from a fresh 5 s, so the loop's next branch may come at another instant:
+  where the two days part so (`branched_apart`) the line says it is #780's
+  limit; a save at the pass keeps its passes' times."""
+  if not rep["diverged"] and sensed is None:
+    return (f"IDENTICAL after the restore over {rep['stepsCompared']} state samples "
+            "and every look and scan", 0)
+  if not rep["diverged"]:
+    return (f"SENSED OTHERWISE: the state IDENTICAL over {rep['stepsCompared']} samples, "
+            f"but the first look or scan that differs is {sensed}", 1)
+  line = (f"DIVERGED: same until t={rep['lastSameT']}, differs at {rep['firstDiffT']} "
+          f"(states {rep['stateA']} / {rep['stateB']})")
+  apart = branched_apart(rep, a, b) if in_step else None
+  if apart is not None:
+    line += (f" -- both days took the branch to {apart[0]}, {apart[1]} s apart, inside one "
+             "stand-by slice: a restored stand-by holds a fresh 5 s (#780's limit)")
+  return line, 1
 
 
 # ---- the child ---------------------------------------------------------------
@@ -154,6 +316,10 @@ def child(cfg: dict, trace_path: Path) -> None:
         changed, seen[0] = seen[0] is not None and now != seen[0], now
         return changed
 
+      # ...and in a step, only where nothing a restart ends is in flight
+      # (`Flight`, #780)
+      flight = state["flight"] = Flight(life)
+
       def save_here(in_step: bool = False):
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
@@ -165,11 +331,15 @@ def child(cfg: dict, trace_path: Path) -> None:
             and life.body.posture not in continuation.MOVING_POSTURES
             and not (in_step and (fresh or not mi._owed or d.time < mi._next_scan
                                   or continuation._mid_move(life)))):
+          if in_step and not flight.clean(float(d.time)):
+            return
           continuation.write(continuation.capture([life], life.world_fingerprint,
                                                   last_step=last),
                              cfg["worldState"])
           log(k="saved", t=round(float(d.time), 4), inStep=in_step,
-              owed=bool(mi._owed) if in_step else None)
+              owed=bool(mi._owed) if in_step else None,
+              passedOver=flight.passed, firstInFlight=flight.first)
+          state["saved"] = True
           raise MissionAborted("saved")
       if cfg.get("inStep"):
         life.body.last_hooks.append(lambda: save_here(in_step=True))
@@ -195,6 +365,9 @@ def child(cfg: dict, trace_path: Path) -> None:
                tasks_state=str(st / "tasks.json") if economy else None,
                spend_state=str(st / "spend.json"), on_ready=on_ready,
                world_state=cfg["worldState"] if cfg.get("resume") else None)
+  if cfg.get("saveAt") is not None and not state.get("saved"):
+    # ...no step to the day's end had nothing in flight (`in_flight`)
+    log(k="nosave", passedOver=state["flight"].passed, firstInFlight=state["flight"].first)
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])
   out.close()
@@ -340,10 +513,12 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = Fal
   """Issue #345's parity check: straight through, against saved at `at` and
   carried on from the save. Three processes, one after another -- the
   resuming one needs the saving one's files. `in_step`: saved inside the
-  hooks of a step whose scan is still to come, as the keeper saves (#749)."""
+  hooks of a step whose scan is still to come, as the keeper saves (#749),
+  and with nothing in flight that a restart ends (`in_flight`, #780)."""
   state = out / "resumed-state"
   arms = {"straight": {}, "saving": {"saveAt": at, "inStep": in_step},
           "resumed": {"resume": True}}
+  row = None
   for name, extra in arms.items():
     arm = {**cfg, **extra, "stateDir": str(out / f"{name}-state"),
            "worldState": str(state / "world.npz")}
@@ -356,26 +531,22 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = Fal
                     str(out / f"{name}.trace.jsonl")],
                    env=env, stdout=open(out / f"{name}.log", "w"),
                    stderr=subprocess.STDOUT, check=True)
-  saved = next(r["t"] for r in load(out / "saving.trace.jsonl") if r["k"] == "saved")
+    if name == "saving":
+      row = next((r for r in load(out / "saving.trace.jsonl")
+                  if r["k"] in ("saved", "nosave")), None)
+      if row is None or row["k"] == "nosave":
+        print(unsaved_words(row, in_step, at, out))
+        return 1
+  saved = row["t"]
   a = [r for r in load(out / "straight.trace.jsonl") if r["t"] > saved]
   b = [r for r in load(out / "resumed.trace.jsonl") if r["t"] > saved]
   rep = first_divergence(a, b)
-  where = "inside the hooks of the step" if in_step else "at the day loop's pass"
-  print(f"saved {where} at t={saved}; traces in {out}")
+  print(f"{saved_words(row, in_step, at)}; traces in {out}")
   # ...and what it sensed: a look the straight day never took moves no
   # joint, and every restore took one until the last look was kept
-  sensed = first_perception_difference(a, b)
-  if not rep["diverged"] and sensed is None:
-    print(f"IDENTICAL after the restore over {rep['stepsCompared']} state samples "
-          f"and every look and scan")
-    return 0
-  if not rep["diverged"]:
-    print(f"SENSED OTHERWISE: the state IDENTICAL over {rep['stepsCompared']} samples, "
-          f"but the first look or scan that differs is {sensed}")
-    return 1
-  print(f"DIVERGED: same until t={rep['lastSameT']}, differs at {rep['firstDiffT']} "
-        f"(states {rep['stateA']} / {rep['stateB']})")
-  return 1
+  line, code = verdict(rep, first_perception_difference(a, b), in_step, a, b)
+  print(line)
+  return code
 
 
 def main() -> int:
@@ -416,7 +587,10 @@ def main() -> int:
                        "save in a new process; the two must be identical after")
   ap.add_argument("--in-step", action="store_true",
                   help="--resume-at saves inside the hooks of the first step past T "
-                       "whose scan is still to come, as the keeper does (#749)")
+                       "whose scan is still to come, as the keeper does (#749), with "
+                       "nothing in flight that a restart ends -- a walk, an errand, "
+                       "the explore -- and says what it passed over (#780): the "
+                       "stand-by, after the explore, in a world that expects work")
   args = ap.parse_args()
   if args.child:
     child(json.loads(Path(args.child[0]).read_text()), Path(args.child[1]))
@@ -429,6 +603,10 @@ def main() -> int:
   if args.pair and args.resume_at is not None:
     # the pair's child has no save hook: three flights, then no `saved` row
     ap.error("--resume-at flies one robot's day, not --pair")
+  if args.in_step and not args.economy:
+    # ...a save in a step only in the stand-by (`Flight`, #780), and a day
+    # with no work to come never stands by: its loop ends after its explore
+    ap.error("--in-step saves in the stand-by, which a day with --no-economy never reaches")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   world = world_for(args.world)

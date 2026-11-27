@@ -4018,6 +4018,24 @@ the parity tests save on 687. Never saved with a hand out (`Body.working`):
 a hand's move is a routine's. The walker that sees the ground (not served)
 keeps no scan, and starts its ground anew as after a fall.
 
+**A save in the middle of a walk (#780).** The keeper saves inside a step's
+hooks (#749) wherever the day loop is, and a restore begins the loop again at
+its top: what it was inside ends there -- a walk, the explore, a charge trip,
+an errand, the day's start -- and the day after differs from the one flown
+straight through (Webserver.md, the errand in flight). Saved at t = 200.088
+of the scripted day, mid-walk to a frontier 0.68 m off, the world came back
+bit for bit for 36 steps while both walks' commands sat on the turn limit;
+the restored explore had planned another frontier, 9 m off, and the walking
+policy's command parted at its tick at 200.16 (saved at 60.034, the day
+parted at its first sample). `determinism_spike.py --resume-at T --in-step` saves at the first
+owed step with nothing in flight and says what it passed over: from the
+stand-by at 257.488, 270.088, 300.088, 340.088 and 390.088, IDENTICAL to the
+day's end, as from the loop's pass at 257.434 and 302.434. ⚠ Not past the
+stand-by's next branch: a restored stand-by holds a fresh 5 s, and on the
+demo pack a charge called for began at 280.088 where the day flown straight
+through began it at its pass at 282.434; saved at the loop's pass (272.434),
+the day was IDENTICAL through the charge.
+
 **The change of body.** Luca and Rowan keep who they are: a save of the
 quadrupeds' house carries on in the humanoids' as a changed world does --
 the clock, the deaths and the jobs, never the bodies or the maps -- and the
