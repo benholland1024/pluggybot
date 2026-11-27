@@ -9,6 +9,8 @@ saves only at a step with nothing in flight, and says what it passed over.
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import determinism_spike as ds  # noqa: E402
 from test_body import stub_life  # noqa: E402 -- tests/ is on sys.path
@@ -75,9 +77,9 @@ def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   assert ds.saved_words({"k": "saved", "t": 257.488, "passedOver": 573,
                          "firstInFlight": first}, True, 200.0) == (
     "saved inside the hooks of the step at t=257.488, the first with nothing in "
-    "flight: from t=200.088 it passed over 573 steps, the first with "
-    "explore_routine > drive_to_routine in flight, which a restart ends by design "
-    "(the errand in flight ends, #780)")
+    "flight: from t=200.088 it passed over 573 steps the keeper would have saved in, "
+    "the first with explore_routine > drive_to_routine in flight, which a restart ends "
+    "by design (the errand in flight ends, #780)")
   assert ds.saved_words({"k": "saved", "t": 300.088, "passedOver": 0,
                          "firstInFlight": None}, True, 300.0) == (
     "saved inside the hooks of the step at t=300.088")
@@ -86,36 +88,103 @@ def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   assert ds.saved_words({"k": "nosave", "passedOver": 9, "firstInFlight": first},
                         True, 200.0).startswith(
     "NOT SAVED: no step from t=200.0 to the day's end had nothing in flight; from "
-    "t=200.088 it passed over 9 steps, the first with explore_routine > drive_to_routine")
+    "t=200.088 it passed over 9 steps the keeper would have saved in, the first with "
+    "explore_routine > drive_to_routine")
   assert ds.saved_words({"k": "nosave", "passedOver": 0, "firstInFlight": None}, True, 200.0) == (
     "NOT SAVED: no step from t=200.0 to the day's end was one the keeper saves in "
     "(owed, its scan due, nothing mid-move)")
   assert ds.saved_words({"k": "nosave", "passedOver": 0, "firstInFlight": None}, False, 400.0) == (
     "NOT SAVED: the day loop never passed its top from t=400.0 to the day's end")
+  assert ds.unsaved_words(None, True, 200.0, "/x") == (
+    "NOT SAVED: the saving arm said neither where it saved nor why not; traces in /x")
+  assert ds.unsaved_words({"k": "nosave", "passedOver": 0, "firstInFlight": None},
+                          False, 400.0, "/x").endswith("to the day's end; traces in /x")
 
 
-def test_a_divergence_from_a_save_in_a_step_where_the_days_are_in_different_states_names_the_limit():
+def _day(states: dict) -> list[dict]:
+  return [{"k": "step", "t": t, "s": st} for t, st in sorted(states.items())]
+
+
+def test_a_divergence_from_a_save_in_a_step_names_the_limit_only_where_the_days_branched_apart():
   """The check's last line (`verdict`): a save in a step lands in the
-  stand-by, which a restored loop holds from a fresh 5 s, so two days in
-  different states at their first difference are the loop's next branch
-  taken at another instant (#780's limit, flown on the demo pack: a charge
-  begun at 280.088 where the straight day began it at 282.434). In the same
-  state, or from a save at the pass, a divergence is said plainly."""
-  base = {"diverged": True, "lastSameT": 280.0, "firstDiffT": 280.5}
-  line, code = ds.verdict({**base, "stateA": "EXPLORE", "stateB": "GO_CHARGE"}, None, True)
-  assert code == 1 and line == (
-    "DIVERGED: same until t=280.0, differs at 280.5 (states EXPLORE / GO_CHARGE) -- the "
-    "days in different states there: from a save in the stand-by, its next branch begun "
-    "at another instant, as a restored stand-by holds a fresh 5 s (#780's limit)")
-  plain = "DIVERGED: same until t=280.0, differs at 280.5 (states EXPLORE / "
-  assert ds.verdict({**base, "stateA": "EXPLORE", "stateB": "EXPLORE"}, None, True) == (
-    plain + "EXPLORE)", 1)
-  assert ds.verdict({**base, "stateA": "EXPLORE", "stateB": "GO_CHARGE"}, None, False) == (
-    plain + "GO_CHARGE)", 1)
-  same = {"diverged": False, "stepsCompared": 240}
-  assert ds.verdict(same, None, True) == (
+  stand-by, which a restored loop holds from a fresh 5 s, so the loop's next
+  branch may come at another instant (#780's limit, flown on the demo pack:
+  a charge begun at 280.088 where the straight day began it at 282.434).
+  The line says so only where the days part that way (`branched_apart`): one
+  still in the state both were in, the other gone, and the first following
+  it into the same branch within one stand-by slice. Else, or from a save at
+  the pass, a divergence is said plainly: a restored day that went to charge
+  at once (a kept field lost) is no limit."""
+  rep = {"diverged": True, "lastSameT": 280.0, "firstDiffT": 280.5,
+         "stateA": "EXPLORE", "stateB": "GO_CHARGE"}
+  straight = _day({280.0: "EXPLORE", 280.5: "EXPLORE", 282.0: "EXPLORE", 282.5: "GO_CHARGE"})
+  resumed = _day({280.0: "EXPLORE", 280.5: "GO_CHARGE", 282.5: "GO_CHARGE"})
+  plain = "DIVERGED: same until t=280.0, differs at 280.5 (states EXPLORE / GO_CHARGE)"
+  assert ds.verdict(rep, None, True, straight, resumed) == (
+    plain + " -- both days took the branch to GO_CHARGE, 2.0 s apart, inside one "
+    "stand-by slice: a restored stand-by holds a fresh 5 s (#780's limit)", 1)
+  assert ds.verdict(rep, None, False, straight, resumed) == (plain, 1), "at the pass: plain"
+  late = _day({280.0: "EXPLORE", 280.5: "EXPLORE", 286.5: "GO_CHARGE"})
+  assert ds.verdict(rep, None, True, late, resumed) == (plain, 1), "past one slice: plain"
+  never = _day({280.0: "EXPLORE", 280.5: "EXPLORE", 300.0: "EXPLORE"})
+  assert ds.verdict(rep, None, True, never, resumed) == (plain, 1)
+  same = {**rep, "stateB": "EXPLORE"}
+  assert ds.verdict(same, None, True, straight, straight)[0] == (
+    "DIVERGED: same until t=280.0, differs at 280.5 (states EXPLORE / EXPLORE)")
+  ok = {"diverged": False, "stepsCompared": 240}
+  assert ds.verdict(ok, None, True) == (
     "IDENTICAL after the restore over 240 state samples and every look and scan", 0)
-  assert ds.verdict(same, {"kind": "lidar", "t": 300.188}, True)[1] == 1
+  assert ds.verdict(ok, {"kind": "lidar", "t": 300.188}, True)[1] == 1
+
+
+def test_only_a_hold_its_body_made_is_the_stand_by():
+  """`Flight` reads nothing in flight only where the day loop is in a hold
+  its body made (`hold_routine`): another routine of the body's the loop is
+  inside -- a look round, a walk the loop yields to itself -- is in flight
+  by its name, as is the day's start before its first pass."""
+  class Body:
+    def hold_routine(self, seconds):
+      for _ in range(int(seconds)):
+        yield ()
+
+    def look_round(self):
+      for _ in range(3):
+        yield ()
+
+  class Loop:
+    def __init__(self):
+      self.at_loop_top, self.body = [], Body()
+
+    def begin(self):
+      return self._day()
+
+    def _day(self):
+      yield from self.body.look_round()               # ...the day's start
+      for hook in self.at_loop_top:
+        hook()
+      yield from self.body.look_round()               # ...a body's routine, no hold
+      yield from self.body.hold_routine(4)            # ...its stand-by
+
+  life = Loop()
+  flight = ds.Flight(life)
+  day = life.begin()
+  seen = [tuple(flight.ending()) for _ in day]
+  assert seen == [("the day's start",)] * 3 + [("look_round",)] * 3 + [()] * 4, seen
+
+
+def test_in_step_is_refused_a_day_that_never_stands_by(monkeypatch, capsys):
+  """A save in a step lands only in the stand-by, and a day with no economy
+  has no work to wait for: its loop ends after its explore. Refused before
+  anything flies, as `--pair` is."""
+  import pluggybot.batch
+  monkeypatch.setattr(pluggybot.batch, "watched", lambda: None)
+  monkeypatch.setattr(sys, "argv", ["determinism_spike.py", "--resume-at", "200", "--in-step",
+                                    "--no-economy"])
+  with pytest.raises(SystemExit) as stop:
+    ds.main()
+  assert stop.value.code == 2
+  assert "--in-step saves in the stand-by, which a day with --no-economy never reaches" in (
+    capsys.readouterr().err)
 
 
 def test_what_the_loop_is_inside_is_read_only_through_its_hand_driver():
