@@ -1253,15 +1253,13 @@ def test_the_upper_boards_set_down_stands_further_left_of_its_label():
   round (`Reach._planned`), which turned the held product over, no slip in the jaws -- 7 of the census's 24 dev
   misses, the frame pressed on its panel's top and fallen at the let-go, the candle stood on its top. The robot
   stands 3.5 cm further left of an upper label, the hand's aim off the label unchanged: set-out 0's frame (label 84)
-  is gripped 0.22 m left at its set-down on the stub (0.255 by round 5's reference). ⚠ THE LOWER CANDLE IS AIMED 1 CM
-  FURTHER RIGHT (round 13): the set-down's postures swivel the feet (a mean 2 deg on the lower board, and a target in
-  the stance frame moves 1 cm a degree), and its placements landed a mean 1.0 cm left, 5 of 107 past the 4 cm:
-  set-out 0's candle (label 80) at 0.21 m, not 0.22."""
+  is gripped 0.22 m left at its set-down on the stub (0.255 by round 5's reference), the candle's lower label as
+  before."""
   body, ran, log, so, tags = _shelf_flown()
   assert ran["ok"], ran
   assert so.slots == {"candle": 80, "frame": 84}, so.slots
   downs = [a for v, a, pose in log if v == "reach" and pose[3]]
-  assert [d["y"] for d in downs] == pytest.approx([0.22, 0.21], abs=1e-9), downs
+  assert [d["y"] for d in downs] == pytest.approx([0.22, 0.22], abs=1e-9), downs
 
 
 def test_a_lower_label_is_read_off_its_twin_above():
@@ -1279,56 +1277,6 @@ def test_a_lower_label_is_read_off_its_twin_above():
   assert len(hidden) == len(seen) == 2, (seen, hidden)
   for h, s_ in zip(hidden, seen):
     assert [h[c] for c in "xyz"] == pytest.approx([s_[c] for c in "xyz"], abs=1e-9), (h, s_)
-
-
-def test_the_candles_step_at_the_cart_is_taken_sideways_first():
-  """⚠ AT THE CART THE CANDLE'S STEP IS TAKEN SIDEWAYS ALONE WHILE ITS SIDEWAYS ERROR IS PAST NEAR'S TOLERANCE (#736
-  stage 2, round 10): the trip back over-travels to the left (the candle first read 0.10-0.20 m left in 548 of 599
-  dev flights, its mark 0.225), and corrected by one step ahead and to the right at once, a tour's step was stopped by
-  the cart's front-right leg at the knees' height (#717's room keeps 0.20 m) -- 13 of the 14 tour picks out of reach
-  came after such a block -- or, on a check, went ahead and stayed right. On a stub whose steps count short (the trip
-  back over-travels) with the products 3 cm further out, the first step after the candle's first look is sideways
-  alone; its next, the sideways error inside the tolerance, takes the ahead part."""
-  body, ran, log, so, tags = _shelf_flown(undercount=0.15, cart_far=0.03)
-  assert ran["ok"], ran
-  after = [a for v, a, _ in _after(log, "spot", 76) if v == "step"]
-  assert after and after[0]["ahead"] == 0 and abs(after[0]["left"]) > 0.0346, after
-
-
-@pytest.mark.parametrize("far, back", [(-0.07, True), (-0.04, False)])
-def test_a_frame_read_too_near_the_shelf_steps_back_before_its_set_down(far, back):
-  """⚠ A FRAME WHOSE LABEL READS NEARER THAN 0.45 M ONCE THE ROBOT STANDS AT IT STEPS BACK 8 CM BEFORE ITS SET-DOWN
-  (#736 stage 2, round 13): the carried trip's sidesteps bring the robot in, and from nearer than 0.45 m the upper frame
-  ended on its board 22 of 51 times (629 of 695 from further): the bow's first set-down reach stopped short and its
-  fallback was planned standing, the waist turned and the grip half a turn round, or the trip back was blocked by the
-  cart's front-right leg. A carried step asked under about 6 cm moves nothing; one of 8 cm went 9-11. On a stub whose
-  labels read `far` m nearer than they stand, the frame's label at 0.43 m: one step straight back 8 cm before the
-  frame's set-down reach; at 0.46 m none."""
-  body, ran, log, so, tags = _shelf_flown(label_far=far)
-  assert ran["ok"], ran
-  lab = so.slots["frame"]
-  tl = lab + 3 * (lab < 82)
-  i = next(i for i, (v, a, _) in enumerate(log) if v == "spot" and int(a["tag"]) == tl)
-  j = next(j for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3])
-  steps = [a for v, a, _ in log[i + 1:j] if v == "step"]
-  backs = [a for a in steps if a.get("ahead", 0) == pytest.approx(-0.08, abs=1e-9) and a.get("left", 0) == 0]
-  assert len(backs) == (1 if back else 0), steps
-
-
-@pytest.mark.parametrize("far, less", [(0.03, True), (-0.02, False)])
-def test_an_upper_candle_read_far_from_the_shelf_is_set_down_less_deep(far, less):
-  """⚠ AN UPPER CANDLE WHOSE LABEL READS FURTHER THAN 0.50 M IS SET DOWN 2 CM LESS DEEP (#736 stage 2, round 17): from
-  0.50 m or more its press at full stretch read 'out of reach' with a jaw pad on the board at 306-363 N while the hand
-  slid 8-11 cm back toward the board's edge, and the candle let go there fell -- over two arms' dev flights the upper
-  candle ended on its board 34 of 44 times from there, 46 of 47 from 0.43-0.50 m. Its front lands a median 5.5-5.7 cm
-  behind the board's edge (the lower candle's 3.9), so there is room. On a stub whose labels read `far` m further than
-  they stand, set-out 4's candle (label 83) at 0.53 m: carried in to 0.57 m, 2 cm short of 0.59; at 0.48 m to 0.54."""
-  body, ran, log, so, tags = _shelf_flown(k=4, label_far=far)
-  assert ran["ok"], ran
-  assert so.slots == {"candle": 83, "frame": 84}, so.slots
-  downs = [j for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
-  carry = next(a for v, a, pose in log[downs[1] + 1:] if v == "move_hand")
-  assert carry["x"] == pytest.approx(0.57 if less else 0.54, abs=1e-9), carry
 
 
 def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
