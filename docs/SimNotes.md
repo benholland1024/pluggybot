@@ -13007,9 +13007,9 @@ lane C's rack the believed stance drifted 2 cm as the pelvis went back 17 cm
 over the planted sole; the board read 1.6 cm further at the look than at the
 plan, and the look's rise -- 1.2 cm into the board's underside by the truth
 -- read 0.14 cm clear: the head struck at 416 N and the robot fell (at the
-counter the drift ran 1.3-3 cm). But the reckoning is not drift alone: at a table check the true stance turned 3.2
-deg in place while the feet stood, and the reckoning followed it (2.7 deg,
-drifting 1 cm). So no placement serves both. Placed through the believed
+counter the drift ran 1.3-3 cm). But the reckoning is not drift alone: at a
+table check the true stance turned 3.2 deg in place while the feet stood,
+and the reckoning followed it (2.7 deg, drifting 1 cm). So no placement serves both. Placed through the believed
 stance at each frame's fold (`loop-763b`, measured, not merged), the rack
 went 3 -> 0 falls, but on Ben's bar it undid #763's four moved outcomes
 (a pass lost, a fall gained); turned by the reckoned heading's turn as well,
