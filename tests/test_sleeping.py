@@ -149,6 +149,12 @@ def test_update_is_mujocos_own_mj_update_sleep():
                  ("dof_awake_ind", "nv_awake")):
       assert np.array_equal(getattr(d, k)[:want[n]], arrays[k][:want[n]]), k
   assert d.tree_asleep[_tree(m, "cupboard")] >= 0 and d.tree_asleep[_tree(m, "alpha")] < 0
+  # ...and a world with no tree at all, only its static floor
+  m, d = _toy("""<mujoco><option><flag sleep="enable"/></option>
+    <worldbody><geom type="plane" size="1 1 .1"/></worldbody></mujoco>""")
+  d.body_awake[:] = 7
+  sleeping.update(m, d)
+  assert list(d.body_awake) == [int(mujoco.mjtSleepState.mjS_STATIC)] and d.nbody_awake == 1
 
 
 def test_a_touch_wakes_a_sleeping_body_in_the_step_it_lands():
