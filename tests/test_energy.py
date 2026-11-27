@@ -574,3 +574,105 @@ def test_a_charge_at_the_tables_own_rate_completes_inside_its_cap(scale):
   assert life.charge_cycles == 1 and took < life.charge_timeout
   if scale == 1.0:
     assert took > lc.CHARGE_TIMEOUT, "the premise: longer than the old flat cap"
+
+
+# ---- 6. what `scripts/energy_spike.py` prices, and from where ----------------
+
+
+def _energy_spike(monkeypatch):
+  monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+  import energy_spike
+  return energy_spike
+
+
+def test_energy_spike_prices_every_job_that_has_a_reference(monkeypatch):
+  """`--actions` prices every hand job with a hand-written reference
+  (`solutions.PROCEDURES`), at its target: the shop's shelf (#736) had
+  none, and its kind's energy was a placeholder nothing measured."""
+  from pluggybot.challenge import solutions
+  spike = _energy_spike(monkeypatch)
+  assert spike.HAND_JOBS == solutions.TARGETS
+  assert set(spike.HAND_JOBS) == set(solutions.PROCEDURES)
+
+
+def test_energy_spike_finds_every_tag_a_reference_finds_before_it_flies(monkeypatch):
+  """A job is priced from its station with its area remembered: every tag
+  its reference's procedures `find` is found first, round the address its
+  `find` searches round -- so no first search of the map is priced. The
+  counter's row aside: its prop's own tag is found, its neighbours seen
+  with it. Unfound, the shop's shelf's walk (`solutions.STOCK_APPROACH`)
+  searched the shop for the store's left tag inside the job (#736)."""
+  import re
+  from pluggybot.challenge import solutions
+  from pluggybot.home import jobs, storeroom
+  spike = _energy_spike(monkeypatch)
+  for kind, target in solutions.TARGETS.items():
+    if jobs.area_of(target) is storeroom:
+      continue
+    runs = solutions.PROCEDURES[kind]
+    sources = (*solutions.LIBRARY.get(kind, ()), *(runs if isinstance(runs, tuple) else (runs,)))
+    finds = [(int(t), float(x), float(y)) for s in sources
+             for t, x, y in re.findall(r"\bfind\(\s*(\d+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)", s)]
+    assert finds, kind
+    at = spike.address_of(target)
+    for tag, x, y in finds:
+      assert tag in spike.found_first(kind), (kind, tag)
+      assert (x, y) == pytest.approx((at["x"], at["y"])), (kind, tag)
+
+
+def test_energy_spike_flies_the_shelf_in_a_house_its_stock_is_put_into(monkeypatch):
+  """No served house has the shop's stock (`store.SERVED`, #736): the
+  instrument puts it in, put away, where the shelf is priced -- as `solve.py
+  --feature shelf` does -- and leaves the house as served otherwise."""
+  from pluggybot.home import store
+  spike = _energy_spike(monkeypatch)
+  assert store.present(spike.world_model(HUMANOID_HOME, ("stock_shelf",)))
+  assert not store.present(spike.world_model(HUMANOID_HOME, ("set_table", "open_drawer")))
+
+
+def test_energy_spike_finds_an_area_again_that_a_stations_fix_dropped(monkeypatch):
+  """A station's fix that moves the belief drops the map and its places
+  (#681), so a job's area found and then docked at may be forgotten as the
+  job is taken: found again from the station, `FIND_ROUNDS` times at most,
+  and said where it never stays remembered. A fake life: its find remembers
+  the tag, its first `drops` dockings forget every place."""
+  spike = _energy_spike(monkeypatch)
+
+  class Body:
+    def __init__(self):
+      self.places, self.found = {}, []
+
+    def find_tag_routine(self, tag, near, patience):
+      self.places[tag] = near
+      self.found.append(tag)
+      return {"why": "found", "seconds": 1.0}
+      yield
+
+    def run(self, routine):
+      try:
+        while True:
+          next(routine)
+      except StopIteration as done:
+        return done.value
+
+  class Life:
+    def __init__(self, drops):
+      self.body, self.drops, self._put_away_step = Body(), drops, lambda: None
+
+    def go_charge(self):
+      if self.drops:
+        self.drops -= 1
+        self.body.places.clear()
+      return True
+
+    def charge(self):
+      pass
+
+  life = Life(drops=0)
+  assert spike.remember_area(life, "stock_shelf") and life.body.found == [spike.STORE_TAG]
+  life = Life(drops=1)
+  assert spike.remember_area(life, "stock_shelf"), "flown with its area forgotten"
+  assert life.body.found == [spike.STORE_TAG] * 2
+  life = Life(drops=spike.FIND_ROUNDS)
+  assert not spike.remember_area(life, "stock_shelf")
+  assert len(life.body.found) == spike.FIND_ROUNDS, "unbounded"

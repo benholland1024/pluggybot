@@ -12,6 +12,7 @@ house's layout, the body, a routine.
     MUJOCO_GL=egl uv run python scripts/energy_spike.py
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions open_drawer,open_door,place_cube,open_chest
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --station station_mall --actions open_drawer
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions stock_shelf --noise k1 --draw 4
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --reserve
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --write
 
@@ -24,11 +25,15 @@ What comes out, on the humanoid in its house (`home_humanoid`, #559):
 `exploreWhPerS` (so a bounded explore slice can be priced), `chargeW` (the
 NET rate into the pack plugged in at its station, which the charge timeout
 is sized against), and per hand job (`--actions`, each from the station
-with its area remembered, its reference's two procedures flown). A job is
-taken from any of the world's stations (#560: one in each building), and
-the table carries the dearest: `--station` names the one every job is
-flown from -- the mall's, 43 m by route from the storeroom's counter where
-the house's is 29 and the research center's 7:
+with its area remembered -- found again where a station's fix dropped it
+with the map -- its reference's procedures flown; the shop's shelf's,
+#736, in a house its stock is put into, as no served one has it yet). A
+job is taken from any of the world's stations (#560: one in each
+building), and the table carries the dearest: `--station` names the one
+every job is flown from -- the mall's, 43 m by route from the storeroom's
+counter where the house's is 29 and the research center's 7. `--noise`
+keys the body's noise and `--draw` the job's, so a job is priced over
+several of each:
 
     wh        the whole errand, the span the loop cannot interrupt: what the
               gate compares against the pack
@@ -59,17 +64,30 @@ from pluggybot.lifecycle import (
 
 #: The humanoids' hand jobs (#559, stage 3; #560), priced on request, by
 #: kind: each its target -- a prop on the storeroom's counter, the
-#: restaurant's table -- its reference's two procedures (`challenge.
-#: solutions`) flown from the station with its place remembered.
+#: restaurant's table, the shop's shelf (#736, in no served house: its stock
+#: put into this one for it, `world_model`) -- its reference's procedures
+#: (`challenge.solutions`) flown from the station with its place remembered.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
              "open_chest": "chest", "set_table": "dining_table_0",
-             "set_table_pass": "dining_table_0", "set_table_shelf": "dining_table_0"}
+             "set_table_pass": "dining_table_0", "set_table_shelf": "dining_table_0",
+             "stock_shelf": "shop_shelf"}
 #: ...and the tags a job's reference finds before its place's, found first
 #: too, so no first search of a fresh map is priced: the pass's pair (#682's
 #: stage C), which every trip of the place laid from the pass, and from the
 #: kitchen's shelf, finds first.
 FOUND_FIRST = {"set_table_pass": (69, 68),   # tags.RESTAURANT_TAG_IDS, as `solutions.PASS_TO`
                "set_table_shelf": (69, 68)}  # ...and `solutions.SHELF_TO` find them
+#: The shop's shelf's place: the store's left tag (`home.areas`), which the
+#: shelf's walk finds round the shop's address (`solutions.STOCK_APPROACH`):
+#: its labels and products are no places (`world_facts`).
+STORE_TAG = 70
+#: The area whose address a target's tag is searched round: its own, but the
+#: shop's shelf's, which is the shop's.
+AREA_OF = {"shop_shelf": "shop"}
+#: How many times a job's area is found and the station reached again where a
+#: station's fix dropped it with the map (#681: one that moves the belief past
+#: `FIX_TOL` forgets both), so a job is flown with its area remembered.
+FIND_ROUNDS = 3
 
 
 class _Writer:
@@ -93,10 +111,36 @@ BIG_PACK_WH = 40.0
 
 def _place_tag(target: str) -> int:
   """The tag a target's place is found by: the counter's row's over its
-  prop, the restaurant's place card."""
-  from pluggybot.home import storeroom
+  prop, the shop's shelf's store tag, the restaurant's place card."""
+  from pluggybot.home import storeroom, store
   from pluggybot.perception.tags import PLACE_TAG_IDS
-  return storeroom.TAGS[target] if target in storeroom.TAGS else PLACE_TAG_IDS[0]
+  if target in storeroom.TAGS:
+    return storeroom.TAGS[target]
+  return STORE_TAG if target == store.SHELF else PLACE_TAG_IDS[0]
+
+
+def found_first(action: str) -> tuple[int, ...]:
+  """The tags a job's area is found by before it is flown, in order."""
+  return (*FOUND_FIRST.get(action, ()), _place_tag(HAND_JOBS[action]))
+
+
+def address_of(target: str) -> dict:
+  """The address a target's tags are searched round: its area's."""
+  from pluggybot.home.places import area
+  return area(AREA_OF.get(target, target))["address"]
+
+
+def world_model(world: str, actions=()) -> mujoco.MjModel:
+  """The world compiled with its body in it -- and, where the shop's shelf is
+  priced, its stock put in, put away until the job's offer sets it out, as
+  `scripts/solve.py --feature shelf` puts it (#736: no served house has it
+  yet, `home.store`); the house as served otherwise."""
+  from pluggybot.home import store
+  spec = world_spec(world_config(world)["model"])
+  if any(HAND_JOBS[a] == store.SHELF for a in actions):
+    from pluggybot.evaluation import counter as ct
+    store.attach(spec, ct.stock_set_out(0))
+  return spec.compile()
 
 
 def _from_the_station(life, prop: str, tag: int) -> None:
@@ -104,7 +148,6 @@ def _from_the_station(life, prop: str, tag: int) -> None:
   not remembered: where a job is taken from (the energy table's rule) --
   what is put away between jobs set out for it first (the table's card)."""
   from pluggybot.home import jobs
-  from pluggybot.home.places import area
   if life.body.places.get(tag) is None:
     job_area = jobs.area_of(prop)
     sweep = life._put_away_step
@@ -114,7 +157,7 @@ def _from_the_station(life, prop: str, tag: int) -> None:
       # it away a second later)
       job_area.set_out(life.model, life.data, prop, 0)
       life._put_away_step = lambda: None
-    at = area(prop)["address"]
+    at = address_of(prop)
     try:
       rec = life.body.run(life.body.find_tag_routine(tag, near=(at["x"], at["y"]),
                                                      patience=600.0))
@@ -125,16 +168,39 @@ def _from_the_station(life, prop: str, tag: int) -> None:
     life.charge()
 
 
+def remember_area(life, action: str) -> bool:
+  """At the station with the job's area remembered: its tags found from
+  there (`_from_the_station`, each), and all of them again, `FIND_ROUNDS`
+  times at most, where a station's fix dropped them with the map. Whether
+  they are remembered as the job is taken."""
+  tags = found_first(action)
+  for again in range(FIND_ROUNDS):
+    if again:
+      print("  (a station's fix dropped the places found with the map: found again)")
+    for tag in tags:
+      _from_the_station(life, HAND_JOBS[action], tag)
+    if all(life.body.places.get(tag) is not None for tag in tags):
+      return True
+  return False
+
+
 def measure(world: str, actions, battery_wh: float, explore_s: float,
-            charge_s: float, station: str = "station") -> dict:
+            charge_s: float, station: str = "station", noise: str | None = None,
+            draw: int | None = None) -> dict:
   """Fly every errand once and report what each one took out of the pack,
-  each from `station`."""
+  each from `station` -- the body drawing `noise`'s noise where one is named
+  (`humanoid.senses.Noise`; else the robot's own), the jobs drawn from
+  `draw` on (else the board's first)."""
   cfg = world_config(world)
   # ...the world with its body in it
-  model = world_spec(cfg["model"]).compile()
+  model = world_model(world, actions)
   data = mujoco.MjData(model)
   book = board_book(world)
-  life = HubLifecycle(model, data, realtime=False, battery_wh=battery_wh,
+  body = None
+  if noise is not None:
+    from pluggybot.body import body_for
+    body = body_for(model, data, grid_bounds=cfg["grid_bounds"], realtime=False, noise=noise)
+  life = HubLifecycle(model, data, body=body, realtime=False, battery_wh=battery_wh,
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
                       ledger=points_ledger(None), world=world, errands=[],
@@ -178,11 +244,13 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
 
     # ---- one hand job at a time --------------------------------------------
     from pluggybot.challenge import solutions
+    if draw is not None:
+      # ...its offer's draw: the board's own count (`TaskProducer._build`)
+      life.tasks.seq = int(draw)
     for action in actions:
-      # ...from the station, its area's tag found first if the explore missed it
-      prop = HAND_JOBS[action]
-      for tag in (*FOUND_FIRST.get(action, ()), _place_tag(prop)):
-        _from_the_station(life, prop, tag)
+      # ...from the station, its area's tags found first if the explore missed
+      # them, and again where a station's fix dropped them
+      remembered = remember_area(life, action)
       t0 = float(data.time)
       # Topped up first, so every job is measured from the same place in the
       # pack and none of them against a battery that ran out halfway.
@@ -196,8 +264,19 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
         life.overseer = None
       used = battery_wh - life.battery.energy_wh
       dt = max(1e-6, float(data.time) - t0)
+      # ...and what its grade read: the claim to the call (`elapsedS`, its
+      # newest task's), and the last find its procedures made (the shelf's
+      # walk makes one)
+      job = max(life.tasks.tasks.values(), key=lambda t: t.number)
+      find = life.body.mission.last_find or {}
       out["actions"][action] = {"wh": used, "s": dt, "w": used * 3600.0 / dt,
-                                "errand": action, "ok": run["grade"]["ok"]}
+                                "errand": action, "ok": run["grade"]["ok"],
+                                "reason": run["grade"]["reason"],
+                                "draw": run["secret"].get("draw"), "remembered": remembered,
+                                "claimToCallS": ((job.verdict or {}).get("metrics") or {})
+                                .get("elapsedS"),
+                                "lastFind": {k: find.get(k) for k in
+                                             ("tag", "remembered", "why", "seconds", "viewpoints")}}
       print(f"  {action:18s} {dt:6.1f}s  {used:.4f} Wh  ({used * 3600.0 / dt:5.1f} W)  "
             f"{'PASSED' if run['grade']['ok'] else 'FAILED'} -- {run['grade']['reason']}")
       life.battery.energy_wh = battery_wh
@@ -356,6 +435,12 @@ def main() -> None:
   ap.add_argument("--station", default="station", choices=sorted(home.STATION_WALLS),
                   help="the station every job is flown from and the charge measured at "
                        "(#560; the house's by default): the table carries the dearest")
+  ap.add_argument("--noise", default=None,
+                  help="the noise key the body draws (`humanoid.senses.Noise`), so a job is "
+                       "priced over several draws of it; the robot's own by default")
+  ap.add_argument("--draw", type=int, default=None,
+                  help="the first job's draw (its offer's set-out and hidden dynamics); "
+                       "the board's first by default")
   ap.add_argument("--reserve", action="store_true",
                   help="measure the worst-case return trip instead of the "
                        "errands (issues #70/#84): what humanoid.world.RESERVE_WH "
@@ -391,8 +476,9 @@ def main() -> None:
     return
   print(f"== {args.world}: pricing the explore, the charger"
         f"{''.join(', ' + a for a in actions)} on a {args.battery_wh:g} Wh pack")
-  out = measure(args.world, actions, args.battery_wh, explore_s, args.charge_s, args.station)
-  out["station"] = args.station
+  out = measure(args.world, actions, args.battery_wh, explore_s, args.charge_s, args.station,
+                noise=args.noise, draw=args.draw)
+  out["station"], out["noise"], out["draw"] = args.station, args.noise, args.draw
   out["wallS"] = round(time.time() - wall, 1)
   print(f"-- {out['wallS']:.0f} s of wall clock")
 
