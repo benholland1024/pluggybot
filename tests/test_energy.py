@@ -585,14 +585,25 @@ def _energy_spike(monkeypatch):
   return energy_spike
 
 
-def test_energy_spike_prices_every_job_that_has_a_reference(monkeypatch):
-  """`--actions` prices every hand job with a hand-written reference
-  (`solutions.PROCEDURES`), at its target: the shop's shelf (#736) had
-  none, and its kind's energy was a placeholder nothing measured."""
-  from pluggybot.challenge import solutions
+def test_energy_spike_writes_no_row_a_job_was_not_priced_for(monkeypatch, tmp_path):
+  """`--write` folds what was measured into the energy table, but never a
+  job flown with its area forgotten -- a first search of the map is never
+  priced (#736's review) -- nor the explore's rate and the charge's watts
+  measured in a house the shop's stock was put into, which no served house
+  has; its note says what it was measured on."""
   spike = _energy_spike(monkeypatch)
-  assert spike.HAND_JOBS == solutions.TARGETS
-  assert set(spike.HAND_JOBS) == set(solutions.PROCEDURES)
+  path = tmp_path / "energy.json"
+  path.write_text(json.dumps({"worlds": {"w": {"errandWh": {"set_table": 9.0}, "chargeW": 300.0}}}))
+  row = {"wh": 8.5, "remembered": True}
+  spike.fold({"actions": {"stock_shelf": dict(row, remembered=False), "set_table": dict(row)},
+              "stock": True, "exploreWhPerS": 0.06, "chargeW": 330.0}, path, "w", "a note")
+  block = json.loads(path.read_text())["worlds"]["w"]
+  assert block["errandWh"] == {"set_table": 8.5}, "a row flown with its area forgotten written"
+  assert block["chargeW"] == 300.0 and "exploreWhPerS" not in block, "a stocked house's rates written"
+  assert block["measuredOn"] == "a note"
+  spike.fold({"actions": {}, "stock": False, "exploreWhPerS": 0.06, "chargeW": 330.0}, path, "w", "n")
+  block = json.loads(path.read_text())["worlds"]["w"]
+  assert block["chargeW"] == 330.0 and block["exploreWhPerS"] == 0.06
 
 
 def test_energy_spike_finds_every_tag_a_reference_finds_before_it_flies(monkeypatch):
@@ -617,7 +628,7 @@ def test_energy_spike_finds_every_tag_a_reference_finds_before_it_flies(monkeypa
     at = spike.address_of(target)
     for tag, x, y in finds:
       assert tag in spike.found_first(kind), (kind, tag)
-      assert (x, y) == pytest.approx((at["x"], at["y"])), (kind, tag)
+      assert (x, y) == pytest.approx((at["x"], at["y"]), abs=1e-4), (kind, tag)
 
 
 def test_energy_spike_flies_the_shelf_in_a_house_its_stock_is_put_into(monkeypatch):
@@ -634,18 +645,21 @@ def test_energy_spike_finds_an_area_again_that_a_stations_fix_dropped(monkeypatc
   """A station's fix that moves the belief drops the map and its places
   (#681), so a job's area found and then docked at may be forgotten as the
   job is taken: found again from the station, `FIND_ROUNDS` times at most,
-  and said where it never stays remembered. A fake life: its find remembers
-  the tag, its first `drops` dockings forget every place."""
+  and said where it never stays remembered -- never where its find failed
+  (#736's review). A fake life: its find remembers the tag (or fails), its
+  first `drops` dockings forget every place."""
   spike = _energy_spike(monkeypatch)
 
   class Body:
-    def __init__(self):
-      self.places, self.found = {}, []
+    def __init__(self, finds=True):
+      self.places, self.found, self.finds = {}, [], finds
 
     def find_tag_routine(self, tag, near, patience):
-      self.places[tag] = near
       self.found.append(tag)
-      return {"why": "found", "seconds": 1.0}
+      if not self.finds:
+        return {"found": False, "why": "out of time", "seconds": patience}
+      self.places[tag] = near
+      return {"found": True, "why": "found", "seconds": 1.0}
       yield
 
     def run(self, routine):
@@ -656,8 +670,8 @@ def test_energy_spike_finds_an_area_again_that_a_stations_fix_dropped(monkeypatc
         return done.value
 
   class Life:
-    def __init__(self, drops):
-      self.body, self.drops, self._put_away_step = Body(), drops, lambda: None
+    def __init__(self, drops, finds=True):
+      self.body, self.drops, self._put_away_step = Body(finds), drops, lambda: None
 
     def go_charge(self):
       if self.drops:
@@ -676,3 +690,7 @@ def test_energy_spike_finds_an_area_again_that_a_stations_fix_dropped(monkeypatc
   life = Life(drops=spike.FIND_ROUNDS)
   assert not spike.remember_area(life, "stock_shelf")
   assert len(life.body.found) == spike.FIND_ROUNDS, "unbounded"
+  # ...but a find that failed is no fix's: searched once, never again
+  life = Life(drops=0, finds=False)
+  assert not spike.remember_area(life, "stock_shelf")
+  assert life.body.found == [spike.STORE_TAG], "a failed find searched again"

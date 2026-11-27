@@ -55,6 +55,7 @@ from pathlib import Path
 
 import mujoco
 
+from pluggybot.challenge import solutions
 from pluggybot.economy.tasks import TaskBoard
 from pluggybot.robot import world_spec  # noqa: E402
 
@@ -63,14 +64,12 @@ from pluggybot.lifecycle import (
 )
 
 #: The humanoids' hand jobs (#559, stage 3; #560), priced on request, by
-#: kind: each its target -- a prop on the storeroom's counter, the
-#: restaurant's table, the shop's shelf (#736, in no served house: its stock
-#: put into this one for it, `world_model`) -- its reference's procedures
-#: (`challenge.solutions`) flown from the station with its place remembered.
-HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
-             "open_chest": "chest", "set_table": "dining_table_0",
-             "set_table_pass": "dining_table_0", "set_table_shelf": "dining_table_0",
-             "stock_shelf": "shop_shelf"}
+#: kind: each with a hand-written reference (`challenge.solutions`), at its
+#: target -- a prop on the storeroom's counter, the restaurant's table, the
+#: shop's shelf (#736, in no served house: its stock put into this one for
+#: it, `world_model`) -- its procedures flown from the station with its
+#: place remembered.
+HAND_JOBS = solutions.TARGETS
 #: ...and the tags a job's reference finds before its place's, found first
 #: too, so no first search of a fresh map is priced: the pass's pair (#682's
 #: stage C), which every trip of the place laid from the pass, and from the
@@ -143,12 +142,15 @@ def world_model(world: str, actions=()) -> mujoco.MjModel:
   return spec.compile()
 
 
-def _from_the_station(life, prop: str, tag: int) -> None:
+def _from_the_station(life, prop: str, tag: int) -> bool:
   """To the station, the prop's area (its tag `tag`) found first if it is
   not remembered: where a job is taken from (the energy table's rule) --
-  what is put away between jobs set out for it first (the table's card)."""
+  what is put away between jobs set out for it first (the table's card).
+  Whether the tag was known as the robot left for the station: False is a
+  find that failed."""
   from pluggybot.home import jobs
-  if life.body.places.get(tag) is None:
+  known = life.body.places.get(tag) is not None
+  if not known:
     job_area = jobs.area_of(prop)
     sweep = life._put_away_step
     if job_area is jobs.restaurant:
@@ -164,21 +166,24 @@ def _from_the_station(life, prop: str, tag: int) -> None:
     finally:
       life._put_away_step = sweep
     print(f"  (found {prop} first: {rec.get('why')} in {rec.get('seconds')} s, unpriced)")
+    known = bool(rec.get("found"))
   if life.go_charge():
     life.charge()
+  return known
 
 
 def remember_area(life, action: str) -> bool:
   """At the station with the job's area remembered: its tags found from
   there (`_from_the_station`, each), and all of them again, `FIND_ROUNDS`
-  times at most, where a station's fix dropped them with the map. Whether
-  they are remembered as the job is taken."""
+  times at most, where a station's fix dropped them with the map -- never
+  where a find failed. Whether they are remembered as the job is taken."""
   tags = found_first(action)
   for again in range(FIND_ROUNDS):
     if again:
       print("  (a station's fix dropped the places found with the map: found again)")
-    for tag in tags:
-      _from_the_station(life, HAND_JOBS[action], tag)
+    if not all([_from_the_station(life, HAND_JOBS[action], tag) for tag in tags]):
+      print("  (its area not found: the job is flown with it forgotten)")
+      return False
     if all(life.body.places.get(tag) is not None for tag in tags):
       return True
   return False
@@ -227,7 +232,9 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
   life.floor_explored = False
   life.explore_deadline = 1e9
 
-  out: dict = {"world": world, "batteryWh": battery_wh, "actions": {}}
+  out: dict = {"world": world, "batteryWh": battery_wh, "actions": {},
+               # ...in a house its stock was put into, which no served one has
+               "stock": any(HAND_JOBS[a] == "shop_shelf" for a in actions)}
   try:
     life.body.start_at(*cfg["start"])
     life.body.start_discovery()
@@ -243,7 +250,6 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
           f"({out['exploreWhPerS'] * 3600:.1f} W)")
 
     # ---- one hand job at a time --------------------------------------------
-    from pluggybot.challenge import solutions
     if draw is not None:
       # ...its offer's draw: the board's own count (`TaskProducer._build`)
       life.tasks.seq = int(draw)
@@ -258,6 +264,8 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
       # below measures.
       life.battery.energy_wh = battery_wh
       life.overseer = _Writer(world)
+      # ...its own finds alone, never the unpriced ones before it
+      life.body.mission.last_find = None
       try:
         run = life.body.run(solutions.job_routine(life, action, world))
       finally:
@@ -415,6 +423,33 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
   return out
 
 
+def fold(out: dict, path: Path, world: str, measured_on: str) -> None:
+  """`--write`: `out`'s rows into the energy table at `path` -- each job's,
+  but one flown with its area forgotten (a first search of the map is never
+  priced: CLAUDE.md, "What an errand costs"), and the explore's rate and the
+  charge's watts but where the house had the shop's stock put in, which no
+  served house has -- and its `measuredOn` note."""
+  doc = json.loads(path.read_text())
+  block = doc.setdefault("worlds", {}).setdefault(world, {})
+  costs = block.setdefault("errandWh", {})
+  for key, row in out["actions"].items():
+    if not row["remembered"]:
+      print(f"{key}: NOT written -- flown with its area forgotten")
+      continue
+    costs[key] = round(row["wh"], 3)
+  if out["stock"]:
+    print("the explore's rate and the charge's watts NOT written -- measured in a house the "
+          "shop's stock was put into, which no served one has")
+  else:
+    if "exploreWhPerS" in out:
+      block["exploreWhPerS"] = round(out["exploreWhPerS"], 6)
+    if "chargeW" in out:
+      block["chargeW"] = round(out["chargeW"], 1)
+  block["measuredOn"] = measured_on
+  path.write_text(json.dumps(doc, indent=2) + "\n")
+  print(f"folded into {path}")
+
+
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -487,19 +522,10 @@ def main() -> None:
     print(f"wrote {args.json}")
   if args.write:
     from pluggybot.economy import energy
-    path = energy.ENERGY_PATH
-    doc = json.loads(path.read_text())
-    block = doc.setdefault("worlds", {}).setdefault(args.world, {})
-    costs = block.setdefault("errandWh", {})
-    for key, row in out["actions"].items():
-      costs[key] = round(row["wh"], 3)
-    if "exploreWhPerS" in out:
-      block["exploreWhPerS"] = round(out["exploreWhPerS"], 6)
-    if "chargeW" in out:
-      block["chargeW"] = round(out["chargeW"], 1)
-    block["measuredOn"] = f"{args.battery_wh:g} Wh pack, {math.floor(explore_s)} s explore"
-    path.write_text(json.dumps(doc, indent=2) + "\n")
-    print(f"folded into {path}")
+    fold(out, energy.ENERGY_PATH, args.world,
+         f"{args.battery_wh:g} Wh pack, {math.floor(explore_s)} s explore"
+         + (f", noise {args.noise}" if args.noise is not None else "")
+         + (f", draw {args.draw}" if args.draw is not None else ""))
 
 
 if __name__ == "__main__":
