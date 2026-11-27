@@ -172,14 +172,16 @@ def test_only_a_hold_its_body_made_is_the_stand_by():
   assert seen == [("the day's start",)] * 3 + [("look_round",)] * 3 + [()] * 4, seen
 
 
-def test_in_step_is_refused_a_day_that_never_stands_by(monkeypatch, capsys):
+def test_in_step_is_refused_a_day_that_never_stands_by(monkeypatch, capsys, tmp_path):
   """A save in a step lands only in the stand-by, and a day with no economy
   has no work to wait for: its loop ends after its explore. Refused before
-  anything flies, as `--pair` is."""
+  anything flies, as `--pair` is -- and were it let through, this test fails
+  at once rather than fly the check."""
   import pluggybot.batch
   monkeypatch.setattr(pluggybot.batch, "watched", lambda: None)
+  monkeypatch.setattr(ds, "resume_check", lambda *a, **kw: pytest.fail("let through: it flew"))
   monkeypatch.setattr(sys, "argv", ["determinism_spike.py", "--resume-at", "200", "--in-step",
-                                    "--no-economy"])
+                                    "--no-economy", "--out", str(tmp_path)])
   with pytest.raises(SystemExit) as stop:
     ds.main()
   assert stop.value.code == 2
