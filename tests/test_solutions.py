@@ -798,14 +798,19 @@ def test_the_shelf_reference_is_a_library_the_served_language_takes():
 
 def test_the_shelf_lays_each_piece_as_the_pass_lays_it():
   """Each run of the shelf's, from its walk to the place on, is the pass's
-  run byte for byte but its check that the piece is still held: the shelf
-  changes only how a piece is fetched."""
+  run byte for byte but its check that the piece is still held, and the
+  cup's re-set's move taken back where it reads false (`SHELF_CUP_UNDO`):
+  the shelf changes how a piece is fetched, and that one failure's answer."""
   from pluggybot.challenge import solutions
+  undo_old, undo_new = solutions.SHELF_CUP_UNDO
   for shelf, pass_, hand in zip(solutions.PROCEDURES["set_table_shelf"],
                                 solutions.PROCEDURES["set_table_pass"], ("right", "left", "left")):
     assert shelf.count("  to_place(") == pass_.count("  to_place(") == 1
     lay = shelf[shelf.index("  to_place("):]
     assert lay.count(solutions.SHELF_HELD % hand) == 1, hand
+    if hand == "right":
+      assert lay.count(undo_new) == 1 and pass_.count(undo_old) == 1
+      lay = lay.replace(undo_new, undo_old)
     assert lay.replace(solutions.SHELF_HELD % hand, "") == pass_[pass_.index("  to_place("):]
   assert solutions.LIBRARY["set_table_shelf"][1:] == solutions.LIBRARY["set_table_pass"][1:]
 
@@ -1095,18 +1100,178 @@ def test_the_shelf_s_thin_pieces_are_stowed_clear_of_the_board_before_the_walk()
     moves = _hand_moves(src, "left")
     i_back = _index(moves, lambda m: m[0] == "move_hand" and m[1][1] == back[piece],
                     f"{piece} moved back to SHELF's")
-    stow = moves[i_back + 1]
+    stows = [moves[i_back + 1]]
     if piece == "plate":
+      stow = stows[0]
       assert stow[0] == "move_hand" and stow[1][3] == solutions.SHELF_STOW_Z, stow
     else:
+      # ...the fork's by one pull, its ask the next test's (`SHELF_FORK_EDGE`)
       lowered = f'read("left.z") - {solutions.SHELF_STOW_Z:g}'
-      assert stow[0] == "pull" and [float(v) for v in stow[1][1:4]] == [0, 0, -1], stow
-      assert stow[1][5].replace("'", '"') == lowered, stow
+      stows = [m for m in moves[i_back + 1:] if m[0] == "pull" and isinstance(m[1][5], str)
+               and m[1][5].replace("'", '"') == lowered]
+      assert stows and moves[i_back + 1:i_back + 1 + len(stows)] == stows, moves[i_back + 1:]
+      for stow in stows:
+        assert [float(v) for v in stow[1][1:4]] == [0, 0, -1], stow
       gives = [k.value.value for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Call)
                and getattr(n.func, "id", "") == "pull" and ast.unparse(n.args[5]).replace("'", '"') == lowered
                for k in n.keywords if k.arg == "give"]
-      assert gives == [0], gives
+      assert gives == [0] * len(stows), gives
     # ...and the walk next: no hand move between the stow and the walk to the place
     walk = _index(calls, lambda c: c[0] == "to_place", "walk to the place")
     after = [c for c in calls[:walk] if c[0] in ("move_hand", "go", "pull", "reach")]
-    assert after[-1] == stow, after[-1]
+    assert after[-len(stows):] == stows, after[-len(stows):]
+
+
+def test_the_shelf_fork_s_stow_asks_little_only_where_its_tip_stands_at_the_board_s_edge():
+  """The fork lies on the shelf with its head toward it, the tip 0.125 m past
+  the grip and the fork 0.07 m in from the board's edge: brought back to
+  `SHELF_FORK_BACK` from a grip under 0.41 m ahead, the tip stood over the
+  edge, and the stow's lowering, asking 20 N, pressed it on the board's top
+  and turned the fork 28-57 deg in the jaws in 14 of 15 trips. Asking 3 N it
+  stops where the tip meets the board, the fork flat; asked of every stow, 3
+  N slowed almost every one as it began and flew almost every fork trip
+  afresh (A5's and A6's flights; SimNotes, "The place laid from the kitchen's
+  shelf"). Off
+  the reference's own source: the grip's place is read where the move back
+  begins, no verb between; the lowering asks `SHELF_FORK_STOW_N` where it
+  reads nearer than `SHELF_FORK_EDGE` -- the tip then within 1 cm of the edge
+  or over it -- and 20 N, as before, where it does not."""
+  import ast as _ast
+  from pluggybot.activity import dishware as dw
+  from pluggybot.challenge import solutions
+  from pluggybot.evaluation import counter as ct
+  tip, lies = dw.HANDLE[0] + 2 * dw.HEAD[0], ct.SHELF_SOURCES["fork"][0][0]
+  assert math.isclose(solutions.SHELF_FORK_EDGE, solutions.SHELF_FORK_BACK + tip + lies + 0.01), (
+    "the edge's line is no longer the tip within 1 cm of the board's edge")
+  fn = _ast.parse(solutions.PROCEDURES["set_table_shelf"][2]).body[0]
+  said = [_ast.unparse(st) for st in fn.body]
+  back = f"go('left', {solutions.PASS_FORK_BACK:g},"
+  go = next((i for i, t in enumerate(said) if t.startswith(back)), None)
+  assert go is not None, f"the fork's run has no move back ({back})"
+  read = said.index("gx = read('left.x')")
+  moved = [c.func.id for st in fn.body[read + 1:go] for c in _ast.walk(st)
+           if isinstance(c, _ast.Call) and isinstance(c.func, _ast.Name) and c.func.id != "read"]
+  assert read < go and not moved, said[read:go + 1]
+  stow = next(st for st in fn.body[go:] if isinstance(st, _ast.If)
+              and _ast.unparse(st.test).startswith("read('left.z') >"))
+  gate = stow.body[0]
+  assert len(stow.body) == 1 and isinstance(gate, _ast.If), _ast.unparse(stow)
+  assert _ast.unparse(gate.test) == f"gx < {solutions.SHELF_FORK_EDGE:g}", _ast.unparse(gate)
+
+  def asks(body):
+    return [float(_ast.literal_eval(c.args[4])) for st in body for c in _ast.walk(st)
+            if isinstance(c, _ast.Call) and getattr(c.func, "id", "") == "pull"]
+  assert asks(gate.body) == [solutions.SHELF_FORK_STOW_N] and asks(gate.orelse) == [20.0], _ast.unparse(gate)
+  assert solutions.SHELF_FORK_STOW_N < 20
+
+
+def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) -> list:
+  """The shelf reference's cup run from its put-down's reach to its let-go,
+  the language's own evaluator working each argument out (`lang._eval`),
+  as `_cup_set_down` runs the pass's: the card read at `card` until the
+  reach, then at `moved`; the hand's sensed place where each move sent it --
+  but a `move_hand` after the re-set's lift, given `swung`, reads false and
+  leaves the hand that far off where it was sent (x, y, m). Each call's name
+  and worked-out arguments, a procedure's (`go`) as a verb's, in order."""
+  from types import SimpleNamespace
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import library as lib
+  facts = world_facts(HUMANOID_HOME)
+  library = lib.Library(facts)
+  for source in (*solutions.LIBRARY["set_table_shelf"], *solutions.PROCEDURES["set_table_shelf"]):
+    library.define(solutions._def_name(source), source)
+  body = library.entries["lay_cup"].procedure.body
+  now = dict(card)
+  hand = {}
+  for k in ("x", "y", "z", "nx", "ny"):
+    monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, k=k: now[k]))
+  for k in ("x", "y", "z"):
+    monkeypatch.setitem(axes.SENSORS, f"right.{k}", SimpleNamespace(read=lambda life, k=k: hand[k]))
+  env = {"ox": 0.004, "oy": -0.006, "oz": 0.075}
+  calls, began = [], []
+
+  def value(expr):
+    return lang._eval(expr, env, SimpleNamespace(), facts)
+
+  def verb(name, args):
+    got = {k: v[1] if isinstance(v, tuple) and v[0] == "str" else value(v) for k, v in args.items()}
+    calls.append((name, got))
+    if name == "reach":
+      hand.update(x=got["x"], y=got["y"], z=got["z"] - 0.09)
+      now.update(moved)
+    elif name == "pull":
+      way = [got[k] for k in ("dx", "dy", "dz")]
+      n = math.sqrt(sum(v * v for v in way))
+      hand.update(**{k: hand[k] + got["distance"] * v / n for k, v in zip("xyz", way)})
+    elif name == "move_hand":
+      began.append(dict(hand))
+      lifted = len(calls) > 1 and calls[-2][0] == "pull" and calls[-2][1]["dz"] == 1
+      if lifted and swung is not None:
+        hand.update(x=got["x"] + swung[0], y=got["y"] + swung[1], z=got["z"])
+        return False
+      hand.update(x=got["x"], y=got["y"], z=got["z"])
+    return True
+
+  def walk(stmts):
+    for st in stmts:
+      if st[0] == "set":
+        env[st[1]] = value(st[2])
+      elif st[0] in ("verb", "call"):
+        verb(st[1], st[2])
+        if st[1] == "open_hand":
+          return True
+      elif st[0] == "if":
+        for cond, then in st[1]:
+          if cond[0] == "try":
+            ok = verb(cond[2][1], cond[2][2])
+            held = (not ok) if cond[1] else ok
+          else:
+            held = lang._truth(value(cond))
+          if held:
+            if walk(then):
+              return True
+            break
+        else:
+          if walk(st[2]):
+            return True
+      elif st[0] != "pass":
+        raise AssertionError(f"the cup's set-down holds a {st[0]} this walk does not follow")
+    return False
+  last_reach = max(i for i, st in enumerate(body) if st[0] == "verb" and st[1] == "reach")
+  a = math.atan2(card["ny"], card["nx"])
+  ca, cb = solutions.PASS_CUP_AT
+  env.update(a=a, tx=card["x"] - ca * math.cos(a) + cb * math.sin(a) - env["ox"],
+             ty=card["y"] - ca * math.sin(a) - cb * math.cos(a) - env["oy"], tz=0.89)
+  assert walk(body[last_reach:]), "the cup is never let go"
+  return calls, began
+
+
+def test_the_shelf_cup_s_re_set_move_is_taken_back_where_it_reads_false(monkeypatch):
+  """The cup's re-set (the pass's: looked at again set down and still held,
+  lifted 1.5 cm and moved where the card puts its place) moved the cup
+  further off in 7 of the 8 re-sets whose move read false that can be read:
+  out of reach, the move swung the hand 5-8 cm to the right, and the cup came
+  down 3-7 cm off a place it had first been set down within 2.5 cm of (A6's
+  reading of A5's rows; SimNotes, "The place laid from the kitchen's
+  shelf"). Off the
+  reference's own source, run by the language: where the re-set's move
+  reads false, the hand goes back to where the move began by `go` -- the
+  place read as it began, no verb between -- before it sets the cup down;
+  where it reads true, the run is the pass's, nothing added."""
+  card = {"x": 0.47, "y": 0.06, "z": 0.775, "nx": math.cos(0.05), "ny": math.sin(0.05)}
+  d = math.radians(2.5)
+  turned = {"x": card["x"] * math.cos(d) - card["y"] * math.sin(d),
+            "y": card["x"] * math.sin(d) + card["y"] * math.cos(d), "z": card["z"],
+            "nx": math.cos(0.05 + d), "ny": math.sin(0.05 + d)}
+  calls, _ = _shelf_cup_reset(monkeypatch, card, turned, swung=None)
+  assert [n for n, _ in calls] == ["reach", "pull", "spot", "pull", "move_hand", "pull", "open_hand"], calls
+  calls, began = _shelf_cup_reset(monkeypatch, card, turned, swung=(-0.01, -0.07))
+  names = [n for n, _ in calls]
+  assert names == ["reach", "pull", "spot", "pull", "move_hand", "go", "pull", "open_hand"], names
+  up, move, back, down = (calls[i][1] for i in (3, 4, 5, 6))
+  assert up["dz"] == 1 and math.isclose(up["distance"], 0.015) and down["dz"] == -1, (up, down)
+  # ...back to where the failing move began, the cup lifted: the hand's place as it began
+  assert [back[k] for k in ("h", "x", "y", "z")] == ["right", *(began[-1][k] for k in "xyz")], (back, began)
+  assert not math.isclose(move["y"], began[-1]["y"], abs_tol=1e-6), "the re-set moved nothing"
