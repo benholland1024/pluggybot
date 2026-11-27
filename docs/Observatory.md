@@ -167,7 +167,8 @@ up on the floor, decoded by the standing robot's colour camera, reads `nz`
 
 **Why** (#776). A procedure that took the words at face value and turned the
 robot to where the face looks would turn it 180 deg the wrong way. Our
-references read the true sign (`challenge/solutions.py`, 9 places). Lines
+references read the true sign (`challenge/solutions.py`: 13 reads on 8
+lines at 503a9a6c, 9 on 6 on the live tree). Lines
 naming `spot.nx`, `spot.ny` or `spot.nz` in the wakes' procedure rows,
 sources and readouts alike (#776's count, not uses): 58 on 11-15, 17 on
 11-18, 15 on 11-22, 49 on 11-25.
