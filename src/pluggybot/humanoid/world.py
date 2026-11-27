@@ -166,5 +166,7 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   storeroom.attach(spec)
   restaurant.attach(spec)
   fix_static_inertials(spec)
+  from pluggybot import sleeping
+  sleeping.apply(spec)           # #775's measurement: off unless PLUGGY_SLEEP
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec
