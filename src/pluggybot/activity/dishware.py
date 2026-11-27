@@ -45,7 +45,12 @@ CARD_TAG_ID = PLACE_TAG_IDS[0]
 #: jaws stopped on it reading clear of closed, and every measure of the
 #: table flew it.
 PLATE_R, PLATE_WALL_T, PLATE_H, PLATE_FLOOR_T = 0.090, 0.008, 0.028, 0.005
-PLATE_WALLS = 16
+#: #771's measurement (never merged): the wall in 48 boxes, 7.5 deg apart,
+#: each outer face 11.8 mm against a pad's 30 mm (16: 22.5 deg, 35.8 mm), and
+#: the plate's mass, centre and inertia kept the 16-box plate's
+#: (`INERTIA_WALLS`): off its own geoms they fall 1.1 %.
+PLATE_WALLS = 48
+INERTIA_WALLS = 16
 #: THE CUP: its radius and height, m: taken across its body, 70 mm of the
 #: jaws' 90.
 CUP_R, CUP_H = 0.035, 0.090
@@ -123,10 +128,12 @@ def _free(spec, name: str, at, yaw: float, z: float):
 
 
 def attach_plate(spec, at, yaw: float, z: float, kg: float, friction: float,
-                 tags: bool = True, name: str = "plate") -> None:
+                 tags: bool = True, name: str = "plate", walls: int | None = None) -> None:
   """The plate at `at` (x, y) on the surface `z` up, turned `yaw`: its floor,
-  its wall in `PLATE_WALLS` boxes, its tag on the floor's middle."""
+  its wall in `walls` boxes (`PLATE_WALLS`), its tag on the floor's middle,
+  and its inertia the `INERTIA_WALLS`-box plate's as compiled."""
   import mujoco
+  walls = PLATE_WALLS if walls is None else int(walls)
   body = _free(spec, name, at, yaw, z)
   fr = [float(friction), 0.005, 0.0001]
   floor_r = PLATE_R - PLATE_WALL_T
@@ -137,15 +144,31 @@ def attach_plate(spec, at, yaw: float, z: float, kg: float, friction: float,
                 size=[floor_r, PLATE_FLOOR_T / 2, 0], pos=[0, 0, PLATE_FLOOR_T / 2],
                 mass=float(kg) * area / (area + wall), friction=fr, rgba=rgba)
   r = PLATE_R - PLATE_WALL_T / 2
-  half_t = r * math.tan(math.pi / PLATE_WALLS) + PLATE_WALL_T / 2
-  for i in range(PLATE_WALLS):
-    a = 2 * math.pi * i / PLATE_WALLS
+  half_t = r * math.tan(math.pi / walls) + PLATE_WALL_T / 2
+  for i in range(walls):
+    a = 2 * math.pi * i / walls
     body.add_geom(name=f"{name}_wall{i}", type=mujoco.mjtGeom.mjGEOM_BOX,
                   size=[PLATE_WALL_T / 2, half_t, PLATE_H / 2],
                   pos=[r * math.cos(a), r * math.sin(a), PLATE_H / 2],
                   quat=[math.cos(a / 2), 0.0, 0.0, math.sin(a / 2)],
-                  mass=float(kg) * wall / (area + wall) / PLATE_WALLS, friction=fr, rgba=rgba)
+                  mass=float(kg) * wall / (area + wall) / walls, friction=fr, rgba=rgba)
   _film(body, f"{name}_tag", TAG_OF["plate"], TAG_SIZE["plate"], PLATE_FLOOR_T, spec, tags)
+  if walls != INERTIA_WALLS:
+    body.explicitinertial = True
+    body.mass, body.ipos, body.iquat, body.inertia = plate_inertial(kg, friction)
+
+
+def plate_inertial(kg: float, friction: float = 0.7) -> tuple:
+  """The `INERTIA_WALLS`-box plate's mass, centre, frame and inertia as
+  MuJoCo compiles them off its geoms: `(mass, ipos, iquat, inertia)`."""
+  import mujoco
+  spec = mujoco.MjSpec()
+  attach_plate(spec, (0.0, 0.0), 0.0, 0.0, kg, friction, tags=False, name="p",
+               walls=INERTIA_WALLS)
+  m = spec.compile()
+  b = m.body("p").id
+  return (float(m.body_mass[b]), m.body_ipos[b].copy(), m.body_iquat[b].copy(),
+          m.body_inertia[b].copy())
 
 
 def attach_cup(spec, at, yaw: float, z: float, kg: float, friction: float,
