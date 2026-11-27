@@ -1086,6 +1086,9 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              # ...said with what it would meet (`REACH_SWUNG`), where the body says
              "swing": "every posture that puts your {hand} hand there would swing an arm into "
                       "something your depth camera saw, so your arm did not move",
+             # ...said with what the first would meet (`REACH_HEAD`), where the body says
+             "head": "no posture that puts your {hand} hand there keeps your head and trunk "
+                     "clear of what your depth camera saw, so your arm did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one that stopped short, by the rule its body says stopped it
@@ -1112,6 +1115,20 @@ REACH_SWUNG_KEPT = ("your {other} hand is out holding something, so your body ke
 #: ...the arm's parts as the robot says them.
 SWUNG_PARTS = {"upper_arm": "upper arm", "forearm": "forearm", "gripper": "hand",
                "jaw_a_pad": "fingers", "jaw_b_pad": "fingers"}
+#: ...and one none of whose postures keeps its trunk clear of what its depth
+#: camera saw since its feet moved (#763, `Body.hand_swung`'s `way`): what the
+#: first would bring its head or trunk into, as it took it or stood up from it.
+REACH_HEAD = ("no posture that puts your {hand} hand there keeps your head and trunk clear of "
+              "what your depth camera saw: the first would bring your {part} into it {way}, at x "
+              "{x:.2f}, y {y:.2f}, z {z:.2f} in your stance frame -- so your arm did not move")
+#: ...the trunk's parts and its two walks as the robot says them.
+TRUNK_PARTS = {"torso": "trunk"}
+TRUNK_WAYS = {"in": "as you took it", "up": "as you stood up from it"}
+#: ...and a `move_hand` held in the posture it is in (#763): every other
+#: posture that reached would bring its head or trunk into what it saw.
+MOVE_HEAD = ("your {hand} hand could reach no further that way from the posture you are in: "
+             "every other posture that reaches there would bring your {part} into something your "
+             "depth camera saw, so your body keeps it")
 #: ...and one out of reach with the other hand holding something, whose grip
 #: kept the body in its posture (#719's option 2, `Body.posture_kept_by`).
 REACH_KEPT = ("your {other} hand is out holding something, so your body keeps the posture it "
@@ -1199,7 +1216,11 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    # ...and one whose every posture there would swing an arm into what
                    # its depth camera saw (#747)
                    "swing": "; your {other} hand's every posture there would swing an arm into "
-                            "something your depth camera saw"}
+                            "something your depth camera saw",
+                   # ...and one none of whose postures there keeps your head and trunk
+                   # clear of what it saw (#763)
+                   "head": "; no posture of your {other} hand's there keeps your head and trunk "
+                           "clear of what your depth camera saw"}
 
 
 def _where(kept: dict) -> str:
@@ -1303,12 +1324,18 @@ def _reach(life, args: dict) -> Routine:
         hand=hand, other=held_by, side=swung["side"], part=part, x=x, y=y, z=z), **said,
         "felt": felt}
     reason = REACH_SWUNG.format(hand=hand, side=swung["side"], part=part, x=x, y=y, z=z)
+  trunk = life.body.hand_swung(hand) if why == "head" else None
+  if trunk is not None:
+    # ...what the first posture would bring its head or trunk into (#763)
+    x, y, z = trunk["at"]
+    reason = REACH_HEAD.format(hand=hand, part=TRUNK_PARTS.get(trunk["part"], "head"),
+                               way=TRUNK_WAYS.get(trunk.get("way"), TRUNK_WAYS["in"]), x=x, y=y, z=z)
   kept = life.body.hand_kept(hand) if why == "kept off" else None
   if kept is not None:
     reason = (ARM_KEPT_OFF["back" if kept.get("back") else "reach"].format(
       hand=hand, where=_where(kept), **{k: v for k, v in kept.items() if k != "hand"})
       + OTHER_HAND_KEPT[kept.get("other")].format(other=other))
-  if why in ("own body", "swing") and other is not None and life.body.hand_reaches(
+  if why in ("own body", "swing", "head") and other is not None and life.body.hand_reaches(
       other, place, rot, verb=True):
     # ...and whether the other hand could (#722): a turn or a step is not all
     reason += f"; your {other} hand could reach it as asked"
@@ -1416,6 +1443,11 @@ def _move_hand(life, args: dict) -> Routine:
   if rep.get("why") == "out of reach" and rep.get("loaded") and life.body.hand_reaches(hand, end, rot):
     # ...or its hand, holding nothing, read a load (#699)
     return {"ok": False, **out, **said, "reason": MOVE_LOADED.format(hand=hand)}
+  if rep.get("why") == "out of reach" and rep.get("trunk"):
+    # ...or every other posture that reached would bring its trunk into what
+    # it saw (#763)
+    return {"ok": False, **out, **said, "reason": MOVE_HEAD.format(
+      hand=hand, part=TRUNK_PARTS.get(rep["trunk"].get("part"), "head"))}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 

@@ -831,7 +831,10 @@ class Body(abc.ABC):
     """What a hand's last `reach_routine` would have swung an arm into, where
     `hand_why` says "swing" (#747): `side` the arm, `part` its part, `m`
     how near it would have come, `at` where its depth camera saw what it
-    would meet (x ahead, y left, z up, m, from where the body stood) --
+    would meet (x ahead, y left, z up, m, from where the body stood) -- or,
+    where it says "head" (#763), what its first posture would have brought
+    its trunk into: `part` (the torso or a part of its head), `m`, `at`,
+    and `way`, "in" as it took the posture or "up" as it stood up from it --
     else None."""
 
   @abc.abstractmethod

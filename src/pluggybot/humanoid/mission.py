@@ -427,6 +427,17 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
+  def since(self, pose, t0: float) -> np.ndarray:
+    """The voxels last seen at or after `t0`, tops kept, from its pelvis along
+    its heading, z over the floor, where its belief has it now (#763, what a
+    procedure's posture judges its trunk against, `Reach._trunk`): the memory
+    as it stands, never asked whether the belief jumped (`near` asks, and may
+    forget) -- a read that changes nothing a flight reads after it."""
+    keep = self.t >= t0 - 1e-9
+    if not keep.any():
+      return np.zeros((0, 3))
+    return np.concatenate((self._from(pose)[keep], self.pts[keep, 2:3]), axis=1)
+
   def faces(self, pose, corrected, top_m: float = ARMS_TOP_M) -> np.ndarray:
     """`near`'s, less each column's top (`ARMS_TOP_M` under its highest):
     what stands at a face. ⚠ THE TOP OF WHAT STANDS THERE IS NO FACE: a hand
@@ -697,6 +708,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.stand.ask(0.0, 0.0)
     grippers = self.reach.grippers
     self.reach = Reach(self.model, self.data, self.stand, prefix=self.handle.prefix, key=key)
+    self.reach.trunk_view = self.trunk_seen
     self.reach.grippers.update(grippers)
     self.legs = "stand"
     self.odo.z, self.odo.foot = hm.stand_height(), None
@@ -1075,6 +1087,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                              trunk=self.stand.trunk, joints=self.stand.joints,
                              scan=None if self.head is None else self.head.scan)
     self.reach = Reach(model, data, self.stand, prefix=handle.prefix, key=key)
+    # ...a procedure's posture judges its trunk against what it saw (#763)
+    self.reach.trunk_view = self.trunk_seen
     self.getup = None if self._getup_policy is None else GetupDriver(
       model, data, self._getup_policy, prefix=handle.prefix, key=key, trunk=self.stand.trunk,
       joints=self.stand.joints)
@@ -1452,7 +1466,23 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     pelvis along its heading through its
     odometry's model of itself, as a look's bow places its LIDAR's returns
     (`HumanoidBody.bow_room`)."""
-    pts = self.swing.faces(self.pose, self.odo.corrected)
+    return self._in_stance(self.swing.faces(self.pose, self.odo.corrected))
+
+  def trunk_seen(self) -> np.ndarray:
+    """What its depth camera has seen where its arms swing, TOPS KEPT, since
+    its feet last moved (`ArmsMemory.since`, `last_motion_t`), placed as
+    `arms_seen` places its faces: what a procedure's posture judges its trunk
+    against (#763, `Reach._trunk`). ⚠ A TOP IS WHAT A HEAD COMES DOWN ON: a
+    shelf's board, 2 cm thick, is a column's top whole, no face. ⚠ AND ONLY
+    SINCE THE FEET MOVED: walking to a shelf's label the belief moved 6-8 cm
+    against what it saw on the way, and a board laid before the last steps
+    stood 2-7 cm nearer than it was (seen since, within 1 cm). Empty just
+    after a step, before the camera has seen again: nothing is judged."""
+    return self._in_stance(self.swing.since(self.pose, float(self.last_motion_t)))
+
+  def _in_stance(self, pts: np.ndarray) -> np.ndarray:
+    """Voxels from its pelvis along its heading (the memory's), in its stance
+    frame through its odometry's model of itself."""
     if not len(pts):
       return np.zeros((0, 3))
     sm = self.odo.sm

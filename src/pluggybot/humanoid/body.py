@@ -908,8 +908,9 @@ class HumanoidBody(Body):
         # every way out passes through its own trunk (#722)
         self._why[side] = "own body"
       if self.reach.swung[side] is not None and kept is None and own is None:
-        # every posture that puts it there swings an arm into what it saw (#747)
-        self._why[side] = "swing"
+        # every posture that puts it there swings an arm into what it saw
+        # (#747) -- or, the first, brings its trunk into it (#763)
+        self._why[side] = "head" if self.reach.swung[side].get("trunk") else "swing"
       if kept is not None:
         # every way out, or home from there, meets another robot's body
         self._why[side] = "kept off"
@@ -936,7 +937,7 @@ class HumanoidBody(Body):
     return None if stopped is None else dict(stopped)
 
   def hand_swung(self, side) -> dict | None:
-    swung = self.reach.swung[side] if self._why.get(side) == "swing" else None
+    swung = self.reach.swung[side] if self._why.get(side) in ("swing", "head") else None
     return None if swung is None else dict(swung)
 
   def hand_kept(self, side) -> dict | None:

@@ -1495,6 +1495,82 @@ def part_gap(points: np.ndarray, part: tuple) -> np.ndarray:
   return np.linalg.norm(np.maximum(q, 0.0), axis=1) + np.minimum(q.max(axis=1), 0.0)
 
 
+#: A PROCEDURE'S POSTURE JUDGES ITS TRUNK (#763, #736's call 6; `Reach._trunk`;
+#: SimNotes, "A reach's bow under a shelf's board"): the trunk above the waist
+#: (`UPPER_GEOMS`: the torso, the head's parts and the LIDAR) walked on the
+#: commands' clocks into the posture and back up from it to the stand, no part
+#: nearer than this, m, to what its depth camera saw since its feet last moved,
+#: tops kept (`HumanoidMission.trunk_seen`) -- or, begun nearer as the body
+#: stands, no nearer than it began less `SWING_SLACK_M`. A shelf's deepest
+#: bows put the head under the board above the hands, and the next change of
+#: posture jammed it there: 5 of the shop shelf's 7 falls traced, the head on
+#: the board at 65-514 N.
+TRUNK_CLEAR_M = -0.005
+#: The trunk's parts as posed (`trunk_parts`): (name, kind, centre, frame,
+#: half-sizes); a kind's own signed distance (`trunk_gap`).
+_KINDS = {mujoco.mjtGeom.mjGEOM_BOX: "box", mujoco.mjtGeom.mjGEOM_CYLINDER: "cylinder",
+          mujoco.mjtGeom.mjGEOM_SPHERE: "sphere", mujoco.mjtGeom.mjGEOM_CAPSULE: "capsule"}
+
+
+def trunk_parts(sm: SelfModel) -> list[tuple]:
+  """The trunk above the waist as posed (`UPPER_GEOMS`): (name, kind, centre,
+  frame, half-sizes)."""
+  m, d = sm.m, sm.d
+  ids = getattr(sm, "trunk_ids", None)
+  if ids is None:
+    ids = sm.trunk_ids = [(n, m.geom(n).id) for n in UPPER_GEOMS]
+  return [(n, _KINDS[int(m.geom_type[g])], d.geom_xpos[g].copy(),
+           d.geom_xmat[g].reshape(3, 3).copy(), m.geom_size[g].copy()) for n, g in ids]
+
+
+def trunk_reach(part: tuple) -> float:
+  """How far from its centre a trunk part reaches, m: a box its corner, a
+  cylinder its rim's edge, a sphere its radius, a capsule its tip."""
+  _, kind, _, _, size = part
+  if kind == "box":
+    return float(np.linalg.norm(size))
+  if kind == "cylinder":
+    return float(math.hypot(size[0], size[1]))
+  if kind == "sphere":
+    return float(size[0])
+  return float(size[0] + size[1])
+
+
+def trunk_gap(points: np.ndarray, part: tuple) -> np.ndarray:
+  """How far each of `points` (n, 3) is outside a trunk part, m, negative
+  inside: a box's faces, a cylinder's side and ends (radius `size[0]`, half
+  its height `size[1]`, along its frame's z), a sphere's surface, a capsule's
+  axis less its radius."""
+  _, kind, c, rot, size = part
+  rel = (points - c) @ rot
+  if kind == "box":
+    q = np.abs(rel) - size
+    return np.linalg.norm(np.maximum(q, 0.0), axis=1) + np.minimum(q.max(axis=1), 0.0)
+  if kind == "sphere":
+    return np.linalg.norm(rel, axis=1) - size[0]
+  if kind == "capsule":
+    t = np.clip(rel[:, 2], -size[1], size[1])
+    return np.linalg.norm(rel - t[:, None] * np.array([0.0, 0.0, 1.0]), axis=1) - size[0]
+  side = np.hypot(rel[:, 0], rel[:, 1]) - size[0]
+  end = np.abs(rel[:, 2]) - size[1]
+  return np.hypot(np.maximum(side, 0.0), np.maximum(end, 0.0)) + np.minimum(np.maximum(side, end), 0.0)
+
+
+#: The one model of itself a trunk's walk is posed on (`trunk_model`).
+_TRUNK: SelfModel | None = None
+
+
+def trunk_model() -> SelfModel:
+  """The model of itself a posture's trunk is walked on (`Reach._trunk`):
+  its own, with statues of its own -- never the planner's, whose kept
+  statues and pose a later plan reads, nor `swing_model`'s -- one for every
+  robot (`_TRUNK`)."""
+  global _TRUNK
+  if _TRUNK is None:
+    _TRUNK = SelfModel()
+  return _TRUNK
+
+
 class Reach:
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
@@ -1637,6 +1713,14 @@ class Reach:
     #: `_swing`), else None.
     self.seen: np.ndarray | None = None
     self.swung: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: What its depth camera saw since its feet last moved, tops kept, its
+    #: stance frame (`HumanoidMission.trunk_seen`), a callable the body sets
+    #: -- read as a procedure's posture is judged for its trunk (#763,
+    #: `_trunk`); None where no body set one. And, by side, what the last such
+    #: move's trunk would have met where every posture that reaches would
+    #: (`_trunk`'s answer), else None.
+    self.trunk_view = None
+    self.trunked: dict[str, dict | None] = {s: None for s in hm.SIDES}
     #: ...and, by side, what a procedure's reach under way was planned
     #: against, which its look judges a posture's swing against too (`_look`);
     #: None for the loop's own.
@@ -1756,11 +1840,12 @@ class Reach:
     keeps off every other robot's body (#678) -- None where it plans none,
     "own" where every plan, or every way out, would put the arm in its own
     trunk (#726, #722), "swing" where every plan would swing an arm into what
-    its depth camera saw (#747); nothing moved, `kept` and `own` as they
-    were."""
+    its depth camera saw (#747), "head" where the first would bring its trunk
+    into what it saw (#763); nothing moved, `kept` and `own` as they were."""
     plan_, _, in_own, swung = self._planned(side, goal, approach, postures, flip, swing=True)
     if plan_ is None:
-      return "own" if in_own is not None else "swing" if swung is not None else None
+      return ("own" if in_own is not None
+              else ("head" if swung.get("trunk") else "swing") if swung is not None else None)
     kept, own = self.kept[side], self.own[side]
     self.own[side] = None
     out = self.way_out(side, plan_[1], plan_[0])
@@ -1789,20 +1874,28 @@ class Reach:
     """(the plan, its goal -- half a turn round where that grip was tried --
     None, None), its arm kept off its own trunk (#726, `plan`'s `own`) and,
     `swing` -- a procedure's -- its swing off what its depth camera saw
-    (#747, `seen`, `_swing`); or, where every plan that keeps off the trunk
-    would swing into it, (None, the goal, None, what the first would have
-    met); or, where every plan that reaches puts it in the trunk, (None, the
-    goal, `own`: how near the first came, its `plan` and its `goal`, None).
-    `passed`: a list each posture a plan's swing passed over is added to."""
+    (#747, `seen`, `_swing`) and its trunk off what it saw since its feet
+    moved (#763, `_trunk`: a met marked `trunk`); or, where every plan that
+    keeps off the trunk would swing into it, (None, the goal, None, what the
+    first would have met); or, where every plan that reaches puts it in the
+    trunk, (None, the goal, `own`: how near the first came, its `plan` and its
+    `goal`, None). `passed`: a list each posture a plan's swing or trunk
+    passed over is added to."""
     # ...on the robot as it reads itself standing, the other arm where it is
     # and this one's answer nearest it as it is (#627)
     sm = self._planner_model()
     lean = self._lean()
     kw = {"lean": lean, "arms": self._arms(but=side), "start": self.q_cmd[side]}
-    judged = swing and self.seen is not None and len(self.seen) > 0
+    arms_judged = swing and self.seen is not None and len(self.seen) > 0
+    view = self._trunk_view() if swing else (None, None)
+    judged = arms_judged or view[0] is not None
 
     def judged_by(g: HandGoal, found) -> dict | None:
-      met = self._swing(side, found, g, lean)
+      met = self._swing(side, found, g, lean) if arms_judged else None
+      if met is None and view[0] is not None:
+        # ...and its trunk walked into the posture and back up (#763)
+        met = self._trunk(found[0], {**kw["arms"], **_arm(side, found[2])}, lean, view)
+        met = None if met is None else dict(met, trunk=True)
       if met is not None and passed is not None and tuple(found[0]) not in passed:
         passed.append(tuple(float(v) for v in found[0]))
       return met
@@ -1971,6 +2064,94 @@ class Reach:
       self._tree_key, self._tree = key, ((cKDTree(pts), pts) if len(pts) else (None, None))
     return self._tree
 
+  def _trunk_view(self) -> tuple:
+    """What a procedure's posture judges its trunk against now (#763): what
+    its depth camera saw since its feet last moved, tops kept (`trunk_view`,
+    the body's), and a k-d tree over it; (None, None) for none -- no body set
+    one, or nothing seen since the feet moved, where nothing is judged."""
+    from scipy.spatial import cKDTree
+    pts = None if self.trunk_view is None else self.trunk_view()
+    if pts is None or not len(pts):
+      return None, None
+    return cKDTree(pts), pts
+
+  def _trunk(self, posture, arms: dict, lean: "Lean | None", view: tuple) -> dict | None:
+    """What a posture would bring its trunk into (#763; `TRUNK_CLEAR_M`): the
+    trunk above the waist (`trunk_parts`) walked on the commands' clocks
+    (`swing_clock`, the arms left out: the trunk's path is the posture's
+    alone) from where the body reads itself into `posture`'s statue --
+    balanced as a plan balances it, the arms where `arms` puts them (joint
+    name -> angle), at `lean` -- and back up from that statue to the stand's,
+    the way every withdraw ends; each part against `view` (`_trunk_view`).
+    None where every part keeps `TRUNK_CLEAR_M` off all of it (or, begun
+    nearer as the body stands now, no nearer than it began less
+    `SWING_SLACK_M`), else the nearest: its part, how near, m, where, its
+    stance frame, which walk ("in" or "up") and how long into it, s. Posed on
+    its own model of itself (`trunk_model`): nothing a plan reads is posed or
+    kept."""
+    tree, pts = view
+    if tree is None:
+      return None
+    posture = tuple(float(v) for v in posture)
+    sm = trunk_model()
+    sm.q = self.self_model.q.copy()
+    sm.d.qpos[:] = self.self_model.d.qpos
+    mujoco.mj_kinematics(sm.m, sm.d)
+    a = sm.d.qpos.copy()
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    statue(sm, posture, q0, arms, lean, fast=True)
+    b = sm.d.qpos.copy()
+    statue(sm, (0.0, 0.0, 0.0), q0)
+    c = sm.d.qpos.copy()
+    shown = self.stand.posture - self.trim
+    tick = self.every * self.m.opt.timestep
+    walks = (("in", a, b, (float(shown[0]), float(shown[1])), posture,
+              float(self.waist_cmd[0]), float(self.waist_speed[0])),
+             ("up", b, c, posture[:2], (0.0, 0.0, 0.0), posture[2], 0.0))
+    waist = sm.qadr[sm.waist]
+    flat = []
+    for way, a_, b_, from_, to, w0, ws in walks:
+      for t, h, p, w, _ in swing_clock(from_, to, w0, ws, np.zeros(len(hm.ARM)), [], tick):
+        fh, fp = _progress(h, from_[0], to[0]), _progress(p, from_[1], to[1])
+        fw = _progress(w, w0, to[2])
+        f = fp if fp is not None else fh if fh is not None else fw if fw is not None else 1.0
+        d = sm.d
+        d.qpos[:] = b_
+        d.qpos[0:2] = a_[0:2] + (b_[0:2] - a_[0:2]) * f
+        d.qpos[2] = a_[2] + (b_[2] - a_[2]) * (fh if fh is not None else f)
+        d.qpos[3:7] = _slerp(a_[3:7], b_[3:7], f)
+        d.qpos[waist] = w
+        mujoco.mj_kinematics(sm.m, d)
+        flat += [(way, t, part) for part in trunk_parts(sm)]
+    # ...each part against what lies within its own reach: its gap as the body
+    # stands now, and its least on either walk (when, and to what)
+    centres = np.array([part[2] for _, _, part in flat])
+    radii = np.array([trunk_reach(part) + TRUNK_CLEAR_M for _, _, part in flat])
+    began: dict = {}
+    least: dict = {}
+    for (way, t, part), idx in zip(flat, tree.query_ball_point(centres, radii)):
+      g, at = math.inf, None
+      if idx:
+        cand = pts[idx]
+        gap = trunk_gap(cand, part)
+        k = int(np.argmin(gap))
+        g, at = float(gap[k]), cand[k]
+      if way == "in" and t == 0.0:
+        began[part[0]] = g
+      if part[0] not in least or g < least[part[0]][0]:
+        least[part[0]] = (g, way, t, at)
+    worst = None
+    for name, (g, way, t, at) in least.items():
+      b0 = began.get(name, math.inf)
+      need = TRUNK_CLEAR_M if b0 >= TRUNK_CLEAR_M else b0 - SWING_SLACK_M
+      if g < need and (worst is None or need - g > worst[0]):
+        worst = (need - g, name, g, way, t, at, b0)
+    if worst is None:
+      return None
+    _, name, g, way, t, at, b0 = worst
+    return {"part": name, "m": round(g, 3), "began": None if b0 == math.inf else round(b0, 3),
+            "at": [round(float(v), 3) for v in at], "way": way, "t": round(t, 2)}
+
   def _lean(self) -> Lean | None:
     """How the robot reads itself standing now (`Lean.read`): its model of
     itself as its arms' loop last posed it -- never its joints read again,
@@ -2128,7 +2309,7 @@ class Reach:
     return self._planner
 
   def posture_for(self, side: str, pos, rot=None, onward: bool = False,
-                  past=(), postures=None) -> tuple | None:
+                  past=(), postures=None, judge: bool = False) -> tuple | None:
     """The least-bent posture (`CARRY_POSTURES`: the legs' and the waist's)
     from which `side`'s grip reaches `pos` -- turned to `rot`, or at any
     turn -- on the robot's model of itself as it would stand in each, its
@@ -2138,11 +2319,14 @@ class Reach:
     holds -- another posture, from the arm as it is alone, and none of
     `past`; `postures`, those alone (`keep`). ⚠ AS IT STANDS, NEVER A STATUE
     BALANCED AT ITS SOLES' MIDDLE: a carry re-planned on one took the
-    posture it held again, and ended out of reach (#626, #627)."""
+    posture it held again, and ended out of reach (#626, #627). `judge`: a
+    procedure's, each posture it would change to passed over where its trunk
+    would meet what it saw (#763, `_trunk`) -- the first such, `trunked`."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     lean, arms = self._lean(), self._arms()
     starts = [self.q_cmd[side]] + ([] if onward else [seed(side, s_) for s_ in SEEDS])
+    here = tuple(float(v) for v in self.posture)
     # the posture it holds first, where it still reaches: a change of
     # posture mid-move is a change of the arm's whole branch -- ⚠ and going
     # on, never the posture it holds, from a fresh seed: up a lid's arc the
@@ -2151,10 +2335,12 @@ class Reach:
     if postures is not None:
       order = list(postures)
     else:
-      here = tuple(float(v) for v in self.posture)
       gone = {here} | {tuple(float(v) for v in p_) for p_ in past}
       order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
                else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
+    view = self._trunk_view() if judge else (None, None)
+    if judge:
+      self.trunked[side] = None
     for posture in order:
       if not stands(sm, posture, q0) or out_of_reach(sm, side, pos, -LEAN_MOST_M):
         continue
@@ -2163,12 +2349,19 @@ class Reach:
         continue
       for start in starts:
         sm._set_arm(side, start)
-        _, ep, er = sm.solve(side, pos, rot, iters=80)
+        q, ep, er = sm.solve(side, pos, rot, iters=80)
         if ep < REACH_POS_TOL and er < REACH_ROT_TOL:
-          return tuple(posture)
+          # ...and a procedure's, its trunk walked into it and back up (#763)
+          met = (None if view[0] is None or tuple(float(v) for v in posture) == here
+                 else self._trunk(posture, {**arms, **_arm(side, q)}, lean, view))
+          if met is None:
+            return tuple(posture)
+          self.trunked[side] = self.trunked[side] or met
+          break
     return None
 
-  def path_for(self, side: str, poses, rot=None, postures=None) -> tuple | None:
+  def path_for(self, side: str, poses, rot=None, postures=None,
+               judge: bool = False) -> tuple | None:
     """A posture (`CARRY_POSTURES`, the least bent first) from which `side`'s grip
     FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- or at each
     pose its own, where `rot` is a list -- the first
@@ -2182,7 +2375,9 @@ class Reach:
     reached from a fresh seed is not a path: the arm went up a lid's arc in
     one branch, and where only another reached on, it swung between them
     and jerked the lid shut at 3.3 rad/s (#493). `postures`: those alone
-    (`keep`)."""
+    (`keep`). `judge`: a procedure's, each posture it would change to passed
+    over where its trunk would meet what it saw (#763, `_trunk`) -- the
+    first such, `trunked`."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     poses = [np.asarray(p, dtype=float) for p in poses]
@@ -2201,6 +2396,9 @@ class Reach:
     if postures is not None:
       order = [tuple(float(v) for v in p_) for p_ in postures]
     lean, arms = self._lean(), self._arms()
+    view = self._trunk_view() if judge else (None, None)
+    if judge:
+      self.trunked[side] = None
     for posture in order:
       # ⚠ ...AND THE ROBOT AS IT STANDS, its model posed off its senses, in
       # the posture it holds: up a lid's arc it stood 4 cm behind the
@@ -2239,7 +2437,12 @@ class Reach:
         if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
           break
       else:
-        return tuple(posture)
+        # ...and a procedure's, its trunk walked into it and back up (#763)
+        met = (None if view[0] is None or live or tuple(float(v) for v in posture) == here
+               else self._trunk(posture, {**arms, **_arm(side, q)}, lean, view))
+        if met is None:
+          return tuple(posture)
+        self.trunked[side] = self.trunked[side] or met
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
@@ -2279,14 +2482,18 @@ class Reach:
     # ...none but the one it is in while the other hand holds something, a
     # `verb`'s carry (#719)
     only = {} if kept is None else {"postures": (kept,)}
+    # ...a `verb`'s, a posture its trunk would meet what it saw in passed over
+    # (#763): none, and it does not move
     if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
-      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, **only)
+      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots, judge=verb, **only)
     else:
-      posture = self.posture_for(side, end, rot=r, **only)
+      posture = self.posture_for(side, end, rot=r, judge=verb, **only)
     if posture is None:
       self.report[side] = {"why": "out of reach", "shortM": float(np.linalg.norm(end - h)),
-                           "moved": 0.0, "seconds": 0.0}
+                           "moved": 0.0, "seconds": 0.0,
+                           **({"trunk": dict(self.trunked[side])}
+                              if verb and self.trunked[side] is not None else {})}
       return False
     # ...nor -- a `verb`'s hand that holds nothing -- another while it reads
     # a load (`CARRY_PRESSED_SHARE`, #699): it goes as far as its arm reaches
@@ -2311,7 +2518,9 @@ class Reach:
                         # ...withheld: a path's posture planned again once it reads light (`_held`)
                         **({"recheck": True} if loaded and fixed else {}),
                         # ...a `verb`'s, a grip it began with: lost, it ends there (`_held`)
-                        **({"gripped": True} if verb and not open_ else {})}
+                        **({"gripped": True} if verb and not open_ else {}),
+                        # ...a `verb`'s, its replans on its way judge its trunk (#763)
+                        **({"verb": True} if verb else {})}
     if moved_posture:
       # the hand holds still while the body takes the posture (`_held`) --
       # withheld, the one it is held in where it has got to: none to give up
@@ -2360,9 +2569,12 @@ class Reach:
     # none while a hand that holds nothing reads a load (`PRESSED_SHARE`)
     gripped = self.grippers[side].held()
     # ...kept (#719), the one the body stands in: one still coming held where it got to
+    # -- and a `verb`'s, none its trunk would meet what it saw in (#763): held
+    # where it is, it goes as far as its arm reaches from there
+    self.trunked[side] = None
     posture = (None if not gripped and self._pressed(self.force[side], force)
                else kept if kept is not None
-               else self.path_for(side, [h, h + float(distance_m) * w], rot=r))
+               else self.path_for(side, [h, h + float(distance_m) * w], rot=r, judge=verb))
     moved = posture is not None and tuple(posture) != tuple(float(v) for v in self.posture)
     began = self._standing_in() if moved else None
     if moved:
@@ -2372,6 +2584,9 @@ class Reach:
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0, "ways": [], "fixed": True, "peak": 0.0,
                         **({"postured": 0.0, "began": began} if moved else {}),
+                        **({"verb": True} if verb else {}),
+                        **({"trunk": dict(self.trunked[side])}
+                           if verb and posture is None and self.trunked[side] is not None else {}),
                         "pull": {"way": w, "force": float(force), "distance": float(distance_m),
                                  "give": bool(give), "gripped": gripped,
                                  "last": h.copy(), "went": 0.0, "trail": [h.copy()],
@@ -2462,6 +2677,9 @@ class Reach:
     here = tuple(float(v) for v in self.posture)
     gone = {tuple(float(v) for v in p_) for p_ in self.left[side]}
     seen = self.seen_at[side]
+    # ...a procedure's look judges its trunk too (#763): what it saw since its
+    # feet moved
+    view = self._trunk_view() if seen is not None else (None, None)
     chosen = first = None
     for slack in (True, False):
       for posture in (tuple(float(v) for v in p_) for p_ in self.allowed[side]):
@@ -2475,6 +2693,9 @@ class Reach:
         if (seen is not None and posture != here
             and self._swing(side, (posture, q_pre, q, slack), goal, lean, seen=seen,
                             hold=self.cmd[side]) is not None):
+          continue
+        if (view[0] is not None and posture != here
+            and self._trunk(posture, {**arms, **_arm(side, q_pre)}, lean, view) is not None):
           continue
         first = first or posture
         if (in_trunk(side, q) if posture == here else in_trunk(side, q_pre, q)) is None:
@@ -3268,6 +3489,10 @@ class Reach:
     if st.get("loaded"):
       # ...a procedure's carry whose hand, holding nothing, read a load (#699)
       rep["loaded"] = True
+    if st.get("trunk") is not None:
+      # ...and one held where it was, every other posture's trunk meeting what
+      # it saw (#763)
+      rep["trunk"] = dict(st["trunk"])
     if st.get("pull") is not None:
       pv = st["pull"]
       rep["force"] = round(st["peak"], 2)
@@ -3357,7 +3582,10 @@ class Reach:
         st["loaded"] = True
       elif not st.get("given"):
         st["planned"] = st["t"]
-        posture = self.posture_for(side, c.pos, rot=c.rot)
+        # ...a `verb`'s, none its trunk would meet what it saw in (#763)
+        posture = self.posture_for(side, c.pos, rot=c.rot, judge=bool(st.get("verb")))
+        if posture is None and st.get("verb") and self.trunked[side] is not None:
+          st["trunk"] = dict(self.trunked[side])
         # ...and one decided reading light, whatever it found, withheld
         # nothing for a load
         st.pop("loaded", None)
@@ -3376,7 +3604,10 @@ class Reach:
       st.pop("loaded", None)
       g = self.goal[side]
       posture = self.path_for(side, [c.pos, g.pos] + [p for p, _ in st["ways"]],
-                              rot=[c.rot, g.rot] + [t for _, t in st["ways"]])
+                              rot=[c.rot, g.rot] + [t for _, t in st["ways"]],
+                              judge=bool(st.get("verb")))
+      if posture is None and st.get("verb") and self.trunked[side] is not None:
+        st["trunk"] = dict(self.trunked[side])
       if posture is not None and tuple(posture) != tuple(float(v) for v in self.posture):
         st.setdefault("began", self._standing_in())
         st.pop("held_here", None)
@@ -3544,7 +3775,12 @@ class Reach:
         # ...never one it has left this move: free to, two postures could take
         # turns, each switch a fresh wait, and the move never end out of reach
         left_ = st.setdefault("left", [])
-        posture = self.posture_for(side, c.pos, rot=c.rot, onward=True, past=left_)
+        # ...a `verb`'s, none its trunk would meet what it saw in (#763): held
+        # where it is, it reaches no further
+        posture = self.posture_for(side, c.pos, rot=c.rot, onward=True, past=left_,
+                                   judge=bool(st.get("verb")))
+        if posture is None and st.get("verb") and self.trunked[side] is not None:
+          st["trunk"] = dict(self.trunked[side])
         if posture is not None and tuple(posture) != tuple(self.posture):
           left_.append(tuple(float(v) for v in self.posture))
           st.setdefault("began", self._standing_in())
