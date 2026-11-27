@@ -507,10 +507,11 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   "place_cube": place.eval_place,
   "open_chest": lid.eval_lid,
   # ...and the restaurant's (#560): the place laid at its table, the table
-  # check's predicate under a row of its own -- and laid from the pass
-  # (#682's stage C, unoffered, unpaid)
+  # check's predicate under a row of its own -- and laid from the pass and
+  # from the kitchen's shelf (#682's stage C, unoffered, unpaid)
   "set_table": table.eval_table,
   "set_table_pass": table.eval_table,
+  "set_table_shelf": table.eval_table,
 }
 
 
@@ -638,6 +639,7 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   "open_chest": lid.sample_lid,
   "set_table": table.sample_table,
   "set_table_pass": table.sample_table,
+  "set_table_shelf": table.sample_table,
 }
 
 

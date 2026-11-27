@@ -154,6 +154,39 @@ def test_a_reference_source_with_no_def_is_refused_by_name():
   assert solutions._def_name(solutions.PASS[0]) == "lay_cup"
 
 
+def test_solve_refuses_a_feature_whose_kind_has_no_reference(monkeypatch):
+  """`scripts/solve.py` refuses a feature whose kind has no hand-written
+  reference (`refused`; #682's stage C, the full task, its review): unrefused,
+  the job was offered, set out and claimed, and its run raised KeyError at
+  `PROCEDURES` -- and it flies every feature whose kind has one."""
+  from pathlib import Path
+  from pluggybot.challenge import solutions
+  monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+  import solve
+  for feature, (kind, _) in solve.HAND_JOBS.items():
+    assert (solve.refused(feature) is None) == (kind in solutions.PROCEDURES), feature
+  monkeypatch.delitem(solutions.PROCEDURES, "set_table_pass")
+  assert "no reference is written for set_table_pass" in solve.refused("pass")
+
+
+def test_solve_names_every_start_one_flight_may_take(monkeypatch, capsys):
+  """`--view` and `--strip` fly one flight, so `--from tour` is refused -- and
+  the refusal names every start one flight may take, the pass's and the
+  kitchen shelf's among them (#682's stage C, the full task, its review: it
+  said "station or store", two of four)."""
+  import sys
+  from pathlib import Path
+  import pytest
+  monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+  import solve
+  monkeypatch.setattr(sys, "argv", ["solve.py", "--feature", "kitchen", "--from", "tour", "--strip"])
+  with pytest.raises(SystemExit):
+    solve.main()
+  said = capsys.readouterr().err
+  for start in ("station", "store", "pass", "shelf"):
+    assert start in said.split("fly one:")[1], said
+
+
 def _calls(source: str) -> list[tuple[str, list]]:
   """A source's calls in the order they are written: each verb's name and
   its arguments, a constant as its value and anything else as its text."""
@@ -738,3 +771,342 @@ def test_the_pass_fork_is_brought_back_from_the_pass_in_one_short_pull():
   assert [m[0] for m in back] == ["go"], f"the fork is brought back by {back}"
   assert float(back[0][1][1]) == solutions.PASS_FORK_BACK, back
   assert 0.47 - solutions.PASS_FORK_BACK < 0.24, solutions.PASS_FORK_BACK
+
+
+# ---- the place laid from the kitchen's shelf (#682's stage C, the full task) ----------------
+
+
+def test_the_shelf_reference_is_a_library_the_served_language_takes():
+  """The place laid from the kitchen's shelf: the procedures its runs call
+  and its three runs, a piece each, compile against the served pair's
+  language in one library -- each source inside the language's cap -- and
+  only the runs are runnable alone."""
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import lang
+  from pluggybot.procedure import library as lib
+  library = lib.Library(world_facts(HUMANOID_HOME))
+  helpers = solutions.LIBRARY["set_table_shelf"]
+  runs = solutions.PROCEDURES["set_table_shelf"]
+  for source in (*helpers, *runs):
+    assert len(source) <= lang.MAX_SOURCE_CHARS
+    library.define(solutions._def_name(source), source)
+  assert [solutions._def_name(s) for s in runs] == ["lay_cup", "lay_plate", "lay_fork"]
+  assert all(e.valid for e in library.entries.values())
+  assert set(library.runnable()) == {"lay_cup", "lay_plate", "lay_fork"}
+
+
+def test_the_shelf_lays_each_piece_as_the_pass_lays_it():
+  """Each run of the shelf's, from its walk to the place on, is the pass's
+  run byte for byte but its check that the piece is still held: the shelf
+  changes only how a piece is fetched."""
+  from pluggybot.challenge import solutions
+  for shelf, pass_, hand in zip(solutions.PROCEDURES["set_table_shelf"],
+                                solutions.PROCEDURES["set_table_pass"], ("right", "left", "left")):
+    assert shelf.count("  to_place(") == pass_.count("  to_place(") == 1
+    lay = shelf[shelf.index("  to_place("):]
+    assert lay.count(solutions.SHELF_HELD % hand) == 1, hand
+    assert lay.replace(solutions.SHELF_HELD % hand, "") == pass_[pass_.index("  to_place("):]
+  assert solutions.LIBRARY["set_table_shelf"][1:] == solutions.LIBRARY["set_table_pass"][1:]
+
+
+def test_the_shelf_walk_stands_where_a_look_reads_every_piece():
+  """On the shelf's 0.96 m board a piece's tag is in `spot`'s picture only
+  where it stands lower than `SPOT_TOP_AT_FEET_M - SPOT_TOP_DROP x` over the
+  floor, x m ahead of the soles' middle -- the cup's lid within about 0.6 m.
+  From the pass's 0.90 m every look failed, and walked to 2.0 m behind the
+  pass's tags every first look did (A2's flights; SimNotes, "The place laid
+  from the kitchen's shelf"). So the walk to the shelf stands where, arrived
+  as far short as a walk arrives, every piece of every set-out reads its
+  whole tag at the first look -- and where its planner keeps it off the
+  shelf no more than it keeps a walk off any wall."""
+  from pluggybot.activity import dishware as dw
+  from pluggybot.challenge import solutions
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.home import areas
+  from pluggybot.humanoid.body import WALK_KEEP_M
+  from pluggybot.navigator import WAYPOINT_REACHED_M
+  from pluggybot.procedure import steps
+  tags = {t: (x, y) for t, x, y, _ in areas.area_tags()["restaurant"]}
+  wall_x = (tags[68][0] + tags[69][0]) / 2
+  front, inward = ct._shelf()
+  assert inward[0] > 0.99, "the shelf faces the pass, across the kitchen"
+  goal_x = wall_x + solutions.SHELF_ACROSS
+  assert front[0] - goal_x >= WALK_KEEP_M, "the walk's goal inside the planner's keep-off"
+  tall = {"plate": dw.PLATE_FLOOR_T, "cup": dw.CUP_H, "fork": 2 * dw.HANDLE[2]}
+  for k in range(32):
+    for piece, (x, _, _) in ct.shelf_set_out(k).pieces.items():
+      z = ct.SHELF_H + tall[piece]
+      reads = (steps.SPOT_TOP_AT_FEET_M - z) / steps.SPOT_TOP_DROP
+      far = x + dw.TAG_SIZE[piece] / 2
+      for short in (0.0, WAYPOINT_REACHED_M):
+        soles = goal_x - short + ct._stance_ahead()
+        assert far - soles <= reads, (k, piece, round(far - soles, 3), round(reads, 3))
+
+
+def _sweep_parts(roll: float, elbow: float, edge: float, steps_: int = 40):
+  """The left arm's pre-pose on the robot's model of itself, standing: its
+  shoulder rolled out to `roll`, then its elbow bent to `elbow`, each a
+  straight sweep -- whether any corner of the forearm, the wrist or the
+  gripper comes beyond `edge` m ahead of the pelvis at or under the shelf's
+  0.96 m board, and the gripper's lowest and highest corners at the end."""
+  import mujoco
+  import numpy as np
+  from pluggybot.evaluation import counter as ct
+  m = mujoco.MjModel.from_xml_path("models/humanoid.xml")
+  d = mujoco.MjData(m)
+  parts = [g for g in range(m.ngeom) if (m.geom(g).name or "").startswith("left_")
+           and any(k in m.geom(g).name for k in ("jaw", "gripper", "pad", "wrist", "forearm"))]
+  hand = [g for g in parts if any(k in m.geom(g).name for k in ("jaw", "gripper", "pad"))]
+
+  def corners(q, gs):
+    mujoco.mj_resetData(m, d)
+    d.qpos[2] = 0.732
+    for name, v in q.items():
+      d.qpos[m.jnt_qposadr[m.joint(name).id]] = v
+    mujoco.mj_forward(m, d)
+    out = []
+    for g in gs:
+      r, h = d.geom_xmat[g].reshape(3, 3), m.geom_size[g]
+      ext = h if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_BOX else np.array([h[0], h[0], h[1]])
+      for sx in (-1, 1):
+        for sy in (-1, 1):
+          for sz in (-1, 1):
+            out.append(d.geom_xpos[g] + r @ (np.array([sx, sy, sz]) * ext))
+    return np.array(out)
+  q, met = {}, False
+  for joint, target in (("left_shoulder_roll", roll), ("left_elbow", elbow)):
+    for i in range(1, steps_ + 1):
+      q[joint] = target * i / steps_
+      p = corners(q, parts)
+      met |= bool(((p[:, 0] > edge) & (p[:, 2] < ct.SHELF_H + 0.005)).any())
+  p = corners(q, hand)
+  return met, float(p[:, 2].min()), float(p[:, 2].max())
+
+
+def test_the_shelf_left_pre_pose_clears_the_board_s_front_edge():
+  """The left hand's pre-pose before the plate's and the fork's reaches: the
+  pass's (shoulder roll 0.9, elbow 1.4) holds the gripper 0.40 m ahead of the
+  pelvis, 0.93-0.97 m up, on the shelf board's front edge -- two forks of
+  four stopped short there, "caught on something" (A2's flights). Rolled out
+  to `SHELF_LEFT_ROLL` before it bends to `SHELF_LEFT_ELBOW`, no corner of
+  the arm comes beyond an edge 0.33 m ahead at or under the board on the way,
+  and the gripper ends over the board and under the one above. Off the
+  shelf's runs' own sources, in that order, before the left hand's reach."""
+  from pluggybot.challenge import solutions
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.home import world as hw
+  above = hw.SHELF_BOARDS_Z[ct.SHELF_BOARD + 1] - hw.SHELF_T / 2
+  met, low, high = _sweep_parts(solutions.SHELF_LEFT_ROLL, solutions.SHELF_LEFT_ELBOW, 0.33)
+  assert not met and low > ct.SHELF_H + 0.02 and high < above - 0.1, (met, low, high)
+  assert _sweep_parts(0.9, 1.4, 0.33)[0], "the pass's pre-pose meets the edge"
+  for run in solutions.PROCEDURES["set_table_shelf"][1:]:
+    calls = _calls(run)
+    roll = _index(calls, lambda c: c == ("move", ["left_shoulder_roll", solutions.SHELF_LEFT_ROLL]),
+                  "left shoulder rolled out")
+    bend = _index(calls, lambda c: c == ("move", ["left_elbow", solutions.SHELF_LEFT_ELBOW]),
+                  "left elbow bent", start=roll + 1)
+    _index(calls, lambda c: c[0] == "reach" and c[1][:1] == ["left"], "left reach", start=bend + 1)
+    assert not any(c[0] == "move" and c[1][1] in (0.9, 1.4) for c in calls), calls
+
+
+def test_the_shelf_cup_retries_bring_the_hand_out_from_under_the_board_above():
+  """A cup whose descent is held back on its lid (or whose reach to its hover
+  fails) is withdrawn and looked at again; at the shelf the way home from the
+  hover rose into the board above (13-39 N) and was held there (A2's
+  flights). Off the reference's own source: every withdraw before the cup is
+  gripped first brings the hand straight back to `SHELF_CUP_BACK` ahead."""
+  from pluggybot.challenge import solutions
+  moves = _hand_moves(solutions.PROCEDURES["set_table_shelf"][0], "right")
+  shut = _index(moves, lambda m: m[0] == "close_hand", "shut on the cup")
+  withdraws = [i for i in range(shut) if moves[i][0] == "withdraw"]
+  assert len(withdraws) == 2, moves[:shut]
+  for i in withdraws:
+    back = moves[i - 1]
+    assert back[0] == "move_hand" and float(back[1][1]) == solutions.SHELF_CUP_BACK, back
+  assert solutions.SHELF_CUP_BACK < 0.47 - 0.06, "in front of the shelf's face"
+
+
+def test_the_shelf_walk_comes_in_straight_before_it_faces_the_shelf():
+  """Walked from the staff door straight to its stance, the robot arrived
+  turned about 40 deg off the shelf, and the `face` after it stopped 5-13 deg
+  short -- the cup outside the picture's side (A2's flights). The walk stops
+  `SHELF_FIRST` behind the pass's tags, then walks the rest straight in along
+  the walls' normal, and faces the shelf after it."""
+  from pluggybot.challenge import solutions
+  calls = _calls(solutions.LIBRARY["set_table_shelf"][0])
+  walks = [i for i, (n, _) in enumerate(calls) if n == "drive_to"]
+  assert len(walks) == 2, calls
+  last = round(solutions.SHELF_ACROSS - solutions.SHELF_FIRST, 4)
+  assert last >= 0.5, "a last leg too short to square the walk"
+  assert calls[walks[1]][1][:2] == [f"mx - {last:g} * cos(f)", f"my - {last:g} * sin(f)"], calls
+  verbs = [n for n, _ in calls[walks[1] + 1:] if n in ("face", "step", "drive_to", "spot", "find")]
+  assert verbs[:1] == ["face"], verbs
+
+
+def test_the_shelf_cup_is_read_before_its_pre_pose():
+  """Stood 0.43 m from the cup, the right hand's pre-pose put its gripper
+  between the camera and the cup's lid and the look after it failed, ending
+  the run (A2's flights). Off the reference's own source: each look that
+  places the cup's grip comes before the pre-pose's moves, and the look after
+  them is an `if`'s test, reading the cup again only where it is seen."""
+  import ast as _ast
+  from pluggybot.challenge import solutions
+  tree = _ast.parse(solutions.PROCEDURES["set_table_shelf"][0])
+  body = []
+  for node in _ast.walk(tree):
+    for field in ("body", "orelse"):
+      block = getattr(node, field, None)
+      if isinstance(block, list):
+        body.append(block)
+  seen = 0
+  for block in body:
+    for i, st in enumerate(block):
+      if (isinstance(st, _ast.Expr) and isinstance(st.value, _ast.Call)
+          and getattr(st.value.func, "id", "") == "move"
+          and st.value.args[0].value == "right_shoulder_roll"):
+        seen += 1
+        before = [_ast.unparse(s) for s in block[:i]]
+        assert any("spot(91)" in b for b in before), before
+        after = block[i:]
+        tests = [s for s in after if isinstance(s, _ast.If)
+                 and _ast.unparse(s.test) == "spot(91)"]
+        assert tests, [_ast.unparse(s) for s in after]
+        assert not any(_ast.unparse(s) == "spot(91)" for s in after), "a bare look after the pre-pose"
+  assert seen == 2, seen
+
+
+def test_the_shelf_walk_stands_each_piece_where_near_puts_it_and_near_stands_further_off():
+  """`near`'s step goes past what it asks -- ahead a median 1.2-3.6 cm, at most
+  5.6; across, twice an oblique ask (A2's flights) -- and stood that near,
+  the board's edge met the left pre-pose (125 N) and the cup's lid left the
+  picture's side. So each walk to the shelf stands where the trip's piece
+  lies within 5 cm of where `near` puts it across (`SHELF_S`: the shelf's
+  middle off the pass's, from the house, plus the piece's place in the row;
+  the fork's 5 cm short, as flown), and `near` stands `SHELF_NEAR_BACK`
+  further off than the pass's."""
+  import pytest
+  from pluggybot.challenge import solutions
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.home import world as hw
+  shelf_y = next(s for s in hw.SHELVES if s[0] == ct.SHELF)[2]
+  left_of_pass = shelf_y - sum(hw.EXPO_Y) / 2          # facing east, the left is +y
+  pass_near = {n: float(a) for n, (_, a, _) in
+               ((r, next(c for c in _calls(src) if c[0] == "near")[1])
+                for r, src in zip(("cup", "plate", "fork"), solutions.PROCEDURES["set_table_pass"]))}
+  for piece, src in zip(("cup", "plate", "fork"), solutions.PROCEDURES["set_table_shelf"]):
+    calls = _calls(src)
+    walk = next(c for c in calls if c[0] == "to_shelf")
+    assert walk[1] == [solutions.SHELF_S[piece]], walk
+    tag, a, b = (float(v) for v in next(c for c in calls if c[0] == "near")[1])
+    assert a == pytest.approx(pass_near[piece] + solutions.SHELF_NEAR_BACK), (piece, a)
+    row = ct.SHELF_SOURCES[piece][0][1]
+    assert abs(solutions.SHELF_S[piece] - (left_of_pass + row - b)) <= 0.05 + 1e-9, piece
+
+
+def test_the_shelf_cup_s_and_fork_s_missed_looks_turn_toward_them_and_look_again():
+  """After `near`, a look that misses the cup or the fork turns
+  `SHELF_LOOK_TURN` toward it on the spot -- the cup's row lies right of the
+  shelf's middle, the fork's left -- and looks again: `near`'s oblique step
+  had left the cup 35 deg off the facing, outside the picture's side (A2's
+  flights)."""
+  import ast as _ast
+  from pluggybot.challenge import solutions
+  runs = solutions.PROCEDURES["set_table_shelf"]
+  for src, tag, sign in ((runs[0], 91, "-"), (runs[2], 92, "")):
+    fn = _ast.parse(src).body[0]
+    i = next(j for j, st in enumerate(fn.body) if "near(" in _ast.unparse(st))
+    guard = fn.body[i + 1]
+    assert isinstance(guard, _ast.If) and _ast.unparse(guard.test) == f"not spot({tag})", _ast.unparse(guard)
+    said = [_ast.unparse(st) for st in guard.body]
+    assert any(f"step(0, 0, {sign}{solutions.SHELF_LOOK_TURN:g})" in t for t in said), said
+    assert said[-1] == f"spot({tag})", said
+
+
+def test_the_shelf_fork_s_hand_stays_left_of_the_middle_from_its_pull_off_the_shelf():
+  """Its hand near the body's middle (0.13-0.20 m left), the fork's pull off
+  the shelf, its move back and its stow took a 0.55-0.95 rad bow and the
+  waist up to 60 deg in 10 of 49 trips -- the head on the work board in 7,
+  one fall -- and from 0.23 m left or more none of 7 (A2's flights). Off the
+  reference's own source: the pull off the shelf goes to the hand's own
+  left, at least `SHELF_FORK_LEFT`, and every move after it keeps that."""
+  import ast as _ast
+  from pluggybot.challenge import solutions
+  fn = _ast.parse(solutions.PROCEDURES["set_table_shelf"][2]).body[0]
+  said = [_ast.unparse(st) for st in fn.body]
+  go = next(i for i, t in enumerate(said) if t.startswith("go('left'"))
+  least = f"{solutions.SHELF_FORK_LEFT:g}"
+  assert said[go - 2:go] == ["y = read('left.y')", f"if y < {least}:\n    y = {least}"], said[go - 2:go]
+  assert _ast.unparse(fn.body[go].value.args[2]) == "y", said[go]
+  # ...and no move after it, up to the walk, names another left-right place
+  walk = next(i for i, t in enumerate(said) if t.startswith("to_place("))
+  for t in said[go + 1:walk]:
+    for call in [n for n in _ast.walk(_ast.parse(t)) if isinstance(n, _ast.Call)
+                 and getattr(n.func, "id", "") == "move_hand"]:
+      assert _ast.unparse(call.args[2]) == "read('left.y')", t
+
+
+def test_the_shelf_puts_each_piece_down_only_while_its_hand_holds_it():
+  """After the step at the table let the plate go, the put-down's reach from
+  the hanging arm (the walk had brought the empty hand home) bowed the robot
+  1.10 rad and it fell (A2's flights). Off the reference's own source: in each
+  shelf run the walk to the place is followed at once by the end of the run
+  where its hand's grip reads empty (`SHELF_HELD`), before any put-down. In
+  60 of A2's trips whose walk said it had dropped its piece (of 576) none was
+  laid within 2.5 cm, so the check costs no piece."""
+  import ast as _ast
+  from pluggybot.challenge import solutions
+  for src, hand in zip(solutions.PROCEDURES["set_table_shelf"], ("right", "left", "left")):
+    fn = _ast.parse(src).body[0]
+    i = next(j for j, st in enumerate(fn.body)
+             if isinstance(st, _ast.Expr) and _ast.unparse(st).startswith("to_place("))
+    guard = fn.body[i + 1]
+    assert isinstance(guard, _ast.If), _ast.unparse(guard)
+    assert _ast.unparse(guard.test) == f"read('{hand}.held') < 0.5", _ast.unparse(guard.test)
+    assert [type(st) for st in guard.body] == [_ast.Return], _ast.unparse(guard)
+
+
+def test_the_shelf_s_thin_pieces_are_stowed_clear_of_the_board_before_the_walk():
+  """The walk's hand-over takes a thin grip's side way, which rose a median
+  0.21 m (at most 0.39) and swung 0.06-0.16 m forward before it came down:
+  from over the board the plate's far rim came down on its edge (18 of 58)
+  and the fork struck the board above (46 of 52), falling out of the jaws 8
+  times (A2's flights). Off the reference's own source: after each thin
+  piece's pull-back, its hand is moved back to `SHELF_*_BACK` -- its far end
+  then in front of the board's face where `near` stands it -- and lowered to
+  `SHELF_STOW_Z`, from which the side way's highest rise stays under the
+  board above; then the walk. The fork is lowered by a `pull` that holds
+  its line and turn (`give=0`): lowered by `move_hand`, two forks of eight
+  turned in the jaws and fell out."""
+  from pluggybot.activity import dishware as dw
+  from pluggybot.challenge import solutions
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.home import world as hw
+  above = hw.SHELF_BOARDS_Z[ct.SHELF_BOARD + 1] - hw.SHELF_T / 2
+  assert solutions.SHELF_STOW_Z + 0.39 < above, "the side way's highest rise strikes the board above"
+  assert solutions.SHELF_STOW_Z < ct.SHELF_H, "lowered under the board's top: in front of its face"
+  far = {"plate": 2 * dw.PLATE_R - dw.PLATE_WALL_T, "fork": dw.HANDLE[0] + 2 * dw.HEAD[0]}
+  back = {"plate": solutions.SHELF_PLATE_BACK, "fork": solutions.SHELF_FORK_BACK}
+  for piece, src in zip(("plate", "fork"), solutions.PROCEDURES["set_table_shelf"][1:]):
+    calls = _calls(src)
+    a = next(c for c in calls if c[0] == "near")[1][1]
+    face = a - ct.SHELF_SOURCES[piece][0][0]        # the board's face ahead, where near stands
+    assert back[piece] + far[piece] < face, (piece, back[piece] + far[piece], face)
+    moves = _hand_moves(src, "left")
+    i_back = _index(moves, lambda m: m[0] == "move_hand" and m[1][1] == back[piece],
+                    f"{piece} moved back to SHELF's")
+    stow = moves[i_back + 1]
+    if piece == "plate":
+      assert stow[0] == "move_hand" and stow[1][3] == solutions.SHELF_STOW_Z, stow
+    else:
+      lowered = f'read("left.z") - {solutions.SHELF_STOW_Z:g}'
+      assert stow[0] == "pull" and [float(v) for v in stow[1][1:4]] == [0, 0, -1], stow
+      assert stow[1][5].replace("'", '"') == lowered, stow
+      gives = [k.value.value for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Call)
+               and getattr(n.func, "id", "") == "pull" and ast.unparse(n.args[5]).replace("'", '"') == lowered
+               for k in n.keywords if k.arg == "give"]
+      assert gives == [0], gives
+    # ...and the walk next: no hand move between the stow and the walk to the place
+    walk = _index(calls, lambda c: c[0] == "to_place", "walk to the place")
+    after = [c for c in calls[:walk] if c[0] in ("move_hand", "go", "pull", "reach")]
+    assert after[-1] == stow, after[-1]

@@ -237,6 +237,10 @@ CUBE_MINUTES = 9
 #: the bar written before they flew (Ben's call to offer it, and then its
 #: minutes by the table's rule, three times its slowest pass).
 PASS_MINUTES = 30
+#: ...and the place laid from the kitchen's shelf's (#682's stage C, the full
+#: task): NOT OFFERED either, its limit as generous for trips about three times
+#: the pass's walking, the bar written before its reference flew.
+SHELF_MINUTES = 45
 
 
 KINDS: dict[str, TaskKind] = {
@@ -350,6 +354,26 @@ KINDS: dict[str, TaskKind] = {
              "These were set out at t={offered}, when this job was offered. No errand does this: "
              "write the procedure.",
     estimate_wh=20.59, discharge="procedure", draws=True, minutes=PASS_MINUTES),
+  # ...and its full task (#682's stage C; Ben, 11-26): the same place, its
+  # pieces set out on the restaurant kitchen's shelf, on its third board
+  # (`home.restaurant.SET_OUTS`), each carried 10-13 m through the staff door
+  # and graded by the table's evaluator. NOT OFFERED and paid nothing, as the
+  # pass's. Its energy is its own, measured 27 Nov 2026 at 2bf94b77 as the
+  # pass's was, from each station (`energy_spike.py --station S --actions
+  # set_table_shelf`, the pass's tags and the card found first; each laid):
+  # the research center's 25.16 Wh over 535 s, the mall's 23.37 over 498, the
+  # house's 22.56 over 488 -- the dearest, inside 90 % of the served pack's
+  # 33 Wh. ⚠ NOT a row of `energy.json`, for the pass's reason.
+  "set_table_shelf": TaskKind(
+    "set_table_shelf", task="set_table_shelf", target_kind="table",
+    template="Lay the card's place on the restaurant's table from its kitchen shelf: "
+             "from the foot of the card's face toward you, the plate's middle 19 cm out; the fork "
+             "19 cm out, 16 cm left, along the line, head to the card; the cup 7 cm out, 24 cm "
+             "right. Each within 2.5 cm, set down and let go of, within {minutes} minutes of "
+             "taking this job, without falling; graded when you say you are done and 5 s later. "
+             "Its pieces were set out at t={offered}, when this job was offered. No errand does "
+             "this: write the procedure.",
+    estimate_wh=25.16, discharge="procedure", draws=True, minutes=SHELF_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --
@@ -357,7 +381,8 @@ KINDS: dict[str, TaskKind] = {
 #: graded by its capability check's evaluator, whose row stays the
 #: practice's, unpaid.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "place",
-             "open_chest": "lid", "set_table": "table", "set_table_pass": "table"}
+             "open_chest": "lid", "set_table": "table", "set_table_pass": "table",
+             "set_table_shelf": "table"}
 
 
 def kind_names() -> list[str]:

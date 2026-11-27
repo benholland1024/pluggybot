@@ -433,7 +433,7 @@ def test_the_sentence_says_the_graders_own_numbers_within_the_cap():
   moves without the other, and the sentence fits a description's cap -- the
   place laid from the pass's too, graded as the table's is."""
   from pluggybot.economy.tasks import MAX_DESCRIPTION
-  for kind in ("set_table", "set_table_pass"):
+  for kind in ("set_table", "set_table_pass", "set_table_shelf"):
     words = KINDS[kind].template
     for p, (a, b) in table.SPOTS.items():
       assert f"{100 * a:g} cm out" in words, (kind, p)
@@ -507,9 +507,10 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
   (`practice.TABLE_JOB`) -- and that none is where it goes: true of every
   kind a world offers at the table, over 32 set-outs, by the grader's own
   measure. The directions are the area's, so every kind's offer there
-  carries them: one that sets its pieces out elsewhere (the pass's, #682's
-  stage C, whose row says where) is offered by no world, and offering it
-  moves these words (why: #723's period in Observatory.md)."""
+  carries them: one that sets its pieces out elsewhere (the pass's and the
+  kitchen shelf's, #682's stage C, whose rows say where) is offered by no
+  world, and offering it moves these words (why: #723's period in
+  Observatory.md)."""
   offered = _offered()
   here = [k for k in TABLE_KINDS if k in offered]
   assert "set_table" in here
@@ -667,7 +668,8 @@ def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
   of every table job read true the whole job. Each kind's own surface."""
   life = _life(tmp_path)
   act = life._target_activity(restaurant.TABLE)
-  for offer, surface in ((_offer, ct.TABLE_H), (_offer_pass, ct.PASS_H)):
+  for offer, surface in ((_offer, ct.TABLE_H), (_offer_pass, ct.PASS_H),
+                         (_offer_shelf, ct.SHELF_H)):
     mujoco.mj_step(life.model, life.data)        # a step with the place put away
     task = offer(life)                           # ...the hook sets it out
     act.sense(life.model, life.data)             # ...and senses it, the same pass
@@ -679,6 +681,114 @@ def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
     life.tasks.resolve(task.id, table_verdict(), t=float(life.data.time))
     restaurant.put_away(life.model, life.data, restaurant.TABLE)
     act.sense(life.model, life.data)
+
+
+# ---- the place laid from the kitchen's shelf (#682's stage C, the full task) ----------------
+
+
+def _offer_shelf(life, **params):
+  """The place laid from the kitchen's shelf, offered as a cadence would
+  offer it -- none does (`cadence.json`): it is never offered."""
+  maker = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
+  made, secret = maker._build("set_table_shelf", restaurant.TABLE)
+  return life.tasks.offer("set_table_shelf", restaurant.TABLE, params={**made, **params},
+                          secret=secret, ttl=3000.0, t=float(life.data.time))
+
+
+def test_a_shelf_offer_sets_its_pieces_out_on_the_shelf_and_the_card_at_the_table(tmp_path):
+  """The kind chooses the set-out (`restaurant.SET_OUTS`): an offer of the
+  place laid from the kitchen's shelf sets each piece out where
+  `shelf_set_out` lays it, on the shelf's board, its hidden weight the
+  draw's, and the card at the table -- never the table's set-out nor the
+  pass's -- and a restart sets an open one back out there (`restore_jobs`
+  by its kind)."""
+  life = _life(tmp_path)
+  task = _offer_shelf(life)
+  k = task.secret["draw"]
+  so, load = ct.shelf_set_out(k), dw.draw(k)
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p) == pytest.approx((x, y, ct.SHELF_H)), p
+    assert life.model.body_mass[life.model.body(p).id] == pytest.approx(getattr(load, f"{p}_kg"))
+  assert _at(life, "place_card") == pytest.approx((*ct.table_set_out(k).card[:2], ct.TABLE_H))
+  assert life._target_activity(restaurant.TABLE).load == load
+  fresh = _life(tmp_path)
+  fresh.begin((0.0, 0.0, 0.0))
+  assert _out(fresh)
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(fresh, p) == pytest.approx((x, y, ct.SHELF_H)), p
+
+
+def test_the_shelf_set_out_lies_on_its_third_board_near_its_edge_each_draw_its_own():
+  """Each piece rests whole on the kitchen shelf's third board (its top
+  0.96 m) and clear under the board above, NEAR THE BOARD'S FRONT EDGE -- the
+  pass's reasons: a carried piece hangs under the board's top, and standing
+  a hand takes a piece no further in -- the cup right of the plate and the
+  fork left as a robot faces the shelf; seeded, each draw its own, the
+  fork's head in; the offline start faces the shelf `SHELF_GAP` out of the
+  edge, its soles' middle on the board's middle."""
+  name, cx, cy, length, depth, yaw, double = next(s for s in hw.SHELVES if s[0] == ct.SHELF)
+  assert yaw == pytest.approx(math.pi / 2) and not double      # its front faces west
+  front, back = cx - depth / 2, cx + depth / 2 - hw.SHELF_T     # the back panel's inner face
+  half = length / 2 - hw.SHELF_T                                 # the board between the ends
+  top = hw.SHELF_BOARDS_Z[ct.SHELF_BOARD] + hw.SHELF_T / 2
+  above = hw.SHELF_BOARDS_Z[ct.SHELF_BOARD + 1] - hw.SHELF_T / 2
+  assert ct.SHELF_H == pytest.approx(top) == pytest.approx(0.96)
+  # each piece's reach behind its middle and ahead of it, the fork's turn spared
+  r = {"plate": (dw.PLATE_R,) * 2, "cup": (dw.CUP_R,) * 2,
+       "fork": (dw.HANDLE[0] + 0.005, dw.HANDLE[0] + 2 * dw.HEAD[0] + 0.005)}
+  tall = {"plate": dw.PLATE_H, "cup": dw.CUP_H, "fork": 2 * dw.HANDLE[2]}
+  seen = set()
+  for k in range(20):
+    so = ct.shelf_set_out(k)
+    assert so.surface == ct.SHELF_H
+    for p, (x, y, turn) in so.pieces.items():
+      assert front + r[p][0] <= x and x + r[p][1] <= back, (k, p)
+      assert abs(y - cy) + r[p][1] <= half, (k, p)
+      assert x - front <= 0.12, (k, p, "near the front edge")
+      assert top + tall[p] < above, (k, p, "under the board above")
+    assert so.pieces["cup"][1] < so.pieces["plate"][1] < so.pieces["fork"][1], k
+    assert abs(math.remainder(so.pieces["fork"][2], 2 * math.pi)) <= math.radians(6.0), k
+    assert so.card == ct.table_set_out(k).card and so.load == dw.draw(k)
+    seen.add(tuple(np.round(so.pieces["plate"], 6)))
+  assert len(seen) == 20
+  assert ct.shelf_set_out(3) == ct.shelf_set_out(3)
+  so = ct.shelf_set_out(0)
+  assert so.start[2] == pytest.approx(0.0, abs=1e-9)             # facing it, east
+  assert so.start[0] + ct._stance_ahead() == pytest.approx(front - ct.SHELF_GAP)
+  assert so.start[1] == pytest.approx(cy)
+
+
+def test_the_place_laid_from_the_shelf_is_graded_as_the_tables_and_pays_nothing(tmp_path):
+  """Its grade is the table's evaluator under a row of its own (`HAND_JOBS`),
+  paying nothing, shown to no mind -- no world's cadence offers it -- and
+  its pieces read lifted off the shelf where they were set out, never off
+  the table's top."""
+  import json
+  from pathlib import Path
+  from pluggybot.economy import scoring
+  from pluggybot.economy.cadence import CADENCE_PATH
+  from pluggybot.economy.tasks import HAND_JOBS, SHELF_MINUTES
+  assert HAND_JOBS["set_table_shelf"] == "table"
+  assert scoring.EVALUATORS["set_table_shelf"] is table.eval_table
+  assert scoring.SAMPLERS["set_table_shelf"] is table.sample_table
+  assert KINDS["set_table_shelf"].minutes == SHELF_MINUTES
+  row = default_table()["set_table_shelf"]
+  assert row.base == 0 and row.bonus == 0 and row.shown is False
+  cadence = json.loads(Path(CADENCE_PATH).read_text())
+  for world, spec in {"default": cadence["default"], **cadence["worlds"]}.items():
+    assert "set_table_shelf" not in (spec.get("kinds") or {}), world
+  life = _life(tmp_path)
+  task = _offer_shelf(life)
+  act = life._target_activity(restaurant.TABLE)
+  mujoco.mj_forward(life.model, life.data)
+  act.sense(life.model, life.data)
+  assert act.rest == pytest.approx({p: ct.SHELF_H for p in dw.PIECES}, abs=1e-6)
+  assert not any(act.flags[f"{p}Lifted"] for p in dw.PIECES), act.flags
+  assert life._claim_task(task.id) and task.id in life._job_watches
+  _lay(life)
+  verdict = _grade(life, task.id)
+  assert verdict["ok"], verdict["reason"]
+  assert life.ledger.robots[life.root]["balance"] == 0
 
 
 # ---- put away, the pieces stay put away ------------------------------------
