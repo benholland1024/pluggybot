@@ -13180,6 +13180,25 @@ poses are computed when the `MjData` is made
 and never again (`activity/base.py`'s `GeomToggle` said so before; with
 the flag on it holds for every static body).
 
+Ben's bar on it (C13, one AMD EPYC 7C13 pod, base 503a9a6c beside the branch,
+736 flights a tree, each on two noise draws): on the bar's own draw 618
+passed on the base and 616 here, falls 3 and 2, the held-out door 86 and 82
+-- not met by the bar's letter; on a second draw 615 and 618, falls 4 and 4,
+met; over both 1,233 and 1,234 of 1,472, falls 7 and 6, the flights flipping
+40 one way and 41 the other, the door 14 and 10 (a sign test's p 0.54). A
+robot's run stays the base's in every recorded field where it reads or
+touches nothing that slept (the lid's checks 127 of 128 on the first draw,
+the drawer's 120 of 128); the door, the cube and the table are paths re-rolled
+from a reading a few thousandths of a degree apart -- the door's lever sleeps
+0.6 s after its set-out 0.002-0.006 deg from where it settles awake, either
+way -- whose outcomes flip both ways. Where C10 flew the same flights (the
+table check 0-31, the counter's other checks 0-7, the tour's table), the
+branch's rows are its sleeping arm's to every metric: one physics on two
+CPUs, one sample. No touch in the branch's 1,672 flights (both draws and the
+robots' tries) left a sleeping tree touching an awake one. The robots' own 200 tries passed 2 on the base and 5 here, and
+two of them fell here alone (a withdraw's way home, a hold after a pull),
+with no hard contact in the 12 s before either; one fell on both.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

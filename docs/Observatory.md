@@ -10,6 +10,48 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### What rests sleeps, every robot never (#779, C13, `loop-sleep`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` and the
+session host's hello `9dcf6202` are byte for byte as they were. What moves is
+the physics under them: every world the house's and the counter's builders
+make turns on MuJoCo 3.10's island sleeping at its own tolerance, every
+robot's tree `never` (`pluggybot.sleeping`; SimNotes, "Bodies at rest
+asleep"). A body still for ten steps sleeps with what it touches, its
+contacts and its dynamics skipped until a touch, a write or a force wakes it
+in that step: the place's dishware, set out or put away, the five loose props
+of the lab and the workshop, the counter's cube, its drawer and its cupboard
+door between their jobs. The cup set out does not (its flat end jitters
+above the tolerance), nor the chest's lid where its catch's torque is
+applied.
+
+**What it does.** Measured before it was built (C10, one EPYC 7642): the
+physics step x0.645 with the place set out and x0.825 with it away, the
+pair's pace +5.7-7.1 % and +2 % (about x1.05-1.06 at 11-25's hours, the place
+out 79 % of them). A robot reads a sleeping piece exactly still where an
+awake one drifted by the solver's rounding, so its run parts at its first
+reading or touch of what slept and goes on as another trajectory: on Ben's
+bar (one EPYC 7C13 pod, 736 flights a tree) the base passed 618 and
+this 616 on the bar's own draw (the held-out door 86 and 82: not met by
+its letter) and 615 and 618 on a second draw (met), the flips falling both
+ways (40 and 41 over both, the door's 14 and 10). A faster world changes no
+reading, but it changes what a think costs in the world's time, as #775's
+cull did: an answer's wall seconds are as many as before, so each costs that
+much more of a held job's minutes, of the battery standing still and of
+`UNMINDED_AFTER_S`'s 1800 s.
+
+**The restart.** A save carries the islands' sleep, and a restart puts it
+back (without it every island woke at a restore and the world parted). The
+first restart after this deploy carries on from a save of a world that never
+slept: it comes back in place with every tree awake, and what rests sleeps
+again within ten steps. The pair's committed recording moves in the
+cupboard lever's pose alone (114 frames), which the site re-vendors.
+
+**To read.** `vitals.txt`'s rate a minute, the minutes with the place set
+out against those with it put away (C7's kit, section 6), beside 11-25's
+7.15 % and the weekend's; and the passes and falls by job, the door's above
+all, against the weekend's.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the
