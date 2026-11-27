@@ -1897,10 +1897,14 @@ class Reach:
     arms_judged = swing and self.seen is not None and len(self.seen) > 0
     view = self._trunk_view() if swing else (None, None)
     judged = arms_judged or view[0] is not None
+    # ...never the posture the body holds or has got to (the one #719 keeps it
+    # in): no posture changes, nothing of its trunk walks
+    held = ({tuple(float(v) for v in self.posture), self._in_or_got_to()}
+            if view[0] is not None else set())
 
     def judged_by(g: HandGoal, found) -> dict | None:
       met = self._swing(side, found, g, lean) if arms_judged else None
-      if met is None and view[0] is not None:
+      if met is None and view[0] is not None and tuple(float(v) for v in found[0]) not in held:
         # ...and its trunk walked into the posture and back up (#763)
         met = self._trunk(found[0], {**kw["arms"], **_arm(side, found[2])}, lean, view)
         met = None if met is None else dict(met, trunk=True)
@@ -2109,7 +2113,9 @@ class Reach:
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     statue(sm, posture, q0, arms, lean, fast=True)
     b = sm.d.qpos.copy()
-    statue(sm, (0.0, 0.0, 0.0), q0)
+    # ...the stand at the same lean, as every stand a way home is judged in
+    # (`_pose_planner`)
+    statue(sm, (0.0, 0.0, 0.0), q0, arms, lean, fast=True)
     c = sm.d.qpos.copy()
     shown = self.stand.posture - self.trim
     tick = self.every * self.m.opt.timestep
@@ -2123,6 +2129,10 @@ class Reach:
         fh, fp = _progress(h, from_[0], to[0]), _progress(p, from_[1], to[1])
         fw = _progress(w, w0, to[2])
         f = fp if fp is not None else fh if fh is not None else fw if fw is not None else 1.0
+        if t == 0.0:
+          # ...each walk begun where it begins: the body as it reads itself,
+          # whatever its commands' clocks already read (`began` is read here)
+          fh = f = 0.0
         d = sm.d
         d.qpos[:] = b_
         d.qpos[0:2] = a_[0:2] + (b_[0:2] - a_[0:2]) * f
@@ -3472,6 +3482,18 @@ class Reach:
 
   # ---- a hand that is out, carried (#493) ----
 
+  def _trunk_said(self, side: str, st: dict, posture) -> None:
+    """After a procedure's replan on its way (#763): what every posture's trunk
+    would have met where none was taken for it (`trunked`), kept for its
+    report -- and nothing where a posture was taken or none reached, so a
+    move that ends otherwise never says its trunk held it."""
+    if not st.get("verb"):
+      return
+    if posture is None and self.trunked[side] is not None:
+      st["trunk"] = dict(self.trunked[side])
+    else:
+      st.pop("trunk", None)
+
   def _end(self, side: str, why: str, h: np.ndarray, r: np.ndarray,
            at_goal: bool = False) -> None:
     """A carry over: held at its goal (one that arrived) or
@@ -3598,8 +3620,7 @@ class Reach:
         # ...a `verb`'s, none its trunk would meet what it saw in (#763)
         posture = self.posture_for(side, c.pos, rot=c.rot,
                                    **({"judge": True} if st.get("verb") else {}))
-        if posture is None and st.get("verb") and self.trunked[side] is not None:
-          st["trunk"] = dict(self.trunked[side])
+        self._trunk_said(side, st, posture)
         # ...and one decided reading light, whatever it found, withheld
         # nothing for a load
         st.pop("loaded", None)
@@ -3620,8 +3641,7 @@ class Reach:
       posture = self.path_for(side, [c.pos, g.pos] + [p for p, _ in st["ways"]],
                               rot=[c.rot, g.rot] + [t for _, t in st["ways"]],
                               **({"judge": True} if st.get("verb") else {}))
-      if posture is None and st.get("verb") and self.trunked[side] is not None:
-        st["trunk"] = dict(self.trunked[side])
+      self._trunk_said(side, st, posture)
       if posture is not None and tuple(posture) != tuple(float(v) for v in self.posture):
         st.setdefault("began", self._standing_in())
         st.pop("held_here", None)
@@ -3793,8 +3813,7 @@ class Reach:
         # where it is, it reaches no further
         posture = self.posture_for(side, c.pos, rot=c.rot, onward=True, past=left_,
                                    **({"judge": True} if st.get("verb") else {}))
-        if posture is None and st.get("verb") and self.trunked[side] is not None:
-          st["trunk"] = dict(self.trunked[side])
+        self._trunk_said(side, st, posture)
         if posture is not None and tuple(posture) != tuple(self.posture):
           left_.append(tuple(float(v) for v in self.posture))
           st.setdefault("began", self._standing_in())

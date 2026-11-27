@@ -217,10 +217,14 @@ def test_the_view_is_what_it_saw_since_its_feet_last_moved_tops_kept_and_a_pure_
   assert len(mem.since(pose, 4.0)) == 0
   # ...the board's top is in it, where the faces leave a column's top out
   assert len(mem.faces(pose, corrected)) == 0
-  # ...and nothing forgotten for a belief that jumped: it never asks
-  mem.seen = np.array([5.0, 5.0, 1.0])
-  mem.since((0.3, 0.0, 0.0), 0.0)
+  # ...none where the belief jumped since the memory last read it (placed
+  # where it no longer is), and nothing forgotten: it is a pure read
+  mem.seen = np.array([0.0, 0.0, 0.0])
+  assert len(mem.since(pose, 0.5, (0.05, 0.0, 0.0))) == len(before) + len(after)
+  assert len(mem.since(pose, 0.5, (0.2, 0.0, 0.0))) == 0
+  assert len(mem.since(pose, 0.5, (0.0, 0.0, 0.1))) == 0
   assert np.array_equal(mem.pts, pts) and np.array_equal(mem.t, ts)
+  assert np.array_equal(mem.seen, [0.0, 0.0, 0.0])
 
 
 def test_an_empty_view_judges_nothing_todays_plan_bit_for_bit(floor):
@@ -450,3 +454,74 @@ def test_the_body_hands_its_reach_what_it_saw_since_its_feet_moved_and_again_aft
     assert body.reach.trunk_view == mi.trunk_seen
   finally:
     body.close()
+
+
+def test_the_posture_the_body_holds_is_never_judged_for_its_trunk(monkeypatch):
+  """A reach planned in the posture the body holds, or has got to (the one
+  #719 keeps it in), changes no posture: its trunk is not judged, whatever
+  its walk back up to the stand would meet (round 1's review); another
+  posture is."""
+  reach = _floor()
+  board = _board(0.42)
+  goal = HandGoal(np.array([0.30, 0.10, 0.80]), None, 0.5)
+  judged = []
+  real = reach._trunk
+  monkeypatch.setattr(reach, "_trunk", lambda posture, *a: judged.append(tuple(posture)) or real(posture, *a))
+  crouch = (-0.08, 0.0, 0.0)
+  assert _plan(reach, goal, board, postures=(crouch,))[0] is not None, "the premise: it plans there"
+  assert crouch in judged, "the premise: another posture is judged"
+  here = tuple(float(v) for v in reach.posture)
+  assert here == reach._in_or_got_to() == (0.0, 0.0, 0.0)
+  judged.clear()
+  assert _plan(reach, goal, board, postures=(here,))[0] is not None
+  assert judged == []
+
+
+def test_a_replans_trunk_said_only_where_it_held_the_move():
+  """`_trunk_said`: what the trunk met kept for the report where a
+  procedure's replan took no posture for it; dropped where a later replan
+  took one or none reached; nothing at all for the loop's own move."""
+  reach = _floor()
+  met = {"part": "head_cap", "m": -0.02, "way": "up"}
+  st_ = {"verb": True}
+  reach.trunked["left"] = met
+  reach._trunk_said("left", st_, None)
+  assert st_["trunk"] == met
+  reach._trunk_said("left", st_, (0.0, 0.0, 0.0))
+  assert "trunk" not in st_
+  reach._trunk_said("left", st_, None)
+  reach.trunked["left"] = None
+  reach._trunk_said("left", st_, None)
+  assert "trunk" not in st_
+  own = {}
+  reach.trunked["left"] = met
+  reach._trunk_said("left", own, None)
+  assert own == {}
+
+
+def test_each_walk_begins_where_the_body_stands_and_the_walk_up_ends_at_its_lean(monkeypatch):
+  """The trunk's walk into a posture begins with the body as it reads itself
+  -- even where the posture shown already is the one asked -- and its walk
+  back up ends at the stand's statue at the lean the posture's is balanced
+  at (as every stand a way home is judged in, `_pose_planner`)."""
+  reach = _floor()
+  posed = []
+  real = rc.trunk_parts
+  monkeypatch.setattr(rc, "trunk_parts", lambda sm: posed.append(sm.d.qpos[:7].copy()) or real(sm))
+  lean = reach._lean()
+  arms = reach._arms()
+  board = _board(0.42)
+  # ...where the posture shown already is the one asked, every clock arrived
+  reach.trim[:] = 0.0
+  reach.stand.posture[:] = 0.0
+  here = tuple(float(v) for v in reach.posture)
+  assert here == (0.0, 0.0, 0.0) and not reach.waist_speed.any(), "the premise"
+  reach._trunk(here, arms, lean, _view(board))
+  assert not np.allclose(posed[1], reach.self_model.d.qpos[:7]), "the premise: its statue is elsewhere"
+  assert np.allclose(posed[0], reach.self_model.d.qpos[:7])
+  posed.clear()
+  reach._trunk(DEEP, arms, lean, _view(board))
+  sm = rc.SelfModel()
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  rc.statue(sm, (0.0, 0.0, 0.0), q0, arms, lean, fast=True)
+  assert np.allclose(posed[-1], sm.d.qpos[:7], atol=1e-9)

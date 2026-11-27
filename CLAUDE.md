@@ -452,7 +452,8 @@ save a filmstrip PNG named after the script.
   close, a counter's face is none (its picture ends 69 deg down), so a
   flight that stands still with a bare `STILL` -- which steps no
   `_after_step` -- judges nothing. ⚠ A refusal searches every posture,
-  6.2-6.6 s of the one physics thread, and each plan its words ask too (a
+  6.2-6.6 s of the one physics thread -- one the trunk's judgment (below)
+  sends on to full stretch 11.5-12.3 s -- and each plan its words ask too (a
   passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠ AND
   A PROCEDURE'S POSTURE JUDGES ITS TRUNK TOO -- A REACH'S PLAN AND LOOK, A
   CARRY'S AND A PULL'S AT THEIR ASK AND ON THEIR WAY (#763, #736's call 6;

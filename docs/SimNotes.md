@@ -12764,8 +12764,10 @@ shadow census below judged, that view was never empty.
 `HumanoidMission.trunk_seen`). The trunk above the waist -- the torso, the
 head's parts and the LIDAR, each its exact signed distance -- walked on the
 commands' clocks into the posture, as #747 walks the trunk, and back up from
-it to the stand's, the way every withdraw ends; against what the depth
-camera saw since the feet last moved, tops kept, nothing cut round the goal.
+it to the stand's at the lean it reads (as every stand a way home is judged
+in), the way every withdraw ends; against what the depth camera saw since
+the feet last moved, tops kept, nothing cut round the goal; never the
+posture the body holds or has got to, which changes nothing.
 A posture any part of whose trunk comes nearer than `TRUNK_CLEAR_M` -- or,
 begun nearer, nearer than it began less 5 mm -- is passed over: a reach's
 plan (beside #747's arms; a plan that passed one over takes no look) and its
@@ -12774,7 +12776,9 @@ replans on the way. Where no posture keeps clear, a reach moves nothing and
 says what its first would meet ("head"); a carry is refused before it moves,
 or held in the posture it is in and ends out of reach; a pull is held where
 it is. The loop's own moves are never judged, nor a way home: the withdraw's
-stand is the way out. Nothing seen since the feet moved judges nothing.
+stand is the way out. Nothing seen since the feet moved judges nothing, nor
+a memory read through a belief that jumped since it last read it (no frame
+folds while the body is bowed).
 
 **Calibrated in a shadow census before it acted** (B2c's `headrec`, its
 verdicts recorded and never acted on; a census flight with it is the plain

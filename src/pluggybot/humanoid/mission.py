@@ -427,12 +427,18 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
-  def since(self, pose, t0: float) -> np.ndarray:
+  def since(self, pose, t0: float, corrected=None) -> np.ndarray:
     """The voxels last seen at or after `t0`, tops kept, from its pelvis along
     its heading, z over the floor, where its belief has it now (#763, what a
-    procedure's posture judges its trunk against, `Reach._trunk`): the memory
-    as it stands, never asked whether the belief jumped (`near` asks, and may
-    forget) -- a read that changes nothing a flight reads after it."""
+    procedure's posture judges its trunk against, `Reach._trunk`) -- none
+    where the belief jumped since the memory last read it (`KNEE_JUMP_M`,
+    `KNEE_JUMP_RAD`: placed where it no longer is; no frame folds while the
+    body is bowed) -- a read that forgets nothing (`near` forgets on a jump):
+    nothing a flight reads after it changes."""
+    if corrected is not None and self.seen is not None:
+      d = np.asarray(corrected, dtype=float) - self.seen
+      if math.hypot(d[0], d[1]) > KNEE_JUMP_M or abs(d[2]) > KNEE_JUMP_RAD:
+        return np.zeros((0, 3))
     keep = self.t >= t0 - 1e-9
     if not keep.any():
       return np.zeros((0, 3))
@@ -1477,8 +1483,10 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     SINCE THE FEET MOVED: walking to a shelf's label the belief moved 6-8 cm
     against what it saw on the way, and a board laid before the last steps
     stood 2-7 cm nearer than it was (seen since, within 1 cm). Empty just
-    after a step, before the camera has seen again: nothing is judged."""
-    return self._in_stance(self.swing.since(self.pose, float(self.last_motion_t)))
+    after a step, before the camera has seen again, or where the belief
+    jumped since the memory last read it: nothing is judged."""
+    return self._in_stance(self.swing.since(self.pose, float(self.last_motion_t),
+                                            self.odo.corrected))
 
   def _in_stance(self, pts: np.ndarray) -> np.ndarray:
     """Voxels from its pelvis along its heading (the memory's), in its stance
