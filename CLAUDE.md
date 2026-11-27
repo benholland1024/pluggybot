@@ -1195,29 +1195,22 @@ save a filmstrip PNG named after the script.
   (`set_table_shelf`, #682's stage C, the full task; `counter.shelf_set_out`,
   the pass's row on the shelf's third board, top 0.96 m; `solve.py --feature
   kitchen`, `--from shelf`; Challenges.md §12; SimNotes, "The place laid from
-  the kitchen's shelf"), no tag added: ⚠ the board above stands at the
-  standing head's height (1.34 m), ⚠ `spot` reads the cup's lid there only
-  within about 0.6 m and the plate's and the fork's tags within about 0.8,
-  and ⚠ the pass's left pre-pose (shoulder roll 0.9, elbow 1.4) puts the
-  gripper on the board's front edge. Its reference (`solutions.SHELF` over
-  `SHELF_LIBRARY`) is the pass's three runs, each piece fetched from the
-  shelf and laid as the pass lays it, byte for byte but a check that the
-  piece is still held (`test_solutions`): the kitchen found off the pass's
-  pair (68, 69), the walk's last leg straight in to 2.2 m behind them, ⚠ the
-  left pre-pose rolled out to 1.2 before its elbow bends to 1.9, ⚠ the cup
-  read before the right pre-pose (after it, its gripper came between the
-  camera and the lid), ⚠ the cup's retries brought out from under the board
-  above before they withdraw, ⚠ each thin piece brought back clear of the
-  board and lowered to 0.92 m before the walk, the fork by a `pull` that
-  holds its line and turn (the walk's hand-over takes a thin grip's side
-  way, which rose up to 0.39 m: under the board above, 46 forks of 52 struck
-  it), ⚠ the fork's hand at least 0.25 m left of the middle from its pull
-  off the shelf on (nearer, its pull, move back and lowering bowed 0.55-0.95
-  rad, the head on the work board in 7 of 49 trips and one fell), and ⚠ each
-  put-down only while its hand reads held (from the hanging arm, the
-  put-down's reach bowed the robot 1.10 rad and it fell). ⚠ ITS BAR (the
-  pass's) IS NOT MET: frozen at 2bf94b77, 20 of 32 on the bar's draws and 25
-  of 32 on 32 sealed by that commit, no fall, one pod (SimNotes, each miss).
+  the kitchen's shelf", has every number), no tag added. Its reference
+  (`solutions.SHELF`) is the pass's three runs, each piece fetched from the
+  shelf and laid as the pass lays it but a check that it is still held
+  (`test_solutions`): ⚠ the board above is at the standing head's height
+  (1.34 m), ⚠ `spot` reads a piece there only from close in (the walk stands
+  2.2 m behind the pass's tags), ⚠ the left pre-pose rolls out to 1.2 before
+  its elbow bends to 1.9 (the pass's puts the gripper on the board's edge),
+  ⚠ the cup is read before its pre-pose and its retries come out from under
+  the board above, ⚠ each thin piece comes back clear of the board's face
+  and is lowered to 0.92 m before the walk (the hand-over's side way rises
+  up to 0.39 m), ⚠ the fork's hand stays at least 0.25 m left of the middle
+  (nearer, its pulls bowed the head onto the board), and ⚠ a put-down waits
+  on its hand reading held (from the hanging arm the reach fell). ⚠ ITS BAR
+  (the pass's) IS NOT MET: 20 of 32 on the bar's draws and 25 of 32 sealed,
+  by 2bf94b77, no fall; a first round of levers came out even and was not
+  frozen.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

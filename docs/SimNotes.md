@@ -9248,8 +9248,9 @@ a2_shelf/`):
   from the dining room, as the pass's do, and walks to a stance across the
   wall from them, through the staff door the planner finds. Stopped 2.0 m
   behind them, the pieces lay 0.67-0.72 m from the soles, past what a look
-  reads, and every first look failed: it stops 2.2 m behind (`SHELF_ACROSS`),
-  the last 0.8 m walked straight in (`SHELF_FIRST`) -- walked from the staff
+  reads, and every first look failed: it stands 2.2 m behind (`SHELF_ACROSS`),
+  stopping first 1.4 m behind (`SHELF_FIRST`) and walking the last 0.8 m
+  straight in -- walked from the staff
   door, the robot arrived turned about 40 deg off the shelf, and the `face`
   after it stopped 5-13 deg short, the cup outside the picture's side. The
   belief in the kitchen ran 0.09-0.12 m behind the truth, so the walk stood

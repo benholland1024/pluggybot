@@ -222,7 +222,9 @@ def hand_job(feature: str, start: str, draw: int | None, view: bool = False,
         falls.append(round(float(data.time), 1))
     body.step_hooks.append(watch_falls)
     if viewer is not None:
-      _, lookat, distance, azimuth = work_view(prop)
+      # ...on where the work begins: the pass's or the shelf's pick-ups, else the prop
+      first = {"pass": pass_view, "kitchen": shelf_view}.get(feature)
+      _, lookat, distance, azimuth = first() if first else work_view(prop)
       viewer.cam.lookat[:] = lookat
       viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = distance + 0.2, azimuth, -22.0
     shots = None if not strip else (
@@ -268,9 +270,9 @@ class _HandStrip:
   the prop, about where its walk there ends -- a tile every 4 s from beside
   the counter, the grade's last. (At 1.8 m a search's viewpoint near the
   counter drew it with the robot out of the frame.) A job whose work is in
-  two places -- the place laid from the pass: its pick-ups at the pass, its
-  put-downs at the place -- names the other (`also`), a camera on each, and
-  takes more tiles further apart."""
+  two places -- the place laid from the pass or from the kitchen's shelf: its
+  pick-ups there, its put-downs at the place -- names the other (`also`), a
+  camera on each, and takes more tiles further apart."""
 
   WALK_EVERY_S, NEAR_M = 60.0, 1.2
 
@@ -463,7 +465,7 @@ def main() -> None:
     from pluggybot.humanoid import mission
     mission.WALK_NPZ = Path(WALKER)
   if args.start == "tour" and (args.view or args.strip):
-    parser.error("--view and --strip fly one: --from station or store")
+    parser.error("--view and --strip fly one: name its start (station, store, pass or shelf), not tour")
   why = refused(args.feature)
   if why:
     parser.error(why)

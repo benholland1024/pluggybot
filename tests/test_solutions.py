@@ -169,6 +169,24 @@ def test_solve_refuses_a_feature_whose_kind_has_no_reference(monkeypatch):
   assert "no reference is written for set_table_pass" in solve.refused("pass")
 
 
+def test_solve_names_every_start_one_flight_may_take(monkeypatch, capsys):
+  """`--view` and `--strip` fly one flight, so `--from tour` is refused -- and
+  the refusal names every start one flight may take, the pass's and the
+  kitchen shelf's among them (#682's stage C, the full task, its review: it
+  said "station or store", two of four)."""
+  import sys
+  from pathlib import Path
+  import pytest
+  monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+  import solve
+  monkeypatch.setattr(sys, "argv", ["solve.py", "--feature", "kitchen", "--from", "tour", "--strip"])
+  with pytest.raises(SystemExit):
+    solve.main()
+  said = capsys.readouterr().err
+  for start in ("station", "store", "pass", "shelf"):
+    assert start in said.split("fly one:")[1], said
+
+
 def _calls(source: str) -> list[tuple[str, list]]:
   """A source's calls in the order they are written: each verb's name and
   its arguments, a constant as its value and anything else as its text."""
