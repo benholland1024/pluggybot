@@ -204,6 +204,12 @@ WALK_LETS_GO = (" Before a `step` or any other walk moves your\n"
                         "(`armHeld`), and a `withdraw` or the next walk sends it home again.",
                         76)}
 
+#: ...and that a walk's hand-over ends a hand being OUT (#774 (a): `Reach.out`
+#: is a pose of its own, never `carried`, and `move_hand` and `pull` refuse a
+#: carried hand; told only "until you withdraw it", a hand carried at the side
+#: read as out). Said where WALK_LETS_GO is.
+WALK_ENDS_OUT = " or a walk takes it home or to your side"
+
 YOUR_BODY = """YOUR BODY
 
 Every place is in your STANCE frame, in metres: from the floor between your
@@ -217,7 +223,7 @@ up to 60 degrees either way, your shoulders and your head with it. Your hands ar
 whose jaws close across the point between them (its grip), its fingers %(fingers)g cm
 long, the grip halfway along them: their tips reach %(past)g cm past it.
 Both grippers start shut. A hand that is OUT is one you have reached
-with, until you withdraw it.%(walks)s
+with, until you withdraw it%(walk_ends)s.%(walks)s
 
 VERBS (a statement each; arguments in this order, or by keyword)
 %(verbs)s
@@ -281,6 +287,7 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW,
                                      "walks": WALK_LETS_GO if steps else "",
+                                     "walk_ends": WALK_ENDS_OUT if steps else "",
                                      **_fingers()}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
 
