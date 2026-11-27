@@ -9317,9 +9317,11 @@ of 64 on every form tried. What the plate's drop is, read off the frozen
 reference's plate trips: its tilt in its pinch before the walk 6 deg or more
 in 22 of 124, 15 of them let go carried, under 6 deg in 102, 1; the pinch
 gives in every phase (of 10 let go carried, it slipped in the lowering in 4,
-the hand-over in 7, the walk in 8; of 53 kept, 2, 18 and 14), and the
-hand-over adds 6-8 deg more without a slip (its normal tips back and right:
-the live trunk against the statue the carry is solved on). Probes of the
+the hand-over in 7, the walk in 8; of 53 kept, 2, 18 and 14), and in every
+trip the plate turns in its pinch about the jaws' line, its tilt following
+that turn and not the hand's: the kept plates turned a median 3.4 deg before
+the walk, 7.1 more across `find` (the hand-over's own way about 1 of it) and
+3.5 across the walk, tipped 3.5, 9.4 and 12.1 deg (#771). Probes of the
 plate alone from the pass misled: walked in from the south and not lowered it
 was laid 50 times in 64 where the frozen reference's was 42 (+10 -2), on the
 whole place 9 let go carried against 9. On the whole place, squeezed at the
@@ -9332,20 +9334,22 @@ out of reach, and the withdraw after it fell (the pass's lay; once in 16
 single-fork trips, once in 61 places). A `move_hand` that only turns the
 hand reads "arrived" before its turn is done (#767).
 
-**A thin piece's hand-over rises under a board above** (served code since the
-pass's round 10; reported to #682, not fixed). The walk's hand-over takes the
-side way for a thin grip (`reach.CARRY_THIN_M`: the plate's wall, the fork's
-handle), and from a grip at the shelf's edge (the plate's 0.225 m ahead and
-1.07 m up, the fork's 0.33 and 1.08, medians) the hand rose a median 0.21 m
-(the fork's highest 0.36-0.39) and swung forward 0.06 m (fork) and 0.16
-(plate) before it came down. Under the board above, 1.34 m up, the carried
-fork touched the shelf in 46 of 52 hand-overs (up to 80 N; 107 with it pulled
-back further), 8 knocked loose and falling; the plate's far rim came down on
-the work board's edge in 18 of 58 (11-74 N), turning 4.7 deg in its pinch
-where untouched plates turned 1.8, and those tilted further on the long carry
-until 10 fell carried. On the pass nothing is over the counter. Any thin
-piece picked from under a board and walked off with meets it, unless the
-procedure first stows it low.
+**A thin piece's hand-over rises over the shoulder and sweeps down at the
+robot's side** (#770; not fixed). The walk's hand-over takes the side way for
+a thin grip (`reach.CARRY_THIN_M`), and from a grip over the top the shoulder
+is already rolled past `HOME_ROLL`, which `_side_way` keeps while it folds the
+elbow to the carry pose's: the hand rose a median 0.21 m, to about 1.29 m,
+then swept down in an arc at the robot's side, 0.2 m ahead and 0.36-0.40 m
+left, to 0.89-0.95 m -- nearer than where it began, so `carry_descent`
+counted none of it. On D1's dev draws the carried fork brushed the board
+above (1.34 m up) in 46 of 52 hand-overs at 2-15 N, then came down on the
+work board in 26 at up to 80 N (107 brought back further); 19 fell free in
+the jaws, 18 after the work board, 10 graded drops. The plate's far rim came
+down on the work board's edge in 18 of 58 (5-74 N), 6 falling free. On the
+pass the sweep came down on the pass's top (A1b's census: plates 13 of 63,
+forks 17 of 61). Any thin piece picked from under a board or off a top at
+the hand's height and walked off with meets it, unless the procedure first
+brings it back and low.
 
 ## The arms keep off the other robot (issue #678)
 
