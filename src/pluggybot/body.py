@@ -798,7 +798,9 @@ class Body(abc.ABC):
     -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
     "let go" -- a `verb`'s, a grip it began with lost on its way, ended
     where the hand is (#742) -- "fell", "feet moved", "out of time"), in
-    how long, how far the hand went (`moved`, m) and where it ended up from
+    how long, how far the hand went (`moved`, m), how far short of where
+    it was going it ended by its own reading (`shortM`, m; none where it
+    never moved on, "not out" or "fell") and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
     procedure's, whose posture the other hand's grip keeps (#719), never
     the loop's own (a charge's)."""
@@ -1537,7 +1539,7 @@ class StubBody(Body):
       self.turned.append((side, "move_hand", list(turns)[-1]))
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
-    return {"why": "arrived", **self._carried(side, pos)}
+    return {"why": "arrived", "shortM": 0.0, **self._carried(side, pos)}
     yield
 
   def hand_why(self, side) -> str:

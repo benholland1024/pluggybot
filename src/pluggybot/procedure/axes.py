@@ -343,6 +343,14 @@ def _humanoid_axes() -> tuple[str, ...]:
 HUMANOID_JOINTS = _humanoid_axes()
 #: Each body's own axes, present whatever it holds.
 BODY_AXES = {"humanoid": HUMANOID_JOINTS}
+#: ...and how far short of where it was going the last `move_hand` ended,
+#: by the hand's own reading, however it ended (#774 (b): its words had
+#: named a cause, "what it holds or pushes on", that nothing measured).
+MOVE_HAND_SENSORS = ("move_hand.short",)
+SENSORS["move_hand.short"] = Sensor(
+  "move_hand.short", lambda life: reported("move_hand", "short", life),
+  "how far short of where it was going your hand's grip ended in the last `move_hand`, "
+  "m, as your hand reads its place")
 #: ...and the reports of a pull (#493, the force move #525): how far it
 #: went, the hardest it pushed, whether it ended held fast by what it pulls
 #: (#650: until it, nothing a served robot reads told that from out of

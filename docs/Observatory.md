@@ -10,6 +10,52 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A carry "held back" says how far short its hand ended, by its own reading, and `move_hand.short` reads it (#774 (b)'s option 1, C11, `loop-words4`) — opens when this PR is deployed
+
+**What the robots read** moves by one failure's words and one sensor, on
+purpose: the prompt `3f8b2dc7…` (72,160 characters, 17 sections) becomes
+`39a556b4…` (72,297), one section moved, PROCEDURES YOU MAY WRITE (+137, the
+sensor's line); the session host's hello `9dcf6202` becomes `1994174a` (the
+sensor in its body section and its index), and the counter's recording
+(`protocol/telemetry.home_humanoid_counter.jsonl.gz`) was flown again on
+osmesa: its 60 `readouts` lines carry `move_hand.short` (null: the reference
+at chest 0 flies no `move_hand`), every other line of its 671 the base's
+re-flight's, byte for byte, as are its scene and textures; the base re-flown
+was the committed file's to the byte. Each a draft for Ben:
+- A `move_hand` that read false "held back", BEFORE (80 characters for the
+  right hand): "your right hand was held back short of it: what it holds or
+  pushes on stopped it"; AFTER (62, 63 at 10 cm or more): "your right hand
+  stopped 2.1 cm short of it, by its own reading". It rides History's run
+  line, which it leaves 18 characters more room; no shorter form. #774's
+  draft ended "...and went no nearer": a carry ended so is held at its goal,
+  so the hand may still come nearer after the verb has returned.
+- A new sensor, `move_hand.short`: "how far short of where it was going your
+  hand's grip ended in the last `move_hand`, m, as your hand reads its place"
+  -- after every `move_hand` that ran however it ended, arrived (under 1 cm)
+  too; none after a hand not out or a fall, or a call refused before it ran,
+  as every verb's reading (reading it then says "your last `move_hand`
+  failed").
+
+**What a deployed robot does**: nothing new. No flight moves: the carry's
+rule and its report are as they were (`Reach._end`'s `shortM`, the grip as
+its senses place it), and no procedure reads the new sensor yet.
+
+**Why** (#774 (b)). A carry is "held back" when its hand, by its own
+reading, is still more than `ARRIVE_M` (1 cm) from its goal `HELD_BACK_S`
+(1 s) after its command got there; the words named a cause, what the hand
+holds or pushes on, that nothing measured. In C2d's checkout flights
+(`~/pluggybot-training/loop-1126b/c2d-checkout/`): holding the candle or the
+frame, 40 of 83 carries read held back, the hand's true grip 1.2-3.2 cm short
+(median 2.0, 1.6 of it low: the load's sag); empty, 29 of 55 straight
+approaches read held back while the hand truly stood 0.6-0.8 cm from its goal,
+inside the 1 cm, the item untouched. Live, five of Luca's cube runs ended on
+it (11-15, 11-18, 11-21 twice, 11-22), each at a lowering of a held cube that
+was not an `if`'s test, before its `pull` down and its let-go.
+
+**What to read.** On the wakes after this deploys: `move_hand` steps that read
+false held back and the shortfalls their words say, by hand and by whether it
+held something; whether a procedure reads `move_hand.short` and what it does
+with it (a retry, a `pull`, going on), against the weekend's wakes.
 ### A hand a walk carried is no longer out, and the body text says so (#774 (a)'s option 1, C11, `loop-words4`) — opens when this PR is deployed
 
 **What the robots read** moves by one clause, on purpose: the prompt

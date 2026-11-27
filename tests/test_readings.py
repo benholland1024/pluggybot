@@ -350,7 +350,50 @@ def test_the_robot_is_told_its_new_readings():
   facts, with its words (`axes.SENSORS`)."""
   facts = st.hand_facts()
   for name in ("pull.reach", "pull.joint_end", "reach.dx", "reach.dy", "reach.turn",
-               "withdraw.dx", "withdraw.dy", "withdraw.turn"):
+               "withdraw.dx", "withdraw.dy", "withdraw.turn", "move_hand.short"):
     assert name in facts.sensors and name in st.served_hand_facts().sensors
     assert axes.SENSORS[name].doc
   assert set(axes.PULL_SENSORS) >= {"pull.held", "pull.reach", "pull.joint_end"}
+
+
+class _MoveEnds(StubBody):
+  """A stub whose carry ends the way it is told to, as `Body.move_hand_routine`
+  reports it: its why, and how far short of where it was going its hand
+  ended by its own reading (`shortM`; none where it never moved on)."""
+
+  ends = ("arrived", 0.004)
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None, turns=None, verb=False):
+    why, short = self.ends.pop(0) if isinstance(self.ends, list) else self.ends
+    rep = {"why": why, "seconds": 1.5, "moved": 0.1, "dx": 0.0, "dy": 0.0, "dz": 0.1}
+    return rep if short is None else {**rep, "shortM": short}
+    yield
+
+
+def test_a_carry_held_back_says_how_far_short_by_its_own_reading_and_names_no_cause():
+  """#774 (b): a carry still more than 1 cm short of its goal 1 s after its
+  command got there read "held back short of it: what it holds or pushes on
+  stopped it" -- in C2d's flights a load sagged the hand short, and an empty
+  one truly stood inside the 1 cm, nothing stopping either. It says how far
+  short its hand ended by its own reading, naming no cause, and
+  `move_hand.short` reads it after any end -- none after a hand not out, as
+  every reading of a verb that read false before it moved."""
+  body = _MoveEnds(*_bare())
+  body.ends = [("held back", 0.021), ("arrived", 0.004), ("not out", None)]
+  ran = _fly('def a():\n    reach("right", 0.3, -0.2, 0.9)\n'
+             '    if not move_hand("right", 0.35, -0.2, 0.9):\n        s = read("move_hand.short")\n'
+             '    move_hand("right", 0.35, -0.2, 0.92)\n    t = read("move_hand.short")\n'
+             '    if not move_hand("right", 0.35, -0.2, 0.95):\n        u = 0\n'
+             '    v = read("move_hand.short")\n', body)
+  held = ran["steps"][1]
+  assert not held["ok"] and held["reason"] == (
+    "your right hand stopped 2.1 cm short of it, by its own reading"), held
+  assert ran["locals"]["s"] == pytest.approx(0.021), ran
+  assert ran["locals"]["t"] == pytest.approx(0.004) and ran["locals"]["u"] == 0, ran
+  assert ran["steps"][-1]["reason"] == (
+    "move_hand.short has no reading: your last `move_hand` failed"), ran
+  assert not any("holds or pushes" in w for w in st.MOVE_WHY.values())
+  # ...nor before any `move_hand` ran
+  ran = _fly('def a():\n    wait(0)\n    r = read("move_hand.short")\n')
+  assert ran["steps"][-1]["reason"] == "move_hand.short has no reading: `move_hand` has not run"

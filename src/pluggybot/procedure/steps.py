@@ -1363,8 +1363,11 @@ def _reach(life, args: dict) -> Routine:
 #: What a `move_hand` that did not arrive says, by its report's why.
 MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way from any "
                             "posture you hold",
-            "held back": "your {hand} hand was held back short of it: what it holds or "
-                         "pushes on stopped it",
+            # ...by its own reading, naming no cause: in C2d's flights a load sagged
+            # the hand 1.2-3.2 cm short, and an empty one truly stood within the
+            # 1 cm (#774 (b)); `move_hand.short` says how far
+            "held back": "your {hand} hand stopped {short:.1f} cm short of it, by its own "
+                         "reading",
             "feet moved": "your feet moved under the force, so it stopped there",
             # ...a carry whose grip it began with was lost on its way (#742)
             "let go": "your {hand} hand's grip let go of what it held on the way",
@@ -1409,6 +1412,7 @@ def _move_hand(life, args: dict) -> Routine:
   _stopped_reading(life, "move_hand", False)
   rot, bad = _grip_turn(life, args)
   if bad:
+    forget_readings(life, "move_hand")
     return {"ok": False, "hand": hand, "reason": bad}
   points = _paths(life).pop(hand, [])
   end = _hand_place(life, args)
@@ -1432,6 +1436,13 @@ def _move_hand(life, args: dict) -> Routine:
     rep = {**rep, "why": UNTIL}
     stopped = {"read": 0.0, "s": felt[-1]["t"] if felt else float(rep.get("seconds") or 0.0)}
   _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
+  # ...how far short of where it was going its hand ended, by its own reading,
+  # however it ended -- none where it never moved on, a hand not out or a fall,
+  # whose `move_hand.stopped` stands (#774 (b))
+  if "shortM" in rep:
+    _reports(life)["move_hand"] = {"short": float(rep["shortM"])}
+  else:
+    _unread(life, "move_hand")
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
   said = _said(guard, stopped, rep.get("why"))
@@ -1450,7 +1461,8 @@ def _move_hand(life, args: dict) -> Routine:
     return {"ok": False, **out, **said, "reason": MOVE_HEAD.format(
       hand=hand, part=TRUNK_PARTS.get(rep["trunk"].get("part"), "head"))}
   return {"ok": False, **out, **said,
-          "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
+          "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(
+            hand=hand, short=100 * float(rep.get("shortM") or 0.0))}
 
 
 def _pull(life, args: dict) -> Routine:
@@ -1994,7 +2006,7 @@ def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
     hands = hands[:at] + WATCH_VERBS + hands[at:]
   return WorldFacts(bounds=(-1e3, -1e3, 1e3, 1e3), axes=axes.BODY_AXES["humanoid"],
                     sensors=(axes.HAND_SENSORS + (axes.WATCH_SENSORS if watching else ())
-                             + axes.PULL_SENSORS
+                             + axes.MOVE_HAND_SENSORS + axes.PULL_SENSORS
                              + (axes.STEP_SENSORS if step else ()) + axes.STANCE_SENSORS
                              + (axes.MEASURE_SENSORS if measure else ())
                              + (axes.STOPPED_SENSORS if guarded else ())),
