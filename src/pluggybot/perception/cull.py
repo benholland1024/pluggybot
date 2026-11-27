@@ -183,7 +183,10 @@ class Cull:
   def multi_ray(self, data, pos, dirs, bodyexclude: int, geomid, dist, n: int,
                 cutoff: float, reach: float, moving_reach: float | None = None) -> None:
     """`mj_multiRay` from `pos` with every geom `far` names left out, the
-    model's groups as they were after."""
+    model's groups as they were after. ⚠ For the call they are in
+    `CULL_GROUP`, the place's dishware among them, whose group says whether
+    it is put away (`dishware.parked`): nothing reads a group but on the
+    physics thread, between casts."""
     far = self.far(data, pos, reach, moving_reach) if self.on else self.geoms[:0]
     groups = self.model.geom_group[far]
     self.model.geom_group[far] = CULL_GROUP

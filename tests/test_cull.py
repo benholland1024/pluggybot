@@ -172,8 +172,10 @@ def _streams(sensor) -> tuple:
   return sensor.rng.bit_generator.state, sensor.peer_rng.bit_generator.state
 
 
-def test_a_cast_leaves_out_what_moves_past_reach_and_every_reading_is_as_it_was(world):
-  model, data = world
+def test_a_cast_leaves_out_what_moves_past_reach_and_every_reading_is_as_it_was():
+  # ...a world of its own: an offer's set-out redraws the place's hidden weights and friction
+  model = home_spec(second_at=(2.5, 0.5)).compile()
+  data = mujoco.MjData(model)
   sensors = {me: _pair_sensors(model, me, other) for me, other in ((FIRST, SECOND), (SECOND, FIRST))}
   for me, (lidars, depths) in sensors.items():
     assert not set(lidars[0]._cull.geoms) & robot_geoms(model, me.root), "a LIDAR left out its own robot"
@@ -183,47 +185,44 @@ def test_a_cast_leaves_out_what_moves_past_reach_and_every_reading_is_as_it_was(
   theirs = {FIRST: np.isin(np.arange(model.ngeom), list(robot_geoms(model, SECOND.root))),
             SECOND: np.isin(np.arange(model.ngeom), list(robot_geoms(model, FIRST.root)))}
   left_out = {"the dishware": 0, "the props": 0, "the other robot": 0, "the dishware, by a camera": 0}
-  try:
-    for place in ("away", "out"):
-      if place == "out":
-        restaurant.set_out(model, data, restaurant.TABLE, 0)
-      for first, second in PAIR_POSES:
-        _place(model, data, FIRST, *first)
-        _place(model, data, SECOND, *second)
-        mujoco.mj_kinematics(model, data)
-        mujoco.mj_camlight(model, data)
-        for me, (lidars, depths) in sensors.items():
-          at = f"{me.root} at {first if me is FIRST else second}, the place {place}"
-          for read in (lambda lid: lid.band(data, np.eye(3), hm.stand_height(), joints=W0),
-                       lambda lid: lid.scan_split(data, W0), lambda lid: lid.cloud(data)):
-            got = [read(lid) for lid in lidars]
-            assert _same(got[0], got[1]) and _same(got[0], got[2]), f"a LIDAR reading, {at}"
-          assert _streams(lidars[0]) == _streams(lidars[1]) == _streams(lidars[2]), at
-          frames = [cam.frame(data, W0) for cam in depths]
-          assert _same(frames[0], frames[1]) and _streams(depths[0]) == _streams(depths[1]), \
-            f"the depth frame against the cull as it was, {at}"
-          # ...and against none: the room's pixels always; the rest where the
-          # cull as it was is none's (#775: a far wall culled may hide a robot
-          # the camera reads past its gate, SimNotes)
-          assert _same((frames[0].z, frames[0].points), (frames[2].z, frames[2].points)), at
-          if _same(frames[1], frames[2]) and _streams(depths[1]) == _streams(depths[2]):
-            assert _same(frames[0], frames[2]), f"the depth frame against none, {at}"
-          depths[2].rng.bit_generator.state, depths[2].peer_rng.bit_generator.state = _streams(depths[0])
-          site = data.site_xpos[lidars[0].site_id]
-          more = np.setdiff1d(lidars[0]._cull.far(data, site, lidars[0].max_range),
-                              lidars[1]._cull.far(data, site, lidars[1].max_range))
-          left_out["the dishware"] += int(np.count_nonzero(dish[more]))
-          left_out["the props"] += int(np.count_nonzero(moves[more] & ~dish[more] & ~theirs[me][more]))
-          left_out["the other robot"] += int(np.count_nonzero(theirs[me][more]))
-          cam, was = depths[0], depths[1]
-          eye, turn = data.cam_xpos[cam.cam_id], data.cam_xmat[cam.cam_id].reshape(3, 3)
-          seen = cam._cull.farthest(data, eye, -turn[:, 2], math.acos(cam._widest))
-          reach = cam.max_z / cam._widest
-          more = np.setdiff1d(cam._cull.far(data, eye, reach, max(cam.max_z, seen) / cam._widest),
-                              was._cull.far(data, eye, reach))
-          left_out["the dishware, by a camera"] += int(np.count_nonzero(dish[more]))
-  finally:
-    restaurant.put_away(model, data, restaurant.TABLE)
+  for place in ("away", "out"):
+    if place == "out":
+      restaurant.set_out(model, data, restaurant.TABLE, 0)
+    for first, second in PAIR_POSES:
+      _place(model, data, FIRST, *first)
+      _place(model, data, SECOND, *second)
+      mujoco.mj_kinematics(model, data)
+      mujoco.mj_camlight(model, data)
+      for me, (lidars, depths) in sensors.items():
+        at = f"{me.root} at {first if me is FIRST else second}, the place {place}"
+        for read in (lambda lid: lid.band(data, np.eye(3), hm.stand_height(), joints=W0),
+                     lambda lid: lid.scan_split(data, W0), lambda lid: lid.cloud(data)):
+          got = [read(lid) for lid in lidars]
+          assert _same(got[0], got[1]) and _same(got[0], got[2]), f"a LIDAR reading, {at}"
+        assert _streams(lidars[0]) == _streams(lidars[1]) == _streams(lidars[2]), at
+        frames = [cam.frame(data, W0) for cam in depths]
+        assert _same(frames[0], frames[1]) and _streams(depths[0]) == _streams(depths[1]), \
+          f"the depth frame against the cull as it was, {at}"
+        # ...and against none: the room's pixels always; the rest where the
+        # cull as it was is none's (#775: a far wall culled may hide a robot
+        # the camera reads past its gate, SimNotes)
+        assert _same((frames[0].z, frames[0].points), (frames[2].z, frames[2].points)), at
+        if _same(frames[1], frames[2]) and _streams(depths[1]) == _streams(depths[2]):
+          assert _same(frames[0], frames[2]), f"the depth frame against none, {at}"
+        depths[2].rng.bit_generator.state, depths[2].peer_rng.bit_generator.state = _streams(depths[0])
+        site = data.site_xpos[lidars[0].site_id]
+        more = np.setdiff1d(lidars[0]._cull.far(data, site, lidars[0].max_range),
+                            lidars[1]._cull.far(data, site, lidars[1].max_range))
+        left_out["the dishware"] += int(np.count_nonzero(dish[more]))
+        left_out["the props"] += int(np.count_nonzero(moves[more] & ~dish[more] & ~theirs[me][more]))
+        left_out["the other robot"] += int(np.count_nonzero(theirs[me][more]))
+        cam, was = depths[0], depths[1]
+        eye, turn = data.cam_xpos[cam.cam_id], data.cam_xmat[cam.cam_id].reshape(3, 3)
+        seen = cam._cull.farthest(data, eye, -turn[:, 2], math.acos(cam._widest))
+        reach = cam.max_z / cam._widest
+        more = np.setdiff1d(cam._cull.far(data, eye, reach, max(cam.max_z, seen) / cam._widest),
+                            was._cull.far(data, eye, reach))
+        left_out["the dishware, by a camera"] += int(np.count_nonzero(dish[more]))
   assert all(left_out.values()), f"what this cull left out that the cull as it was kept: {left_out}"
 
 
