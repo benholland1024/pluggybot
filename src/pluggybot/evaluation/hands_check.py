@@ -577,8 +577,16 @@ TABLE_STANCES = '''def lay_place():
 #: cart the candle's step is taken sideways alone while its sideways error is
 #: past near()'s tolerance (round 10): taken ahead and sideways at once after
 #: the trip back, the cart's front-right leg at the knees' height stopped it,
-#: and the pick was out of reach (SimNotes, "Stocking the shop's shelf").
-#: `%(candle)d` and `%(frame)d` are the job's labels (`source`).
+#: and the pick was out of reach; ⚠ a frame whose label reads nearer than 0.45 m
+#: once the robot stands at it steps back 8 cm before its set-down (round 13):
+#: the carried trip's sidesteps bring the robot in, and from there the set-
+#: down's bow stopped short, its fallback was planned standing with the waist
+#: turned and the frame turned over, or the trip back was blocked by the cart's
+#: front-right leg (a carried step asked under about 6 cm moves nothing); ⚠ the
+#: lower candle is aimed 1 cm further right (round 13): the set-down's postures
+#: swivel the feet, and its placements landed a mean 1 cm left (SimNotes,
+#: "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are the job's
+#: labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=200,seconds=290)
   one(%(frame)d,0)
@@ -611,6 +619,9 @@ def one(lab,i):
   tz=0.035*(lab>81)*(i<1)
   side(my-0.87+0.36*i-0.25*k+tz)
   near(tl,0.5,0.23-tz,0.08)
+  if (i<1)*(read("spot.x")<0.45):
+    if not step(-0.08,0):pass
+    near(tl,0.5,0.23-tz,0.08)
   a=atan2(read("spot.ny"),read("spot.nx"))
   if a*a>0.0012:
     if not step(0,0,a):pass
@@ -621,7 +632,7 @@ def one(lab,i):
       if not step(0,ly-0.23+tz+0.03*(2*(ly>0.27-tz)-1)):pass
       x=x-read("step.dx");ly=ly-read("step.dy")
       if spot(tl):x=read("spot.x");ly=read("spot.y")
-  x=x+0.08-q;z=z+0.075+oz;w=ly-r-0.01+0.035*(lab>81)
+  x=x+0.08-q;z=z+0.075+oz;w=ly-r-0.01-0.01*i*(lab<82)+0.035*(lab>81)
   if not reach("left",x-0.17,w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
   if not move_hand("left",x,w,z):
     if x-read("left.x")>0.01:pull("left",1,0,0,10,x-read("left.x"),give=0)
