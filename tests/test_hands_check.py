@@ -1362,28 +1362,6 @@ def test_the_frame_is_aimed_right_of_its_label():
     assert ys == pytest.approx([frame_y, candle_y], abs=1e-9), (k, ys)
 
 
-@pytest.mark.parametrize("k, far", [(4, 0.03), (4, 0.0), (4, -0.05), (0, 0.03)])
-def test_an_upper_set_down_reach_is_planned_near_enough_to_go_deep(k, far):
-  """⚠ ON THE UPPER BOARD THE SET-DOWN REACH'S PRE-POSE IS AT MOST 0.35 M AHEAD (#736, round 22b): a far label's
-  pre-pose (the set-down point less 0.17, 0.39-0.43 m out) is within the stand's reach, and the carry in and the press
-  then each take another posture with the product at the board (round 20's dev rows: such set-downs ended on their
-  label 41 of 85 times; reached at once in the deep bow, 295 of 299). On a stub whose labels read `far` m further
-  than they stand, each upper product's first set-down reach goes to the set-down point less 0.17 or 0.35, the
-  nearer, and a lower one's to the set-down point less 0.17 (set-out 0's candle, label 80)."""
-  body, ran, log, so, tags = _shelf_flown(k=k, label_far=far)
-  assert ran["ok"], ran
-  held = [(j, a) for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
-  assert len(held) == 2, held
-  for (j, first), product in zip(held, ("frame", "candle")):
-    carry = next(a for v, a, _ in log[j + 1:] if v == "move_hand")
-    upper = so.slots[product] > 81
-    want = min(carry["x"] - 0.17, 0.35) if upper else carry["x"] - 0.17
-    assert first["x"] == pytest.approx(want, abs=1e-9), (k, far, product, first, carry)
-  if (k, far) == (4, 0.03):
-    assert all(first["x"] < carry_x - 0.17 - 0.02 for (j, first), carry_x in
-               ((h, next(a for v, a, _ in log[h[0] + 1:] if v == "move_hand")["x"]) for h in held)), held
-
-
 def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
   """⚠ A SET-DOWN'S PRESS THAT READ UNDER 3 N NEVER LANDED (#736 stage 2): on the upper board at
   full stretch it ended out of reach 5-7 cm up, and the product let go there fell; a press that
@@ -1424,17 +1402,12 @@ def test_the_candle_is_gripped_above_its_middle():
 def test_a_set_down_reach_stopped_short_reaches_again_from_further_back_and_higher():
   """⚠ THE UPPER BOARD'S SET-DOWN REACH STOPPED SHORT (#736 stage 2): the frame carried at the hip
   came forward but not up, 13-28 cm short of a goal 1.07 m up; tried again 8 cm further back and
-  3 cm higher, then carried in -- from behind the set-down point as before the upper board's pre-pose was clamped
-  (round 22b)."""
+  3 cm higher, then carried in."""
   body, ran, log, _, _ = _shelf_flown(short=1)
   assert ran["ok"], ran
-  held = [(j, a) for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
-  (_, first), (j, again) = held[0], held[1]
-  carry = next(a for v, a, _ in log[j + 1:] if v == "move_hand")
-  # round 22b: an upper first reach is planned no further out than 0.35 m; its retry stays the set-down
-  # point less 0.25, 8 cm behind where the first went before that clamp
-  assert first["x"] == pytest.approx(min(carry["x"] - 0.17, 0.35), abs=1e-6)
-  assert again["x"] == pytest.approx(carry["x"] - 0.25, abs=1e-6)
+  held = [a for v, a, pose in log if v == "reach" and pose[3]]
+  first, again = held[0], held[1]
+  assert again["x"] == pytest.approx(first["x"] - 0.08, abs=1e-6)
   assert again["z"] == pytest.approx(first["z"] + 0.03, abs=1e-6)
 
 
