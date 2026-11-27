@@ -1243,14 +1243,19 @@ save a filmstrip PNG named after the script.
   2.2 m behind the pass's tags), ⚠ the left pre-pose rolls out to 1.2 before
   its elbow bends to 1.9 (the pass's puts the gripper on the board's edge),
   ⚠ the cup is read before its pre-pose and its retries come out from under
-  the board above, ⚠ each thin piece comes back clear of the board's face
-  and is lowered to 0.92 m before the walk (the hand-over's side way rises
-  up to 0.39 m), ⚠ the fork's hand stays at least 0.25 m left of the middle
-  (nearer, its pulls bowed the head onto the board), and ⚠ a put-down waits
-  on its hand reading held (from the hanging arm the reach fell). ⚠ ITS BAR
-  (the pass's) IS NOT MET: 20 of 32 on the bar's draws and 25 of 32 sealed,
-  by 2bf94b77, no fall (SimNotes has each round tried since, none frozen;
-  the plate's wall is #771).
+  the board above, ⚠ each thin piece is brought back from over the board and
+  lowered to 0.92 m before the walk (the hand-over's side way rises up to
+  0.39 m; ⚠ the fork's head, 0.125 m ahead of its grip, can still stand over
+  the board's edge, and then the lowering turns it in the jaws: 40 of 658 dev
+  trips, the fork's largest failure; SimNotes, "Rounds 6-8"), ⚠ the fork's hand
+  stays at least 0.25 m left of the middle (nearer, its pulls bowed the head
+  onto the board), and ⚠ a put-down waits on its hand reading held (from the
+  hanging arm the reach fell). ⚠ ITS BAR (the pass's) IS NOT MET: 20 of 32 on
+  the bar's draws and 25 of 32 sealed, by 2bf94b77, no fall (SimNotes has each
+  round tried since, none frozen; the plate's wall is #771). ⚠ The dev draws
+  4000-4063 flatter it (it was chosen on them; on fresh draws it laid 65 of 128
+  on the served plate): read a lever that flies the fork's trip afresh on fresh
+  draws.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
