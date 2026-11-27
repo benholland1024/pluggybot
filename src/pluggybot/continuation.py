@@ -58,6 +58,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from pluggybot import sleeping
 from pluggybot.tick import MissionAborted
 
 #: Bumped when a field changes meaning; an older file loads, a newer one
@@ -176,12 +177,14 @@ def _integrated(model, qpos, qvel, warm, act) -> dict[str, np.ndarray]:
 
 def physics(model, data, last_step: "LastStep | None" = None
             ) -> tuple[dict, dict[str, np.ndarray]]:
-  """MuJoCo's integration state, keyed by name: (index, arrays) -- and
-  where its last step began, where `last_step` kept it (`replay`)."""
+  """MuJoCo's integration state, keyed by name: (index, arrays) -- its
+  islands' sleep among it (`sleeping.kept`, #779) -- and where its last
+  step began, where `last_step` kept it (`replay`)."""
   joints = _joint_keys(model)
   acts = _actuator_keys(model)
   mocap = [model.body(b).name for b in range(model.nbody)
            if model.body_mocapid[b] >= 0]
+  trees, asleep = sleeping.kept(model, data)
   index = {
     "t": float(data.time),
     "joints": [[k, n, vn] for k, _, n, _, vn in joints],
@@ -189,6 +192,7 @@ def physics(model, data, last_step: "LastStep | None" = None
     "mocap": mocap,
     "eq": [model.eq(i).name for i in range(model.neq)],
     "bodies": [model.body(i).name for i in range(model.nbody)],
+    "trees": trees,
   }
   arrays = {
     **_integrated(model, data.qpos, data.qvel, data.qacc_warmstart, data.act),
@@ -200,12 +204,14 @@ def physics(model, data, last_step: "LastStep | None" = None
                   .reshape(-1, 4),
     "eq_active": np.array(data.eq_active, dtype=np.uint8),
     "xfrc": np.array(data.xfrc_applied, dtype=float),
+    "sleep": asleep,
   }
   began = last_step.began() if last_step is not None else None
   if began is not None:
-    _, index["before"], qpos, qvel, warm, act = began
+    _, index["before"], qpos, qvel, warm, act, before_asleep = began
     arrays.update({f"before/{k}": v for k, v in
                    _integrated(model, qpos, qvel, warm, act).items()})
+    arrays["before/sleep"] = before_asleep
   return index, arrays
 
 
@@ -213,7 +219,14 @@ def put_physics(model, data, index: dict, arrays: dict, forward: bool = True) ->
   """Put a `physics` state into a world, by name. Returns what matched: a
   body in the file and not the world is left out, one in the world and not
   the file keeps where the XML put it. `forward` False leaves the derived
-  quantities as they were (`replay`)."""
+  quantities as they were (`replay`).
+
+  ⚠ THE SLEEP STATE GOES BACK AFTER THE FORWARD PASS (#779): a sleeping
+  tree's derived quantities are the ones it fell asleep with, which MuJoCo
+  never computes again until it wakes, so they are computed with every tree
+  awake, its sleep put back after. Put back without it, every island woke at
+  a restore and the world parted (MuJoCo: "sleeping islands will be
+  implicitly woken up"). A save from a world that never slept wakes none."""
   here = {k: (a, n, d, vn) for k, a, n, d, vn in _joint_keys(model)}
   qi = vi = 0
   matched = missed = 0
@@ -262,8 +275,13 @@ def put_physics(model, data, index: dict, arrays: dict, forward: bool = True) ->
       except KeyError:
         pass
   data.time = float(index["t"])
+  sleeps = sleeping.on(model)
   if forward:
+    if sleeps:
+      sleeping.wake_all(model, data)
     mujoco.mj_forward(model, data)
+  if sleeps and "sleep" in arrays and "trees" in index:
+    sleeping.put(model, data, index["trees"], arrays["sleep"])
   return {"joints": matched, "jointsMissed": missed}
 
 
@@ -276,15 +294,24 @@ def replay(model, data, index: dict, arrays: dict) -> bool:
   the step) the saved state is put back and forwarded at the instant. ⚠ The
   check is what the step integrates: an input that moves none of it -- a
   mocap pose nothing touches, re-selected after the step -- comes back as it
-  stands, a step ahead, as everything did before."""
+  stands, a step ahead, as everything did before. ⚠ The step begins from
+  the islands' sleep it began from, and lands on the SAVE'S (#779): a tree
+  woken in it by a tree counting down to sleep takes that tree's count, and
+  one woken stepped again by the pose it woke at counts from the start."""
   t = index.get("before")
   if t is None or not _same_layout(model, index):
     return False
+  if "sleep" in arrays and "before/sleep" not in arrays:
+    return False
   before = {**arrays, **{k: arrays[f"before/{k}"] for k in INTEGRATED}}
+  if "before/sleep" in arrays:
+    before["sleep"] = arrays["before/sleep"]
   put_physics(model, data, {**index, "t": t}, before, forward=False)
   mujoco.mj_step(model, data)
   now = _integrated(model, data.qpos, data.qvel, data.qacc_warmstart, data.act)
   if data.time == index["t"] and all(np.array_equal(now[k], arrays[k]) for k in INTEGRATED):
+    if sleeping.on(model) and "sleep" in arrays and "trees" in index:
+      sleeping.put(model, data, index["trees"], arrays["sleep"])
     return True
   put_physics(model, data, index, arrays)
   return False
@@ -299,9 +326,9 @@ def _same_layout(model, index: dict) -> bool:
 
 class LastStep:
   """Where the last physics step began (issue #420), for a save to carry
-  (`capture`) and a restore to step again (`replay`). Hooked LAST on the
-  seam: what the hooks leave is what the next step begins from. Two kept,
-  ~2 us a step."""
+  (`capture`) and a restore to step again (`replay`) -- its islands' sleep
+  too (#779). Hooked LAST on the seam: what the hooks leave is what the next
+  step begins from. Two kept, ~2 us a step."""
 
   def __init__(self, life) -> None:
     self.life = life                      # its world, read at each step
@@ -312,12 +339,13 @@ class LastStep:
     m, d = self.life.model, self.life.data
     self._i ^= 1
     self._kept[self._i] = (m, float(d.time), d.qpos.copy(), d.qvel.copy(),
-                           d.qacc_warmstart.copy(), d.act.copy())
+                           d.qacc_warmstart.copy(), d.act.copy(),
+                           np.array(d.tree_asleep, dtype=np.int32))
 
   def began(self) -> tuple | None:
-    """(model, time, qpos, qvel, warm, act) the step that left the world as
-    it stands began from -- taken a timestep before it, in this model -- or
-    None."""
+    """(model, time, qpos, qvel, warm, act, tree_asleep) the step that left
+    the world as it stands began from -- taken a timestep before it, in this
+    model -- or None."""
     m, d = self.life.model, self.life.data
     for kept in self._kept:
       if kept is not None and kept[0] is m and kept[1] + m.opt.timestep == d.time:

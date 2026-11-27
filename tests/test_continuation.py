@@ -184,6 +184,89 @@ def test_a_restore_steps_again_the_step_it_was_saved_after():
   assert np.array_equal(other.qpos, data.qpos) and other.time == data.time
 
 
+#: The house's three loose blocks, one pushed into the next (#779): block_0
+#: woken by the push at 120, block_1 by its touch at 223, block_2 by
+#: block_1's at 336, and all three asleep again by 496.
+BLOCK_SAVES = (200, 223, 336, 460)
+
+
+def _blocks(model, data, start: int, stop: int, last=None) -> list:
+  """The house stepped bare, block_0 pushed toward block_1: what each step
+  left, the robot never asleep."""
+  b0 = model.body("block_0").id
+  robot = int(model.body_treeid[model.body("pluggybot").id])
+  seen = []
+  for i in range(start, stop):
+    data.xfrc_applied[b0] = [0.0, 1.2, 0.0, 0.0, 0.0, 0.0] if 120 <= i < 240 else 0.0
+    mujoco.mj_step(model, data)
+    if last is not None:
+      last.hook()
+    assert data.tree_asleep[robot] < 0, f"the robot asleep at step {i}"
+    seen.append((data.qpos.copy(), data.qvel.copy(), np.array(data.tree_asleep),
+                 data.sensordata.copy(), data.qacc_warmstart.copy()))
+  return seen
+
+
+def test_a_world_saved_with_islands_asleep_steps_on_through_their_waking_and_sleeping():
+  """The served house sleeps what rests (#779), and a save carries it: saved
+  with blocks asleep, on the step one is woken by a touch, and on the step
+  one falls asleep again, the world comes back and steps on bit for bit
+  through every wake and sleep after -- the robot never asleep. Put back
+  as MuJoCo's own state calls put it, every island woke at the restore."""
+  _, model, data = _world()
+  t1 = int(model.body_treeid[model.body("block_1").id])
+  last = continuation.LastStep(SimpleNamespace(model=model, data=data))
+  saved, seen = {}, []
+  for k in BLOCK_SAVES:
+    seen += _blocks(model, data, len(seen), k + 1, last)
+    saved[k] = continuation.physics(model, data, last)
+  seen += _blocks(model, data, len(seen), 600)
+  assert seen[200][2][t1] >= 0 and seen[223][2][t1] < 0 <= seen[460][2][t1], "the premise"
+  for k in BLOCK_SAVES:
+    index, arrays = saved[k]
+    back = mujoco.MjData(model)
+    continuation.put_physics(model, back, index, arrays)
+    assert continuation.replay(model, back, index, arrays), k
+    for i, (a, b) in enumerate(zip(_blocks(model, back, k + 1, 600), seen[k + 1:])):
+      assert all(np.array_equal(x, y) for x, y in zip(a, b)), (k, k + 1 + i)
+
+
+def test_a_save_from_a_world_that_never_slept_carries_on_in_one_that_does(tmp_path):
+  """The first restart into a sleeping world (#779) is of a save from one
+  that never slept, which carries no sleep at all: it comes back in place,
+  its last step stepped again, every tree awake -- and steps on as the world
+  that never slept did until the first tree has rested long enough to sleep
+  (`mjMINAWAKE` steps, the one stepped again among them), then sleeps."""
+  _, model, _ = _world()
+  _, never, _ = _world()
+  never.opt.enableflags &= ~int(mujoco.mjtEnableBit.mjENBL_SLEEP)
+  data = mujoco.MjData(never)
+  rng = np.random.default_rng(0)
+  last = continuation.LastStep(SimpleNamespace(model=never, data=data))
+  for _ in range(400):
+    data.ctrl[:] = rng.uniform(-0.5, 0.5, never.nu)
+    mujoco.mj_step(never, data)
+    last.hook()
+  index, arrays = continuation.physics(never, data, last)
+  for k in ("sleep", "before/sleep"):
+    arrays.pop(k)
+  index.pop("trees")
+  want = []
+  for _ in range(mujoco.mjMINAWAKE - 2):
+    mujoco.mj_step(never, data)
+    want.append(np.concatenate([data.qpos, data.qvel]))
+  back = mujoco.MjData(model)
+  continuation.put_physics(model, back, index, arrays)
+  assert continuation.replay(model, back, index, arrays)
+  for w in want:
+    assert (back.tree_asleep < 0).all()
+    mujoco.mj_step(model, back)
+    assert np.array_equal(np.concatenate([back.qpos, back.qvel]), w)
+  assert (back.tree_asleep < 0).all()
+  mujoco.mj_step(model, back)
+  assert (back.tree_asleep >= 0).any(), "the props rested the step again and nine more"
+
+
 def test_a_body_is_put_back_by_name_not_by_where_it_sits_in_the_state():
   """A new build's world reorders `qpos`: the save names every joint (an
   unnamed one by its body) and a world that lists them the other way round
