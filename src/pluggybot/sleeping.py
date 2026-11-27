@@ -17,6 +17,9 @@ which the Python bindings do not expose)."""
 
 from __future__ import annotations
 
+import copy
+from collections.abc import Iterable, Sequence
+
 import mujoco
 import numpy as np
 
@@ -26,12 +29,12 @@ import numpy as np
 AWAKE = -(1 + mujoco.mjMINAWAKE)
 
 
-def on(model) -> bool:
+def on(model: mujoco.MjModel) -> bool:
   """Does this world sleep?"""
   return bool(model.opt.enableflags & int(mujoco.mjtEnableBit.mjENBL_SLEEP))
 
 
-def enable(spec, roots) -> None:
+def enable(spec: mujoco.MjSpec, roots: Iterable[str]) -> None:
   """Sleeping on in a world's spec at MuJoCo's own tolerance, the trees of
   `roots` (every robot's root body, by name) `never`; everything else keeps
   the compiler's policy (a tree an actuator moves never sleeps: the
@@ -49,7 +52,7 @@ def enable(spec, roots) -> None:
 NEVER = (int(mujoco.mjtSleepPolicy.mjSLEEP_NEVER), int(mujoco.mjtSleepPolicy.mjSLEEP_AUTO_NEVER))
 
 
-def update(model, data) -> None:
+def update(model: mujoco.MjModel, data: mujoco.MjData) -> None:
   """MuJoCo's `mj_updateSleep`: the arrays and counts it derives from
   `tree_asleep` -- which trees and bodies are awake, and the awake bodies',
   parents' and dofs' indices -- static bodies `mjS_STATIC` but a mocap
@@ -80,20 +83,32 @@ def update(model, data) -> None:
   data.nv_awake = int(dof.size)
 
 
-def keys(model) -> list[str]:
+def keys(model: mujoco.MjModel) -> list[str]:
   """Each tree's key, in the world's order: its root body's name, else
   `#<body id>` -- an id the world's fingerprint holds in place, since a
   restore puts nothing back into a changed world (`continuation.restore`)."""
   return [model.body(int(b)).name or f"#{int(b)}" for b in model.tree_bodyadr]
 
 
-def kept(model, data) -> tuple[list[str], np.ndarray]:
+def kept(model: mujoco.MjModel, data: mujoco.MjData) -> tuple[list[str], np.ndarray]:
   """The sleep state by name: each tree's key and its `tree_asleep`, a
-  sleeping tree's the position of the next tree of its cycle in that list."""
-  return keys(model), np.array(data.tree_asleep, dtype=np.int32)
+  sleeping tree's the position of the next tree of its cycle in that list --
+  as the next step will begin from it. ⚠ A write since the last step that
+  wakes a sleeping tree (its pose moved, a velocity or a force set: an
+  offer's set-out, a put-away) is only seen by the next step's kinematics,
+  so it is applied here on a copy, as that step's `mj_kinematics` applies it
+  (0.7 ms): saved as it stood, the tree came back asleep at the written pose,
+  its kinematics forwarded to it, and nothing ever woke it."""
+  asleep = np.array(data.tree_asleep, dtype=np.int32)
+  if on(model) and (asleep >= 0).any():
+    scratch = copy.copy(data)
+    mujoco.mj_kinematics(model, scratch)
+    asleep = np.array(scratch.tree_asleep, dtype=np.int32)
+  return keys(model), asleep
 
 
-def put(model, data, names, values) -> None:
+def put(model: mujoco.MjModel, data: mujoco.MjData, names: Sequence[str],
+        values: np.ndarray) -> None:
   """Put a `kept` sleep state back into a world, by name, and rebuild what
   MuJoCo derives from it. A tree the save lacks is awake; a sleeping cycle
   with a tree this world lacks, or one this world never lets sleep, is woken
@@ -125,7 +140,7 @@ def put(model, data, names, values) -> None:
   update(model, data)
 
 
-def wake_all(model, data) -> None:
+def wake_all(model: mujoco.MjModel, data: mujoco.MjData) -> None:
   """Every tree awake, its countdown begun again."""
   data.tree_asleep[:] = AWAKE
   update(model, data)

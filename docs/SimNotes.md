@@ -13159,7 +13159,11 @@ by its builder (`pluggybot.sleeping.enable`); a world compiled elsewhere -- an
 instrument's own -- does not, since the flag acts when the `MjData` is
 made. Its state is state: `tree_asleep`, which MuJoCo's own state calls
 (`mj_getState`) leave out. A save carries it by each tree's root body's
-name, and as the step it was taken after began (`LastStep`); a restore
+name, as the next step will begin from it -- a write since the last step
+that will wake a tree (an offer's set-out moving a sleeping prop) applied on
+a copy, as that step's kinematics applies it: saved as it stood, the prop
+came back asleep at the written pose, forwarded to it, and hung there for
+good -- and as the step it was taken after began (`LastStep`); a restore
 forwards with every tree awake -- a sleeping tree's derived quantities are
 the ones it fell asleep with, never computed again until it wakes -- puts
 the sleep back and rebuilds what MuJoCo derives from it (`sleeping.update`,

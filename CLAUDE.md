@@ -2152,9 +2152,10 @@ save a filmstrip PNG named after the script.
   walking policy's first decision. ⚠ AND THE ISLANDS' SLEEP (#779;
   `sleeping.kept`, `put`): MuJoCo's own state calls leave `tree_asleep` out,
   so a save carries it by each tree's root body's name (the replayed step's
-  too), and a restore forwards with every tree awake and puts it back -- put
-  back as MuJoCo puts a state, every island woke at a restore and the world
-  parted. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
+  too), a write the next step will wake a tree for applied first (saved as
+  it stood, a prop set out asleep came back frozen at its new pose), and a
+  restore forwards with every tree awake and puts it back -- put back as
+  MuJoCo puts a state, every island woke at a restore and the world parted. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
   OWED IT AFTER THE HOOKS (`_after_step`: the look, the depth frame's fold,
   the scan) BOOKED THERE (#749; `Body.book_owed`; Webserver.md): the keeper
   saves inside a step's hooks, so every routine that books its steps yields

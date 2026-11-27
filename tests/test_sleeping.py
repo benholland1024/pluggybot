@@ -300,3 +300,29 @@ def test_a_tree_this_world_never_lets_sleep_is_never_put_to_sleep():
   assert d2.tree_asleep[_tree(m2, "beta")] == sleeping.AWAKE
   assert d2.tree_asleep[_tree(m2, "alpha")] == sleeping.AWAKE, "beta's cycle woken whole"
   assert d2.tree_asleep[_tree(m2, "gamma")] >= 0
+
+
+def test_a_save_just_after_a_write_wakes_what_the_write_will_wake():
+  """An offer's set-out or a put-away writes a sleeping prop's pose between
+  two steps, and only the next step's kinematics sees it and wakes the prop:
+  a save taken before that step -- in its hooks, or at a run's end -- saves
+  the prop as that step will find it, awake. Saved asleep, it came back
+  asleep at the written pose, its kinematics forwarded to it, and hung in the
+  air for good where the world flown straight through let it fall."""
+  m, d = _toy()
+  last = continuation.LastStep(SimpleNamespace(model=m, data=d))
+  for i in range(100):
+    d.ctrl[0] = _ctrl(i)
+    mujoco.mj_step(m, d)
+    last.hook()
+  gamma = m.body("gamma").id
+  assert d.tree_asleep[_tree(m, "gamma")] >= 0, "the premise: asleep on the floor"
+  d.qpos[int(m.jnt_qposadr[m.body_jntadr[gamma]]) + 2] += 0.3
+  index, arrays = continuation.physics(m, d, last)
+  seen, _ = _fly(m, d, 100, 300)
+  assert seen[-1][5][gamma][2] < 0.06, "the premise: flown straight through, it fell"
+  back = mujoco.MjData(m)
+  continuation.put_physics(m, back, index, arrays)
+  continuation.replay(m, back, index, arrays)
+  again, _ = _fly(m, back, 100, 300)
+  assert all(_same(a, b) for a, b in zip(again, seen))
