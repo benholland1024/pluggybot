@@ -1504,8 +1504,13 @@ def part_gap(points: np.ndarray, part: tuple) -> np.ndarray:
 #: stands, no nearer than it began less `SWING_SLACK_M`. A shelf's deepest
 #: bows put the head under the board above the hands, and the next change of
 #: posture jammed it there: 5 of the shop shelf's 7 falls traced, the head on
-#: the board at 65-514 N.
-TRUNK_CLEAR_M = -0.005
+#: the board at 65-514 N. MEASURED in a shadow census (the shop shelf's dev
+#: flights, 162 upper set-downs): at 0 every one of the five falls' entries
+#: is passed over; at #747's -0.005 the fallback reach into the deepest bow in
+#: A10's k228 (its walk up 3 mm in) is taken, and the rise out of it jams.
+#: ⚠ The live trunk goes deeper than the statue's walk: a press's bow whose
+#: walk up kept 0.6 mm off the board pressed the head on it at 457 N.
+TRUNK_CLEAR_M = 0.0
 #: The trunk's parts as posed (`trunk_parts`): (name, kind, centre, frame,
 #: half-sizes); a kind's own signed distance (`trunk_gap`).
 _KINDS = {mujoco.mjtGeom.mjGEOM_BOX: "box", mujoco.mjtGeom.mjGEOM_CYLINDER: "cylinder",
@@ -1777,7 +1782,9 @@ class Reach:
     whose swing would bring a part of either arm past `SWING_CLEAR_M` into it
     is passed over -- and the one taken then is the one its hand goes in
     from, its look taking none -- and where every one would, nothing moves
-    (`swung` says what the first would have met). ⚠ NO OTHER POSTURE
+    (`swung` says what the first would have met). ⚠ AND ITS TRUNK OFF WHAT IT
+    SAW SINCE ITS FEET MOVED, INTO THE POSTURE AND BACK UP TO THE STAND (#763,
+    `_trunk`): passed over likewise, a met marked `trunk`. ⚠ NO OTHER POSTURE
     WHILE THE OTHER HAND HOLDS SOMETHING AT ITS WORK (#719's option 2,
     `keep`): only the one it is in -- a `verb`'s reach, never the loop's own
     (a charge's)."""
@@ -1865,8 +1872,8 @@ class Reach:
   def plans(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
             postures=REACH_POSTURES, flip: bool = True) -> bool:
     """Whether a procedure's `reach` would plan `goal` for `side`: its arm
-    kept off its own trunk (#726), its swing off what it saw (#747) --
-    nothing moved."""
+    kept off its own trunk (#726), its swing off what it saw (#747), its
+    trunk off what it saw since its feet moved (#763) -- nothing moved."""
     return self._planned(side, goal, approach, postures, flip, swing=True)[0] is not None
 
   def _planned(self, side, goal, approach, postures, flip, swing: bool = False,
@@ -2661,11 +2668,13 @@ class Reach:
     it, the least bent that reaches is taken all the same. ⚠ A PROCEDURE'S
     LOOK PASSES OVER A POSTURE WHOSE SWING, THE HAND HELD AT ITS PRE-GRASP,
     WOULD BRING AN ARM INTO WHAT ITS DEPTH CAMERA SAW (#747, `_swing`'s
-    `hold`): never taken, not even so -- with none, the one it holds. ⚠ AND
-    ONE WHOSE PLAN PASSED OVER A POSTURE FOR ITS SWING TAKES NONE (`reach`):
-    taking back what the plan passed over, or going on to the deepest bows,
-    whose trunk and head no swing judges, a look fell 3-5 times in 128 such
-    reaches where the base fell twice (#747's census)."""
+    `hold`): never taken, not even so -- with none, the one it holds -- nor
+    one whose trunk would meet what it saw since its feet moved (#763,
+    `_trunk`). ⚠ AND ONE WHOSE PLAN PASSED OVER A POSTURE FOR ITS SWING OR ITS
+    TRUNK TAKES NONE (`reach`): taking back what the plan passed over, or
+    going on to the deepest bows, whose trunk and head no swing judged then,
+    a look fell 3-5 times in 128 such reaches where the base fell twice
+    (#747's census)."""
     if self.looks[side] >= LOOKS or self.kept_by[side]:
       return True
     self.looks[side] += 1
