@@ -1020,6 +1020,26 @@ def test_the_steps_text_says_what_it_keeps_off_and_a_pressed_step_off_its_consta
     assert f"{kept['keepM']:.2f} m" in st.STEP_KEPT_OFF[by].format(**kept)
 
 
+def test_the_steps_text_says_when_a_walk_stalls_or_runs_out_of_time_off_its_constants():
+  """#766 (b): a stall's reason says its window only once a step has stalled
+  (#751), so a procedure choosing how far and how often to step could not
+  read it beforehand. The step's text says each window, the least a walk must
+  go in it and the step's patience, a turn's closing in it -- off the
+  constants its walk is judged by -- and names the words each ends in."""
+  doc = " ".join(st.HANDS_VERBS["step"].doc.split())
+  said = re.search(r"A walk that your legs count under ([0-9.]+) cm along its way in its first "
+                   r"([0-9.]+) s, or in any ([0-9.]+) s after that, reads false and says your step "
+                   r"got nowhere or stalled; and a step not done ([0-9.]+) s after it began "
+                   r"\(([0-9.]+) s with a turn\) reads false and says it ran out of time", doc)
+  assert said, doc
+  assert [float(v) for v in said.groups()] == pytest.approx(
+    [100 * hb.STEP_STUCK_M, hb.STEP_START_S, hb.STEP_STUCK_S, hb.STEP_PATIENCE_S,
+     round(hb.STEP_PATIENCE_S + hb.TURN_CLOSE_S, 1)], abs=1e-9)
+  assert st.STEP_STUCK.startswith("your step got nowhere:")
+  assert st.STEP_STALLED.startswith("your step stalled:")
+  assert st.STEP_WHY["out of time"] == "your step ran out of time"
+
+
 def test_a_small_turn_is_closed_on_the_stance_not_the_pelvis():
   """#649, #643's option (b): the walker yaws its pelvis over planted feet
   first, so a turn stopped on the pelvis's heading left the feet where they

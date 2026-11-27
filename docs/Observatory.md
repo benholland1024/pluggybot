@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The step's text says when a walk stalls and when a step runs out of time (#766 (b)'s option 5, C11, `loop-words4`) — opens when this PR is deployed
+
+**What the robots read** moves by one sentence, on purpose: the prompt
+`3f8b2dc7…` (72,160 characters, 17 sections) becomes `fc39ebf2…` (72,414),
+one section moved, PROCEDURES YOU MAY WRITE (+254: `step`'s line, 2,356 ->
+2,610); the session host's hello `9dcf6202` becomes `74b09b66` (`step` is one
+of a session's verbs). No History line is new or reworded. A draft for Ben,
+in `step`'s text after its too-short sentence, AFTER (254 characters, new):
+"A walk that your legs count under 1 cm along its way in its first 2 s, or in
+any 1 s after that, reads false and says your step got nowhere or stalled;
+and a step not done 15 s after it began (20.8 s with a turn) reads false and
+says it ran out of time." Its numbers are the constants the walk is judged by
+(`STEP_STUCK_M`, `STEP_START_S`, `STEP_STUCK_S`, `STEP_PATIENCE_S`, and that
+plus `TURN_CLOSE_S`, 20.82, for a step that turns). #766's draft said "in any
+1 s once it is under way" and "(21 s with a turn)": "after that" needs no
+word for under way, and the turn's patience is said to its tenth. Its option
+2, a stall judged pressed by a bar of its own (0.8), is not built: it moves a
+reason and `step.*`, and its bar is read off one place in one run.
+
+**What a deployed robot does**: nothing new. A step is judged as it was
+(`HumanoidBody._walk_routine`'s windows, `step_routine`'s patience).
+
+**Why** (#766 (b)). The step's text said what a walk too short reads, what it
+keeps off and what a press reads, but nothing of when a walk counts as
+stalled or a step as out of time; since #751 a stall's reason says its window
+only once it has stalled. A procedure choosing how far and how often to step
+could not read it beforehand.
+
+**What to read.** On the wakes after this deploys: the steps that read false
+stalled ("got nowhere", "stalled") and out of time, by procedure, and whether
+a procedure's steps change their length or their count after reading it,
+against the weekend's wakes (11-28 and 11-29, which fly the old text).
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the
