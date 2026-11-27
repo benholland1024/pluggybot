@@ -10,6 +10,73 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A procedure's posture keeps its head and trunk off what it saw since its feet moved (#763, #736's call 6; B2c, `loop-763`) — opens when this PR is deployed
+
+**What the robots read**: the prompt `3f8b2dc7…` (72,160 characters, 17
+sections) and the session host's hello `9dcf6202` are byte for byte as they
+were: no verb's text names the rule. History's lines are new where it acts,
+each a draft for Ben:
+- a `reach` none of whose postures keeps clear of what it saw, the first for
+  its trunk: "every posture that puts your left hand there meets something
+  your depth camera saw -- the first your head, standing up from it, at x
+  0.42, y 0.02, z 0.94 in your stance frame -- so your arm did not move"
+  ("your trunk" for the torso, "taking it" for the walk in); BEFORE, no such
+  line: the reach went, its head into the board. #747's line beside it says
+  "would swing an arm into"; the two are the same length (202 and 207
+  characters), and in a real run's History line (the shop census's k200) the
+  new one leaves it 366-383 characters of the 384 it has;
+- the same where its body says no place: "every posture that puts your left
+  hand there would bring your head or trunk into something your depth
+  camera saw, so your arm did not move";
+- a `move_hand` held in the posture it is in, or refused at its ask: "your
+  left hand could reach no further that way from the posture you are in:
+  every other posture that reaches there would bring your head into
+  something your depth camera saw, so your body keeps it"; BEFORE, "your
+  left hand could reach no further that way from any posture you hold"
+  where none reached, else it went;
+- after a reach kept off another robot, the other hand's: "; your right
+  hand's every posture there meets something your depth camera saw, the
+  first with your head or trunk";
+- a `pull` says nothing new: held where it is, it reaches no further
+  (`pull.reach` 1).
+
+**The change** (`Reach._trunk`, `posture_for`/`path_for`'s `judge`,
+`HumanoidMission.trunk_seen`, `TRUNK_CLEAR_M`; SimNotes, "A reach's bow under
+a shelf's board"). A procedure's reach (its plan and its look), carry and
+pull (their ask and their replans on the way) pass over a posture whose
+trunk -- the torso, the head's parts and the LIDAR -- would come nearer than
+0 to what its depth camera saw since its feet last moved, tops kept, walked
+on the commands' clocks into the posture and back up from it to the stand.
+Where none keeps clear a reach moves nothing, a carry is refused or held
+where it is, a pull held where it is. Never the loop's own moves (a charge's
+plug-in, a walk's lift), nor a way home. Nothing seen since the feet moved
+judges nothing. ⚠ The clearance was chosen in a shadow census of the shop
+shelf (unserved): the rule's written criterion, read to the letter, picked
+#747's -0.005 m through A10's k228's rise out of the bow; 0 was chosen by the
+falls' entries, 5 of 5 against 4 of 5, at two more set-downs flagged that met
+nothing. ⚠ Its known limits: the live trunk goes deeper than the statue's
+walk (a cube's plan whose walk touched the counter by the truth put the
+torso on it at 486 N; the tour's 457 N press first named here is flagged by
+the final code's judge before its contact), and its view drifts through a
+bow by the legs' reckoning (2 cm at lane C's rack, where a look's rise 1.2
+cm into a board read clear). On Ben's bar it acted in 14 flights, at the
+storeroom's counter and the restaurant's table: two lids passed that had
+failed, a table's fall went, a cube's place was lost.
+
+**What the period is for.**
+- **The acceptance**: the served jobs' procedures whose reach, carry or pull
+  had a posture passed over for its trunk -- at the storeroom's counter and
+  the restaurant's table, where nothing stands above the hands, Ben's bar
+  on the final code says how often (the PR) -- what each then did, and every
+  head or trunk on the world over 20 N in a procedure's verb, judged or not.
+- **What it costs**: a judgment 5-20 ms; a plan it passes nothing in, 0-15
+  ms more; a search it passes a posture over in goes on through the rest, as
+  #747's refusals do (at the shelf's pre-point 6.5 -> 11.5 s of the one
+  physics thread, which both robots stand still for); how many such searches
+  a served job makes, and how long each, is counted on Ben's bar (the PR).
+- **What would close it**: a fall or a head on the world in a judged posture
+  the rule took (its limit), or a pass lost to a posture it passed over.
+
 ### A carried thin piece's way to its carry pose keeps the hand up while it is out past where it began and its carry pose (#682's round 2; A1, `loop-pass9`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` (72,160

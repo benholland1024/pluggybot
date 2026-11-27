@@ -566,7 +566,7 @@ def _carrying_open(read=(0.0, 0.0, 0.0), grips=False, verb=True, start=(0.0, 0.0
   r.phase["left"] = "hold"
   r.force["left"] = np.asarray(read, dtype=float)
   r.grip_now = lambda side: (H.copy(), np.eye(3))
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: start
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: start
   r._posture_held = lambda: True
   # ...the body in the posture it holds
   r.posture_now = lambda: np.array(r.posture, dtype=float)
@@ -600,7 +600,7 @@ def test_a_carry_of_a_hand_that_holds_nothing_takes_a_posture_only_while_it_read
     r = _carrying_open(grips=grips, verb=verb)
     r.pulls["left"]["fixed"] = False
     r.force["left"] = share * CARRY_LINE * np.array([0.0, 0.0, -1.0])
-    r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+    r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: (0.0, 0.3, 0.0)
     r.self_model.solve = lambda side, pos, rot=None, iters=None: (
       np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
     for _ in range(int(rc.REPLAN_S / DT) + 2):
@@ -641,7 +641,7 @@ def test_a_carry_refused_a_posture_for_a_load_takes_one_as_soon_as_it_reads_ligh
 
   r = _carrying_open()
   r.hold_posture = hold
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: (0.0, 0.3, 0.0)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
   r.force["left"] = 1.1 * CARRY_LINE * np.array([0.0, 0.0, -1.0])
@@ -656,7 +656,7 @@ def test_a_carry_refused_a_posture_for_a_load_takes_one_as_soon_as_it_reads_ligh
   r.hold_posture = hold
   assert r.pulls["left"]["loaded"]
   r.force["left"] = np.zeros(3)
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: (0.0, 0.3, 0.0)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.BLOCKED_M, 0.0)
   for _ in range(int((rc.POSTURE_WAIT_S + rc.BLOCKED_S) / DT) + 5):
@@ -732,7 +732,7 @@ def test_a_loaded_carry_asks_where_the_body_is_and_refuses_an_end_no_posture_rea
   # a replan decided reading light, whatever it finds, withheld nothing for a load
   r = _carrying_open()
   r.pulls["left"]["fixed"] = False
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: None
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: None
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
   r.force["left"] = 1.1 * CARRY_LINE * way
@@ -781,7 +781,7 @@ def test_a_carrys_posture_is_given_up_where_its_open_hand_reads_a_load_while_it_
   assert r.postures == [(0.0, 0.15, 0.0), (0.0, 0.0, 0.0), got_to] and not st_["backing"]
   # ...and takes no other, its arm missing and its hand light again
   r.pulls["left"]["fixed"] = False
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: (0.0, 0.3, 0.0)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
   read(r, np.zeros(3), int(2 * rc.REPLAN_S / DT))
@@ -897,7 +897,7 @@ def test_a_carry_reads_a_load_only_where_the_whole_bodys_balance_closes():
   # ...and loaded, it stays loaded through a command that does not close: no posture planned on it
   r = _carrying_open()
   r.pulls["left"]["fixed"] = False
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: (0.0, 0.3, 0.0)
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: (0.0, 0.3, 0.0)
   r.self_model.solve = lambda side, pos, rot=None, iters=None: (
     np.zeros(len(hm.ARM)), 2.0 * rc.REPLAN_M, 0.0)
   read(r, 1.1 * CARRY_LINE * way, True, 1)
@@ -1148,7 +1148,7 @@ def _carrying(end, held=False, verb=True):
   r.phase["left"], r.pulls["left"] = "hold", None
   r.force = {s: np.zeros(3) for s in hm.SIDES}
   r.grip_now = lambda side: (H.copy(), np.eye(3))
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None: tuple(
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(), postures=None, judge=False: tuple(
     float(v) for v in r.posture)
   r.grippers["left"].holding = held
   # ...and its arm reaching every command: the rule here is the carry's grip

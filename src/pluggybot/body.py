@@ -814,8 +814,9 @@ class Body(abc.ABC):
     `hand_kept`), "own body" (#722: every way out would pass through its
     own trunk, so nothing moved), "swing" (#747: every posture that puts it
     there would swing an arm into what its depth camera saw, so nothing
-    moved; `hand_swung`), "fell", "out of time" -- or "" where it held
-    (#493)."""
+    moved; `hand_swung`), "head" (#763: no posture keeps clear of what it
+    saw, the first for its trunk -- into the posture or standing up from it;
+    `hand_swung`), "fell", "out of time" -- or "" where it held (#493)."""
 
   @abc.abstractmethod
   def hand_stopped(self, side: str) -> dict | None:
@@ -831,7 +832,10 @@ class Body(abc.ABC):
     """What a hand's last `reach_routine` would have swung an arm into, where
     `hand_why` says "swing" (#747): `side` the arm, `part` its part, `m`
     how near it would have come, `at` where its depth camera saw what it
-    would meet (x ahead, y left, z up, m, from where the body stood) --
+    would meet (x ahead, y left, z up, m, from where the body stood) -- or,
+    where it says "head" (#763), what its first posture would have brought
+    its trunk into: `part` (the torso or a part of its head), `m`, `at`,
+    and `way`, "in" as it took the posture or "up" as it stood up from it --
     else None."""
 
   @abc.abstractmethod
