@@ -71,26 +71,28 @@ def _piece(name):
 #: EVERY PIECE A JOB MAY CARRY, as its reference grips it: (what, its drawing,
 #: the hand, the grip's place in the piece's frame as it is set out -- level,
 #: unturned in the stance, z up from what it stands on -- the reach's fingers
-#: and jaws there, and the reference's words that put it there, read in its
-#: source by `test_the_grips_are_the_references_own`). The pieces are set out
-#: as their references find them: the fork with its head ahead of the hand
+#: and jaws there, and each reference's words that put it there, read in its
+#: source by `test_the_grips_are_the_references_own`: the kitchen shelf's are
+#: the pass's sources rewritten, its grips as the pass's). The pieces are set
+#: out as their references find them: the fork with its head ahead of the hand
 #: (`counter.PASS_SOURCES`: "its head in").
 CARRIED = (
-  ("the pass's cup", "cup", "right", (0.0, 0.0, dw.CUP_H + _TAG - 0.015), *_CUP_TURN,
-   (sol.PASS, 'cz = read("spot.z") - 0.015')),
-  ("the pass's plate", "plate", "left",
+  ("the pass's and the kitchen shelf's cup", "cup", "right", (0.0, 0.0, dw.CUP_H + _TAG - 0.015),
+   *_CUP_TURN, ((sol.PASS, 'cz = read("spot.z") - 0.015'), (sol.SHELF, 'cz = read("spot.z") - 0.015'))),
+  ("the pass's and the kitchen shelf's plate", "plate", "left",
    (0.0, sol.PASS_PLATE_ACROSS, dw.PLATE_FLOOR_T + _TAG + 0.0384), *_DOWN60,
-   (sol.PASS, 'gz = read("spot.z") + 0.0384')),
-  ("the pass's fork", "fork", "left", (0.0, 0.0, 2 * dw.HANDLE[2] + _TAG + 0.0264), *_DOWN60,
-   (sol.PASS, 'gz = read("spot.z") + 0.0264')),
+   ((sol.PASS, 'gz = read("spot.z") + 0.0384'), (sol.SHELF, 'gz = read("spot.z") + 0.0384'))),
+  ("the pass's and the kitchen shelf's fork", "fork", "left",
+   (0.0, 0.0, 2 * dw.HANDLE[2] + _TAG + 0.0264), *_DOWN60,
+   ((sol.PASS, 'gz = read("spot.z") + 0.0264'), (sol.SHELF, 'gz = read("spot.z") + 0.0264'))),
   ("the table check's cup", "cup", "right", (0.0, 0.0, dw.CUP_H + _TAG - 0.03), *_CUP_TURN,
-   (hc.TABLE, 'cz = read("spot.z") - 0.03')),
+   ((hc.TABLE, 'cz = read("spot.z") - 0.03'),)),
   ("the table check's plate", "plate", "left", (0.0, 0.066, 0.7734 - ct.TABLE_H), *_DOWN60,
-   (hc.TABLE, "gy = py + 0.066 * (1 - i)\n    gz = 0.7734 - 0.005 * i")),
+   ((hc.TABLE, "gy = py + 0.066 * (1 - i)\n    gz = 0.7734 - 0.005 * i"),)),
   ("the table check's fork", "fork", "left", (0.0, 0.0, 0.7734 - 0.005 - ct.TABLE_H), *_DOWN60,
-   (hc.TABLE, "gz = 0.7734 - 0.005 * i")),
+   ((hc.TABLE, "gz = 0.7734 - 0.005 * i"),)),
   ("the cube check's cube", "cube", "left", (0.01, 0.0, cb.CUBE + 0.003), *_DOWN60[:1],
-   (0.0, 1.0, 0.0), (hc.PLACE, "b = 0.01")),
+   (0.0, 1.0, 0.0), ((hc.PLACE, "b = 0.01"),)),
 )
 
 
@@ -239,14 +241,14 @@ def test_each_radius_is_what_its_rule_needs_to_the_centimetre_and_no_wider(needs
 # ---- 2: the grips are the references' own ----------------------------------------
 
 
-@pytest.mark.parametrize("what,source,words", [(c[0], *c[6]) for c in CARRIED],
-                         ids=[c[0] for c in CARRIED])
-def test_the_grips_are_the_references_own(what, source, words):
+@pytest.mark.parametrize("what,refs", [(c[0], c[6]) for c in CARRIED], ids=[c[0] for c in CARRIED])
+def test_the_grips_are_the_references_own(what, refs):
   """A reference that moves its grip -- further along a fork, higher on a
   cup -- can carry a piece past the radius: it fails here first, and its
   grip is read again in `CARRIED`."""
-  text = source if isinstance(source, str) else "\n".join(source)
-  assert words in text, f"{what}: its reference no longer says {words!r}"
+  for source, words in refs:
+    text = source if isinstance(source, str) else "\n".join(source)
+    assert words in text, f"{what}: its reference no longer says {words!r}"
 
 
 # ---- 3: a carried candle's front stop --------------------------------------------
