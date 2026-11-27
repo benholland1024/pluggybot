@@ -750,7 +750,8 @@ SHELF_HELD = '''  if read("%s.held") < 0.5:
 #: is set down: out of reach, the move swung the hand 5-8 cm to the right,
 #: and where it read false the cup came down 3-7 cm off in 7 of 8, each set
 #: down within 2.5 cm before (SimNotes, "The place laid from the kitchen's
-#: shelf").
+#: shelf"). Its `go` reads false only where the hand is no longer out or the
+#: robot fell (its distance is the swing's, under `pull`'s 0.6 m).
 SHELF_CUP_UNDO = ('''      if not move_hand("right", read("right.x") + dx, read("right.y") + dy, read("right.z")):
         pass
 ''', '''      rx = read("right.x")

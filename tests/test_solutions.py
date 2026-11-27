@@ -1145,7 +1145,9 @@ def test_the_shelf_fork_s_stow_asks_little_only_where_its_tip_stands_at_the_boar
     "the edge's line is no longer the tip within 1 cm of the board's edge")
   fn = _ast.parse(solutions.PROCEDURES["set_table_shelf"][2]).body[0]
   said = [_ast.unparse(st) for st in fn.body]
-  go = next(i for i, t in enumerate(said) if t.startswith("go('left', 0.33"))
+  back = f"go('left', {solutions.PASS_FORK_BACK:g},"
+  go = next((i for i, t in enumerate(said) if t.startswith(back)), None)
+  assert go is not None, f"the fork's run has no move back ({back})"
   read = said.index("gx = read('left.x')")
   moved = [c.func.id for st in fn.body[read + 1:go] for c in _ast.walk(st)
            if isinstance(c, _ast.Call) and isinstance(c.func, _ast.Name) and c.func.id != "read"]
@@ -1188,7 +1190,7 @@ def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) 
   for k in ("x", "y", "z"):
     monkeypatch.setitem(axes.SENSORS, f"right.{k}", SimpleNamespace(read=lambda life, k=k: hand[k]))
   env = {"ox": 0.004, "oy": -0.006, "oz": 0.075}
-  calls = []
+  calls, began = [], []
 
   def value(expr):
     return lang._eval(expr, env, SimpleNamespace(), facts)
@@ -1199,7 +1201,12 @@ def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) 
     if name == "reach":
       hand.update(x=got["x"], y=got["y"], z=got["z"] - 0.09)
       now.update(moved)
+    elif name == "pull":
+      way = [got[k] for k in ("dx", "dy", "dz")]
+      n = math.sqrt(sum(v * v for v in way))
+      hand.update(**{k: hand[k] + got["distance"] * v / n for k, v in zip("xyz", way)})
     elif name == "move_hand":
+      began.append(dict(hand))
       lifted = len(calls) > 1 and calls[-2][0] == "pull" and calls[-2][1]["dz"] == 1
       if lifted and swung is not None:
         hand.update(x=got["x"] + swung[0], y=got["y"] + swung[1], z=got["z"])
@@ -1238,7 +1245,7 @@ def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) 
   env.update(a=a, tx=card["x"] - ca * math.cos(a) + cb * math.sin(a) - env["ox"],
              ty=card["y"] - ca * math.sin(a) - cb * math.cos(a) - env["oy"], tz=0.89)
   assert walk(body[last_reach:]), "the cup is never let go"
-  return calls
+  return calls, began
 
 
 def test_the_shelf_cup_s_re_set_move_is_taken_back_where_it_reads_false(monkeypatch):
@@ -1258,14 +1265,13 @@ def test_the_shelf_cup_s_re_set_move_is_taken_back_where_it_reads_false(monkeypa
   turned = {"x": card["x"] * math.cos(d) - card["y"] * math.sin(d),
             "y": card["x"] * math.sin(d) + card["y"] * math.cos(d), "z": card["z"],
             "nx": math.cos(0.05 + d), "ny": math.sin(0.05 + d)}
-  calls = _shelf_cup_reset(monkeypatch, card, turned, swung=None)
+  calls, _ = _shelf_cup_reset(monkeypatch, card, turned, swung=None)
   assert [n for n, _ in calls] == ["reach", "pull", "spot", "pull", "move_hand", "pull", "open_hand"], calls
-  calls = _shelf_cup_reset(monkeypatch, card, turned, swung=(-0.01, -0.07))
+  calls, began = _shelf_cup_reset(monkeypatch, card, turned, swung=(-0.01, -0.07))
   names = [n for n, _ in calls]
   assert names == ["reach", "pull", "spot", "pull", "move_hand", "go", "pull", "open_hand"], names
-  reach, up, move, back, down = (calls[i][1] for i in (0, 3, 4, 5, 6))
+  up, move, back, down = (calls[i][1] for i in (3, 4, 5, 6))
   assert up["dz"] == 1 and math.isclose(up["distance"], 0.015) and down["dz"] == -1, (up, down)
-  # ...back to where the move began: the hand's place the reach left it at
-  begun = (reach["x"], reach["y"], reach["z"] - 0.09)
-  assert [back[k] for k in ("h", "x", "y", "z")] == ["right", *begun], (back, begun)
-  assert not math.isclose(move["y"], begun[1], abs_tol=1e-6), "the re-set moved nothing"
+  # ...back to where the failing move began, the cup lifted: the hand's place as it began
+  assert [back[k] for k in ("h", "x", "y", "z")] == ["right", *(began[-1][k] for k in "xyz")], (back, began)
+  assert not math.isclose(move["y"], began[-1]["y"], abs_tol=1e-6), "the re-set moved nothing"

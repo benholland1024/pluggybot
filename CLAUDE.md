@@ -1249,8 +1249,8 @@ save a filmstrip PNG named after the script.
   middle (nearer, its pulls bowed the head onto the board), and ⚠ a put-down
   waits on its hand reading held (from the hanging arm the reach fell). ⚠ ITS
   BAR (the pass's) IS NOT MET: 22 of 32 on the bar's draws and 24 of 32
-  sealed, by 2ddbe238, no fall, where the reference before it laid 20 and 20
-  (SimNotes has each round; the plate's wall is #771). ⚠ The dev draws
+  sealed, by 2ddbe238, no fall (SimNotes has each round; the plate's wall is
+  #771). ⚠ The dev draws
   4000-4063 flatter it (it was chosen on them; on fresh draws it laid 65 of 128
   on the served plate): read a lever that flies the fork's trip afresh on fresh
   draws.

@@ -9503,11 +9503,12 @@ turned the waist 0.52-1.05 rad. But the grip's place, read as the move back
 begins, tells the tip's clearance of the board's edge to 0.6 cm (sd; the
 clearance is that reading less 0.413 m). With the grip under 0.41 m ahead, 14
 of 15 trips caught; 0.41-0.425 m, 3 of 13; 0.425-0.43 m, 1 of 22; from 0.43 m,
-none of 256. So where the grip reads under `SHELF_FORK_EDGE` (0.425 m: the tip
-within 1 cm of the edge), the lowering asks 3 N, as round 7's cap did;
-elsewhere 20 N, as before. On the dev draws it acted in 18 flights of 192:
-served +6 -0, raised +3 -0 (the line was set after the catches by grip were
-seen, from the geometry, so those draws are no independent reading of it).
+none of 256. So where the grip reads under `SHELF_FORK_EDGE` (0.425 m: by the
+fork's drawing the tip within 1 cm of the edge, the rows' zero 0.2 cm nearer),
+the lowering asks 3 N, as round 7's cap did; elsewhere 20 N, as before. On the
+dev draws it acted in 18 flights of 192: served +6 -0, raised +3 -0 (the line
+was set after the catches by grip were seen, from the geometry, so those draws
+are no independent reading of it).
 
 *The cup's re-set taken back where its move reads false.* The cup's second look
 moves it where the card puts its place (`PASS_CUP_AGAIN`), and in 9 of 108
