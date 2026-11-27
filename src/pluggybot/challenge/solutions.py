@@ -408,12 +408,6 @@ PASS_FORK_LEFT, PASS_FORK_MID = 0.18, 0.14
 #: deg), each degree 0.6 cm at the cup's place (SimNotes, "The place laid from
 #: the pass").
 PASS_CUP_AGAIN = 0.01
-#: How far the plate's trip turns left after its walk to the pass, rad, before
-#: it walks up to the plate: the walk's `face` stops 5.6 deg short of square to
-#: the pass (median; sd 2.9), and turned right of square 8 deg or more, the
-#: walk's hand-over swung the plate into the pass's top (12 of 25, square 1 of
-#: 38) and the plate came loose in the jaws for an instant, a drop.
-PASS_PLATE_TURN = 0.10
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -490,8 +484,6 @@ PASS_CUP = '''def lay_cup():
 PASS_PLATE = '''def lay_plate():
   budget(steps=120, seconds=1200)
   to_pass(-0.18)
-  if not step(0, 0, %(plate_turn)g):
-    pass
   near(90, 0.50, %(plate_aim)g)
   move("left_shoulder_roll", 0.9)
   move("left_elbow", 1.4)
@@ -605,7 +597,6 @@ def _pass_terms() -> dict:
           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
           "plate_least": PASS_PLATE_LEAST, "cup_right": PASS_CUP_RIGHT, "cup_mid": PASS_CUP_MID,
           "fork_left": PASS_FORK_LEFT, "fork_mid": PASS_FORK_MID, "cup_again": PASS_CUP_AGAIN,
-          "plate_turn": PASS_PLATE_TURN,
           "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
           "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
 
@@ -652,9 +643,7 @@ PASS_LIBRARY, PASS = _pass_job()
 #:  - each thin piece brought back clear of the board and lowered to
 #:    `SHELF_STOW_Z` before the walk, the fork by a `pull` that holds its
 #:    line and turn, its hand at least `SHELF_FORK_LEFT` left of the middle;
-#:  - each piece put down only while its hand still holds it (`SHELF_HELD`);
-#:  - no plate turn after the walk (`PASS_PLATE_TURN`'s reason is the pass's
-#:    `face`, which stopped short turning the other way).
+#:  - each piece put down only while its hand still holds it (`SHELF_HELD`).
 SHELF_TO = '''def to_shelf(s):
   face(0)
   find(69, %(ax)g, %(ay)g, 600)
@@ -802,8 +791,7 @@ SHELF_FROM_PASS = {
       pass
     withdraw("right")
 ''')),
-  "plate": (("  to_pass(-0.18)\n  if not step(0, 0, %(plate_turn)g):\n    pass\n",
-             "  to_shelf(%(plate_s)g)\n"),
+  "plate": (("  to_pass(-0.18)\n", "  to_shelf(%(plate_s)g)\n"),
             ("  near(90, 0.50, %(plate_aim)g)\n", "  near(90, %(plate_near)g, %(plate_aim)g)\n"),
             ('  move("left_shoulder_roll", 0.9)\n  move("left_elbow", 1.4)\n',
              '  move("left_shoulder_roll", %(left_roll)g)\n  move("left_elbow", %(left_elbow)g)\n'),
