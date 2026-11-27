@@ -13003,18 +13003,26 @@ on replaying exactly.
 ⚠ **Its view drifts through a bow.** A reach's steps take no scan, so through
 a bow the belief moves only by the legs' reckoning, and the window's voxels,
 folded level before the bow, are placed through the belief as it is now. At
-the rack the believed stance drifted 2 cm as the pelvis went back 17 cm over
-the planted sole (the reckoning's contact corner switching as it went); the
-board read 1.6 cm further at the look than at the plan, and the look's rise
--- 1.2 cm into the board's underside by the truth -- read 0.14 cm clear: the
-head struck at 416 N and the robot fell. At the counter a cube's plan, 15.5 s
-after the feet last moved, read the torso's walk 1.3 cm clear where the truth
-touched, and a lid's carry judged voxels laid 3 cm off the counter's true
-edge. Placed through the believed stance at their fold instead (an
-instrument's experiment, not built: the true stance has not moved since), the
-rack's look passed over and the flight did not fall. On the shop shelf the
-view read clear where the truth read into it at 5 of 1,316 choices, each
-under 1 cm.
+lane C's rack the believed stance drifted 2 cm as the pelvis went back 17 cm
+over the planted sole; the board read 1.6 cm further at the look than at the
+plan, and the look's rise -- 1.2 cm into the board's underside by the truth
+-- read 0.14 cm clear: the head struck at 416 N and the robot fell (at the
+counter the drift ran 1.3-3 cm). But the reckoning is not drift alone: at a
+table check the true stance turned 3.2 deg in place while the feet stood, and
+the reckoning followed it (2.7 deg, drifting 1 cm). So no placement serves
+both. Placed through the believed stance at each frame's fold (`loop-763b`,
+measured, not merged), the rack went 3 -> 0 falls, but on Ben's bar it undid
+#763's four moved outcomes (a pass lost, a fall gained); turned by the
+reckoned heading's turn as well, it flew the same flights as the fold
+placement. Nor is the statue's walk a referee at that scale: judged against
+the table's true top, a carry's posture walked the torso 5.1 cm into it, and
+the flight that took it touched nothing. ⚠ What would answer it is a memory
+that sees during a bow. Frames taken bowed, levelled through the IMU as the
+LIDAR's band is, would place what the camera sees then through the body as it
+stands then, with no drift to carry. The cost: a depth render every 0.2 s
+through a reach (none is taken bowed today). And it would see only what the
+bowed camera sees: it looks down, so a board over the head may be out of its
+picture. Not built: that premise is checked first.
 
 **What it does not do.** A posture already held, or one the body has got
 to on its way (what #719 keeps it in), is never judged (no change, nothing
