@@ -68,14 +68,16 @@ def test_a_restart_ends_what_the_day_loop_is_inside_and_the_check_saves_past_it(
 
 def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   """The line the check prints (`saved_words`): where it saved, and from
-  where it passed over a walk in flight -- or that it saved nowhere."""
+  where it passed over how many steps, the first with what in flight -- or
+  that it saved nowhere, and why: what was in flight, or no step the keeper
+  saves in, or (at the pass) no pass."""
   first = {"t": 200.088, "inFlight": ["explore_routine", "drive_to_routine"]}
   assert ds.saved_words({"k": "saved", "t": 257.488, "passedOver": 573,
                          "firstInFlight": first}, True, 200.0) == (
     "saved inside the hooks of the step at t=257.488, the first with nothing in "
-    "flight: from t=200.088 it passed over 573 steps with explore_routine > "
-    "drive_to_routine in flight, which a restart ends by design (the errand in "
-    "flight ends, #780)")
+    "flight: from t=200.088 it passed over 573 steps, the first with "
+    "explore_routine > drive_to_routine in flight, which a restart ends by design "
+    "(the errand in flight ends, #780)")
   assert ds.saved_words({"k": "saved", "t": 300.088, "passedOver": 0,
                          "firstInFlight": None}, True, 300.0) == (
     "saved inside the hooks of the step at t=300.088")
@@ -84,9 +86,70 @@ def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   assert ds.saved_words({"k": "nosave", "passedOver": 9, "firstInFlight": first},
                         True, 200.0).startswith(
     "NOT SAVED: no step from t=200.0 to the day's end had nothing in flight; from "
-    "t=200.088 it passed over 9 steps with explore_routine > drive_to_routine")
+    "t=200.088 it passed over 9 steps, the first with explore_routine > drive_to_routine")
+  assert ds.saved_words({"k": "nosave", "passedOver": 0, "firstInFlight": None}, True, 200.0) == (
+    "NOT SAVED: no step from t=200.0 to the day's end was one the keeper saves in "
+    "(owed, its scan due, nothing mid-move)")
   assert ds.saved_words({"k": "nosave", "passedOver": 0, "firstInFlight": None}, False, 400.0) == (
     "NOT SAVED: the day loop never passed its top from t=400.0 to the day's end")
+
+
+def test_a_divergence_from_a_save_in_a_step_where_the_days_are_in_different_states_names_the_limit():
+  """The check's last line (`verdict`): a save in a step lands in the
+  stand-by, which a restored loop holds from a fresh 5 s, so two days in
+  different states at their first difference are the loop's next branch
+  taken at another instant (#780's limit, flown on the demo pack: a charge
+  begun at 280.088 where the straight day began it at 282.434). In the same
+  state, or from a save at the pass, a divergence is said plainly."""
+  base = {"diverged": True, "lastSameT": 280.0, "firstDiffT": 280.5}
+  line, code = ds.verdict({**base, "stateA": "EXPLORE", "stateB": "GO_CHARGE"}, None, True)
+  assert code == 1 and line == (
+    "DIVERGED: same until t=280.0, differs at 280.5 (states EXPLORE / GO_CHARGE) -- the "
+    "days in different states there: from a save in the stand-by, its next branch begun "
+    "at another instant, as a restored stand-by holds a fresh 5 s (#780's limit)")
+  plain = "DIVERGED: same until t=280.0, differs at 280.5 (states EXPLORE / "
+  assert ds.verdict({**base, "stateA": "EXPLORE", "stateB": "EXPLORE"}, None, True) == (
+    plain + "EXPLORE)", 1)
+  assert ds.verdict({**base, "stateA": "EXPLORE", "stateB": "GO_CHARGE"}, None, False) == (
+    plain + "GO_CHARGE)", 1)
+  same = {"diverged": False, "stepsCompared": 240}
+  assert ds.verdict(same, None, True) == (
+    "IDENTICAL after the restore over 240 state samples and every look and scan", 0)
+  assert ds.verdict(same, {"kind": "lidar", "t": 300.188}, True)[1] == 1
+
+
+def test_what_the_loop_is_inside_is_read_only_through_its_hand_driver():
+  """`in_flight` walks into a routine's local `routine` only where the
+  routine is the loop's hand driver (`HAND_DRIVEN`): a body's routine that
+  keeps one of the loop's in a local of that name is not walked into. And a
+  hand driver of the loop's whose routine cannot be read is in flight under
+  its own name: never none."""
+  class Body:
+    def hold(self, routine):
+      while True:
+        yield ()
+
+  class Loop:
+    def explore(self):
+      yield ()
+
+    def _until_stood_up_routine(self, other):
+      kept = other                        # ...in a local of another name
+      while kept:
+        yield ()
+
+    def day(self, body, wrapped):
+      if wrapped:
+        yield from self._until_stood_up_routine(self.explore())
+      yield from body.hold(self.explore())
+
+  life, body = Loop(), Body()
+  held = life.day(body, False)
+  next(held)
+  assert ds.in_flight(life, held) == [], "the stand-by's hold: nothing in flight"
+  wrapping = life.day(body, True)
+  next(wrapping)
+  assert ds.in_flight(life, wrapping) == ["_until_stood_up_routine"]
 
 
 def test_the_saving_arm_asks_before_it_writes():

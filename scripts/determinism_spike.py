@@ -61,20 +61,21 @@ def _h(a) -> str:
   return hashlib.sha256(np.ascontiguousarray(a).tobytes()).hexdigest()[:16]
 
 
+#: The day loop's routine that drives the one it wraps by hand, in its local
+#: `routine` (`HubLifecycle._until_stood_up_routine`): what `in_flight` walks
+#: through where a stack has no `gi_yieldfrom`.
+HAND_DRIVEN = "_until_stood_up_routine"
+
+
 def in_flight(life, day) -> list[str]:
   """WHAT A RESTART ENDS (#780), at a step: the routines the day loop `day`
   (`HubLifecycle.begin`'s) is inside, outermost first, where one is the
   loop's own -- its explore, a charge trip, an errand, a decision, a walk off
   the station -- with the body's routine it is in after them
-  (`explore_routine > drive_to_routine`); else none. A restore begins the
-  day loop again at its top, so what it was inside ends there (Webserver.md:
-  the errand in flight ends) and the day after differs from the one flown
-  straight through. With none, the loop is in its stand-by, the one routine
-  of the body's it holds itself in after its start, which the restored loop
-  holds again -- until it next takes another branch: a restored hold is a
-  fresh 5 s, its passes come at other instants, and on the demo pack a charge
-  began 2.35 s early. ⚠ Before the loop's first pass the day's start is in
-  flight, which this cannot tell (`Flight` can)."""
+  (`explore_routine > drive_to_routine`); else none, the loop in its
+  stand-by, which a restored loop holds again but from a fresh 5 s (SimNotes,
+  "A save in the middle of a walk"). ⚠ Before the loop's first pass the day's
+  start is in flight, which this cannot tell (`Flight` can)."""
   names, owned = [], False
   g = getattr(day, "gi_yieldfrom", None)
   while g is not None and getattr(g, "gi_frame", None) is not None:
@@ -83,11 +84,14 @@ def in_flight(life, day) -> list[str]:
       names.append(g.gi_code.co_name)            # ...and the body's routine it is in
       break
     owned = owned or mine
-    if g.gi_code.co_name != "_until_stood_up_routine":
-      names.append(g.gi_code.co_name)
-    # ...through a routine driven by hand (`_until_stood_up_routine`'s)
-    g = g.gi_yieldfrom if g.gi_yieldfrom is not None else g.gi_frame.f_locals.get("routine")
-  return names if owned else []
+    names.append(g.gi_code.co_name)
+    # ...through the one routine that drives another by hand
+    g = (g.gi_frame.f_locals.get("routine")
+         if g.gi_yieldfrom is None and g.gi_code.co_name == HAND_DRIVEN else g.gi_yieldfrom)
+  if not owned:
+    return []
+  # ...the hand driver's own name only where what it drives could not be read: never none
+  return [n for n in names if n != HAND_DRIVEN] or names
 
 
 class Flight:
@@ -133,17 +137,41 @@ def saved_words(row: dict, in_step: bool, at: float) -> str:
   nowhere (its `nosave` row)."""
   first = row.get("firstInFlight")
   over = ("" if not first else
-          f" from t={first['t']} it passed over {row['passedOver']} steps with "
-          f"{' > '.join(first['inFlight'])} in flight, which a restart ends by design "
-          "(the errand in flight ends, #780)")
+          f" from t={first['t']} it passed over {row['passedOver']} steps, the first "
+          f"with {' > '.join(first['inFlight'])} in flight, which a restart ends by "
+          "design (the errand in flight ends, #780)")
   if row["k"] == "nosave" and not in_step:
     return f"NOT SAVED: the day loop never passed its top from t={at} to the day's end"
+  if row["k"] == "nosave" and not first:
+    return (f"NOT SAVED: no step from t={at} to the day's end was one the keeper saves "
+            "in (owed, its scan due, nothing mid-move)")
   if row["k"] == "nosave":
-    return (f"NOT SAVED: no step from t={at} to the day's end had nothing in flight"
-            + (f";{over}" if over else ""))
+    return f"NOT SAVED: no step from t={at} to the day's end had nothing in flight;{over}"
   where = "inside the hooks of the step" if in_step else "at the day loop's pass"
   return f"saved {where} at t={row['t']}" + (f", the first with nothing in flight:{over}"
                                              if over else "")
+
+
+def verdict(rep: dict, sensed: dict | None, in_step: bool) -> tuple[str, int]:
+  """The check's last line and its exit code, off `first_divergence` and
+  `first_perception_difference`. ⚠ A save in a step has no other place than
+  the stand-by (`in_flight`), which a restored loop holds again from a fresh
+  5 s: two days in different states at their first difference are most
+  likely the loop's next branch taken at another instant, which the line
+  says (#780's limit; a save at the pass keeps its passes' times)."""
+  if not rep["diverged"] and sensed is None:
+    return (f"IDENTICAL after the restore over {rep['stepsCompared']} state samples "
+            "and every look and scan", 0)
+  if not rep["diverged"]:
+    return (f"SENSED OTHERWISE: the state IDENTICAL over {rep['stepsCompared']} samples, "
+            f"but the first look or scan that differs is {sensed}", 1)
+  line = (f"DIVERGED: same until t={rep['lastSameT']}, differs at {rep['firstDiffT']} "
+          f"(states {rep['stateA']} / {rep['stateB']})")
+  if in_step and rep["stateA"] != rep["stateB"]:
+    line += (" -- the days in different states there: from a save in the stand-by, its "
+             "next branch begun at another instant, as a restored stand-by holds a "
+             "fresh 5 s (#780's limit)")
+  return line, 1
 
 
 # ---- the child ---------------------------------------------------------------
@@ -469,18 +497,9 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict, in_step: bool = Fal
   print(f"{saved_words(row, in_step, at)}; traces in {out}")
   # ...and what it sensed: a look the straight day never took moves no
   # joint, and every restore took one until the last look was kept
-  sensed = first_perception_difference(a, b)
-  if not rep["diverged"] and sensed is None:
-    print(f"IDENTICAL after the restore over {rep['stepsCompared']} state samples "
-          f"and every look and scan")
-    return 0
-  if not rep["diverged"]:
-    print(f"SENSED OTHERWISE: the state IDENTICAL over {rep['stepsCompared']} samples, "
-          f"but the first look or scan that differs is {sensed}")
-    return 1
-  print(f"DIVERGED: same until t={rep['lastSameT']}, differs at {rep['firstDiffT']} "
-        f"(states {rep['stateA']} / {rep['stateB']})")
-  return 1
+  line, code = verdict(rep, first_perception_difference(a, b), in_step)
+  print(line)
+  return code
 
 
 def main() -> int:
