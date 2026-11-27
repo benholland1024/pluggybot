@@ -251,7 +251,9 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 
 - **What is saved.** For the physics: every joint's position and velocity,
   the solver's warm start and every actuator's control, matched by NAME, plus
-  the mocap mouse, the sim clock and where the last step began
+  the mocap mouse, the sim clock, which islands sleep (#779: each tree by its
+  root body's name, `sleeping.kept`; a restore forwards with every tree awake
+  and puts the sleep back) and where the last step began
   (`continuation.LastStep`). Per robot: its pack, its believed pose
   (its legs' reckoning, with its planted foot), its posture and its
   clocks, its policies' drivers (their steps and targets, and the gains

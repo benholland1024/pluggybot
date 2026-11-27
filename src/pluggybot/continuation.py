@@ -9,8 +9,9 @@ task board) and nothing it had DONE. So a robot at 5 % in minute 59 woke
 at 100 %, which is the buffer the sixth quality measures, refilled free.
 
 This module keeps the rest: every body by name (robots, the counter's
-props, the mouse), the sim clock, each robot's pack, believed pose, occupancy grid,
-height map, rack belief, clocks and whether it is dead, the world's
+props, the mouse) and which of them sleep (#779), the sim clock, each
+robot's pack, believed pose, occupancy grid, height map, rack belief, clocks
+and whether it is dead, the world's
 activities and the producer's schedule. `Keeper` writes it every
 `SAVE_EVERY_S` and at shutdown; `restore` puts it back after `begin()` and
 before the day routine runs. docs/Webserver.md, "A restart is a
@@ -226,7 +227,8 @@ def put_physics(model, data, index: dict, arrays: dict, forward: bool = True) ->
   never computes again until it wakes, so they are computed with every tree
   awake, its sleep put back after. Put back without it, every island woke at
   a restore and the world parted (MuJoCo: "sleeping islands will be
-  implicitly woken up"). A save from a world that never slept wakes none."""
+  implicitly woken up"). A save from a world that never slept carries no
+  sleep, and every tree comes back awake."""
   here = {k: (a, n, d, vn) for k, a, n, d, vn in _joint_keys(model)}
   qi = vi = 0
   matched = missed = 0

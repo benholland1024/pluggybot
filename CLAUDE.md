@@ -2149,7 +2149,12 @@ save a filmstrip PNG named after the script.
   (without it a step parts by 1e-12), and the LAST STEP STEPPED AGAIN from
   where it began (#420; `LastStep`, `replay`): a running world's forward
   pass is a step behind its `qpos`, and one forwarded fresh parted at the
-  walking policy's first decision. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
+  walking policy's first decision. ⚠ AND THE ISLANDS' SLEEP (#779;
+  `sleeping.kept`, `put`): MuJoCo's own state calls leave `tree_asleep` out,
+  so a save carries it by each tree's root body's name (the replayed step's
+  too), and a restore forwards with every tree awake and puts it back -- put
+  back as MuJoCo puts a state, every island woke at a restore and the world
+  parted. ⚠ AND THE BOOKKEEPING A ROUTINE STILL
   OWED IT AFTER THE HOOKS (`_after_step`: the look, the depth frame's fold,
   the scan) BOOKED THERE (#749; `Body.book_owed`; Webserver.md): the keeper
   saves inside a step's hooks, so every routine that books its steps yields
@@ -2792,6 +2797,20 @@ save a filmstrip PNG named after the script.
   and a runtime toggle is global state that leaks across fixtures and robots.
   Creep is fixed at its source, per part; `tests/test_noslip_policy.py`
   guards it.
+- **What rests SLEEPS, every robot `never`** (#779; `pluggybot/sleeping.py`,
+  `tests/test_sleeping.py`; SimNotes, "Bodies at rest asleep"): MuJoCo 3.10's
+  island sleeping at its own tolerance in every world `home_spec` and
+  `counter.model_of` build -- a tree still for `mjMINAWAKE` (10) steps sleeps
+  with what it touches, its contacts and dynamics skipped until a touch, a
+  write of its pose, a velocity or a force wakes it in that step (the step
+  x0.645 with the place set out, the pair's pace x1.05-1.06 at 11-25's
+  hours, C10). ⚠ The flag acts when the `MjData` is made: a world compiled
+  elsewhere (an instrument's own) does not sleep. ⚠ A BODY NOTHING WAKES
+  STAYS WHERE IT SLEPT: a redraw's springs or masses act on a sleeping prop
+  only once something wakes it, and a set-out writing the pose it rests at
+  wakes nothing (the drawer's). ⚠ Static scenery's poses are computed once,
+  as the `MjData` is made (`activity/base.py`). A feature MuJoCo calls
+  preliminary (3.4.0, 2025-12).
 - **What the rover paid for that binds any body** (`rover-final` has the
   stories): every TERMINAL LOOP has a budget and an explicit answer — an
   empty pack does not stop the body and the guards run between errands, so an

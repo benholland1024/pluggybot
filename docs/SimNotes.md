@@ -404,8 +404,9 @@ byte-identical to the same runs alone, and a full day did not: the state
 parted at t = 98.2 s by 1.4 × 10⁻¹⁴ on a free joint, with `ctrl` identical
 and no perception input differing for 70 s after. That is the constraint
 solver's rounding with an extra island in the problem, not a code path, and
-chaos does the rest; `mjENBL_SLEEP` changes the first robot's numbers on its
-own. **What is true now:** the parity instrument
+chaos does the rest (island sleeping, on since #779, parts a robot only where
+it reads or touches what slept: "Bodies at rest asleep"). **What is true
+now:** the parity instrument
 (`scripts/determinism_spike.py`) proves a CODE change exact by flying the
 same world before and after; a WORLD change -- another body, even one that
 touches nothing -- is a different day at the 10⁻¹⁵ level, and its parity
@@ -13122,6 +13123,62 @@ a minute where no step came between: such a ghost can pass a posture over
 too). The arm against its own trunk in a carry's posture is #726's, which
 judges a reach's plan alone (the checkout's carry met its own gripper with
 its head at 21-116 N).
+
+## Bodies at rest asleep (issue #779)
+
+Every body at rest cost every physics step: each contact it makes with what
+it stands on is a constraint the solver solves every 2 ms, though nothing
+moves. In the served pair's house, besides the robots' feet, the place set
+out made 82 (the plate's 16 wall boxes 64), the five loose props of the lab
+and the workshop 20, the counter's cube 4. MuJoCo 3.10's island sleeping
+skips them: a tree whose velocities, each scaled by its dof's length, stay
+under `opt.sleep_tolerance` (1e-4) for `mjMINAWAKE` (10) steps sleeps with
+every tree it is constrained to, its velocities zeroed; its contacts with
+what is static, its kinematics, dynamics and integration are skipped until
+a touch, a write of its pose, a velocity or a force wakes it, in the
+position stage of that step.
+
+Measured before it was built (C10, `loop-step-rest`, one EPYC 7642): the
+physics step x0.645 with the place set out and x0.825 with it away, the
+pair's pace +5.7-7.1 % and +2 % (faster in 32 round-pairs of 32); the
+robots' state stays bit for bit wherever they read or touch nothing that
+slept (drawers 0 and 3, a station approach, the pair's whole 262 s scripted
+day), and parts at the first reading of what slept (a sleeping piece is
+exactly still where an awake one drifts by the solver's rounding) or at a
+second touch of a drawer (the first touch of a tree put to sleep at rest
+reads as if it had never slept; one put to sleep with velocities under the
+tolerance had them zeroed); no touch in 216 sleeping flights left a sleeping
+tree touching an awake one; the counter's 64 checks passed 54 with and
+without it, and the served table job over the tour 27 of 32 on both. The
+cup never sleeps at MuJoCo's tolerance (its flat end jitters at 2.9e-4 on
+the table); the chest's lid never where its catch's torque is applied.
+
+**What is true now:** every world `home_spec` and `counter.model_of` build
+sleeps at MuJoCo's tolerance, every robot's tree `never`
+(`pluggybot.sleeping.enable`); a world compiled elsewhere -- an
+instrument's own -- does not, since the flag acts when the `MjData` is
+made. Its state is state: `tree_asleep`, which MuJoCo's own state calls
+(`mj_getState`) leave out. A save carries it by each tree's root body's
+name, and as the step it was taken after began (`LastStep`); a restore
+forwards with every tree awake -- a sleeping tree's derived quantities are
+the ones it fell asleep with, never computed again until it wakes -- puts
+the sleep back and rebuilds what MuJoCo derives from it (`sleeping.update`,
+MuJoCo's `mj_updateSleep`, which the Python bindings do not expose, read
+against MuJoCo's own arrays); the step stepped again lands on the save's
+sleep, since a tree woken in it by a tree counting down to sleep takes that
+tree's count and, stepped again, the pose it woke at wakes it counting from
+the start. Without it every island woke at a restore, and five of
+`test_continuation`'s parity tests failed. A save from a world that never
+slept carries no sleep and comes back with every tree awake. ⚠ A body
+nothing wakes stays where it slept: a change to the model (a redraw's
+springs or masses) acts on a sleeping prop only once something wakes it,
+and an offer's set-out that writes the pose it already rests at wakes
+nothing -- the drawer's, which sleeps at exactly its compiled pose, so its
+redrawn friction and damping act from its first touch (the door and the
+cube rest off theirs, and their set-outs wake them). ⚠ Static scenery's
+poses are computed when the `MjData` is made
+and never again (`activity/base.py`'s `GeomToggle` said so before; with
+the flag on it holds for every static body).
 
 ## Debugging workflow that worked
 
