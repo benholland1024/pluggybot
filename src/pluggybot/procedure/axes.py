@@ -240,7 +240,7 @@ for _k, _a in enumerate("xyz"):
     "of the face it read")
   SENSORS[f"spot.n{_a}"] = Sensor(
     f"spot.n{_a}", (lambda key: lambda life: reported("spot", key, life))(f"n{_a}"),
-    f"which way that face looks ({_a}): a unit vector from it into the thing it is "
+    f"the way into that face ({_a}): a unit vector from it into the thing it is "
     "printed on")
   SENSORS[f"spot.e{_a}"] = Sensor(
     f"spot.e{_a}", (lambda key: lambda life: reported("spot", key, life))(f"e{_a}"),
@@ -296,7 +296,7 @@ for _k, _a in enumerate("xyz"):
     f"frame ({_a}): the middle of the face it read", every_s=WATCH_EVERY_S)
   SENSORS[f"watch.n{_a}"] = Sensor(
     f"watch.n{_a}", _watched(f"watch.n{_a}", _k, "normal"),
-    f"which way that face looked ({_a}): a unit vector from it into the thing it is "
+    f"the way into that face ({_a}): a unit vector from it into the thing it is "
     "printed on", every_s=WATCH_EVERY_S)
   SENSORS[f"watch.e{_a}"] = Sensor(
     f"watch.e{_a}", _watched(f"watch.e{_a}", _k, "edge"),

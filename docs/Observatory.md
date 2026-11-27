@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `spot`'s words say its normal points into the tag's face (#776's option 1, C11, `loop-words4`) — opens when this PR is deployed
+
+**What the robots read** moves by one sentence and six sensor lines, on
+purpose: the prompt `3f8b2dc7…` (72,160 characters, 17 sections) becomes
+`72ba9d1d…` (72,233, 17 sections), one section moved, PROCEDURES YOU MAY
+WRITE (+73); the session host's hello `9dcf6202` becomes `63b8b6d3` (its
+body's `spot` text and the same six lines, in its vocabulary and its index).
+No History line is new or reworded. Each a draft for Ben:
+- `spot`'s text, BEFORE: "Where its face is, which way the face looks and
+  which way its edges run ride `spot.*`." AFTER: "Where its face is, the way
+  into it and which way its edges run ride `spot.*`: `spot.nx`..`nz` point
+  from the face into the thing it is printed on, the opposite of the way it
+  looks." (+94)
+- `spot.nx`..`nz`, BEFORE: "which way that face looks (x): a unit vector from
+  it into the thing it is printed on"; AFTER: "the way into that face (x): a
+  unit vector from it into the thing it is printed on" (-3 each).
+  `watch.nx`..`nz`, read off the same decode, the same ("which way that face
+  looked" before, -4 each).
+  `find.facing` says which way a tag's face looks, out of it, and is
+  unchanged: that is what it reads.
+
+**What a deployed robot does**: nothing new. The reading is as it was, the
+normal into the face (`perception.tags.TagDetector.detect`): a tag lying face
+up on the floor, decoded by the standing robot's colour camera, reads `nz`
+-1 on both trees (`test_hands.py`).
+
+**Why** (#776). A procedure that took the words at face value and turned the
+robot to where the face looks would turn it 180 deg the wrong way. Our
+references read the true sign (`challenge/solutions.py`, 9 places). Lines
+naming `spot.nx`, `spot.ny` or `spot.nz` in the wakes' procedure rows,
+sources and readouts alike (#776's count, not uses): 58 on 11-15, 17 on
+11-18, 15 on 11-22, 49 on 11-25.
+
+**What to read.** The weekend's wakes (11-28 and 11-29, build 4e486aa1) fly
+the old words. On the wakes after this deploys: each robot procedure that
+reads `spot.n*` into a turn or a place, and whether it takes the sign as the
+reading has it (to face a tag square-on is to turn along the reading,
+`atan2(ny, nx)`, as our references do; a point behind its face is `spot.x`
+plus the normal), against those wakes.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the
