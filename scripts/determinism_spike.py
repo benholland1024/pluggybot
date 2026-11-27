@@ -65,14 +65,16 @@ def in_flight(life, day) -> list[str]:
   """WHAT A RESTART ENDS (#780), at a step: the routines the day loop `day`
   (`HubLifecycle.begin`'s) is inside, outermost first, where one is the
   loop's own -- its explore, a charge trip, an errand, a decision, a walk off
-  the rack -- with the body's routine it is in after them
+  the station -- with the body's routine it is in after them
   (`explore_routine > drive_to_routine`); else none. A restore begins the
-  day loop again at its top, and what it was inside ends (Webserver.md: the
-  errand in flight ends), so the day after differs from the one flown
-  straight through. Only the body's routine the loop holds itself in, its
-  stand-by, the restored loop begins again as it was. ⚠ Before the loop's
-  first pass the day's start is in flight, which this cannot tell: a
-  restored day skips it (the caller's to know)."""
+  day loop again at its top, so what it was inside ends there (Webserver.md:
+  the errand in flight ends) and the day after differs from the one flown
+  straight through. With none, the loop is in its stand-by, the one routine
+  of the body's it holds itself in after its start, which the restored loop
+  holds again -- until it next takes another branch: a restored hold is a
+  fresh 5 s, its passes come at other instants, and on the demo pack a charge
+  began 2.35 s early. ⚠ Before the loop's first pass the day's start is in
+  flight, which this cannot tell (`Flight` can)."""
   names, owned = [], False
   g = getattr(day, "gi_yieldfrom", None)
   while g is not None and getattr(g, "gi_frame", None) is not None:
@@ -134,6 +136,8 @@ def saved_words(row: dict, in_step: bool, at: float) -> str:
           f" from t={first['t']} it passed over {row['passedOver']} steps with "
           f"{' > '.join(first['inFlight'])} in flight, which a restart ends by design "
           "(the errand in flight ends, #780)")
+  if row["k"] == "nosave" and not in_step:
+    return f"NOT SAVED: the day loop never passed its top from t={at} to the day's end"
   if row["k"] == "nosave":
     return (f"NOT SAVED: no step from t={at} to the day's end had nothing in flight"
             + (f";{over}" if over else ""))

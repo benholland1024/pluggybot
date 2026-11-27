@@ -85,6 +85,8 @@ def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
                         True, 200.0).startswith(
     "NOT SAVED: no step from t=200.0 to the day's end had nothing in flight; from "
     "t=200.088 it passed over 9 steps with explore_routine > drive_to_routine")
+  assert ds.saved_words({"k": "nosave", "passedOver": 0, "firstInFlight": None}, False, 400.0) == (
+    "NOT SAVED: the day loop never passed its top from t=400.0 to the day's end")
 
 
 def test_the_saving_arm_asks_before_it_writes():
