@@ -12712,8 +12712,8 @@ P2's plans that passed over found their posture within 6 judgments in 85
 of 121, and a cap at 10 (about 1 s) would refuse the other 36 -- where P2
 held 13 to the base's 6 and fell once.
 
-**What it does not do.** The legs, the trunk and the head are not judged
-(the thighs never felled the robot alone). A face never seen, or moved
+**What it does not do.** The legs are not judged (the thighs never felled
+the robot alone); the trunk and the head are #763's (below). A face never seen, or moved
 since, is not there, nor one seen more than a minute before (`KNEE_S`, as
 the knees' memory): up close the camera sees the top alone, so a later
 procedure's reach at the counter is judged on the minute before it -- 112
@@ -12730,6 +12730,89 @@ none fell among the reaches it judged clear. A column's top 3 cm, a
 counter's front edge among them, is no face. A way home, a carry and a pull are not judged. The
 statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
 the truth lags the commands: the census, not the model, set the clearance.
+
+## A reach's bow under a shelf's board (issue #763)
+
+A procedure's reach takes the least bent posture its hand gets there from
+(`plan`). At the shop shelf's upper board (0.96 m) a set-down's pre-point
+0.24-0.33 m ahead at 1.07 m is reached only from the deepest bows -- 63 deg
+with the waist turned 60 -- and there the head comes under the board above
+the hands' work, or onto its front edge. Nothing judged the head: #747's
+swing walks the arms alone, #717's bow room bounds a look's bow. The next
+change of posture -- the move in, the press's search, the back-out, the
+withdraw's stand -- rises into the board, the trunk cannot come up while the
+legs' held pitch walks back to the stand, and the fall watch counts a fall.
+Five of the seven falls traced in #736's rounds 5-7 were this, the head on
+the board at 65-514 N; lane C's loading rack met it in 6 of 12 flights, a
+carry's bow struck the checkout counter at 105-193 N, and a gripped pull's
+the kitchen shelf's work board at 65-606 N (the loop of 11-26's lanes).
+
+**What the robot sees of the board.** The arms' memory (#747) keeps it, but
+not as a face: a 2 cm board's top and front edge lie within `ARMS_TOP_M` of
+its column's top, which a hand comes down over, and its underside is never
+seen from above. At the shop census's 59 upper set-down plans its front row
+was a face in 21 (0-4 voxels), in the whole memory in 54 (2-174) and its top
+in all 59. The LIDAR's band at the head's height starts at `OVER_Z` (1.05 m)
+and never sees it. And what the memory holds of it was laid on the way in:
+walking the last steps to the label the belief moved 6-8 cm against what the
+camera saw on the way, and a board laid before stood 2-7 cm nearer than it
+was (six cases against the truth); seen since the feet last moved, within 1
+cm (`ArmsMemory.since`, `last_motion_t`). At the 754 posture choices the
+shadow census below judged, that view was never empty.
+
+**The judgment** (`Reach._trunk`, `trunk_parts`, `trunk_gap`;
+`HumanoidMission.trunk_seen`). The trunk above the waist -- the torso, the
+head's parts and the LIDAR, each its exact signed distance -- walked on the
+commands' clocks into the posture, as #747 walks the trunk, and back up from
+it to the stand's, the way every withdraw ends; against what the depth
+camera saw since the feet last moved, tops kept, nothing cut round the goal.
+A posture any part of whose trunk comes nearer than `TRUNK_CLEAR_M` -- or,
+begun nearer, nearer than it began less 5 mm -- is passed over: a reach's
+plan (beside #747's arms; a plan that passed one over takes no look) and its
+look's second posture, a carry's and a pull's at their ask and in their
+replans on the way. Where no posture keeps clear, a reach moves nothing and
+says what its first would meet ("head"); a carry is refused before it moves,
+or held in the posture it is in and ends out of reach; a pull is held where
+it is. The loop's own moves are never judged, nor a way home: the withdraw's
+stand is the way out. Nothing seen since the feet moved judges nothing.
+
+**Calibrated in a shadow census before it acted** (B2c's `headrec`, its
+verdicts recorded and never acted on; a census flight with it is the plain
+flight to the bit but its wall clock): the shop shelf's dev flights -- the
+census's 64 checks and 32 tours, the arm A10's (#736's round 5) 64 and 32,
+and the three other falls -- on one pod (a Xeon E5-2698 v4, which the dev box
+replays): 162 upper set-downs, 156 in bows of 0.8 rad or more, the head on
+the world over 20 N in 10, a fall after it in 5 (the five traced). Two of the
+five were clear on the way in and met the board only on the way up (the
+fallback reach's deepest bow, A10's k228 and U35's k213). The view since the
+feet moved, at a clearance of 0: every fall's entry passed over, 9 of the 10
+contacts flagged before they came, 3 set-downs flagged that met nothing; at
+#747's -0.005, k228's entry is taken (its walk up 3 mm in) and only the rise
+out of it is flagged, which leaves the head under the board for the
+withdraw's stand to jam -- the rule's written criterion, read to the letter
+(a choice flagged at or before the first contact), had picked -0.005 through
+that rise; 0 was chosen by the entry, 5 of 5 against 4 of 5, at one more
+set-down flagged that met nothing. The whole memory at -0.005 flagged 17, 7 of
+them nothing but a board laid before the last steps. ⚠ THE LIVE TRUNK GOES
+DEEPER THAN THE STATUE'S WALK: a tour's press into a 0.95 rad bow whose walk up
+kept 0.6 mm off the board (the truth 3.8 mm in) pressed the head on it at 457
+N in the withdraw -- the rule's known limit.
+
+**What it costs.** One judgment is 5-20 ms on the dev box; a plan it passes
+over nothing in, 0-15 ms more (k253's deep plan 6.48 -> 6.50 s, a reach
+across the body 660 -> 666 ms, one to its own side 64 -> 79 ms). Where it
+passes one over, the search goes on through the rest of the postures as
+#747's refusals do (k253's pre-point with the board 0.42 m ahead, 6.5 -> 11.5
+s of the one physics thread). A hands check's door, five judgments, 44 ms.
+
+**What it does not do.** A posture already held is never judged (no change,
+nothing walks), nor one the loop's own move takes (a charge's plug-in). A
+thing the camera saw before the feet last moved is not there; one moved
+since it was seen is (#747's memory keeps a picked piece's former place up to
+a minute where no step came between: such a ghost can pass a posture over
+too). The arm against its own trunk in a carry's posture is #726's, which
+judges a reach's plan alone (the checkout's carry met its own gripper with
+its head at 21-116 N).
 
 ## Debugging workflow that worked
 
