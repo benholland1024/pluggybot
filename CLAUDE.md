@@ -943,12 +943,19 @@ save a filmstrip PNG named after the script.
   a self-hit is none); its robot's own returns dropped, another robot's split
   out (#316), its noise its robot's own (`imu.seed_for`). ⚠ WHAT A HAND HOLDS
   IS NO RETURN (#682, Ben's call 5; `HumanoidMission.HELD_DROP_M`,
-  `_held_drop`, `Lidar.band`'s `drop`): every return within 0.12 m of a grip
-  that reads held, placed off the robot's model of itself -- never the
-  simulator's geoms -- is neither a point nor a ray that went on (a bearing it
-  stopped reads nothing, never free), in the band and in the depth camera's
-  low layer alike: seen, 7 of 10 holding poses never arrived, the front stop
-  backing the robot off its own plate. ⚠ THE MAP'S SCAN IS
+  `HELD_DEPTH_M`, `_held_drop`, `Lidar.band`'s `drop`): every return within
+  0.25 m of a grip that reads held -- in the depth camera's frame, 0.20 --
+  placed off the robot's model of itself, never the simulator's geoms, is
+  neither a point nor a ray that went on (a bearing it stopped reads nothing,
+  never free): seen, 7 of 10 holding poses never arrived, the front stop
+  backing the robot off its own plate. ⚠ EACH RADIUS IS WHAT A JOB'S CARRIED
+  PIECES NEED OF IT, TO THE CM AND NO WIDER (#762; `tests/test_self_filter.py`,
+  its `CARRIED` the references' grips, which #736's merge grows): the farthest
+  point of a piece that sensor can see at the carry pose, the 3 cm the model
+  may be off the true grip and two sigmas of its range noise -- the LIDAR's
+  the pass's fork's head (0.241), the depth camera's the plate's rim (0.198):
+  at 0.12, #736's candle fired the front stop on a fifth of the scans carried
+  and every carried walk crawled. ⚠ THE MAP'S SCAN IS
   THE BAND (`Lidar.band`): per bearing the nearest surface 0.15-2.2 m over
   the floor, levelled through the IMU's tilt and set over the floor by its
   model of itself -- the fences, the tables, the couch with the walls -- ⚠ its
@@ -3118,8 +3125,8 @@ save a filmstrip PNG named after the script.
   (`HumanoidMission._fold_low`, the quadruped's rules, #387) -- within 1.8
   m, three frames of evidence, never beside what the LIDAR maps, each rule
   after a stray cell shut a door (`tests/test_humanoid_served.py`), and
-  nothing within `HELD_DROP_M` of a grip that holds (#682, the LIDAR's
-  bullet). KEPT
+  nothing within `HELD_DEPTH_M` of a grip that holds (#682, #762, the
+  LIDAR's bullet). KEPT
   beside the band, MEASURED (#581's stage 2): it adds the tops of the bed
   and the couch, which the band outlines from where it stands, and what lies
   under the band's floor (the flight's first riser); nothing it laid was
