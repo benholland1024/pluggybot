@@ -637,15 +637,9 @@ class HumanoidBody(Body):
   def stance(self) -> tuple[float, float, float]:
     """Where it believes its stance is, (x, y, heading): its pelvis where it
     believes it, less where its legs' encoders put the pelvis over its feet
-    (its odometry's model of itself, posed every tick)."""
-    x, y, yaw = self.mission.pose
-    sm = self.mission.odo.sm
-    rot = np.zeros(9)
-    mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
-    syaw = yaw - _yaw(rot.reshape(3, 3))
-    c, s = math.cos(syaw), math.sin(syaw)
-    px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
-    return x - (c * px - s * py), y - (s * px + c * py), syaw
+    (its odometry's model of itself, posed every tick;
+    `HumanoidMission.believed_stance`, one definition)."""
+    return self.mission.believed_stance()
 
   @property
   def reckoned(self) -> tuple[float, float, float]:

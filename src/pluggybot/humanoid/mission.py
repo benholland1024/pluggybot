@@ -377,18 +377,33 @@ class ArmsMemory(KneeMemory):
   def __init__(self) -> None:
     super().__init__()
     self.pts = np.zeros((0, 3))
+    #: The believed stance (x, y, heading) each kept frame was folded at, by
+    #: the frame's time (`fold`'s `stance`): what `since` places its voxels
+    #: through (#763's remedy).
+    self.stances: dict[float, tuple[float, float, float]] = {}
 
   def forget(self) -> None:
     self.pts, self.t = np.zeros((0, 3)), np.zeros(0)
+    self.stances = {}
 
-  def fold(self, points: np.ndarray, t: float, pose, corrected, facing: float = 0.0) -> None:
+  def _keep_stances(self) -> None:
+    """The folds' stances that a kept voxel still has as its newest sight."""
+    held = set(np.unique(self.t).tolist())
+    self.stances = {k: v for k, v in self.stances.items() if k in held}
+
+  def fold(self, points: np.ndarray, t: float, pose, corrected, facing: float = 0.0,
+           stance=None) -> None:
     """A levelled frame's points (from the pelvis along its heading, z over
     the floor; what a hand holds already out) at time `t`, its camera turned
     `facing` rad off the heading: those from `LOW_MIN_Z` to `ARMS_TOP_Z`
     within `KNEE_M` kept, in the believed world, in place of what was kept
     where the frame saw past it afresh (`KneeMemory.fold`'s rule); what is
-    older or further gone."""
+    older or further gone. `stance`, the believed stance the frame is folded
+    at (`HumanoidMission.believed_stance`), is kept while any voxel's newest
+    sight is this frame (`since`)."""
     self._jumped(corrected)
+    if stance is not None:
+      self.stances[float(t)] = tuple(float(v) for v in stance)
     p = points
     keep = ((p[:, 2] >= LOW_MIN_Z) & (p[:, 2] <= ARMS_TOP_Z)
             & (np.hypot(p[:, 0], p[:, 1]) <= KNEE_M)) if len(p) else np.zeros(0, dtype=bool)
@@ -411,6 +426,7 @@ class ArmsMemory(KneeMemory):
     ts = np.concatenate((np.full(len(new), float(t)), self.t[old]))
     if not len(pts):
       self.pts, self.t = pts.reshape(0, 3), ts
+      self._keep_stances()
       return
     # ...one a voxel, the newest sight of it: its index packed into one key
     # (a voxel's three indices each well inside 2**20 either side)
@@ -418,6 +434,7 @@ class ArmsMemory(KneeMemory):
     key = (v[:, 0] << 42) | (v[:, 1] << 21) | v[:, 2]
     _, first = np.unique(key, return_index=True)
     self.pts, self.t = (v[first] - (1 << 20)) * ARMS_VOX_M, ts[first]
+    self._keep_stances()
 
   def near(self, pose, corrected) -> np.ndarray:
     """The voxels from its pelvis along its heading, z over the floor, where
@@ -427,22 +444,31 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
-  def since(self, pose, t0: float, corrected=None) -> np.ndarray:
-    """The voxels last seen at or after `t0`, tops kept, from its pelvis along
-    its heading, z over the floor, where its belief has it now (#763, what a
-    procedure's posture judges its trunk against, `Reach._trunk`) -- none
-    where the belief jumped since the memory last read it (`KNEE_JUMP_M`,
-    `KNEE_JUMP_RAD`: placed where it no longer is; no frame folds while the
-    body is bowed) -- a read that forgets nothing (`near` forgets on a jump):
-    nothing a flight reads after it changes."""
-    if corrected is not None and self.seen is not None:
-      d = np.asarray(corrected, dtype=float) - self.seen
-      if math.hypot(d[0], d[1]) > KNEE_JUMP_M or abs(d[2]) > KNEE_JUMP_RAD:
-        return np.zeros((0, 3))
+  def since(self, t0: float) -> np.ndarray:
+    """The voxels last seen at or after `t0`, tops kept, each in the stance
+    frame it was seen from: placed through the believed stance its frame was
+    folded at (`fold`'s `stance`), never the stance now (#763's remedy, what a
+    procedure's posture judges its trunk against, `Reach._trunk`). ⚠ THROUGH
+    A BOW THE BELIEF MOVES BY THE LEGS' RECKONING ALONE (a reach steps no
+    scan) and no frame folds: placed through it, lane C's rack's board read
+    1.6 cm further at a look than at its plan (the believed stance 2 cm off
+    as the pelvis went back 17 cm), and a rise 1.2 cm into its underside read
+    clear; the stance a frame was folded at is where it stands still while
+    the feet have not moved. A belief that jumped since moves none of it. None
+    from a frame folded with no stance (a memory kept from before it). A read
+    that forgets nothing."""
     keep = self.t >= t0 - 1e-9
     if not keep.any():
       return np.zeros((0, 3))
-    return np.concatenate((self._from(pose)[keep], self.pts[keep, 2:3]), axis=1)
+    pts, ts = self.pts[keep], self.t[keep]
+    folds = np.unique(ts)
+    known = np.array([float(f) in self.stances for f in folds])
+    at = np.array([self.stances.get(float(f), (0.0, 0.0, 0.0)) for f in folds]).reshape(-1, 3)
+    i = np.searchsorted(folds, ts)
+    c, s = np.cos(at[i, 2]), np.sin(at[i, 2])
+    dx, dy = pts[:, 0] - at[i, 0], pts[:, 1] - at[i, 1]
+    out = np.stack([c * dx + s * dy, -s * dx + c * dy, pts[:, 2]], axis=1)
+    return out[known[i]]
 
   def faces(self, pose, corrected, top_m: float = ARMS_TOP_M) -> np.ndarray:
     """`near`'s, less each column's top (`ARMS_TOP_M` under its highest):
@@ -460,8 +486,11 @@ class ArmsMemory(KneeMemory):
     return pts[self.pts[:, 2] < high[inverse] - top_m - 1e-9]
 
   def kept_state(self) -> tuple[dict, dict]:
+    folds = sorted(self.stances)
     return ({"seen": None if self.seen is None else [float(v) for v in self.seen]},
-            {"armsPts": self.pts, "armsT": self.t})
+            {"armsPts": self.pts, "armsT": self.t,
+             "armsFoldT": np.array(folds, dtype=float),
+             "armsFoldStance": np.array([self.stances[f] for f in folds], dtype=float).reshape(-1, 3)})
 
   def restore_kept(self, state: dict | None, arrays: dict) -> None:
     if state is None or "armsPts" not in arrays:
@@ -471,6 +500,11 @@ class ArmsMemory(KneeMemory):
     self.pts = np.asarray(arrays["armsPts"], dtype=float).reshape(-1, 3)
     self.t = np.asarray(arrays["armsT"], dtype=float)
     self.seen = None if state["seen"] is None else np.array(state["seen"], dtype=float)
+    # ...a save from before #763's remedy kept no stances: its voxels judge
+    # no trunk until a frame folds again (`since`)
+    folds = np.asarray(arrays.get("armsFoldT", np.zeros(0)), dtype=float).reshape(-1)
+    at = np.asarray(arrays.get("armsFoldStance", np.zeros((0, 3))), dtype=float).reshape(-1, 3)
+    self.stances = {float(f): tuple(float(v) for v in a) for f, a in zip(folds, at)}
 
 
 class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
@@ -1463,7 +1497,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._fold_low(points)
     facing = float(self.odo.sm.q[self.odo.sm.waist][0])
     self.knee.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing)
-    self.swing.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing)
+    self.swing.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing,
+                    stance=self.believed_stance())
 
   def arms_seen(self) -> np.ndarray:
     """What its depth camera has seen where its arms swing (`ArmsMemory`) at a
@@ -1476,17 +1511,31 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def trunk_seen(self) -> np.ndarray:
     """What its depth camera has seen where its arms swing, TOPS KEPT, since
-    its feet last moved (`ArmsMemory.since`, `last_motion_t`), placed as
-    `arms_seen` places its faces: what a procedure's posture judges its trunk
-    against (#763, `Reach._trunk`). ⚠ A TOP IS WHAT A HEAD COMES DOWN ON: a
-    shelf's board, 2 cm thick, is a column's top whole, no face. ⚠ AND ONLY
-    SINCE THE FEET MOVED: walking to a shelf's label the belief moved 6-8 cm
-    against what it saw on the way, and a board laid before the last steps
-    stood 2-7 cm nearer than it was (seen since, within 1 cm). Empty just
-    after a step, before the camera has seen again, or where the belief
-    jumped since the memory last read it: nothing is judged."""
-    return self._in_stance(self.swing.since(self.pose, float(self.last_motion_t),
-                                            self.odo.corrected))
+    its feet last moved (`ArmsMemory.since`, `last_motion_t`), in its stance
+    frame as each frame of it was folded (`believed_stance`): what a
+    procedure's posture judges its trunk against (#763, `Reach._trunk`). ⚠ A
+    TOP IS WHAT A HEAD COMES DOWN ON: a shelf's board, 2 cm thick, is a
+    column's top whole, no face. ⚠ AND ONLY SINCE THE FEET MOVED: walking to
+    a shelf's label the belief moved 6-8 cm against what it saw on the way,
+    and a board laid before the last steps stood 2-7 cm nearer than it was. ⚠
+    NEVER THROUGH THE BELIEF AS IT IS NOW (#763's remedy): through a bow the
+    legs' reckoning carries it 1-3 cm while the feet stand. Empty just after
+    a step, before the camera has seen again: nothing is judged."""
+    return self.swing.since(float(self.last_motion_t))
+
+  def believed_stance(self) -> tuple[float, float, float]:
+    """Where it believes its stance is, (x, y, heading): its pelvis where it
+    believes it, less where its legs' encoders put the pelvis over its feet
+    (its odometry's model of itself, posed every tick) -- `HumanoidBody.stance`,
+    and what each frame of the arms' memory is folded at (`ArmsMemory.since`)."""
+    x, y, yaw = self.pose
+    sm = self.odo.sm
+    rot = np.zeros(9)
+    mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
+    syaw = yaw - math.atan2(rot[3], rot[0])
+    c, s = math.cos(syaw), math.sin(syaw)
+    px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
+    return x - (c * px - s * py), y - (s * px + c * py), syaw
 
   def _in_stance(self, pts: np.ndarray) -> np.ndarray:
     """Voxels from its pelvis along its heading (the memory's), in its stance

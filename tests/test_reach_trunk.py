@@ -214,23 +214,112 @@ def test_the_view_is_what_it_saw_since_its_feet_last_moved_tops_kept_and_a_pure_
   pose, corrected = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
   before = np.array([[0.5, y, 0.96] for y in np.arange(-0.2, 0.2, 0.02)])
   after = np.array([[0.6, y, 0.94] for y in np.arange(-0.2, 0.2, 0.02)])
-  mem.fold(before, 1.0, pose, corrected)
-  mem.fold(after, 3.0, pose, corrected)
-  pts, ts = mem.pts.copy(), mem.t.copy()
-  seen = mem.since(pose, 2.0)
+  mem.fold(before, 1.0, pose, corrected, stance=pose)
+  mem.fold(after, 3.0, pose, corrected, stance=pose)
+  pts, ts, folds = mem.pts.copy(), mem.t.copy(), dict(mem.stances)
+  seen = mem.since(2.0)
   assert len(seen) == len(after) and np.allclose(np.sort(seen[:, 0]), 0.6)
-  assert len(mem.since(pose, 0.5)) == len(before) + len(after)
-  assert len(mem.since(pose, 4.0)) == 0
+  assert len(mem.since(0.5)) == len(before) + len(after)
+  assert len(mem.since(4.0)) == 0
   # ...the board's top is in it, where the faces leave a column's top out
   assert len(mem.faces(pose, corrected)) == 0
-  # ...none where the belief jumped since the memory last read it (placed
-  # where it no longer is), and nothing forgotten: it is a pure read
-  mem.seen = np.array([0.0, 0.0, 0.0])
-  assert len(mem.since(pose, 0.5, (0.05, 0.0, 0.0))) == len(before) + len(after)
-  assert len(mem.since(pose, 0.5, (0.2, 0.0, 0.0))) == 0
-  assert len(mem.since(pose, 0.5, (0.0, 0.0, 0.1))) == 0
-  assert np.array_equal(mem.pts, pts) and np.array_equal(mem.t, ts)
-  assert np.array_equal(mem.seen, [0.0, 0.0, 0.0])
+  # ...and nothing forgotten: it is a pure read
+  mem.since(0.5)
+  assert np.array_equal(mem.pts, pts) and np.array_equal(mem.t, ts) and mem.stances == folds
+
+
+def test_the_trunks_view_stays_where_it_was_seen_while_the_belief_drifts_or_jumps():
+  """#763's remedy (`ArmsMemory.since`, `fold`'s `stance`): each voxel in the
+  stance frame its frame was folded at, never through the belief as it is
+  now. ⚠ Through a bow the legs' reckoning carried lane C's rack's believed
+  stance 2 cm while the feet stood, and placed through it the board read 1.6
+  cm further at the look than at the plan; and a belief that jumped since (a
+  match) moves none of it -- round 1's view went empty."""
+  from test_guard import _floor_body
+  body = _floor_body()
+  try:
+    mi = body.mission
+    top = np.array([[0.45, y, 0.96] for y in np.arange(-0.2, 0.2, 0.02)])
+    mi.swing.fold(top, 1.0, mi.pose, mi.odo.corrected, stance=mi.believed_stance())
+    mi.last_motion_t = 0.5
+    seen = mi.trunk_seen()
+    assert len(seen) == len(top)
+    # ...the legs' reckoning carries the belief 2 cm, the feet standing
+    mi.odo.x += 0.02
+    assert np.allclose(mi.trunk_seen(), seen, rtol=0.0, atol=1e-12)
+    # ...and a match jumps it 0.2 m and 0.1 rad
+    x, y, yaw = mi.pose
+    mi.odo.correct(x + 0.2, y, yaw + 0.1)
+    assert np.allclose(mi.trunk_seen(), seen, rtol=0.0, atol=1e-12)
+  finally:
+    body.close()
+
+
+def test_a_voxel_seen_again_is_placed_by_its_newest_frames_stance():
+  """The memory keeps each voxel's newest sight, and with it that frame's
+  believed stance: the same board corner seen again from a belief 1 cm on is
+  placed through the stance it was seen again from, and the first frame's
+  stance, no voxel's now, goes."""
+  mem = hmis.ArmsMemory()
+  z = np.zeros(3)
+  mem.fold(np.array([[0.5, 0.0, 0.96]]), 1.0, (0.0, 0.0, 0.0), z, stance=(0.0, 0.0, 0.0))
+  mem.fold(np.array([[0.49, 0.0, 0.96]]), 2.0, (0.01, 0.0, 0.0), z, stance=(0.01, 0.0, 0.0))
+  assert np.allclose(mem.since(0.5), [[0.49, 0.0, 0.96]], rtol=0.0, atol=1e-12)
+  assert list(mem.stances) == [2.0]
+  # ...and two frames' voxels, each through its own frame's stance
+  mem.fold(np.array([[0.41, 0.3, 0.9]]), 3.0, (0.03, 0.0, 0.0), z, stance=(0.02, 0.01, 0.0))
+  got = sorted(map(tuple, np.round(mem.since(0.5), 9)))
+  assert got == [(0.42, 0.29, 0.9), (0.49, 0.0, 0.96)] and sorted(mem.stances) == [2.0, 3.0]
+
+
+def test_the_folds_stances_ride_a_restart_and_a_save_without_them_judges_nothing(tmp_path):
+  """`ArmsMemory.kept_state`/`restore_kept`: the view comes back bit for bit
+  through a save's arrays; a save from before the remedy kept no stances,
+  and its voxels judge no trunk until a frame folds again."""
+  mem = hmis.ArmsMemory()
+  z = np.zeros(3)
+  rows = np.array([[0.45, y, 0.96] for y in np.arange(-0.2, 0.2, 0.02)])
+  mem.fold(rows, 1.0, (1.0, 2.0, 0.3), z, stance=(1.03, 2.01, 0.3))
+  mem.fold(rows + [0.1, 0.0, 0.0], 2.0, (1.0, 2.0, 0.3), z, stance=(1.02, 2.0, 0.31))
+  state, arrays = mem.kept_state()
+  np.savez(tmp_path / "w.npz", **arrays)
+  saved = dict(np.load(tmp_path / "w.npz"))
+  back = hmis.ArmsMemory()
+  back.restore_kept(state, saved)
+  assert len(back.since(0.5)) == len(mem.pts) > len(rows)
+  assert np.array_equal(back.since(0.5), mem.since(0.5))
+  prior = hmis.ArmsMemory()
+  prior.restore_kept(state, {k: v for k, v in saved.items() if not k.startswith("armsFold")})
+  assert len(prior.pts) == len(mem.pts) and len(prior.since(0.5)) == 0
+  prior.fold(rows, 3.0, (1.0, 2.0, 0.3), z, stance=(1.03, 2.01, 0.3))
+  fresh = int((prior.t == 3.0).sum())
+  assert 0 < fresh < len(prior.pts) and len(prior.since(0.5)) == fresh
+
+
+def test_the_look_step_folds_its_frame_at_the_stance_the_body_believes(monkeypatch):
+  """`HumanoidMission._look_step` hands the arms' memory the believed stance
+  it folds a frame at -- `HumanoidBody.stance`'s, one definition
+  (`believed_stance`)."""
+  from test_guard import _floor_body
+  body = _floor_body()
+  try:
+    mi = body.mission
+    mi.odo.correct(1.0, 2.0, 0.3)
+    frame = NS(points=np.array([[0.45, y, 0.96] for y in np.arange(-0.2, 0.2, 0.02)]))
+    monkeypatch.setattr(mi, "latest_depth", lambda: frame)
+    mi._frame_t, mi._frame_used_t, mi._frame_level = 5.0, 0.0, True
+    folded = []
+    real = mi.swing.fold
+
+    def spy(*a, **kw):
+      folded.append(kw.get("stance"))
+      return real(*a, **kw)
+    monkeypatch.setattr(mi.swing, "fold", spy)
+    mi._look_step()
+    assert folded == [body.stance] and folded[0] == mi.believed_stance()
+    assert mi.swing.stances[5.0] == tuple(body.stance)
+  finally:
+    body.close()
 
 
 def test_an_empty_view_judges_nothing_todays_plan_bit_for_bit(floor):
@@ -450,7 +539,7 @@ def test_the_body_hands_its_reach_what_it_saw_since_its_feet_moved_and_again_aft
     mi = body.mission
     assert body.reach.trunk_view == mi.trunk_seen
     top = np.array([[0.4, y, 0.96] for y in np.arange(-0.2, 0.2, 0.02)])
-    mi.swing.fold(top, 1.0, mi.pose, mi.odo.corrected)
+    mi.swing.fold(top, 1.0, mi.pose, mi.odo.corrected, stance=mi.believed_stance())
     mi.last_motion_t = 0.5
     seen = mi.trunk_seen()
     assert len(seen) == len(top) and np.allclose(seen[:, 2], 0.96)
