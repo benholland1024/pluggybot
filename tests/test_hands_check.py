@@ -1253,7 +1253,8 @@ def test_the_upper_boards_set_down_stands_further_left_of_its_label():
   round (`Reach._planned`), which turned the held product over, no slip in the jaws -- 7 of the census's 24 dev
   misses, the frame pressed on its panel's top and fallen at the let-go, the candle stood on its top. The robot
   stands 3.5 cm further left of an upper label, the hand's aim off the label unchanged: set-out 0's frame (label 84)
-  is gripped 0.22 m left at its set-down on the stub (0.255 by round 5's reference). ⚠ THE LOWER CANDLE IS AIMED 1 CM
+  is gripped 0.21 m left at its set-down on the stub (0.255 by round 5's reference, 0.22 before round 20 aimed the
+  frame 1 cm right). ⚠ THE LOWER CANDLE IS AIMED 1 CM
   FURTHER RIGHT (round 13): the set-down's postures swivel the feet (a mean 2 deg on the lower board, and a target in
   the stance frame moves 1 cm a degree), and its placements landed a mean 1.0 cm left, 5 of 107 past the 4 cm:
   set-out 0's candle (label 80) at 0.21 m, not 0.22."""
@@ -1261,7 +1262,7 @@ def test_the_upper_boards_set_down_stands_further_left_of_its_label():
   assert ran["ok"], ran
   assert so.slots == {"candle": 80, "frame": 84}, so.slots
   downs = [a for v, a, pose in log if v == "reach" and pose[3]]
-  assert [d["y"] for d in downs] == pytest.approx([0.22, 0.21], abs=1e-9), downs
+  assert [d["y"] for d in downs] == pytest.approx([0.21, 0.21], abs=1e-9), downs
 
 
 def test_a_lower_label_is_read_off_its_twin_above():
@@ -1346,6 +1347,19 @@ def test_an_upper_candle_read_too_near_the_shelf_steps_back_before_its_set_down(
   steps = [a for v, a, _ in log[i + 1:downs[1]] if v == "step"]
   backs = [a for a in steps if a.get("ahead", 0) == pytest.approx(-0.08, abs=1e-9) and a.get("left", 0) == 0]
   assert len(backs) == (1 if back else 0), steps
+
+
+def test_the_frame_is_aimed_right_of_its_label():
+  """⚠ THE FRAME IS AIMED 1 CM FURTHER RIGHT (#736, round 20): its placements landed a mean 0.8-0.9 cm left of
+  their labels, and every one off its label landed left of it. On the stub at set-out 4 (candle 83, frame 84) the
+  frame's set-down carry goes to y 0.21, where it went to 0.22, and the upper candle's stays at 0.22; at set-out 0
+  the lower candle's (80) stays at 0.21."""
+  for k, frame_y, candle_y in ((4, 0.21, 0.22), (0, 0.21, 0.21)):
+    body, ran, log, so, tags = _shelf_flown(k=k)
+    assert ran["ok"], ran
+    downs = [j for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
+    ys = [next(a for v, a, pose in log[d + 1:] if v == "move_hand")["y"] for d in downs]
+    assert ys == pytest.approx([frame_y, candle_y], abs=1e-9), (k, ys)
 
 
 def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
