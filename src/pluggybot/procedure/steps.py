@@ -640,8 +640,8 @@ def _spot(life, args: dict) -> Routine:
   """Look for a tag in the head's colour camera, standing still -- as it
   stands, then bowing lower until it is seen (`SPOT_GAZES`), standing up
   again after (#525): where its face is -- the one seen most square-on --,
-  which way it looks and which way its edges run, in `spot.*`. ok when it
-  is seen."""
+  the way into it (#776: the opposite of the way it looks) and which way
+  its edges run, in `spot.*`. ok when it is seen."""
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
@@ -1804,8 +1804,10 @@ HANDS_VERBS: dict[str, Verb] = {
                f"about {SPOT_SHOULDER_IN_M:.1f} m ahead of you, a larger one nearer still, and "
                "nothing as high as your camera ever. Inside the picture, a small block's tag "
                f"reads from up to about {SPOT_BLOCK_READS_M:g} m away. Where "
-               "its face is, which way the face looks and which way its edges run ride "
-               "`spot.*`. A small block carries its tag on every face: the one read is the one "
+               "its face is, the way into it and which way its edges run ride `spot.*`: "
+               "`spot.nx`..`nz` point from the face into the thing it is printed on, the "
+               "opposite of the way it looks. A small block carries its tag on every face: the "
+               "one read is the one "
                "you see most square-on, `spot.nx`..`nz` say which, so from elsewhere the same "
                "tag can read another face, its middle up to the block's width from this one's. "
                f"A tag is {BY_NUMBER}: `spot({TAG_EXAMPLE})` looks for tag {TAG_EXAMPLE}"),

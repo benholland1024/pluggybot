@@ -3175,6 +3175,42 @@ def test_a_tag_on_every_face_is_read_by_the_face_seen_most_square_on():
   assert body._decoded(54) is None
 
 
+def test_spots_normal_points_into_the_tags_face_and_its_words_say_so():
+  """#776: `spot`'s text said `spot.nx`..`nz` were which way a tag's face
+  looks, and the sensor list opened them so; the reading is the normal INTO
+  the face (`perception.tags.TagDetector.detect`). A tag lying face up on
+  the floor, decoded by the standing robot's colour camera, reads nz -1,
+  and every text naming the reading -- `watch.n*` read off the same decode
+  -- says into, never the way the face looks."""
+  tag = tags.COUNTER_TAG_IDS[0]
+  half = tags.plate_half_extent(tags.TAG_SIZES[tag])
+  spec = mujoco.MjSpec.from_string(hm.body_xml(scenery=(
+    f'<geom type="box" size="{half} {half} 0.002" pos="1.1 0 0.002" '
+    f'material="tagmat{tag}" contype="0" conaffinity="0"/>'), assets=tags.asset_xml([tag])))
+  spec.modelfiledir = "models/"
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  try:
+    got = body._decoded(tag)
+  finally:
+    body.close()
+  assert got is not None and got["normal"][2] == pytest.approx(-1.0, abs=0.01), got
+  spot = " ".join(st.HANDS_VERBS["spot"].doc.split())
+  assert ("the way into it and which way its edges run ride `spot.*`: `spot.nx`..`nz` "
+          "point from the face into the thing it is printed on, the opposite of the way "
+          "it looks") in spot
+  for name in ("spot", "watch"):
+    for a in "xyz":
+      doc = axes.SENSORS[f"{name}.n{a}"].doc
+      assert doc.startswith(f"the way into that face ({a}): a unit vector from it into "), doc
+      assert "look" not in doc, doc
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  assert spot in told and "which way that face look" not in told
+
+
 class CutMind(Mind):
   """A mind whose first answer runs out of its tokens still thinking."""
 
