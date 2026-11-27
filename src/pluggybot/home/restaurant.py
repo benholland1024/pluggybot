@@ -2,9 +2,10 @@
 lays at the dining room's table 0 (`home.world.SET_TABLE`), its south side,
 and its dishware -- a plate, a cup, a fork and the place card
 (`activity/dishware.py`) -- compiled into the humanoids' house at load, as
-the storeroom's counter is (`home.storeroom`), and PUT AWAY until an offer
-sets it out: every free body costs the physics and every geom a ray, and a
-world is compiled once.
+the storeroom's counter is (`home.storeroom`), and PUT AWAY until a job
+sets it out -- the card at the job's offer, the pieces at its claim (#775):
+every free body costs the physics and every geom a ray, an offer stands
+untaken most of its time, and a world is compiled once.
 
 The table and the place are the offline set-out's (`evaluation.counter.
 table_set_out`): a job's draw k sets the pieces out where set-out k does,
@@ -15,8 +16,10 @@ the pieces by theirs (90-92).
 
 The storeroom's members, so the lifecycle sets either out, puts it back
 after a restart and keeps an offer off it while a robot touches it
-(`home.jobs`); and one the counter has no need of: `put_away`, the dishware
-parked again once no job holds the table.
+(`home.jobs`); and those the counter has no need of: `put_away`, the
+dishware parked again once no job holds the table; `offered` and `take`,
+what an offer sets out and what waits for the claim; `pieces_away` and
+`as_placed`, which a restore reads and sets.
 """
 
 from __future__ import annotations
@@ -109,13 +112,38 @@ SET_OUTS = {"set_table": ct.table_set_out, "set_table_pass": ct.pass_set_out,
             "set_table_shelf": ct.shelf_set_out}
 
 
+#: Where each piece waits put away: `PARK_AT`'s own.
+PIECES_AT = {p: PARK_AT[p] for p in dw.PIECES}
+
+
 def set_out(model, data, target: str, k: int, kind: str = "set_table") -> None:
-  """The place set out for an offer of `kind` drawing `k`: every piece where
-  that kind's set-out k puts it (`SET_OUTS`) and the card at its place, live
-  and still, their hidden parameters drawn (`redraw`)."""
+  """The whole place set out for a job of `kind` drawing `k` that is taken
+  (a restart's, an instrument's): their hidden parameters drawn (`redraw`)
+  and everything where the claim sets it (`take`)."""
+  redraw(model, data, target, k)
+  take(model, data, target, k, kind=kind)
+
+
+def offered(model, data, target: str, k: int, kind: str = "set_table") -> None:
+  """The place as an offer of `kind` drawing `k` sets it out (#775): the
+  card at its place, live and still, the draw's hidden parameters set into
+  the world (`redraw`), and the pieces PUT AWAY until the job is taken
+  (`take`) -- out, they cost every physics step and every ray, and an offer
+  stands untaken most of its 900 s. Any a job before left out go too: an
+  offer can land in the tick that job is settled, before the sweep (it
+  lands once nothing touches them, the producer's `busy`)."""
+  _ours(target)
+  redraw(model, data, target, k)
+  dw.park(model, data, PIECES_AT)
+  dw.place(model, data, {}, SET_OUTS[kind](k).card, SURFACE_Z)
+
+
+def take(model, data, target: str, k: int, kind: str = "set_table") -> None:
+  """A claim's (#775): every piece where `kind`'s set-out k puts it
+  (`SET_OUTS`) and the card at its place, live and still -- the hidden
+  parameters the offer drew."""
   _ours(target)
   so = SET_OUTS[kind](k)
-  redraw(model, data, target, k)
   dw.place(model, data, so.pieces, so.card, SURFACE_Z, piece_z=so.surface)
 
 
@@ -129,6 +157,21 @@ def away(model, data, target: str) -> bool:
   """Whether the dishware is put away where `put_away` puts it."""
   _ours(target)
   return dw.parked(model, data, PARK_AT)
+
+
+def pieces_away(model, data, target: str) -> bool:
+  """Whether the pieces are put away, the card as it may be."""
+  _ours(target)
+  return dw.parked(model, data, PIECES_AT)
+
+
+def as_placed(model, data, target: str) -> bool:
+  """Each body of the place live where it is placed off where `put_away`
+  puts it, put away where it is there, moving none (`dishware.as_placed`):
+  as a saved world had them, once a restore has put the poses back. True if
+  any changed."""
+  _ours(target)
+  return dw.as_placed(model, data, PARK_AT)
 
 
 def activity_for(model, data, target: str, k: int):

@@ -335,6 +335,22 @@ def parked(model, data, at: dict) -> bool:
   return True
 
 
+def as_placed(model, data, at: dict) -> bool:
+  """Each body of `at` ({name: (x, y)}) live where it is placed off where
+  `park` puts it and put away where it is placed there, moving none -- its
+  geoms and its weight as the world a restore put its poses back from had
+  them (#775: they are the model's, never saved). True if any changed."""
+  from pluggybot.perception.cull import PARKED_GROUP
+  changed = False
+  for name, (x, y) in at.items():
+    b = model.body(name).id
+    live = bool(np.linalg.norm(_placed_at(model, data, b) - np.array([x, y, PARK_Z])) > 1e-3)
+    if live != (model.geom_group[int(model.body_geomadr[b])] != PARKED_GROUP):
+      _switch(model, b, live)
+      changed = True
+  return changed
+
+
 def _placed_at(model, data, body: int) -> np.ndarray:
   """Where a body is placed in `data` -- its free joint's or its mocap's --
   which a forward pass has yet to carry into `xpos`."""
@@ -357,9 +373,10 @@ class Dishware(Activity):
   """The pieces' state machine, off their poses (a camera over the table,
   never the robot's senses):
 
-    setOut  LIVE: the dishware out where a job set it, never put away (its
+    setOut  LIVE: the pieces out where a job set them, never put away (the
             plate's geoms out of the parked group, `place` / `park`): what
-            a page that draws the world hides the pieces by
+            a page that draws the world hides the pieces by -- never the
+            card, which an untaken offer sets out alone (#775)
     lifted  LIVE, each piece: its bottom more than `LIFT_ON` over the
             surface it was set out on, while it is out -- the height it
             rested at when first sensed out, the table's or the pass's

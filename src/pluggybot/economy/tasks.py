@@ -179,7 +179,9 @@ class TaskKind:
   #: offer lands, the prop set back out with them (`HubLifecycle.
   #: _set_out_job`) -- a skill over a kind of drawer, never one drawer. ⚠ ITS
   #: SENTENCE SAYS WHEN, `{offered}` (#659; dated: TaskPattern.md §2), and a
-  #: test reads it as offered.
+  #: test reads it as offered -- or, where the area keeps them put away until
+  #: the job is taken (the table's pieces, #775: `_take_job`), says so, and
+  #: no date.
   draws: bool = False
   #: THE TIME THE JOB GIVES FROM ITS CLAIM, minutes, or None for none: what
   #: its sentence says (`{minutes}`) and the limit its grade holds it to
@@ -317,17 +319,18 @@ KINDS: dict[str, TaskKind] = {
   # its row's detail all of them) as the practice's job states them -- the
   # card found by its tag and the pieces by theirs (tier 1), the restaurant's
   # directions with the offer, never a position. Its dishware put away until
-  # an offer sets it out where the draw lays it (`draws`); graded as the hand
-  # jobs are, from the claim. MEASURED off its reference from the dearest
-  # station, the research center's (`energy.json`); the fallback a touch above.
+  # a job sets it out where the draw lays it (`draws`): its card at the
+  # offer, its pieces at the claim (#775); graded as the hand jobs are, from
+  # the claim. MEASURED off its reference from the dearest station, the
+  # research center's (`energy.json`); the fallback a touch above.
   "set_table": TaskKind(
     "set_table", task="set_table", target_kind="table",
     template="Lay the place at the card on the restaurant's table: from the foot of its face "
              "toward you, the plate's middle 19 cm out; the fork 19 cm out, 16 cm to your left, "
              "along the line, head to the card; the cup 7 cm out, 24 cm to your right. Each within "
              "2.5 cm, set down and let go of, within {minutes} minutes of taking this job, without "
-             "falling; graded when you say you are done and 5 s later. The pieces were set out at "
-             "t={offered}, when this job was offered. No errand does this: write the procedure.",
+             "falling; graded when you say you are done and 5 s later. The pieces are set out "
+             "near the card when you take this job. No errand does this: write the procedure.",
     estimate_wh=9.83, discharge="procedure", draws=True, minutes=TABLE_MINUTES),
   # ...and its easy mode of carrying (#682's stage C; Ben, 11-12): the same
   # place, its pieces set out on the pass, the expo counter in the dining
@@ -351,8 +354,8 @@ KINDS: dict[str, TaskKind] = {
              "19 cm out, 16 cm left, along the line, head to the card; the cup 7 cm out, 24 cm "
              "right. Each within 2.5 cm, set down and let go of, within {minutes} minutes of "
              "taking this job, without falling; graded when you say you are done and 5 s later. "
-             "These were set out at t={offered}, when this job was offered. No errand does this: "
-             "write the procedure.",
+             "These are set out there when you take this job. No errand does this: write the "
+             "procedure.",
     estimate_wh=20.59, discharge="procedure", draws=True, minutes=PASS_MINUTES),
   # ...and its full task (#682's stage C; Ben, 11-26): the same place, its
   # pieces set out on the restaurant kitchen's shelf, on its third board
@@ -371,8 +374,8 @@ KINDS: dict[str, TaskKind] = {
              "19 cm out, 16 cm left, along the line, head to the card; the cup 7 cm out, 24 cm "
              "right. Each within 2.5 cm, set down and let go of, within {minutes} minutes of "
              "taking this job, without falling; graded when you say you are done and 5 s later. "
-             "Its pieces were set out at t={offered}, when this job was offered. No errand does "
-             "this: write the procedure.",
+             "Its pieces are set out there when you take this job. No errand does this: write "
+             "the procedure.",
     estimate_wh=25.16, discharge="procedure", draws=True, minutes=SHELF_MINUTES),
 }
 

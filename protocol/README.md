@@ -54,6 +54,19 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, unchanged: the table's card set out at an offer, its pieces at the claim (pluggybot #775)
+
+No shape moves: the place's four bodies are where they were, and only when
+moves. An offer of a job at table 0 sets out the `place_card` alone; the
+`plate`, the `cup` and the `fork` stay a metre under the floor until the
+job is claimed, then come out where its draw lays them (on the table, the
+pass or the kitchen's shelf, by its kind). `dining_table_0`'s `setOut`
+reads the pieces, so it is false while an untaken offer's card stands on
+the table: a page that hid all four bodies while `setOut` was false would
+hide that card. Hide only the pieces by it, or none (the site reads no
+`setOut`: it draws every body where its pose puts it). No scene or
+recording moves: no recording carries a job.
+
 ### 0.21.0, additive: a second task kind no world offers (`set_table_shelf`, pluggybot #682's stage C)
 
 `taskKinds` (every kind the producer knows) gains `set_table_shelf`: table
@@ -296,15 +309,16 @@ its bar). What a consumer sees:
   (free joints) and `place_card` (a mocap body), each wearing its tag.
   Between jobs they are put away a metre under the dining room's floor (a
   frame's poses say so), where no page's camera goes and no robot's sensor
-  reaches; an offer sets them out on table 0, where its draw lays them. The
+  reaches; an offer sets them out on table 0, where its draw lays them
+  (since #775, above: the card at the offer, the pieces at the claim). The
   humanoid scene has 239 bodies (236), the pair's 272.
 - **An activity, additive**: `dining_table_0`, the place's -- its flags
   `setOut` (live: the dishware out where a job set it), `plateLifted`,
   `cupLifted` and `forkLifted` (live, each over where it was set out while
   out: the table, or the pass for `set_table_pass`, or the kitchen's shelf
   for `set_table_shelf`). A page
-  may hide the four bodies while `setOut` is false; under the floor nothing
-  shows them anyway.
+  may hide the three pieces while `setOut` is false (since #775 the card
+  stands out while it is, above); under the floor nothing shows them anyway.
 - **A task kind**: `set_table` joins `taskKinds`, its target
   `dining_table_0` (the table's own body, so a marker anchored on its body
   stands over the table) and its `targetKind` `table`. It is a challenge

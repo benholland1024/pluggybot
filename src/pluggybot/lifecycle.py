@@ -1019,11 +1019,16 @@ class HubLifecycle:
     # for it -- there is no second judgement of a task anywhere.
     self.tasks = tasks
     # A JOB'S THINGS (#559, #560): a hand job's offer is the moment its
-    # counter's prop or its table's dishware is set out, the hidden dynamics
-    # it drew put into the world as the offer lands, off the board's own
-    # event (`_set_out_job`).
+    # counter's prop or its table's card is set out, the hidden dynamics it
+    # drew put into the world as the offer lands, and its claim the moment
+    # the table's pieces are (#775), off the board's own events
+    # (`_set_out_job`, `_take_job`).
     if tasks is not None:
-      tasks.on_event.append(self._task_offered)
+      tasks.on_event.append(self._task_event)
+    #: The claims whose things this lifecycle set out (`_take_job`), counted:
+    #: a claim sets them out between two steps, after the keeper's record of
+    #: where the next one begins, so no save is taken in it (`Keeper.landed`).
+    self.takes = 0
     # ...and the thing that PUTS jobs on it (issue #23). Optional again, and
     # separately from the board: a test that hands in three offers of its own
     # wants the board without a world generating more behind its back, and a
@@ -5696,22 +5701,32 @@ class HubLifecycle:
         return act
     return None
 
-  def _task_offered(self, msg: dict) -> None:
-    """The board's `task_offered` hook: a job's things set out for the
-    offer. Any other event is not ours."""
-    if msg.get("type") != "task_offered" or self.tasks is None:
+  def _task_event(self, msg: dict) -> None:
+    """The board's hook: a job's things set out for its offer
+    (`_set_out_job`), and what waits for its claim set out at the claim
+    (`_take_job`, #775) -- a claim's `start` says `task_claimed` too, and
+    takes nothing again. Any other event is not ours."""
+    if self.tasks is None:
       return
-    self._set_out_job(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
+    if msg.get("type") == "task_offered":
+      self._set_out_job(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
+    elif msg.get("type") == "task_claimed" and msg.get("state") == "claimed":
+      self._take_job(self.tasks.get(str(msg.get("id", ""))))
 
   def _set_out_job(self, task) -> None:
     """A hand job's offer sets its things out (#559, #560; `home.jobs`): a
-    counter's prop back at rest, the table's dishware where the draw lays it
-    out, their hidden dynamics drawn afresh -- the offer's secret draw -- and
-    the activity begun again over that draw's truth (the door latched, the
-    lid caught). No offer lands on things a robot is touching
-    (`_worked_props`): set out from under a hand, a door was clamped shut
-    round it, and a drawer left out was a job paid for nothing. Silent for
-    any other kind; idempotent, as a pair hooks one board twice."""
+    counter's prop back at rest, the table's card at its place, their hidden
+    dynamics drawn afresh -- the offer's secret draw -- and the activity
+    begun again over that draw's truth (the door latched, the lid caught).
+    ⚠ THE TABLE'S PIECES WAIT FOR THE CLAIM (#775; `area.offered`,
+    `_take_job`): out, they cost every step and every ray, and an offer
+    stands untaken most of its time -- so a job not yet taken has only what
+    its area shows before the claim set out, and one taken (a restart's, an
+    offer the saved world never saw) all of it. No offer lands on things a
+    robot is touching (`_worked_props`): set out from under a hand, a door
+    was clamped shut round it, and a drawer left out was a job paid for
+    nothing. Silent for any other kind; idempotent, as a pair hooks one
+    board twice."""
     from pluggybot.economy.tasks import KINDS
     from pluggybot.home import jobs
     if task is None or task.kind not in KINDS or not KINDS[task.kind].draws:
@@ -5721,11 +5736,36 @@ class HubLifecycle:
     if area is None or k is None or not area.present(self.model):
       self._say(f"TASK {task.id}: this world has no {target} to set out")
       return
-    area.set_out(self.model, self.data, target, int(k), kind=task.kind)
+    waits = _waits_for_claim(area, task)
+    (area.offered if waits else area.set_out)(self.model, self.data, target, int(k),
+                                              kind=task.kind)
     act = self._target_activity(target)
     if act is not None:
       act.renew(self.model, area.drawn(target, int(k)))
-    self._say(f"TASK {task.id}: the {target} is set out")
+    self._say(f"TASK {task.id}: the {target}'s card is set out" if waits else
+              f"TASK {task.id}: the {target} is set out")
+
+  def _take_job(self, task) -> None:
+    """A job's claim sets out what its area keeps put away until a job is
+    taken (#775; `area.take`: the table's pieces, where the offer's draw
+    lays them, beside the card its offer set out) -- on the board's event,
+    whichever robot claims, at the claim's own instant: an offer and a claim
+    with no step between leave the world as an offer that set it all out
+    did. Nothing for an area that sets everything out at the offer (the
+    counter's props), nor any other kind; idempotent, as a pair hooks one
+    board twice."""
+    from pluggybot.economy.tasks import KINDS
+    from pluggybot.home import jobs
+    if task is None or task.kind not in KINDS or not KINDS[task.kind].draws:
+      return
+    target, k = task.target, task.secret.get("draw")
+    area = jobs.area_of(target)
+    if (area is None or k is None or not hasattr(area, "take")
+        or not area.present(self.model)):
+      return
+    area.take(self.model, self.data, target, int(k), kind=task.kind)
+    self.takes += 1
+    self._say(f"TASK {task.id}: the {target}'s pieces are set out")
 
   def _worked_props(self) -> set:
     """The job targets whose things a robot is touching now (#559, #560;
@@ -5765,26 +5805,48 @@ class HubLifecycle:
     """After a restart (#559, #560): the world file carries each target's
     compiled draw, and the newest offer on it still means the one it drew --
     its dynamics put back and its activity begun again over its truth; and
-    where that offer is still open, its things set out (the table's dishware
-    is compiled put away), the continuation then putting them where the world
-    left them. ⚠ NEWEST ON THE BOARD'S OWN COUNT (`Task.number`), never by
-    `createdT`: after 11-01's start-over, t_0004's offer on the door was
-    stamped on the clock before it, and every restart put its draw back on
-    the door for the rest of the door's job then, t_0042 (#610). ⚠ HERE, IN
-    `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
-    (`continuation.restore`): the prop where the world left it, a door's
-    latch as it was."""
+    where that offer is still open, its things set out as its state calls
+    for (the table's dishware is compiled put away; #775: an untaken offer
+    its card alone, a taken job its whole place), the continuation then
+    putting them where the world left them. ⚠ NEWEST ON THE BOARD'S OWN
+    COUNT (`Task.number`), never by `createdT`: after 11-01's start-over,
+    t_0004's offer on the door was stamped on the clock before it, and every
+    restart put its draw back on the door for the rest of the door's job
+    then, t_0042 (#610). ⚠ HERE, IN `begin`, BEFORE A CONTINUATION PUTS THE
+    ACTIVITIES' KEPT STATE BACK (`continuation.restore`): the prop where the
+    world left it, a door's latch as it was."""
     from pluggybot.home import jobs
     for target, t in self._newest_offers().items():
       k = int(t.secret["draw"])
       area = jobs.area_of(target)
       if t.open:
-        area.set_out(self.model, self.data, target, k, kind=t.kind)
+        (area.offered if _waits_for_claim(area, t) else area.set_out)(
+          self.model, self.data, target, k, kind=t.kind)
       else:
         area.redraw(self.model, self.data, target, k)
       act = self._target_activity(target)
       if act is not None:
         act.renew(self.model, area.drawn(target, k))
+
+  def jobs_as_saved(self) -> bool:
+    """After a continuation puts the bodies back, before it steps their last
+    step again (`continuation.restore`, #775): each job area's things live
+    where the saved world has them out and put away where it has them under
+    the floor (`as_placed`). Their geoms' contacts, groups and weights are
+    the model's, never saved, and `restore_jobs` set them by the board --
+    which a claim made since the save, or a save from before #775 (its
+    offer's pieces out), leaves unlike the world saved: stepped so, the
+    step lands elsewhere than the save's. True if any changed (and then
+    forwarded, as `put_physics` left the world)."""
+    from pluggybot.home import jobs
+    changed = False
+    for area in jobs.AREAS:
+      if hasattr(area, "as_placed") and area.present(self.model):
+        for target in area.TARGETS:
+          changed |= bool(area.as_placed(self.model, self.data, target))
+    if changed:
+      mujoco.mj_forward(self.model, self.data)
+    return changed
 
   def set_out_unseen(self, seen: int | None) -> list[str]:
     """After a continuation, once its world is back (`continuation.restore`):
@@ -5794,18 +5856,41 @@ class HubLifecycle:
     (`_set_out_job`). Put back as saved, a drawer the last job left out
     stood out under the standing offer, a job paid for nothing. Never one a
     robot is touching (the producer's `busy`); nothing for a save from
-    before it kept the count (`seen` None). Returns the targets set out."""
-    unseen = [(prop, t) for prop, t in self._newest_offers().items()
+    before it kept the count (`seen` None). ⚠ AND A CLAIM IT NEVER SAW, BY
+    WHAT THE WORLD PUT BACK HOLDS (#775; `_take_job`): the board is saved
+    at every change, the world every minute, so a job taken since the save
+    has the pieces its claim set out put away again here -- set out now --
+    and an untaken offer whose pieces the save has out (one from before
+    #775, its offer had set them out) has them put away, its card left.
+    Returns the targets set out."""
+    from pluggybot.home import jobs
+    newest = self._newest_offers()
+    unseen = [(prop, t) for prop, t in newest.items()
               if seen is not None and t.number > seen]
-    if not unseen:
-      return []
-    worked, out = self._worked_props(), []
+    worked, out, said = None, [], set()
     for prop, t in unseen:
+      worked = self._worked_props() if worked is None else worked
+      said.add(prop)
       if prop in worked:
         self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
         continue
       self._set_out_job(t)
       out.append(prop)
+    for prop, t in newest.items():
+      area = jobs.area_of(prop)
+      if prop in said or not t.open or not hasattr(area, "take"):
+        continue
+      away = area.pieces_away(self.model, self.data, prop)
+      if t.state != "offered" and away:
+        self._take_job(t)
+        out.append(prop)
+      elif t.state == "offered" and not away:
+        worked = self._worked_props() if worked is None else worked
+        if prop in worked:
+          self._say(f"TASK {t.id}: the {prop} is touched, left as the world was saved")
+          continue
+        area.offered(self.model, self.data, prop, int(t.secret["draw"]), kind=t.kind)
+        self._say(f"TASK {t.id}: the {prop}'s pieces are put away until it is taken")
     return out
 
   def _newest_offers(self) -> dict:
@@ -7950,6 +8035,12 @@ def _fell_unheld(watch) -> bool:
   """Whether a hand job's watch has counted a fall since its claim, its
   grade's hold not begun (#701): a holding watch's fall is that grade's."""
   return not watch.holding and (watch.falls() or 0) > 0
+
+
+def _waits_for_claim(area, task) -> bool:
+  """Whether an area keeps some of a job's things put away until it is
+  taken (`take`: the table's pieces, #775) and this job is not taken yet."""
+  return hasattr(area, "take") and task.state == "offered"
 
 
 def _hand_grader(check: str):

@@ -100,6 +100,17 @@ def _out(life) -> bool:
   return not restaurant.away(life.model, life.data, restaurant.TABLE)
 
 
+def _away(life, *names) -> bool:
+  """Whether each body of `names` is put away where `put_away` puts it."""
+  return dw.parked(life.model, life.data, {n: restaurant.PARK_AT[n] for n in names})
+
+
+def _claim(life, task) -> None:
+  """The job taken on the board, by whichever robot (#775: the board's event
+  sets its pieces out)."""
+  assert life.tasks.claim(task.id, t=float(life.data.time)) is not None
+
+
 def _grade(life, task_id: str) -> dict:
   life._done(ov.Decision(action="idle", reason="", done=task_id))
   life.body.run(life._grade_routine())
@@ -121,35 +132,105 @@ def _lay(life) -> None:
 # ---- set out, put away ---------------------------------------------------------------------
 
 
-def test_an_offer_sets_the_place_out_and_a_settled_job_puts_it_away(tmp_path):
+def test_an_offer_sets_the_card_out_its_claim_the_pieces_and_a_settled_job_puts_it_away(tmp_path):
   """The dishware waits put away -- a free body costs the physics and a geom
-  every ray -- and an offer sets it out where its draw lays it, its hidden
-  weights the draw's; held, it stays out; settled, the next sweep puts it
-  away again."""
+  every ray -- and an offer sets the card out at its place, its draw's hidden
+  weights into the world, the pieces still put away (#775: an offer stands
+  900 s, mostly untaken); the claim sets the pieces out where the draw lays
+  them; held, they stay out; settled, the next sweep puts it all away.
+  Rewritten for #775: the offer set the pieces out with the card, and this
+  test pinned that."""
   life = _life(tmp_path)
   assert not _out(life), "compiled put away"
   task = _offer(life)
-  assert "The pieces were set out at t=" in task.description, "says when (#659)"
+  assert "The pieces are set out near the card when you take this job." in task.description
   k = task.secret["draw"]
   so, load = ct.table_set_out(k), dw.draw(k)
-  for p, (x, y, _) in so.pieces.items():
-    assert _at(life, p)[:2] == pytest.approx((x, y)), p
-    b = life.model.body(p).id
-    assert life.model.body_mass[b] == pytest.approx(getattr(load, f"{p}_kg")), p
-    assert life.model.geom_group[life.model.body_geomadr[b]] == 0
+  assert _away(life, *dw.PIECES), "offered: the pieces wait for the claim"
+  assert not _away(life, "place_card")
   assert _at(life, "place_card")[:2] == pytest.approx(so.card[:2])
+  for p in dw.PIECES:
+    b = life.model.body(p).id
+    assert life.model.body_mass[b] == pytest.approx(getattr(load, f"{p}_kg")), "drawn at the offer"
   act = life._target_activity(restaurant.TABLE)
   assert act.load == load
   life.body.run(life.body.hold_routine(0.1))
-  assert act.flags["setOut"] is True
+  assert act.flags["setOut"] is False, "the flag reads the pieces"
   assert life._claim_task(task.id)
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p)[:2] == pytest.approx((x, y)), p
+    b = life.model.body(p).id
+    assert life.model.geom_group[life.model.body_geomadr[b]] == 0
   _sweep(life)
-  assert _out(life), "a job holds it"
+  assert not _away(life, *dw.PIECES) and _out(life), "a job holds it"
+  life.body.run(life.body.hold_routine(0.1))
+  assert act.flags["setOut"] is True
   life.tasks.resolve(task.id, table_verdict(), t=float(life.data.time))
   _sweep(life)
   assert not _out(life), "settled, put away"
   life.body.run(life.body.hold_routine(0.1))
   assert act.flags["setOut"] is False
+
+
+def test_an_untaken_offer_leaves_the_pieces_put_away_and_the_claim_sets_them_out(tmp_path):
+  """#775's rule (drafted with its issue): while nobody holds the table's
+  job its pieces cost the physics (82 contacts at rest, 64 of them the
+  plate's wall boxes on the table) and every ray, so an offer leaves them
+  put away -- its card set out, found by its tag (93) -- and the claim sets
+  them out where the draw lays them, at the claim's own instant: an offer
+  and a claim with no step between (`solutions.job_routine`) leave the world
+  as an offer that set it all out did."""
+  life = _life(tmp_path)
+  task = _offer(life)
+  _sweep(life)
+  assert _away(life, *dw.PIECES), "offered and nobody holds it: put away"
+  assert not _away(life, "place_card"), "...its card set out"
+  before = life.data.time
+  assert life._claim_task(task.id)
+  assert life.data.time == before
+  so = ct.table_set_out(task.secret["draw"])
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p)[:2] == pytest.approx((x, y)), p
+  _sweep(life)
+  assert not _away(life, *dw.PIECES), "claimed: set out"
+
+
+def test_a_claim_heard_twice_sets_the_pieces_out_once_where_its_draw_lays_them(tmp_path):
+  """A pair hooks one board twice (its two lifecycles), and a claim's
+  `start` says `task_claimed` again: the pieces are set out once, at the
+  claim, where the draw lays them -- a piece moved after it stays moved
+  through the job's start and the other robot's hook."""
+  life = _life(tmp_path)
+  other = HubLifecycle(life.model, life.data, realtime=False, world=HUMANOID_HOME,
+                       body=life.body, tasks=life.tasks, overseer=_Mind())
+  task = _offer(life)
+  _claim(life, task)
+  assert life.takes == other.takes == 1
+  cup = life.model.body("cup").id
+  moved = _at(life, "cup") + np.array([0.04, 0.0, 0.0])
+  dw._pose(life.model, life.data, cup, moved)
+  life.tasks.start(task.id, t=float(life.data.time))
+  assert life.takes == other.takes == 1, "its start takes nothing again"
+  assert _at(life, "cup") == pytest.approx(moved)
+
+
+def test_an_offer_puts_away_the_pieces_a_job_before_left_out(tmp_path):
+  """A table resting from its last OFFER (`cooldownS`) can be offered in the
+  tick its job is settled, before the sweep that would put its pieces away
+  (the producer offers first): the offer puts them away with it, as it sets
+  the card out, and the claim sets them out again where its own draw lays
+  them."""
+  life = _life(tmp_path)
+  first = _offer(life)
+  _claim(life, first)
+  _lay(life)
+  life.tasks.resolve(first.id, table_verdict(), t=float(life.data.time))
+  second = _offer(life)
+  assert _away(life, *dw.PIECES) and not _away(life, "place_card")
+  _claim(life, second)
+  so = ct.table_set_out(second.secret["draw"])
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p)[:2] == pytest.approx((x, y)), p
 
 
 def table_verdict():
@@ -279,36 +360,49 @@ def test_a_table_job_held_past_its_minutes_is_failed_and_put_away(tmp_path):
 # ---- a restart ------------------------------------------------------------------------------
 
 
-def test_a_restart_sets_an_open_offers_place_back_out_and_leaves_a_settled_one_away(tmp_path):
+def test_a_restart_sets_out_an_untaken_offers_card_a_taken_jobs_place_and_leaves_a_settled_one_away(
+    tmp_path):
   """The world is compiled with the dishware put away: as the day begins
-  (`begin` -> `restore_jobs`) the newest offer on the table, still open, has
-  its place set out again with its draw's weights -- the continuation then
-  puts the pieces where the world left them -- and one settled leaves it
-  away, its weights still its draw's."""
+  (`begin` -> `restore_jobs`) the newest job on the table, still open, has
+  its things set out again with its draw's weights as its state calls for
+  (#775): an untaken offer its card alone, a taken job its whole place -- a
+  continuation then puts the pieces where the world left them -- and one
+  settled leaves it away, its weights still its draw's. Rewritten for #775:
+  an open offer had its whole place set out again."""
   life = _life(tmp_path)
   task = _offer(life)
   k = task.secret["draw"]
   fresh = _life(tmp_path)                       # the same board, a world compiled anew
   assert not _out(fresh)
   fresh.begin((0.0, 0.0, 0.0))
-  assert _out(fresh)
+  assert _away(fresh, *dw.PIECES), "an untaken offer's pieces wait for its claim"
+  assert _at(fresh, "place_card")[:2] == pytest.approx(ct.table_set_out(k).card[:2])
   plate = fresh.model.body("plate").id
   assert fresh.model.body_mass[plate] == pytest.approx(dw.draw(k).plate_kg)
-  assert _at(fresh, "plate")[:2] == pytest.approx(ct.table_set_out(k).pieces["plate"][:2])
-  fresh.tasks.resolve(task.id, table_verdict(), t=float(fresh.data.time))
+  _claim(fresh, task)
+  taken = _life(tmp_path)
+  taken.begin((0.0, 0.0, 0.0))
+  for p, (x, y, _) in ct.table_set_out(k).pieces.items():
+    assert _at(taken, p)[:2] == pytest.approx((x, y)), p
+  taken.tasks.resolve(task.id, table_verdict(), t=float(taken.data.time))
   again = _life(tmp_path)
   again.begin((0.0, 0.0, 0.0))
   assert not _out(again)
   assert again.model.body_mass[again.model.body("plate").id] == pytest.approx(dw.draw(k).plate_kg)
 
 
-def test_a_continuation_keeps_a_worked_place_where_the_world_left_it(tmp_path):
-  """A restart is a continuation (#345): a cup moved since its offer comes
-  back where the save had it, live; and an offer made between the save and
-  a crash has its place set out for it (`set_out_unseen`)."""
+def test_a_continuation_keeps_a_worked_place_and_sets_out_what_its_save_never_saw(tmp_path):
+  """A restart is a continuation (#345): a cup moved since its job was
+  taken comes back where the save had it, live; an offer made between the
+  save and a crash has its card set out for it (`set_out_unseen`), its
+  pieces left put away; and a claim made between the save and a crash, on
+  an offer the save saw -- the board is saved at every change, the world
+  every minute -- has its pieces set out for it where the draw lays them
+  (#775). Rewritten for #775: the unseen offer had its whole place set out."""
   from pluggybot import continuation
   life = _life(tmp_path)
   task = _offer(life)
+  _claim(life, task)
   cup = life.model.body("cup").id
   moved = _at(life, "cup") + np.array([0.05, -0.03, 0.0])
   dw._pose(life.model, life.data, cup, moved)
@@ -326,12 +420,89 @@ def test_a_continuation_keeps_a_worked_place_where_the_world_left_it(tmp_path):
   _sweep(life)
   continuation.write(continuation.capture([life], life.world_fingerprint), path)
   late = _offer(life)                          # ...offered, and then the crash
+  so = ct.table_set_out(late.secret["draw"])
   crashed = _life(tmp_path, rebase=False)
   crashed.begin((0.0, 0.0, 0.0))
   got = continuation.restore([crashed], continuation.read(path))
-  assert got["setOut"] == [restaurant.TABLE] and _out(crashed)
-  assert _at(crashed, "cup")[:2] == pytest.approx(
-    ct.table_set_out(late.secret["draw"]).pieces["cup"][:2])
+  assert got["setOut"] == [restaurant.TABLE]
+  assert _at(crashed, "place_card")[:2] == pytest.approx(so.card[:2])
+  assert not _away(crashed, "place_card") and _away(crashed, *dw.PIECES)
+  # ...and saved before its claim, the pieces come back set out for it
+  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+  _claim(life, late)                           # ...taken, and then the crash
+  after = _life(tmp_path, rebase=False)
+  after.begin((0.0, 0.0, 0.0))
+  got = continuation.restore([after], continuation.read(path))
+  assert got["setOut"] == [restaurant.TABLE]
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(after, p)[:2] == pytest.approx((x, y)), p
+    b = after.model.body(p).id
+    assert after.model.geom_contype[after.model.body_geomadr[b]] == 1, (p, "live")
+
+
+def _saved(life, path, steps: int = 3) -> None:
+  """The world saved as the keeper saves it: a few steps on, where the last
+  one began kept (`LastStep`), so a restore steps it again (#420)."""
+  from pluggybot import continuation
+  last = continuation.LastStep(life)
+  for _ in range(steps):
+    mujoco.mj_step(life.model, life.data)
+    last.hook()
+  continuation.write(continuation.capture([life], life.world_fingerprint, last_step=last), path)
+
+
+def test_a_continuation_steps_its_last_step_again_as_saved_then_sets_the_place_as_the_board_says(
+    tmp_path):
+  """`restore_jobs` sets the place's geoms -- their contacts, groups and
+  weights, the model's and never saved -- by the board, before the bodies
+  come back (`begin`); the step a restore steps again must begin as the
+  saved world's did (#420). So the restore sets them as the save has the
+  bodies placed (`jobs_as_saved`), and only after that step sets the place
+  as the board says (#775): a save from before #775, its offer's pieces
+  out, comes back stepped exactly and then has its pieces put away, its
+  card out; a claim the save never saw comes back stepped exactly and then
+  has its pieces set out."""
+  from pluggybot import continuation
+  life = _life(tmp_path)
+  task = _offer(life)
+  # ...as an offer before #775 left it: the whole place out
+  restaurant.set_out(life.model, life.data, restaurant.TABLE, task.secret["draw"])
+  path = tmp_path / "world.npz"
+  _saved(life, path)
+  back = _life(tmp_path, rebase=False)
+  back.begin((0.0, 0.0, 0.0))
+  got = continuation.restore([back], continuation.read(path))
+  assert got["replayed"] is True, "stepped again as the save had it"
+  assert _away(back, *dw.PIECES) and not _away(back, "place_card")
+  # ...and a claim made after a save of its offer
+  (tmp_path / "b").mkdir()
+  life = _life(tmp_path / "b")
+  task = _offer(life)
+  _saved(life, path)
+  _claim(life, task)
+  after = _life(tmp_path / "b", rebase=False)
+  after.begin((0.0, 0.0, 0.0))
+  got = continuation.restore([after], continuation.read(path))
+  assert got["replayed"] is True, "stepped again as the save had it"
+  for p, (x, y, _) in ct.table_set_out(task.secret["draw"]).pieces.items():
+    assert _at(after, p)[:2] == pytest.approx((x, y)), p
+
+
+def test_no_save_is_taken_in_the_step_after_a_claim_set_its_pieces_out(tmp_path):
+  """A claim sets its pieces out between two steps (#775), after the
+  keeper's record of where the next one begins (`LastStep`, hooked last): a
+  save in that step's hooks would step it again from before them. So the
+  keeper takes none there, as none in a step a death or a stand-up landed
+  in (`Keeper.landed`)."""
+  from pluggybot import continuation
+  life = _life(tmp_path)
+  keeper = continuation.Keeper([life], tmp_path / "world.npz")
+  task = _offer(life)
+  keeper.landed()
+  assert not keeper.landed()
+  _claim(life, task)
+  assert keeper.landed(), "the claim's set-out landed"
+  assert not keeper.landed()
 
 
 # ---- the world --------------------------------------------------------------------------------
@@ -501,12 +672,13 @@ def test_the_tables_words_say_which_left_the_graders_is():
 NEAR_CARD_M = 0.35
 
 
-def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
-  """#723: the place's directions say where an offer there sets the pieces
+def test_the_places_directions_say_where_and_when_a_job_sets_the_pieces_out():
+  """#723: the place's directions say where a job there sets the pieces
   out -- on the table near the card, as the practice's job says they wait
   (`practice.TABLE_JOB`) -- and that none is where it goes: true of every
   kind a world offers at the table, over 32 set-outs, by the grader's own
-  measure. The directions are the area's, so every kind's offer there
+  measure; and #775: WHEN, once the job is taken, its offer setting out the
+  card alone. The directions are the area's, so every kind's offer there
   carries them: one that sets its pieces out elsewhere (the pass's and the
   kitchen shelf's, #682's stage C, whose rows say where) is offered by no
   world, and offering it moves these words (why: #723's period in
@@ -518,8 +690,8 @@ def test_the_places_directions_say_where_an_offer_sets_the_pieces_out():
   for kind in here:
     words = task_producer(TaskBoard(), HUMANOID_HOME, procedures=True)._offer(
       kind, restaurant.TABLE, 0.0).as_context(0.0)["directions"]
-    assert ("the plate, the cup and the fork are set out on the table near the card, "
-            "none of them where it goes") in words, kind
+    assert ("When a job here is taken, the plate, the cup and the fork are set out on the "
+            "table near the card, none of them where it goes") in words, kind
     for k in range(32):
       restaurant.set_out(model, data, restaurant.TABLE, k, kind=kind)
       mujoco.mj_forward(model, data)
@@ -545,33 +717,41 @@ def _offer_pass(life, **params):
                           secret=secret, ttl=3000.0, t=float(life.data.time))
 
 
-def test_a_pass_offer_sets_its_pieces_out_on_the_pass_and_the_card_at_the_table(tmp_path):
+def test_a_pass_offer_sets_the_card_out_at_the_table_and_its_claim_the_pieces_on_the_pass(tmp_path):
   """The kind chooses the set-out (`restaurant.SET_OUTS`): an offer of the
-  place laid from the pass sets each piece out where `pass_set_out` lays it,
-  on the pass's top, its hidden weight the draw's, and the card at the
-  table -- never the table's set-out beside the place."""
+  place laid from the pass sets the card out at the table, the draw's hidden
+  weights in the world, and its claim each piece where `pass_set_out` lays
+  it, on the pass's top -- never the table's set-out beside the place.
+  Rewritten for #775: the offer set the pieces out on the pass."""
   life = _life(tmp_path)
   task = _offer_pass(life)
   k = task.secret["draw"]
   so, load = ct.pass_set_out(k), dw.draw(k)
-  for p, (x, y, _) in so.pieces.items():
-    assert _at(life, p) == pytest.approx((x, y, ct.PASS_H)), p
+  assert _away(life, *dw.PIECES), "the pieces wait for the claim"
+  for p in dw.PIECES:
     assert life.model.body_mass[life.model.body(p).id] == pytest.approx(getattr(load, f"{p}_kg"))
   assert _at(life, "place_card") == pytest.approx((*ct.table_set_out(k).card[:2], ct.TABLE_H))
   assert life._target_activity(restaurant.TABLE).load == load
+  _claim(life, task)
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p) == pytest.approx((x, y, ct.PASS_H)), p
 
 
-def test_a_restart_sets_an_open_pass_offer_back_out_on_the_pass(tmp_path):
-  """`restore_jobs` sets the newest open offer's place out by ITS kind: a
-  pass's pieces back on the pass, never beside the table."""
+def test_a_restart_sets_a_taken_pass_jobs_pieces_back_out_on_the_pass(tmp_path):
+  """`restore_jobs` sets the newest open job's things out by ITS kind: a
+  taken pass job's pieces back on the pass, never beside the table (and an
+  untaken one's card alone, #775)."""
   life = _life(tmp_path)
   task = _offer_pass(life)
   k = task.secret["draw"]
   fresh = _life(tmp_path)
   fresh.begin((0.0, 0.0, 0.0))
-  assert _out(fresh)
+  assert _away(fresh, *dw.PIECES) and not _away(fresh, "place_card")
+  _claim(fresh, task)
+  taken = _life(tmp_path)
+  taken.begin((0.0, 0.0, 0.0))
   for p, (x, y, _) in ct.pass_set_out(k).pieces.items():
-    assert _at(fresh, p) == pytest.approx((x, y, ct.PASS_H)), p
+    assert _at(taken, p) == pytest.approx((x, y, ct.PASS_H)), p
 
 
 def test_the_pass_set_out_lies_on_the_counter_in_a_row_each_draw_its_own():
@@ -638,6 +818,7 @@ def test_a_piece_on_the_pass_reads_lifted_off_the_pass_never_the_table(tmp_path)
   import json
   life = _life(tmp_path)
   task = _offer_pass(life)
+  _claim(life, task)
   act = life._target_activity(restaurant.TABLE)
   mujoco.mj_forward(life.model, life.data)
   act.sense(life.model, life.data)
@@ -653,7 +834,7 @@ def test_a_piece_on_the_pass_reads_lifted_off_the_pass_never_the_table(tmp_path)
   assert again.rest == pytest.approx(act.rest) and again.lifted["cup"].value is True
   # ...and the table's set-out reads off the table's top, as it always did
   life.tasks.resolve(task.id, table_verdict(), t=float(life.data.time))
-  _offer(life)
+  _claim(life, _offer(life))
   mujoco.mj_forward(life.model, life.data)
   act.sense(life.model, life.data)
   assert act.rest == pytest.approx({p: ct.TABLE_H for p in dw.PIECES}, abs=1e-6)
@@ -661,18 +842,20 @@ def test_a_piece_on_the_pass_reads_lifted_off_the_pass_never_the_table(tmp_path)
 
 def test_a_place_set_out_in_the_hook_reads_where_it_was_set_out(tmp_path):
   """The served order (#682's stage C, its second review): an offer sets the
-  place out in the physics hook (`_task_step`, its producer's tick) and the
-  activities' hook senses it in the SAME pass, before a forward pass has
-  carried the new poses into `xpos` -- read off `xpos` there, every piece
-  rested 1 m under the floor, where it is put away, and every `<piece>Lifted`
-  of every table job read true the whole job. Each kind's own surface."""
+  card out in the physics hook (`_task_step`, its producer's tick), a claim
+  the pieces between two steps (#775), and the activities' hook may sense
+  them before a forward pass has carried the new poses into `xpos` -- read
+  off `xpos` there, every piece rested 1 m under the floor, where it is put
+  away, and every `<piece>Lifted` of every table job read true the whole
+  job. Each kind's own surface."""
   life = _life(tmp_path)
   act = life._target_activity(restaurant.TABLE)
   for offer, surface in ((_offer, ct.TABLE_H), (_offer_pass, ct.PASS_H),
                          (_offer_shelf, ct.SHELF_H)):
     mujoco.mj_step(life.model, life.data)        # a step with the place put away
-    task = offer(life)                           # ...the hook sets it out
-    act.sense(life.model, life.data)             # ...and senses it, the same pass
+    task = offer(life)                           # ...the hook sets out its card
+    _claim(life, task)                           # ...the claim its pieces
+    act.sense(life.model, life.data)             # ...and senses them, no forward between
     for _ in range(3):
       mujoco.mj_step(life.model, life.data)
       act.sense(life.model, life.data)
@@ -695,22 +878,27 @@ def _offer_shelf(life, **params):
                           secret=secret, ttl=3000.0, t=float(life.data.time))
 
 
-def test_a_shelf_offer_sets_its_pieces_out_on_the_shelf_and_the_card_at_the_table(tmp_path):
+def test_a_shelf_offer_sets_the_card_out_at_the_table_and_its_claim_the_pieces_on_the_shelf(
+    tmp_path):
   """The kind chooses the set-out (`restaurant.SET_OUTS`): an offer of the
-  place laid from the kitchen's shelf sets each piece out where
-  `shelf_set_out` lays it, on the shelf's board, its hidden weight the
-  draw's, and the card at the table -- never the table's set-out nor the
-  pass's -- and a restart sets an open one back out there (`restore_jobs`
-  by its kind)."""
+  place laid from the kitchen's shelf sets the card out at the table, the
+  draw's hidden weights in the world, and its claim each piece where
+  `shelf_set_out` lays it, on the shelf's board -- never the table's set-out
+  nor the pass's -- and a restart sets a taken one back out there
+  (`restore_jobs` by its kind). Rewritten for #775: the offer set the pieces
+  out on the shelf."""
   life = _life(tmp_path)
   task = _offer_shelf(life)
   k = task.secret["draw"]
   so, load = ct.shelf_set_out(k), dw.draw(k)
-  for p, (x, y, _) in so.pieces.items():
-    assert _at(life, p) == pytest.approx((x, y, ct.SHELF_H)), p
+  assert _away(life, *dw.PIECES), "the pieces wait for the claim"
+  for p in dw.PIECES:
     assert life.model.body_mass[life.model.body(p).id] == pytest.approx(getattr(load, f"{p}_kg"))
   assert _at(life, "place_card") == pytest.approx((*ct.table_set_out(k).card[:2], ct.TABLE_H))
   assert life._target_activity(restaurant.TABLE).load == load
+  _claim(life, task)
+  for p, (x, y, _) in so.pieces.items():
+    assert _at(life, p) == pytest.approx((x, y, ct.SHELF_H)), p
   fresh = _life(tmp_path)
   fresh.begin((0.0, 0.0, 0.0))
   assert _out(fresh)
@@ -762,7 +950,7 @@ def test_the_place_laid_from_the_shelf_is_graded_as_the_tables_and_pays_nothing(
   """Its grade is the table's evaluator under a row of its own (`HAND_JOBS`),
   paying nothing, shown to no mind -- no world's cadence offers it -- and
   its pieces read lifted off the shelf where they were set out, never off
-  the table's top."""
+  the table's top (read since #775 once its claim has set them out)."""
   import json
   from pathlib import Path
   from pluggybot.economy import scoring
@@ -779,12 +967,12 @@ def test_the_place_laid_from_the_shelf_is_graded_as_the_tables_and_pays_nothing(
     assert "set_table_shelf" not in (spec.get("kinds") or {}), world
   life = _life(tmp_path)
   task = _offer_shelf(life)
+  assert life._claim_task(task.id) and task.id in life._job_watches
   act = life._target_activity(restaurant.TABLE)
   mujoco.mj_forward(life.model, life.data)
   act.sense(life.model, life.data)
   assert act.rest == pytest.approx({p: ct.SHELF_H for p in dw.PIECES}, abs=1e-6)
   assert not any(act.flags[f"{p}Lifted"] for p in dw.PIECES), act.flags
-  assert life._claim_task(task.id) and task.id in life._job_watches
   _lay(life)
   verdict = _grade(life, task.id)
   assert verdict["ok"], verdict["reason"]
@@ -873,7 +1061,8 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
   of `loop-k4`). `status` is as it was, on the wire and under a portrait;
   the other robot is shown the last line that was the robot's OWN
   (`HubLifecycle.doing`; since #709 only a line its call marks so),
-  whichever of the board's eight lines came since."""
+  whichever of the board's lines came since -- a claim's pieces set out
+  (#775) among them."""
   from types import SimpleNamespace
 
   from pluggybot.lifecycle import others_context
@@ -914,7 +1103,8 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
   the_board_says("left as the world was saved",
                  by=lambda: life.set_out_unseen(task.number - 1))
   monkeypatch.undo()
-  life.tasks.claim(task.id, robot="r9_gone", t=float(life.data.time))
+  the_board_says("pieces are set out",
+                 by=lambda: life.tasks.claim(task.id, robot="r9_gone", t=float(life.data.time)))
   the_board_says("whoever held it is not", by=life._held_jobs)
   life.tasks.interrupted = [life.tasks.get(task.id)]
 
@@ -928,7 +1118,7 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
     _sweep(life)
   the_board_says(" expired: ", "things are put away", by=lapse)
   assert shown() == life.doing == "EXPLORE: heading for the kitchen"
-  # ...and none of the eight is marked the robot's doing where the lifecycle
+  # ...and none of them is marked the robot's doing where the lifecycle
   # says it (#709: a line is private unless its call marks it)
   import ast
   import inspect
@@ -949,8 +1139,10 @@ def test_the_other_robot_is_shown_a_robots_own_last_line_never_the_boards(tmp_pa
 
 #: The board's own lines, by a phrase of each as the lifecycle says it: an
 #: offer, an expiry, an offer's things set out (or not there to set out, or
-#: left where a hand is on them), things put away, a claim given back for a
-#: robot that is not in this world, a job a restart failed.
+#: left where a hand is on them), a claim's pieces set out (#775), things put
+#: away -- an untaken offer's pieces a restart found out among them -- a
+#: claim given back for a robot that is not in this world, a job a restart
+#: failed.
 BOARD_LINES = (" offered: ", " expired: ", "is set out", "to set out",
-               "left as the world was saved", "things are put away",
-               "whoever held it is not", "interrupted by a restart")
+               "left as the world was saved", "pieces are set out", "things are put away",
+               "pieces are put away", "whoever held it is not", "interrupted by a restart")

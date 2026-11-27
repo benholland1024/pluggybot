@@ -463,21 +463,24 @@ its own:
   is away (`home.world`), so the set-out's table is the served one. The
   dishware is compiled into the house PUT AWAY (`home.restaurant`): a metre
   under the floor, its contacts off, its weight held, in the group no
-  sensor casts against. An offer sets it out where the set-out of its draw
-  lays it -- the board's own count, `Task.secret["draw"]`, its weights and
-  friction `dishware.draw(k)`'s -- and once no task naming the table is
-  open (lapsed, settled, failed) the next sweep puts it away, never from
-  under a robot's hand (`_put_away_step`).
+  sensor casts against. An offer sets its card out and draws its weights
+  and friction into the world -- the board's own count,
+  `Task.secret["draw"]`, `dishware.draw(k)`'s -- and the claim sets the
+  pieces out where the set-out of that draw lays them (#775: an offer
+  mostly lapses untaken, and a piece out costs every physics step); once no
+  task naming the table is open (lapsed, settled, failed) the next sweep
+  puts it away, never from under a robot's hand (`_put_away_step`).
 - *It is paid for its time* (Ben's call, 2026-11-07): the counter's 90 for
   their 16 minutes, times its minutes over 16, rounded, so a robot choosing
   by the minute is not steered off it.
 
 The offer says where by the area's terms (#419): the mall's address and the
 restaurant's directions, naming the table, the card's tag (93) and the
-pieces' (90-92), that the card faces south, and that an offer there sets
-the pieces out on the table near the card, none where it goes -- never a
-position. Its sentence states this check's criteria and when the place was
-set out (#659), within a description's 500 characters
+pieces' (90-92), that the card faces south, and that a job there, once
+taken, has the pieces set out on the table near the card, none where it
+goes -- never a position. Its sentence states this check's criteria and
+when the pieces are set out (#659: when the job is taken, #775), within a
+description's 500 characters
 (`tasks.MAX_DESCRIPTION`); its row's detail carries all of them. Each says
 a piece's side as the robot's own as it faces the card ("16 cm to your
 left"; the row's "16 cm to the line's left (your left as you face the
@@ -563,7 +566,8 @@ tour, a fall failing its try, then 32 draws sealed by the frozen commit
 kitchen's shelf"): frozen at 2bf94b77, our reference laid 20 of 32 on the
 bar's draws and 25 of 32 sealed, no fall -- not met. Offered, like the pass's
 it moves the place's directions, which every kind's offer at the table
-carries: they say an offer sets the pieces out on the table near the card.
+carries: they say a job taken there has the pieces set out on the table
+near the card.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

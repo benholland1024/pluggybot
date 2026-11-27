@@ -180,14 +180,18 @@ geom toggles are **model-global** (every `MjData` sees them), a mocap pose is
 > world is compiled once, so it is compiled PUT AWAY -- a metre under the
 > floor, its geoms' contacts off and in the parked group
 > (`perception.cull.PARKED_GROUP`, which every cast leaves out and no camera
-> draws), its weight held (`gravcomp`) -- and an offer sets it out by
+> draws), its weight held (`gravcomp`) -- and a job sets it out by
 > writing its pose and switching the same fields back (`place`, `park`;
-> the card, which never moves under a hand, a mocap body). ⚠ A BODY'S
+> the card, which never moves under a hand, a mocap body): the card at the
+> job's offer, the pieces only at its claim (#775: an offer mostly lapses
+> untaken, and a piece out costs every step). ⚠ A BODY'S
 > BROADPHASE MASKS ARE COMPILED FROM ITS GEOMS' (`body_contype`,
 > `body_conaffinity`) and must be switched with them: set out with its
 > geoms' masks alone, the pieces fell through the table and the floor, 4 m
 > in a second. ⚠ Its pose and its fields go together: a live piece left a
-> metre inside the floor's half-space is thrown out of it.
+> metre inside the floor's half-space is thrown out of it -- so a restore,
+> whose board can be ahead of its world, switches the fields by where the
+> bodies came back before it steps (`as_placed`).
 
 ### 3.5 Poll on the step hook, cheaply
 

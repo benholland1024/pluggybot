@@ -288,10 +288,11 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **Put back.** `continuation.load` finds the save before the task board is
   built. Each lifecycle's `begin()` puts back the hand jobs' hidden draws --
   the counter's props', and the table's dishware, set out again where its
-  newest offer is still open (it is compiled put away; #560) --
-  (`restore_jobs`), then `continuation.restore` puts the bodies back, and
-  last sets out a job's things whose newest offer the save never saw
-  (below). The day routine opens without
+  newest offer is still open, its pieces only where that job is taken (it is
+  compiled put away; #560, #775) -- (`restore_jobs`), then
+  `continuation.restore` puts the bodies back, the place's geoms as the save
+  placed them (`jobs_as_saved`: the board can be ahead of the world), and
+  last sets out a job's things the save never saw (below). The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
 - **The last step is stepped again** (`continuation.replay`, #420). A running
@@ -318,7 +319,9 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   owed (a run's end, a stop while paused), and the save keeps that per
   robot. The restore books it once the step is stepped again. A save from
   before it owes nothing and comes back as it always did. And no save is
-  taken on a step a death or a stand-up landed in (`Keeper.landed`): a
+  taken on a step a death or a stand-up landed in, nor on the step after a
+  claim set a table job's pieces out between two steps (#775: that step
+  began from before them; `Keeper.landed`): a
   routine it lands in may be closed there, unbooked, once the hooks are
   done -- a procedure's verb on a death, a long routine on a stand-up --
   and saved, the restore would book a step the world never did; the keeper
@@ -339,10 +342,12 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   readings the save kept (`jobWatches`). A claim held by a robot not in the
   new world goes back on offer, as does a job this world cannot do.
 - **An offer sets its prop out.** A hand job's prop goes back to rest on
-  the counter, and the table's dishware out where its draw lays it, its
-  hidden dynamics drawn afresh, when its job is offered (`_set_out_job`),
-  except one a robot is touching; the dishware is put away again once no
-  job holds the table (`_put_away_step`). With the world
+  the counter, and the table's card at its place, its hidden dynamics drawn
+  afresh, when its job is offered (`_set_out_job`), except one a robot is
+  touching; the table's pieces where its draw lays them when the job is
+  taken (`_take_job`, #775: an offer mostly lapses untaken, and a piece out
+  costs every step); the dishware is put away again once no job holds the
+  table (`_put_away_step`). With the world
   carried on, a failed attempt would otherwise leave it wherever it was
   dropped, for good. ⚠ So is one offered between the world's last save and
   a crash, as the world comes back (`set_out_unseen`, #610): the board saves
@@ -351,7 +356,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   a job paid for nothing. The save keeps the board's count (`boardSeq`),
   and a prop whose newest offer is numbered past it is the one set out. By
   the count, never the stamp: an offer stamped on the clock before a
-  start-over reads as later than every save since.
+  start-over reads as later than every save since. A table job taken since
+  the save is read off what came back instead (#775): its pieces put away,
+  they are set out for it; an untaken offer's pieces out (a save from
+  before #775), they are put away.
 - **Another body in the same house** (#559: Luca and Rowan keep who they are
   in new bodies). A save of one body's world carries on in another body's
   world of the same house (`lifecycle.HOUSES`) as a changed world does,

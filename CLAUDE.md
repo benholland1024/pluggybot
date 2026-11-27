@@ -1098,7 +1098,8 @@ save a filmstrip PNG named after the script.
   state; the counter and the restaurant's table are `home.jobs`' two areas,
   one interface), and an offer made between the world's last save and a crash has
   its prop set out again once the world is back (`set_out_unseen`, off the
-  board's count the save keeps, `boardSeq`, never a stamp; #610); ⚠ NO
+  board's count the save keeps, `boardSeq`, never a stamp; #610) -- ⚠ BUT
+  THE TABLE'S PIECES AT THE CLAIM (#775, below); ⚠ NO
   OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
   `busy`): set out from under a hand, a drawer left out was paid for
   nothing. ⚠ Its `find` (`HumanoidPlaces.find_routine`, its world's places
@@ -1147,8 +1148,8 @@ save a filmstrip PNG named after the script.
   way round, tilted 60 deg; each reach is aimed at its grip (#627), a carry
   by `pull`. Tags 90-93; 76-89 are left for the store's. ⚠ ITS ROWS AND
   ITS OFFER SAY EACH SIDE AS THE ROBOT'S OWN AS IT FACES THE CARD -- the
-  grader's left is the diner's -- AND THE PLACE'S DIRECTIONS THAT AN OFFER
-  SETS THE PIECES OUT ON THE TABLE NEAR THE CARD, NONE WHERE IT GOES (#723;
+  grader's left is the diner's -- AND THE PLACE'S DIRECTIONS THAT A JOB
+  TAKEN HAS THE PIECES SET OUT ON THE TABLE NEAR THE CARD, NONE WHERE IT GOES (#723, #775;
   two tests read the side off `table.place_frame` and the set-out off
   `table.measure`): the directions ride every kind's offer there, so a kind
   a world offers that sets them out elsewhere, the pass's or the kitchen
@@ -1163,9 +1164,17 @@ save a filmstrip PNG named after the script.
   pair sets a place out twice, and a counter prop's set-out comes while the
   table's is out -- a put-away after let them fall at g, put back and said
   every second (Observatory.md, the period of `loop-k4`;
-  `tests/test_table_job.py`); an offer sets it out where
-  set-out k lays it (`_set_out_job`) and a sweep puts it away once no job
-  holds the table, never from under a hand (`_put_away_step`); the pair's
+  `tests/test_table_job.py`); ⚠ AN OFFER SETS OUT THE CARD AND ITS CLAIM
+  THE PIECES, where set-out k lays them (#775; `restaurant.offered`/`take`,
+  `_set_out_job`, `_take_job` on the board's `task_claimed`, at the claim's
+  own instant; SimNotes, "The place set out at its claim"): set out with the
+  offer, the place stood out 79 % of 11-25's running minutes, 20 of its 21
+  offers untaken, and those minutes ran 7.15 % slower; a restart sets out
+  what the board's state calls for (`restore_jobs`), the geoms as the save
+  placed the bodies before its last step is stepped again (`jobs_as_saved`)
+  and a claim the save never saw after it (`set_out_unseen`), no save taken
+  in the step after a claim (`Keeper.landed`); a sweep puts it away once no
+  job holds the table, never from under a hand (`_put_away_step`); the pair's
   speed with it 0.915x, without 0.903x (one pod). ⚠ `set_table` IS ONE MORE KIND IN THE
   ROTATION (`cadence.json`'s `home_humanoid`) since its reference
   (`solutions.TABLE`) laid 24 of 32 over the tour, its bar written first
@@ -2156,7 +2165,8 @@ save a filmstrip PNG named after the script.
   them through `Navigator._booked_routine` (a test reads every call of
   `_after_step`), the keeper's hook is a `Body.last_hooks` one (after every
   step hook, whenever hung), no save is taken on a step a death or a
-  stand-up landed in (`Keeper.landed`), and a routine they close there owes
+  stand-up landed in, nor on the step after a claim set its pieces out
+  between two steps (`Keeper.landed`, #775), and a routine they close there owes
   nothing (`Body.forgo_owed`). A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the

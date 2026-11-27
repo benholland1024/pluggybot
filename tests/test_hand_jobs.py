@@ -1367,14 +1367,27 @@ def test_a_job_whose_offer_sets_its_things_out_says_when_as_offered():
   believed still out. Read as the robot reads it, through `Task.create`'s
   cut, on the offer's own clock: a clause the template has and the offer has
   lost says nothing, and a date that is not this offer's says something false
-  -- a parameter of that name included."""
+  -- a parameter of that name included. ⚠ A kind whose area keeps its things
+  put away until the job is taken (`take`: the table's pieces, #775) sets
+  them out at the claim, so its sentence says that, and no date: the offer's
+  would be false of them. Rewritten for #775: every kind said the offer's."""
+  from pluggybot.home import jobs
   drawing = [name for name, kind in KINDS.items() if kind.draws]
   assert set(HAND_JOBS) <= set(drawing)
+  at_claim = {name for name in drawing
+              if hasattr(jobs.area_of(next(t for t, k in jobs.targets().items()
+                                           if k == KINDS[name].target_kind)), "take")}
+  assert at_claim == {"set_table", "set_table_pass", "set_table_shelf"}
   for name in drawing:
     for t in (205338.0, 7.0):
       offered = Task.create(name, KINDS[name].target_kind, "t_1",
                             params={"minutes": 999, "offered": 1}, t=t)
-      assert f"at t={t:.0f}, when this job was offered." in offered.description, name
+      if name in at_claim:
+        assert "set out" in offered.description and "when you take this job." \
+          in offered.description, name
+        assert "t=" not in offered.description and "was offered" not in offered.description, name
+      else:
+        assert f"at t={t:.0f}, when this job was offered." in offered.description, name
 
 
 def test_what_a_jobs_sentence_says_of_its_prop_is_what_its_offer_does(tmp_path):

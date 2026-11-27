@@ -553,6 +553,10 @@ def restore(lives, snap: Snapshot) -> dict:
   same = same_world and snap.meta.get("mapEpoch", 0) == MAP_EPOCH
   if same:
     matched = put_physics(first.model, first.data, snap.meta["physics"], snap.arrays)
+    # ...and each job area's things live or put away as the world was saved:
+    # `begin` set them by the board, and the step below begins as the save's
+    # (#775, `HubLifecycle.jobs_as_saved`)
+    first.jobs_as_saved()
   else:
     first.data.time = snap.t
     mujoco.mj_forward(first.model, first.data)
@@ -690,8 +694,11 @@ class Keeper:
     A routine it lands in may be closed at the step, unbooked, once the
     hooks are done (`steps._until_down_routine` on a death,
     `HubLifecycle._until_stood_up_routine` on a stand-up), which a save
-    inside them cannot know: a step later, the routine has decided (#749)."""
-    now = [(None if life.dead is None else id(life.dead), len(life.resets))
+    inside them cannot know: a step later, the routine has decided (#749).
+    ...Or a claim's set-out before it (`HubLifecycle.takes`, #775): made
+    between two steps, after `LastStep`'s record of where this one began, so
+    a save here would step it again from before the pieces were out."""
+    now = [(None if life.dead is None else id(life.dead), len(life.resets), life.takes)
            for life in self.lives]
     landed = self._seen is not None and now != self._seen
     self._seen = now

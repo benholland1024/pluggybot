@@ -200,7 +200,7 @@ sight. Worked through what reaches the robot:
 | another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | a prop's hidden dynamics — the drawer's runners, the chest's catch | ❌ | hidden ground truth, drawn per offer and kept in `Task.secret`, and redacted where a metric carries it (`catchN`, `Verdict.secret`) |
-| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, and at a start-over the second the world began again from its XML with every prop at rest (#659, #594; why dated: its period in Observatory.md). Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
+| when a job's things were put back ("The drawer was put back shut at t=205338, when this job was offered.") | ✅ | the job's own history, which whoever posted it knows. A `draws` kind's sentence says it, dated on the robot's own clock, and at a start-over the second the world began again from its XML with every prop at rest (#659, #594; why dated: its period in Observatory.md) -- or, where its things wait put away until the job is taken (the table's pieces, #775), that they are set out when it is taken, and no date. Told nothing, a robot timed a spring the drawer does not have. How the prop stands *now* stays the robot's to see: anything may have touched it since |
 | where a job's things were put, as roughly as whoever put them would say it (the cube "beside its mat"; the table's pieces "set out on the table near the card, none of them where it goes") | ✅ | the same history, in the sentence where it fits and in the area's directions where it does not (the table's, #723; why: its period in Observatory.md). Never finer than that: where exactly is the robot's to find, as the pose of a movable object is (above). The area's directions ride every kind's offer there, so `test_table_job.py` reads the table's against 32 set-outs of each kind a world offers at the table |
 
 The test for a new delivery is the middle column of the first row against the
@@ -561,7 +561,8 @@ may judge several rows — `open_drawer` and the practice's `drawer` are both
 judged by `drawer.eval_drawer`), `target_kind` says what the target names,
 and the `template` is the sentence a person reads — **with no price in it**
 (§2.2), **saying when a `draws` kind's things were put back** (`{offered}`,
-the offer's own second; §2), and **inside `MAX_DESCRIPTION`**, past which it
+the offer's own second, or "when you take this job" where they wait for the
+claim, #775; §2), and **inside `MAX_DESCRIPTION`**, past which it
 is cut without a word: `test_no_jobs_sentence_is_cut_at_its_offer` reads
 every kind with its numbers wider than they will be for years.
 `estimate_wh` is the world-agnostic FALLBACK and must never sit below the measured cost of the job (`tests/test_energy.py` is the drift

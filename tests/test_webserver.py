@@ -788,6 +788,7 @@ class _FakeLife:
     self.stopping = ""
     self.dead = None
     self.resets: list = []
+    self.takes = 0                      # ...a claim's set-outs (#775, `Keeper.landed`)
     self._standing_up = False
     self.run_args: tuple = ()
     self.run_kwargs: dict = {}
