@@ -73,7 +73,7 @@ def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   assert ds.saved_words({"k": "saved", "t": 257.488, "passedOver": 573,
                          "firstInFlight": first}, True, 200.0) == (
     "saved inside the hooks of the step at t=257.488, the first with nothing in "
-    "flight: from t=200.088 it passed over 573 with explore_routine > "
+    "flight: from t=200.088 it passed over 573 steps with explore_routine > "
     "drive_to_routine in flight, which a restart ends by design (the errand in "
     "flight ends, #780)")
   assert ds.saved_words({"k": "saved", "t": 300.088, "passedOver": 0,
@@ -84,7 +84,7 @@ def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   assert ds.saved_words({"k": "nosave", "passedOver": 9, "firstInFlight": first},
                         True, 200.0).startswith(
     "NOT SAVED: no step from t=200.0 to the day's end had nothing in flight; from "
-    "t=200.088 it passed over 9 with explore_routine > drive_to_routine")
+    "t=200.088 it passed over 9 steps with explore_routine > drive_to_routine")
 
 
 def test_the_saving_arm_asks_before_it_writes():

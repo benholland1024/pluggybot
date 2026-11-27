@@ -131,7 +131,7 @@ def saved_words(row: dict, in_step: bool, at: float) -> str:
   nowhere (its `nosave` row)."""
   first = row.get("firstInFlight")
   over = ("" if not first else
-          f" from t={first['t']} it passed over {row['passedOver']} with "
+          f" from t={first['t']} it passed over {row['passedOver']} steps with "
           f"{' > '.join(first['inFlight'])} in flight, which a restart ends by design "
           "(the errand in flight ends, #780)")
   if row["k"] == "nosave":
