@@ -13281,12 +13281,16 @@ This branch sizes a radius for each sensor (`HELD_DROP_M`, the LIDAR's,
     14 at 0.22 (round 6 of #682 saw the same at 0.20: 23 strikes against
     13). No sphere round the grip both covers the fork's head with the
     LIDAR's noise (0.241) and leaves an edge at 0.17 in view.
-  - **Why 0.16 still lays fewer: the put-downs.** The places lost at 0.16 are
-    a fork or a plate set down 3-4 cm off (the grader's 2 cm). The laid
-    places' median errors: on B the plate 1.1 cm and the fork 1.1; on every
-    changed tree but 0.22 the plate 1.35-1.4 and the fork 1.4-1.5. The pass's
-    put-downs sit near their tolerance and were tuned on the base's walk
-    (#751's cure cost them 16 -> 3 the same way).
+  - **Why 0.16 laid fewer on its first draw: the put-downs.** The places
+    lost at 0.16 are a fork or a plate set down 3-4 cm off (the grader's 2.5
+    cm). The laid places' median errors: on B the plate 1.1 cm and the fork
+    1.1; on every changed tree but 0.22 the plate 1.35-1.4 and the fork
+    1.4-1.5. The pass's put-downs sit near their tolerance and were tuned on
+    the base's walk (#751's cure cost them 16 -> 3 the same way). A second
+    noise draw (each flight's own key + ":d2") laid 25 on B, 25 at 0.16 /
+    0.20 and 27 at 0.16 / 0.12: over both draws 51, 46 and 50 of 64 (places
+    lost and gained against B 10 and 5, sign test p 0.15; 7 and 6, p 0.5),
+    no fall, strikes 48, 42 and 44.
   - **What the wide radii hide.** On the hands checks the cupboard door's
     top and panel at the head's height (1.05-1.07 m, 0.19-0.24 m from the
     lever's grip, where `step`'s room reads), and a counter's top edge in the
