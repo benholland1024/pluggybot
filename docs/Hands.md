@@ -502,7 +502,9 @@ there (§4's "A tag watched while the robot moves").
   there through every walk, a `step` too, until a reach or a let-go ends it
   (SimNotes, "Carrying, served"). There is no `carry` verb, and no other
   pose: one piece in one hand, close. The body text says it beside the
-  let-go, and a walk verb's report says what it carried (`carried`) and what
+  let-go, and that a walk, carrying a hand or letting it go, ends it being
+  out: `move_hand` and `pull` refuse a carried hand (#774 (a)). A walk
+  verb's report says what it carried (`carried`) and what
   its grip read empty by the end (`dropped`). The walker under it is walk2,
   trained before any carry, and shown its arms at rest while a hand is carried
   (#751: seeing its folded elbow it stood still at the first carried step

@@ -34,6 +34,7 @@ from pluggybot.humanoid import mission as hmis
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import reach as rc
 from pluggybot.humanoid.arms import HandGoal, SelfModel
+from pluggybot.mind import practice as mp
 from pluggybot.perception.lidar import BEARINGS, Cloud
 from pluggybot.procedure import steps as st
 from test_hands import _Life, _stub
@@ -454,6 +455,31 @@ def test_a_hand_carried_at_its_side_is_no_hand_at_work():
     assert body.working and m._hand_out()
   finally:
     body.close()
+
+
+def test_a_hand_a_walk_carried_is_not_out_and_your_body_says_so():
+  """#774 (a): YOUR BODY said a hand is OUT from a reach until you withdraw
+  it, and that a walk's carry leaves it at your side until you reach with it
+  again or withdraw it -- yet a carried hand is no hand out (`Reach.out`: a
+  pose of its own), and `move_hand` and `pull` refuse it "not out" (C2d's
+  instrument, 19 times after a step). Where there are walks the definition
+  says a walk ends it; where there are none it names no walk."""
+  body = body_for(*_floor())
+  m = body.mission
+  try:
+    m.reach.carry_q["left"] = m.reach.q_cmd["left"].copy()
+    m.reach.phase["left"] = "carried"
+    assert not m.reach.out("left")
+    assert body.run(body.move_hand_routine("left", (0.4, 0.2, 0.9)))["why"] == "not out"
+    assert body.run(body.pull_routine("left", (1.0, 0.0, 0.0), 10.0, 0.05))["why"] == "not out"
+  finally:
+    body.close()
+  told = " ".join(mp.system_prompt(st.hand_facts()).split())
+  assert ("A hand that is OUT is one you have reached with, until you withdraw it or a "
+          "walk takes it home or to your side. Before a `step` or any other walk") in told
+  bare = " ".join(mp.system_prompt(st.hand_facts(step=False)).split())
+  assert "A hand that is OUT is one you have reached with, until you withdraw it. " in bare
+  assert "walk" not in bare.partition("A hand that is OUT")[2].partition("VERBS")[0]
 
 
 def test_a_carried_arm_rides_a_restart():

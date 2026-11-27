@@ -10,6 +10,38 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A hand a walk carried is no longer out, and the body text says so (#774 (a)'s option 1, C11, `loop-words4`) — opens when this PR is deployed
+
+**What the robots read** moves by one clause, on purpose: the prompt
+`3f8b2dc7…` (72,160 characters, 17 sections) becomes `efdaa421…` (72,200),
+one section moved, PROCEDURES YOU MAY WRITE (+40); the session host's hello
+`9dcf6202` becomes `0d02824f` (its body section). No History line is new or
+reworded. A draft for Ben, YOUR BODY's definition, BEFORE (71 characters):
+"A hand that is OUT is one you have reached with, until you withdraw it."
+AFTER (111): "A hand that is OUT is one you have reached with, until you
+withdraw it or a walk takes it home or to your side." The clause is said only
+where the walk's text is (a world whose verbs give a `step`, the served pair's
+and every practice's), and nowhere else. #774's own draft said "or a walk
+carries it to your side": by it, a hand a walk brought home empty would still
+be out.
+
+**What a deployed robot does**: nothing new. A carried hand was never out
+(`Reach.out`: a pose of its own), and `move_hand` and `pull` refuse it,
+"your left hand is not out: `reach` with it first", as before.
+
+**Why** (#774 (a)). The walk text says a carried hand stays at the robot's
+side "until you reach with that hand again or withdraw it", and the
+definition said it stayed out until withdrawn: a procedure that stepped
+holding something and then carried or pulled with that hand was refused
+"not out", against the words it was given. C2d's checkout instrument met it
+19 times, each after a step (`~/pluggybot-training/loop-1126b/c2d-checkout/`).
+The robots' own live procedures never did: "is not out" is in no run of the
+wakes of 11-15, 11-18, 11-22 and 11-25; they rarely walk holding something.
+
+**What to read.** On the wakes after this deploys: a `move_hand` or `pull`
+refused "not out" after a walk that carried that hand, against none before;
+and a `reach` with a carried hand after a walk, its piece still held.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the
