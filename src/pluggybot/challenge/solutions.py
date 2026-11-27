@@ -724,9 +724,9 @@ SHELF_HELD = '''  if read("%s.held") < 0.5:
     return
 '''
 #: What the shelf's runs change in the pass's, each (old, new) once: the
-#: trip's walk, the plate's turn, `near`'s distance, the left pre-pose, the
-#: cup's and the fork's looks, the cup's retries, each thin piece's stow
-#: before the walk, and each put-down's check that its piece is still held.
+#: trip's walk, `near`'s distance, the left pre-pose, the cup's and the
+#: fork's looks, the cup's retries, each thin piece's stow before the walk,
+#: and each put-down's check that its piece is still held.
 SHELF_FROM_PASS = {
   "cup": (("  to_pass(-0.10)\n", "  to_shelf(%(cup_s)g)\n"),
           ("  to_place(%(cup_facing)g)\n", "  to_place(%(cup_facing)g)\n" + SHELF_HELD % "right"),
