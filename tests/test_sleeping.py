@@ -189,6 +189,8 @@ def test_a_save_on_any_step_round_a_sleep_or_a_wake_steps_on_bit_for_bit(event):
   saves = (event - 1, event, event + 1)
   m, d = _toy()
   seen, saved = _fly(m, d, 0, STEPS, saves)
+  asleep = [s[2] >= 0 for s in seen]
+  assert not np.array_equal(asleep[event - 1], asleep[event]), "the premise: a tree slept or woke"
   for k in saves:
     index, arrays = saved[k]
     back = mujoco.MjData(m)
