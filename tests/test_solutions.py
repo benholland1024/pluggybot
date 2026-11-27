@@ -1008,8 +1008,8 @@ def test_the_shelf_cup_s_and_fork_s_missed_looks_turn_toward_them_and_look_again
 def test_the_shelf_fork_s_hand_stays_left_of_the_middle_from_its_pull_off_the_shelf():
   """Its hand near the body's middle (0.13-0.20 m left), the fork's pull off
   the shelf, its move back and its stow took a 0.55-0.95 rad bow and the
-  waist up to 60 deg in 10 of 49 trips -- the head on the work board in 5,
-  one fall -- and from 0.23 m left or more none of 9 (A2's flights). Off the
+  waist up to 60 deg in 10 of 49 trips -- the head on the work board in 7,
+  one fall -- and from 0.23 m left or more none of 7 (A2's flights). Off the
   reference's own source: the pull off the shelf goes to the hand's own
   left, at least `SHELF_FORK_LEFT`, and every move after it keeps that."""
   import ast as _ast
@@ -1034,8 +1034,8 @@ def test_the_shelf_puts_each_piece_down_only_while_its_hand_holds_it():
   1.10 rad and it fell (A2's flights). Off the reference's own source: in each
   shelf run the walk to the place is followed at once by the end of the run
   where its hand's grip reads empty (`SHELF_HELD`), before any put-down. In
-  384 of A2's trips a hand whose walk said it had dropped its piece never laid
-  it within 2.5 cm, so the check costs no piece."""
+  60 of A2's trips whose walk said it had dropped its piece (of 576) none was
+  laid within 2.5 cm, so the check costs no piece."""
   import ast as _ast
   from pluggybot.challenge import solutions
   for src, hand in zip(solutions.PROCEDURES["set_table_shelf"], ("right", "left", "left")):

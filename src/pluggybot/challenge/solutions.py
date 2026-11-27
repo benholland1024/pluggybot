@@ -725,8 +725,8 @@ SHELF_PLATE_BACK, SHELF_FORK_BACK, SHELF_STOW_Z = 0.20, 0.22, 0.92
 #: The least the fork's hand stands left of the middle from its pull off the
 #: shelf on, m (the pass's plate's own least): nearer the middle, the pull,
 #: the move back and the stow took a 0.55-0.95 rad bow and the waist up to 60
-#: deg in 10 of 49 trips -- the head on the work board in 5, one fall -- and
-#: from 0.23 m or more none of 9.
+#: deg in 10 of 49 trips -- the head on the work board in 7, one fall -- and
+#: from 0.23 m or more none of 7.
 SHELF_FORK_LEFT = 0.25
 #: Each shelf run's put-down only while its hand still holds the piece, the
 #: run ended otherwise: after the step at the table let the plate go, the

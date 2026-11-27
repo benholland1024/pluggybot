@@ -1213,10 +1213,11 @@ save a filmstrip PNG named after the script.
   way, which rose up to 0.39 m: under the board above, 46 forks of 52 struck
   it), ⚠ the fork's hand at least 0.25 m left of the middle from its pull
   off the shelf on (nearer, its pull, move back and lowering bowed 0.55-0.95
-  rad, the head on the work board in 5 of 49 trips and one fell), and ⚠ each
+  rad, the head on the work board in 7 of 49 trips and one fell), and ⚠ each
   put-down only while its hand reads held (from the hanging arm, the
-  put-down's reach bowed the robot 1.10 rad and it fell). Its bar (the
-  pass's) is written and not yet read.
+  put-down's reach bowed the robot 1.10 rad and it fell). ⚠ ITS BAR (the
+  pass's) IS NOT MET: frozen at 2bf94b77, 20 of 32 on the bar's draws and 25
+  of 32 on 32 sealed by that commit, no fall, one pod (SimNotes, each miss).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

@@ -9193,8 +9193,10 @@ Challenges.md §12). No geometry was added: the reference finds the kitchen
 off the pass's pair (68, 69). Its bar was written before any reference flew:
 24 of 32 draws over the tour, a fall failing the try, then 32 draws sealed by
 the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
-each piece fetched from the shelf and laid as the pass lays it (below); its
-bar is not yet read. Measured first, before the kind was built, on a scratch
+each piece fetched from the shelf and laid as the pass lays it (below).
+Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
+32 draws sealed by that commit, no fall, one pod: THE BAR IS NOT MET (its
+misses below). Measured first, before the kind was built, on a scratch
 set-out flying the pass's own pick halves from in front of the shelf (the
 loop of 11-26b's A2; `~/pluggybot-training/loop-1126b/a2-shelftable/`, 38
 flights, osmesa, each its own noise):
@@ -9274,14 +9276,14 @@ a2_shelf/`):
   of seven) -- and the fork's hand kept at least 0.25 m left of the middle
   from its pull off the shelf on (`SHELF_FORK_LEFT`): nearer the middle, the
   pull, the move back and the stow took a 0.55-0.95 rad bow with the waist up
-  to 60 deg in 10 of 49 trips, the head on the work board in 5 (up to 606
-  N) and one fell; from 0.23 m none of 9.
+  to 60 deg in 10 of 49 trips, the head on the work board in 7 (up to 606
+  N) and one fell; from 0.23 m none of 7.
 - **Each put-down only while its hand reads held.** A plate let go in the step
   at the table (tilted 36-40 deg in the jaws) left the hand empty; the step
   brought it home, and the put-down's reach from the hanging arm took a crouch
-  of 0.25 m, a bow of 1.10 rad and the waist 0.79, and the robot fell. In 384
-  dev trips a walk that said it had dropped its piece never laid it within
-  2.5 cm, so the check costs no piece.
+  of 0.25 m, a bow of 1.10 rad and the waist 0.79, and the robot fell. Of 60
+  dev trips whose walk said it had dropped its piece (in 576), none laid it
+  within 2.5 cm, so the check costs no piece.
 
 On dev draws 4000-4063, each flown on one pod: with only the walk, the left
 pre-pose and the cup's look and retries, the reference laid 21 of 64, no
@@ -9293,7 +9295,13 @@ lowering, at its hand under 0.23 m left of the middle, ended out of reach in
 42, no fall and nothing of the head on the shelf -- paired with the one
 before, 13 more laid and 1 fewer. The cup's and the plate's trips fly the
 same, byte for byte, in the last two: the plate let go carried, 9 of 64, is
-the most of what is left.
+the most of what is left. On the bar's draws the plate was let go carried in
+7 of 32, and the fork let go 4 cm over the table in 4 -- its descent at the
+place ended out of reach after 4-6 cm, its hand 0.17 m left of the middle,
+where the pass's lay steps across only past 0.18 -- and the plate dropped at
+its put-down in 1; on the sealed draws the cup and the fork were put down
+off in 2 each, the plate off in 1 and let go carried in 1, and the cup's
+retry did not see it again in 1.
 
 **A thin piece's hand-over rises under a board above** (served code since the
 pass's round 10; reported to #682, not fixed). The walk's hand-over takes the

@@ -560,9 +560,10 @@ it) finds the kitchen off the pass's pair. NOT OFFERED and paid nothing
 is the pass's, written before any reference flew -- 24 of 32 draws over the
 tour, a fall failing its try, then 32 draws sealed by the frozen commit
 (`scripts/solve.py --feature kitchen`; SimNotes, "The place laid from the
-kitchen's shelf"). Offered, like the pass's it moves the place's
-directions, which every kind's offer at the table carries: they say an offer
-sets the pieces out on the table near the card.
+kitchen's shelf"): frozen at 2bf94b77, our reference laid 20 of 32 on the
+bar's draws and 25 of 32 sealed, no fall -- not met. Offered, like the pass's
+it moves the place's directions, which every kind's offer at the table
+carries: they say an offer sets the pieces out on the table near the card.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.
