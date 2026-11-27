@@ -590,9 +590,15 @@ TABLE_STANCES = '''def lay_place():
 #: steps back 8 cm before its set-down too (round 18): set down from nearer, the
 #: reach took its deepest posture and put the head on the board; ⚠ the frame is
 #: aimed 1 cm further right (round 20): its placements landed a mean 0.8-0.9 cm
-#: left of their labels, and every one off its label landed left of it
-#: (SimNotes, "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are the
-#: job's labels (`source`).
+#: left of their labels, and every one off its label landed left of it; ⚠ on the
+#: upper board the set-down reach's pre-pose is at most 0.35 m ahead (round
+#: 22b): further out the stand reaches it, and the carry in and the press then
+#: each take another posture with the product at the board -- set down so on the
+#: dev rows, 41 of 85 upper products ended on their label, and 295 of 299 whose
+#: reach went at once to the deep bow, which reaches the set-down point and the
+#: press as well; the retry of a reach stopped short is unchanged, 8 cm behind
+#: the unclamped pre-pose and 3 cm higher (SimNotes, "Stocking the shop's
+#: shelf"). `%(candle)d` and `%(frame)d` are the job's labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=200,seconds=290)
   one(%(frame)d,0)
@@ -639,7 +645,7 @@ def one(lab,i):
       x=x-read("step.dx");ly=ly-read("step.dy")
       if spot(tl):x=read("spot.x");ly=read("spot.y")
   x=x+0.08-0.02*i*(lab>81)*(x>0.5)-q;z=z+0.075+oz;w=ly-r-0.01-0.01*(i*(lab<82)+1-i)+0.035*(lab>81)
-  if not reach("left",x-0.17,w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
+  if not reach("left",x-0.17-(x-0.52)*(x>0.52)*(lab>81),w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
   if not move_hand("left",x,w,z):
     if x-read("left.x")>0.01:pull("left",1,0,0,10,x-read("left.x"),give=0)
   pull("left",0,0,-1,6,0.1,give=0)
