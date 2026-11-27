@@ -37,7 +37,7 @@ from pluggybot.economy.cadence import Cadence, TaskProducer, default_cadence
 from pluggybot.economy.tasks import KINDS, Task, TaskBoard, kind_names
 from pluggybot.evaluation import qualities as q
 from pluggybot.lifecycle import board_book, overseer_context, world_targets
-from pluggybot.mind import acts, overseer as ov
+from pluggybot.mind import acts, changelog, overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.telemetry.protocol import ACT_EVENT_TYPES
 from test_two_minds import OTHER_ROBOT_RULE_SHA, stub_pair
@@ -225,7 +225,10 @@ def test_the_pairs_producer_names_the_other_robot_and_each_sees_only_the_offer_i
   assert shown["pays"] == scoring.default_table()["take"].base
 
 
-def test_the_take_moves_exactly_the_amount_pays_on_top_and_records_the_stake(pair):
+def test_the_take_moves_exactly_the_amount_pays_on_top_and_records_the_stake(pair, monkeypatch):
+  # every turn carries the calendar's date (#617): on 2026-11-27 the other's
+  # balance below, 27, read as found in it
+  monkeypatch.setattr(changelog, "today", lambda now=None: "2026-11-09")
   a, b = pair
   b.ledger.intervene(37, by="test", t=0.0)
   b.battery.energy_wh = b.low_battery_wh / 2               # the other in need
