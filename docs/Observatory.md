@@ -53,10 +53,15 @@ plug-in, a walk's lift), nor a way home. Nothing seen since the feet moved
 judges nothing. ⚠ The clearance was chosen in a shadow census of the shop
 shelf (unserved): the rule's written criterion, read to the letter, picked
 #747's -0.005 m through A10's k228's rise out of the bow; 0 was chosen by the
-falls' entries, 5 of 5 against 4 of 5, at one more set-down flagged that met
-nothing. ⚠ Its known limit: the live trunk goes deeper than the statue's
-walk (a tour's press whose walk up kept 0.6 mm off the board pressed the
-head on it at 457 N).
+falls' entries, 5 of 5 against 4 of 5, at two more set-downs flagged that met
+nothing. ⚠ Its known limits: the live trunk goes deeper than the statue's
+walk (a cube's plan whose walk touched the counter by the truth put the
+torso on it at 486 N; the tour's 457 N press first named here is flagged by
+the final code's judge before its contact), and its view drifts through a
+bow by the legs' reckoning (2 cm at lane C's rack, where a look's rise 1.2
+cm into a board read clear). On Ben's bar it acted in 14 flights, at the
+storeroom's counter and the restaurant's table: two lids passed that had
+failed, a table's fall went, a cube's place was lost.
 
 **What the period is for.**
 - **The acceptance**: the served jobs' procedures whose reach, carry or pull

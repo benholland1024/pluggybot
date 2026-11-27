@@ -12800,7 +12800,11 @@ more set-downs flagged that met nothing. The whole memory at -0.005 flagged
 28, 13 of them nothing (a board laid before the last steps). ⚠ THE LIVE TRUNK GOES
 DEEPER THAN THE STATUE'S WALK: a tour's press into a 0.95 rad bow whose walk up
 kept 0.6 mm off the board (the truth 3.8 mm in) pressed the head on it at 457
-N in the withdraw -- the rule's known limit.
+N in the withdraw -- the rule's known limit. Walked up from the stand at the
+lean the body reads (the review's change), that walk reads into the board, and
+the final code's judge flags it before the contact; where a statue only
+touches, the live trunk can still press hard (a cube's plan at the counter,
+touching by the truth, put the torso on it at 486 N: below).
 
 **What it costs.** One judgment is 5-20 ms on the dev box; a plan it passes
 over nothing in, 0-15 ms more (k253's deep plan 6.48 -> 6.50 s, a reach
@@ -12808,6 +12812,44 @@ across the body 660 -> 666 ms, one to its own side 64 -> 79 ms). Where it
 passes one over, the search goes on through the rest of the postures as
 #747's refusals do (k253's pre-point with the board 0.42 m ahead, 6.5 -> 11.5
 s of the one physics thread). A hands check's door, five judgments, 44 ms.
+On Ben's bar (below) a flight made 3.3 judgments, the table's 6-7; flown on
+the dev box, a table check's 18 took 1.1 s and the searches the rule
+lengthened 6.1, 0.8 and 0.8 s, a cube's plan's 10.6 s, and a whole flight
+took 0-15 s more wall than the base's (the pod's oversubscribed wall clock
+read the same searches 5-10 times longer).
+
+**On the final code** (b5bc660e). Ben's bar, on one pod beside loop-staging
+93c27983: passes 617 -> 618 of 736, falls 4 -> 3, and every one of the 722
+flights it did not act on replayed the base exactly. It acted in 14 -- at
+the storeroom's counter (its edge and top, the cube's board) and at the
+restaurant's table (its top, the plate) -- and four outcomes moved: two lids
+passed that had failed (a carry's posture whose torso came 4 mm into the
+counter's edge passed over, each lid was lowered at 0.30 rad/s where the
+base's came down at 3.2-4.1 rad/s while open); a table check's
+fall went (no trunk contact had caused it: the base's trunk touched nothing
+before it fell); and a cube's place was lost. There the base's torso pressed
+the counter at up to 486 N, the candidate's at 385 N, both from a plan the
+rule judged clear (below); the looks after it, the torso already on the
+counter, passed over the deeper crouches the base placed from, and the cube
+came down 6 cm off its mat. Lane C's loading rack, its 12 upper-board
+flights: falls 3 -> 1, the head on the world in 6 -> 1, the 5 it did not act
+on replaying exactly.
+
+⚠ **Its view drifts through a bow.** A reach's steps take no scan, so through
+a bow the belief moves only by the legs' reckoning, and the window's voxels,
+folded level before the bow, are placed through the belief as it is now. At
+the rack the believed stance drifted 2 cm as the pelvis went back 17 cm over
+the planted sole (the reckoning's contact corner switching as it went); the
+board read 1.6 cm further at the look than at the plan, and the look's rise
+-- 1.2 cm into the board's underside by the truth -- read 0.14 cm clear: the
+head struck at 416 N and the robot fell. At the counter a cube's plan, 15.5 s
+after the feet last moved, read the torso's walk 1.3 cm clear where the truth
+touched, and a lid's carry judged voxels laid 3 cm off the counter's true
+edge. Placed through the believed stance at their fold instead (an
+instrument's experiment, not built: the true stance has not moved since), the
+rack's look passed over and the flight did not fall. On the shop shelf the
+view read clear where the truth read into it at 5 of 1,316 choices, each
+under 1 cm.
 
 **What it does not do.** A posture already held, or one the body has got
 to on its way (what #719 keeps it in), is never judged (no change, nothing

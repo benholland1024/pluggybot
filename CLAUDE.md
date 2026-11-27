@@ -472,8 +472,11 @@ save a filmstrip PNG named after the script.
   anything over 1.35 m (`ARMS_TOP_Z`: the camera never sees above itself). ⚠
   Never the loop's own, nor a posture held or got to, nor the words' own
   queries, nor a way home: the withdraw's stand is the way out. ⚠ The
-  live trunk goes deeper than its walk: a press whose walk up kept 0.6 mm off
-  a board pressed the head on it at 457 N. ⚠
+  live trunk goes deeper than its walk (a plan whose walk touched a counter
+  by the truth put the torso on it at 486 N), ⚠ and its view drifts through
+  a bow: a reach steps no scan, the legs' reckoning moved the believed
+  stance 2 cm as the pelvis went back 17 cm, and a look's rise 1.2 cm into a
+  board read clear. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
