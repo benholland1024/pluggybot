@@ -9196,7 +9196,9 @@ the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
 each piece fetched from the shelf and laid as the pass lays it (below).
 Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
 32 draws sealed by that commit, no fall, one pod: THE BAR IS NOT MET (its
-misses below; a first round of levers, below, was tried and not frozen).
+misses below). Five rounds of levers, below, were tried and none frozen:
+what is left is mostly the plate let go carried, which is its wall's 16
+boxes (#771).
 Measured first, before the kind was built, on a scratch
 set-out flying the pass's own pick halves from in front of the shelf (the
 loop of 11-26b's A2; `~/pluggybot-training/loop-1126b/a2-shelftable/`, 38
@@ -9334,6 +9336,34 @@ out of reach, and the withdraw after it fell (the pass's lay; once in 16
 single-fork trips, once in 61 places). A `move_hand` that only turns the
 hand reads "arrived" before its turn is done (#767).
 
+**Rounds 2-5** (A3 of the loop of 11-26b, each round's rule sent before it
+flew; NONE FROZEN): on dev draws 4000-4063, beside the frozen reference flown
+again on 6962e982 (42 of 64, 9 plates let go carried, no fall; 2bf94b77's end
+states byte for byte), every lever on the plate traded one failure for
+another, and none aimed at the wall's boxes (#771). A plate the stow tilted 5
+deg or more in its jaws was let go carried in 8 of 12 trips, under 5 deg in 1
+of 49, and the robot sees that tilt in its tag's normal (`spot.nz`; ⚠ the
+normal points into the tag's face, so a level plate reads -1) -- but only held
+12 cm ahead after the stow, and that move cost more than the look and a second
+grip saved: 30-34 laid (round 2). Without the stow, 39 laid and 13 let go
+carried; without the stow or the move back, 39 and 5, the hand-over sweeping
+the plate onto the board it was lifted from in 54 of 62; the reference's moves
+at half speed, 31 and 18: the pinch creeps with the time it is held as well as
+with motion (round 3). Lifted 11-13 cm and not moved, 36-39 (40 with round 1's
+levers): the sweeps fell by a quarter to a third, and the board above bounds
+the lift -- at 15 cm the walk's own carry lift put the forearm on it, and the
+plate fell (round 4). The fork's put-down aimed in the card's own frame, as
+the cup's is (`atan2(spot.ny, spot.nx)`), laid 42 with no place changed, and
+with round 1's levers 44 (+2 -0): fitted on the heading at the look and the
+stance's turn after it (median +0.7 deg), the fork's offset along the card's
+line went from 0.39 and 0.40 cm a degree to 0.10 and 0.59, and across it from
+0.19 and 0.55 to 0.26 and 0.54 -- the turn after the look, which no aim takes
+out, is most of it (round 5). On C8's rounder wall (48 boxes raised 1.5 mm,
+never merged) the reference laid 51 of 64, the fork aimed so 49 and with round
+1's levers 48: each loss a fork at the tolerance's edge (2.2 cm off in the
+reference, 2.4-2.8 in the arms) or one the open hand caught again as it rose
+after the let-go.
+
 **A thin piece's hand-over rises over the shoulder and sweeps down at the
 robot's side** (#770; not fixed). The walk's hand-over takes the side way for
 a thin grip (`reach.CARRY_THIN_M`), and from a grip over the top the shoulder
@@ -9350,6 +9380,22 @@ pass the sweep came down on the pass's top (A1b's census: plates 13 of 63,
 forks 17 of 61). Any thin piece picked from under a board or off a top at
 the hand's height and walked off with meets it, unless the procedure first
 brings it back and low.
+
+Where the plate's hand-over began decided how often #770's sweep met the work
+board (rounds 2-5, above: dev draws 4000-4063, 62 plate trips an arm; each
+touch off the hand-over's own trace, each plate let go carried by the walk's
+own word that its grip read empty). The plate never met the board above.
+
+| the plate before the walk | hand-overs that met the work board (the hardest) | let go carried (of them after a touch) |
+|---|---|---|
+| lifted 5 cm, back to 0.2 m ahead, lowered to 0.92 m (the reference) | 17 (36 N) | 9 (3) |
+| the same, not lowered | 3 (36 N) | 13 (1) |
+| lifted 5 cm, not moved | 54 (55 N) | 5 (4) |
+| lifted 11, 12 or 13 cm, not moved | 42, 38, 37 (37-41 N) | 10, 8, 12 (7, 7, 10) |
+| the reference's moves at half speed | 16 (25 N) | 18 (6) |
+
+The reference's fork met the work board in 10 of 61 hand-overs (46 N) and the
+board above in 3 (8 N); 2 were let go carried, 1 after a touch.
 
 ## The arms keep off the other robot (issue #678)
 
