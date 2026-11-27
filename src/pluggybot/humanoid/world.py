@@ -168,6 +168,6 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   fix_static_inertials(spec)
   # ...and what rests asleep, every robot never (#779)
   from pluggybot import sleeping
-  sleeping.enable(spec)
+  sleeping.enable(spec, roots)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec

@@ -524,7 +524,8 @@ def model_of(so):
     so.attach(spec)
   fix_static_inertials(spec)
   from pluggybot import sleeping
-  sleeping.enable(spec)            # what rests asleep, the robot never (#779)
+  from pluggybot.telemetry.protocol import ROBOT_ROOT
+  sleeping.enable(spec, (ROBOT_ROOT,))   # what rests asleep, the robot never (#779)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec.compile()
 

@@ -268,3 +268,35 @@ def test_a_put_state_is_forwarded_with_every_tree_awake_its_sleep_put_back_after
   continuation.put_physics(m, d, index, arrays)
   assert d.tree_asleep[_tree(m, "gamma")] >= 0
   assert d.cinert[gamma][9] == 0.5
+
+
+def test_enable_makes_never_exactly_the_robots_it_is_named():
+  """The builders name every robot's root (`home_spec`'s roots, a second
+  robot's whatever its prefix): each is `never`, nothing else is, and a
+  name the world lacks is refused, never skipped."""
+  spec = mujoco.MjSpec.from_string(TOY.replace('<body name="pusher" pos="-.4 0 .05" sleep="never">',
+                                               '<body name="r2pluggybot" pos="-.4 0 .05">'))
+  sleeping.enable(spec, ("r2pluggybot",))
+  m = spec.compile()
+  never = int(mujoco.mjtSleepPolicy.mjSLEEP_NEVER)
+  assert [m.body(int(b)).name for t, b in enumerate(m.tree_bodyadr)
+          if int(m.tree_sleep_policy[t]) == never] == ["r2pluggybot"]
+  with pytest.raises(ValueError):
+    sleeping.enable(mujoco.MjSpec.from_string(TOY), ("pluggybot",))
+
+
+def test_a_tree_this_world_never_lets_sleep_is_never_put_to_sleep():
+  """A save's sleep goes back only on a tree this world lets sleep: a build
+  that gives a prop an actuator or `never` keeps its geometry and so its
+  fingerprint, and its tree comes back awake, the rest of its cycle woken
+  with it."""
+  m, d = _toy()
+  for _ in range(100):
+    mujoco.mj_step(m, d)
+  names, asleep = sleeping.kept(m, d)
+  assert all(asleep[names.index(n)] >= 0 for n in ("alpha", "beta", "gamma"))
+  m2, d2 = _toy(TOY.replace('<body name="beta" pos=".1 0 .05">', '<body name="beta" pos=".1 0 .05" sleep="never">'))
+  sleeping.put(m2, d2, names, asleep)
+  assert d2.tree_asleep[_tree(m2, "beta")] == sleeping.AWAKE
+  assert d2.tree_asleep[_tree(m2, "alpha")] == sleeping.AWAKE, "beta's cycle woken whole"
+  assert d2.tree_asleep[_tree(m2, "gamma")] >= 0

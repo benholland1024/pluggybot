@@ -13154,8 +13154,8 @@ cup never sleeps at MuJoCo's tolerance (its flat end jitters at 2.9e-4 on
 the table); the chest's lid never where its catch's torque is applied.
 
 **What is true now:** every world `home_spec` and `counter.model_of` build
-sleeps at MuJoCo's tolerance, every robot's tree `never`
-(`pluggybot.sleeping.enable`); a world compiled elsewhere -- an
+sleeps at MuJoCo's tolerance, every robot's tree `never`, each root named
+by its builder (`pluggybot.sleeping.enable`); a world compiled elsewhere -- an
 instrument's own -- does not, since the flag acts when the `MjData` is
 made. Its state is state: `tree_asleep`, which MuJoCo's own state calls
 (`mj_getState`) leave out. A save carries it by each tree's root body's
@@ -13169,14 +13169,20 @@ sleep, since a tree woken in it by a tree counting down to sleep takes that
 tree's count and, stepped again, the pose it woke at wakes it counting from
 the start. Without it every island woke at a restore, and five of
 `test_continuation`'s parity tests failed. A save from a world that never
-slept carries no sleep and comes back with every tree awake. ⚠ A body
+slept carries no sleep and comes back with every tree awake, and a tree this
+world never lets sleep comes back awake whatever the save says, its cycle
+with it. ⚠ A body
 nothing wakes stays where it slept: a change to the model (a redraw's
 springs or masses) acts on a sleeping prop only once something wakes it,
 and an offer's set-out that writes the pose it already rests at wakes
 nothing -- the drawer's, which sleeps at exactly its compiled pose, so its
 redrawn friction and damping act from its first touch (the door and the
-cube rest off theirs, and their set-outs wake them). ⚠ Static scenery's
-poses are computed when the `MjData` is made
+cube rest off theirs, and their set-outs wake them). ⚠ A load cell reads
+nothing of a sleeping body resting on it: a sleeping tree's contacts with
+static ground are skipped, so a flush plate's touch sensor under a resting
+block read 0.59 N until the block slept, then 0 until something woke it (no
+prop rests on a plate today, and none weighs near a plate's 100 N). ⚠
+Static scenery's poses are computed when the `MjData` is made
 and never again (`activity/base.py`'s `GeomToggle` said so before; with
 the flag on it holds for every static body).
 

@@ -4,10 +4,11 @@ that stays still for `mjMINAWAKE` steps sleeps with every tree it is
 constrained to -- its contacts, kinematics, dynamics and integration
 skipped -- until a touch, a write or a force wakes it, in that step.
 
-⚠ EVERY ROBOT'S TREE IS `never` (`enable`): a robot asleep would read its
-sensors stale. ⚠ The flag acts when the `MjData` is made (static bodies'
-poses are computed then, and never again): set in the spec, before it
-compiles. A world compiled elsewhere -- an instrument's own -- does not sleep.
+⚠ EVERY ROBOT'S TREE IS `never` (`enable`, its root named by the builder):
+a robot asleep would read its sensors stale. ⚠ The flag acts when the
+`MjData` is made (static bodies' poses are computed then, and never again):
+set before it, as the builders set it in the spec. A world compiled
+elsewhere -- an instrument's own -- does not sleep.
 
 ⚠ THE SLEEP STATE IS STATE, and MuJoCo's own state calls leave it out: a
 restore wakes every island unless it is put back (`kept`, `put`), and the
@@ -30,22 +31,22 @@ def on(model) -> bool:
   return bool(model.opt.enableflags & int(mujoco.mjtEnableBit.mjENBL_SLEEP))
 
 
-def robot_roots(spec) -> list:
-  """Every robot's root body in a world's spec, by name: `pluggybot` and a
-  second robot's `<prefix>pluggybot` (⚠ `MjsBody.parent` of the world body
-  crashes MuJoCo 3.10's bindings: never walked)."""
-  from pluggybot.telemetry.protocol import ROBOT_ROOT
-  return [b for b in spec.bodies
-          if b.name == ROBOT_ROOT or b.name.endswith("_" + ROBOT_ROOT)]
-
-
-def enable(spec) -> None:
-  """Sleeping on in a world's spec at MuJoCo's own tolerance, every robot
-  `never`; everything else keeps the compiler's policy (a tree an actuator
-  moves never sleeps: the stations' plugs, on their balancers)."""
+def enable(spec, roots) -> None:
+  """Sleeping on in a world's spec at MuJoCo's own tolerance, the trees of
+  `roots` (every robot's root body, by name) `never`; everything else keeps
+  the compiler's policy (a tree an actuator moves never sleeps: the
+  stations' plugs, on their balancers)."""
   spec.option.enableflags |= int(mujoco.mjtEnableBit.mjENBL_SLEEP)
-  for body in robot_roots(spec):
+  for name in roots:
+    body = spec.body(name)
+    if body is None:
+      raise ValueError(f"no robot root {name!r} in this world")
     body.sleep = mujoco.mjtSleepPolicy.mjSLEEP_NEVER
+
+
+#: The policies under which a tree never sleeps: a save's sleep is never put
+#: on such a tree (`put`), as MuJoCo never puts one to sleep.
+NEVER = (int(mujoco.mjtSleepPolicy.mjSLEEP_NEVER), int(mujoco.mjtSleepPolicy.mjSLEEP_AUTO_NEVER))
 
 
 def update(model, data) -> None:
@@ -81,7 +82,8 @@ def update(model, data) -> None:
 
 def keys(model) -> list[str]:
   """Each tree's key, in the world's order: its root body's name, else
-  `#<body id>`."""
+  `#<body id>` -- an id the world's fingerprint holds in place, since a
+  restore puts nothing back into a changed world (`continuation.restore`)."""
   return [model.body(int(b)).name or f"#{int(b)}" for b in model.tree_bodyadr]
 
 
@@ -94,8 +96,10 @@ def kept(model, data) -> tuple[list[str], np.ndarray]:
 def put(model, data, names, values) -> None:
   """Put a `kept` sleep state back into a world, by name, and rebuild what
   MuJoCo derives from it. A tree the save lacks is awake; a sleeping cycle
-  with a tree this world lacks is woken whole."""
-  here = {k: i for i, k in enumerate(keys(model))}
+  with a tree this world lacks, or one this world never lets sleep, is woken
+  whole."""
+  here = {k: i for i, k in enumerate(keys(model))
+          if int(model.tree_sleep_policy[i]) not in NEVER}
   names, values = list(names), np.asarray(values, dtype=np.int64)
   asleep = np.full(model.ntree, AWAKE, dtype=np.int32)
   for i, name in enumerate(names):

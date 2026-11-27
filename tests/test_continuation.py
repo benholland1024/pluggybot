@@ -231,7 +231,7 @@ def test_a_world_saved_with_islands_asleep_steps_on_through_their_waking_and_sle
       assert all(np.array_equal(x, y) for x, y in zip(a, b)), (k, k + 1 + i)
 
 
-def test_a_save_from_a_world_that_never_slept_carries_on_in_one_that_does(tmp_path):
+def test_a_save_from_a_world_that_never_slept_carries_on_in_one_that_does():
   """The first restart into a sleeping world (#779) is of a save from one
   that never slept, which carries no sleep at all: it comes back in place,
   its last step stepped again, every tree awake -- and steps on as the world

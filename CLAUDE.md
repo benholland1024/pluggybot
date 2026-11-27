@@ -2800,7 +2800,8 @@ save a filmstrip PNG named after the script.
 - **What rests SLEEPS, every robot `never`** (#779; `pluggybot/sleeping.py`,
   `tests/test_sleeping.py`; SimNotes, "Bodies at rest asleep"): MuJoCo 3.10's
   island sleeping at its own tolerance in every world `home_spec` and
-  `counter.model_of` build -- a tree still for `mjMINAWAKE` (10) steps sleeps
+  `counter.model_of` build, each robot's root named by the builder
+  (`sleeping.enable`) -- a tree still for `mjMINAWAKE` (10) steps sleeps
   with what it touches, its contacts and dynamics skipped until a touch, a
   write of its pose, a velocity or a force wakes it in that step (the step
   x0.645 with the place set out, the pair's pace x1.05-1.06 at 11-25's
@@ -2808,9 +2809,10 @@ save a filmstrip PNG named after the script.
   elsewhere (an instrument's own) does not sleep. ⚠ A BODY NOTHING WAKES
   STAYS WHERE IT SLEPT: a redraw's springs or masses act on a sleeping prop
   only once something wakes it, and a set-out writing the pose it rests at
-  wakes nothing (the drawer's). ⚠ Static scenery's poses are computed once,
-  as the `MjData` is made (`activity/base.py`). A feature MuJoCo calls
-  preliminary (3.4.0, 2025-12).
+  wakes nothing (the drawer's). ⚠ A load cell reads nothing of a sleeping
+  body resting on it (its contacts with static ground are skipped). ⚠ Static
+  scenery's poses are computed once, as the `MjData` is made
+  (`activity/base.py`). A feature MuJoCo calls preliminary (3.4.0, 2025-12).
 - **What the rover paid for that binds any body** (`rover-final` has the
   stories): every TERMINAL LOOP has a budget and an explicit answer — an
   empty pack does not stop the body and the guards run between errands, so an
