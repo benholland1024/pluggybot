@@ -29,6 +29,11 @@ word for under way, and the turn's patience is said to its tenth. Its option
 2, a stall judged pressed by a bar of its own (0.8), is not built: it moves a
 reason and `step.*`, and its bar is read off one place in one run.
 
+*All four words of `loop-words4` together (#776, #774 (a) and (b), #766)
+make the prompt `cdc43621…` (72,664 characters, 17 sections, +504) and the
+hello `94dcbadb`; this period's own numbers are its commit's alone, on
+`loop-staging` 503a9a6c.*
+
 **What a deployed robot does**: nothing new. A step is judged as it was
 (`HumanoidBody._walk_routine`'s windows, `step_routine`'s patience).
 
@@ -68,6 +73,11 @@ was the committed file's to the byte. Each a draft for Ben:
   as every verb's reading (reading it then says "your last `move_hand`
   failed").
 
+*All four words of `loop-words4` together (#776, #774 (a) and (b), #766)
+make the prompt `cdc43621…` (72,664 characters, 17 sections, +504) and the
+hello `94dcbadb`; this period's own numbers are its commit's alone, on
+`loop-staging` 503a9a6c.*
+
 **What a deployed robot does**: nothing new. No flight moves: the carry's
 rule and its report are as they were (`Reach._end`'s `shortM`, the grip as
 its senses place it), and no procedure reads the new sensor yet.
@@ -102,6 +112,11 @@ where the walk's text is (a world whose verbs give a `step`, the served pair's
 and every practice's), and nowhere else. #774's own draft said "or a walk
 carries it to your side": by it, a hand a walk brought home empty would still
 be out.
+
+*All four words of `loop-words4` together (#776, #774 (a) and (b), #766)
+make the prompt `cdc43621…` (72,664 characters, 17 sections, +504) and the
+hello `94dcbadb`; this period's own numbers are its commit's alone, on
+`loop-staging` 503a9a6c.*
 
 **What a deployed robot does**: nothing new. A carried hand was never out
 (`Reach.out`: a pose of its own), and `move_hand` and `pull` refuse it,
@@ -139,6 +154,11 @@ No History line is new or reworded. Each a draft for Ben:
   looked" before, -4 each).
   `find.facing` says which way a tag's face looks, out of it, and is
   unchanged: that is what it reads.
+
+*All four words of `loop-words4` together (#776, #774 (a) and (b), #766)
+make the prompt `cdc43621…` (72,664 characters, 17 sections, +504) and the
+hello `94dcbadb`; this period's own numbers are its commit's alone, on
+`loop-staging` 503a9a6c.*
 
 **What a deployed robot does**: nothing new. The reading is as it was, the
 normal into the face (`perception.tags.TagDetector.detect`): a tag lying face
