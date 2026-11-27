@@ -447,13 +447,36 @@ save a filmstrip PNG named after the script.
   reaches walked in, fell once where the base fell 26. ⚠ ONE IT PASSED OVER
   FOR ITS SWING, ITS LOOK TAKES NO SECOND POSTURE: free, the look took back
   what the plan passed over or went on to the deepest bows, whose trunk and
-  head no swing judges, and fell 3-5 times in 128 where the base fell 2. ⚠ IT
+  head no swing judged then, and fell 3-5 times in 128 where the base fell 2. ⚠ IT
   SEES ONLY WHAT ITS CAMERA SAW, AND FOR A MINUTE (`KNEE_S`): placed up
   close, a counter's face is none (its picture ends 69 deg down), so a
   flight that stands still with a bare `STILL` -- which steps no
   `_after_step` -- judges nothing. ⚠ A refusal searches every posture,
-  6.2-6.6 s of the one physics thread, and each plan its words ask too (a
-  passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠
+  6.2-6.6 s of the one physics thread -- one the trunk's judgment (below)
+  sends on to full stretch 11.5-12.3 s -- and each plan its words ask too (a
+  passing plan 40 ms more). ⚠ The loop's own reach is never judged. ⚠ AND
+  A PROCEDURE'S POSTURE JUDGES ITS TRUNK TOO -- A REACH'S PLAN AND LOOK, A
+  CARRY'S AND A PULL'S AT THEIR ASK AND ON THEIR WAY (#763, #736's call 6;
+  `Reach._trunk`, `posture_for`/`path_for`'s `judge`,
+  `HumanoidMission.trunk_seen`; SimNotes, "A reach's bow under a shelf's
+  board"): the torso, the head's parts and the LIDAR walked on the commands'
+  clocks into the posture AND BACK UP from it to the stand, none nearer than
+  `TRUNK_CLEAR_M` (0) to what its depth camera saw SINCE ITS FEET LAST MOVED,
+  TOPS KEPT -- else, begun nearer, no nearer: a shelf's deepest bows put the
+  head under the board above the hands, and the next posture jammed it there
+  (5 of the shop shelf's 7 falls traced, 65-514 N); a 2 cm board is a
+  column's top whole, no face, and what it laid before its last steps stood
+  2-7 cm nearer than it was. None clear: a reach moves nothing, "head"; a
+  carry is refused before it moves, or held where it is; a pull is held
+  where it is. ⚠ Nothing seen since the feet moved judges nothing, nor
+  anything over 1.35 m (`ARMS_TOP_Z`: the camera never sees above itself). ⚠
+  Never the loop's own, nor a posture held or got to, nor the words' own
+  queries, nor a way home: the withdraw's stand is the way out. ⚠ The
+  live trunk goes deeper than its walk (a plan whose walk touched a counter
+  by the truth put the torso on it at 486 N), ⚠ and its view drifts through
+  a bow: a reach steps no scan, the legs' reckoning moved the believed
+  stance 2 cm as the pelvis went back 17 cm, and a look's rise 1.2 cm into a
+  board read clear. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged
