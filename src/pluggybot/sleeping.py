@@ -59,9 +59,10 @@ def update(model, data) -> None:
   data.ntree_awake = int(awake.sum())
   tree = np.asarray(model.body_treeid)
   mocap = np.asarray(model.body_mocapid)[np.asarray(model.body_rootid)] >= 0
-  static = np.where(mocap, int(mujoco.mjtSleepState.mjS_AWAKE),
-                    int(mujoco.mjtSleepState.mjS_STATIC))
-  body = np.where(tree < 0, static, awake[np.maximum(tree, 0)]).astype(np.int32)
+  body = np.where(mocap, int(mujoco.mjtSleepState.mjS_AWAKE),
+                  int(mujoco.mjtSleepState.mjS_STATIC)).astype(np.int32)
+  dynamic = tree >= 0
+  body[dynamic] = awake[tree[dynamic]]
   data.body_awake[:] = body
   ind = np.flatnonzero(body != int(mujoco.mjtSleepState.mjS_ASLEEP))
   data.body_awake_ind[:ind.size] = ind
