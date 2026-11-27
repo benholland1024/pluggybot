@@ -562,7 +562,17 @@ TABLE_STANCES = '''def lay_place():
 #: tried again 8 cm further back and 3 cm higher; ⚠ a press that read under 3
 #: N never landed: the hand goes 5 cm lower before the let-go; ⚠ on the upper
 #: board the hand is aimed 2.5 cm left of its label, on the lower 1 cm right
-#: (where each board's placements landed). `%(candle)d` and `%(frame)d` are
+#: (where each board's placements landed); ⚠ a frame gripped never turned
+#: outward, and one read nearer than 0.20 m left 0.1 rad inward (round 5):
+#: turned to an outward face the arm's reach was refused, or its descent came
+#: down on the frame's top and the close knocked it over; ⚠ on the upper board
+#: the robot stands 3.5 cm further left of its label, the hand's aim off the
+#: label unchanged (round 6): aimed past about 0.26 m left there, the set-down's
+#: square grip planned only half a turn round, which turned the held product
+#: over; ⚠ a lower label is read off its twin above it, the set-down 0.40 m
+#: under it (round 6): from nearer than 0.48 m a lower label's tag is past the
+#: colour picture's bottom, and the carried trip's sidesteps creep 2-8 cm in
+#: (SimNotes, "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are
 #: the job's labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=200,seconds=290)
@@ -572,7 +582,7 @@ SHELF = '''def stock_shelf():
 
 def one(lab,i):
   t=77-i
-  k=lab-79-3*(lab>81)
+  k=lab-79-3*(lab>81);tl=lab+3*(lab<82)
   g=0
   for n in range(2):
     if g==0:
@@ -580,6 +590,7 @@ def one(lab,i):
       near(t,0.34*i,0.21+0.015*i,0.05*(1-i)+0.08*i)
       j=1-i;a=j*atan2(read("spot.ny"),read("spot.nx"));e=cos(a);s=sin(a)
       mx=read("spot.x")+0.01*e*j;my=read("spot.y")+0.01*s*j
+      if j*(a+0.1*(my<0.2))>0:c=-0.1*(my<0.2);e=cos(c);s=sin(c)
       gz=read("spot.z")-0.035*i;bz=read("spot.z")-0.0575-0.0425*i
       h=0.02+0.01*j
       if not reach("left",mx-h*e,my-h*s,gz+0.1,e,s,0,-s,e,0):e=1;s=0;reach("left",mx-h,my,gz+0.1,1,0,0,0,1,0)
@@ -592,18 +603,19 @@ def one(lab,i):
   u=mx-read("left.x");v=my-read("left.y")
   q=u*e+v*s;r=v*e-u*s;oz=read("left.z")-bz
   pull("left",0,0,1,20,0.03,give=0)
-  side(my-0.87+0.36*i-0.25*k)
-  near(lab,0.5,0.23,0.08)
+  tz=0.035*(lab>81)
+  side(my-0.87+0.36*i-0.25*k+tz)
+  near(tl,0.5,0.23-tz,0.08)
   a=atan2(read("spot.ny"),read("spot.nx"))
   if a*a>0.0012:
     if not step(0,0,a):pass
-    near(lab,0.5,0.23,0.08)
-  x=read("spot.x");ly=read("spot.y");z=read("spot.z")
+    near(tl,0.5,0.23-tz,0.08)
+  x=read("spot.x");ly=read("spot.y");z=read("spot.z")-0.4*(lab<82)
   for j in range(3):
-    if ly<0.19 or ly>0.27:
-      if not step(0,ly-0.23+0.03*(2*(ly>0.27)-1)):pass
+    if ly<0.19-tz or ly>0.27-tz:
+      if not step(0,ly-0.23+tz+0.03*(2*(ly>0.27-tz)-1)):pass
       x=x-read("step.dx");ly=ly-read("step.dy")
-      if spot(lab):x=read("spot.x");ly=read("spot.y")
+      if spot(tl):x=read("spot.x");ly=read("spot.y")
   x=x+0.08-q;z=z+0.075+oz;w=ly-r-0.01+0.035*(lab>81)
   if not reach("left",x-0.17,w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
   if not move_hand("left",x,w,z):
@@ -616,7 +628,7 @@ def one(lab,i):
   withdraw("left")
   if i==0:
     a=0
-    if spot(lab):a=atan2(read("spot.ny"),read("spot.nx"))
+    if spot(tl):a=atan2(read("spot.ny"),read("spot.nx"))
     if a*a>0.0012:
       if not step(0,0,a):pass
     side(0.225+0.25*k+ly)

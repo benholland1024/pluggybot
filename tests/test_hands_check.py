@@ -1122,7 +1122,7 @@ def _shelf_tags(k: int = 0):
 
 
 def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, undercount=0.0,
-                 label_far=0.0, cart_far=0.0):
+                 label_far=0.0, cart_far=0.0, frame=None):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
   turning `drift` rad more than it asked and counting `undercount` short of where it went (a
@@ -1130,10 +1130,14 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   front than the start stands; its first
   `held_back` descents onto a product held back and its first `short` set-down reaches stopped
   short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
-  stub's pose then); and the products `cart_far` m further out than they stand."""
+  stub's pose then); and the products `cart_far` m further out than they stand; `frame` (dy, turn): the
+  frame's tag `dy` m further left than it stands and facing `turn` rad."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   so, tags = _shelf_tags(k)
+  if frame is not None:
+    x, y, z, _ = tags[77]
+    tags = {**tags, 77: (x, y + frame[0], z, (math.cos(frame[1]), math.sin(frame[1]), 0.0))}
   log = []
 
   class Seeing(StubBody):
@@ -1184,6 +1188,24 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   return body, ran, log, so, tags
 
 
+@pytest.mark.parametrize("dy, turn, want", [
+    (-0.012, math.radians(8), -0.1),
+    (-0.012, math.radians(-12), math.radians(-12)),
+    (0.02, math.radians(8), 0.0),
+    (0.02, math.radians(-3), math.radians(-3))])
+def test_the_frames_grip_is_capped_short_of_an_outward_face(dy, turn, want):
+  """⚠ THE FRAME'S GRIP IS NEVER TURNED TO AN OUTWARD FACE (#736 stage 2, round 5): a frame gripped never turned
+  outward, and one read nearer than 0.20 m left 0.1 rad inward. Turned as the frame faced outward (its fingers to
+  the left), the reach was refused or its descent came down on the frame's top and the close knocked it over (of
+  round 4's 26 refused first reaches over its bar's and sealed tours, 24 read the frame facing +2.9 to +13 deg; a
+  straight grip read nearer than 0.20 m came down on the top too). Set-out 0's frame read 0.198 m (near) and 0.23
+  m (far) left, facing as asked."""
+  body, ran, log, so, tags = _shelf_flown(frame=(dy, turn))
+  first = next(a for v, a, _ in log if v == "reach")
+  assert (first["fx"], first["fy"]) == pytest.approx((math.cos(want), math.sin(want)), abs=1e-9), (first, want)
+
+
+
 def _after(log, verb, tag):
   """The verbs after the first look at `tag` (`spot`)."""
   i = next(i for i, (v, a, _) in enumerate(log) if v == verb and int(a.get("tag", -1)) == tag)
@@ -1223,6 +1245,38 @@ def test_the_shelf_is_squared_off_its_label_before_each_set_down_and_the_trip_ba
   done = [v for v, _, _ in log].index("withdraw")
   back = next(pose for v, a, pose in log[done:] if v == "step" and a.get("left", 0) > 0.2)
   assert abs(back[2]) < math.radians(2.0) + 0.03 + 1e-9, back
+
+
+def test_the_upper_boards_set_down_stands_further_left_of_its_label():
+  """⚠ THE UPPER BOARD'S SET-DOWN GRIP IS KEPT WHERE THE LEFT ARM PLANS IT SQUARE (#736 stage 2, round 6): aimed past
+  about 0.26 m to the robot's left at the upper board's height, the set-down's square grip planned only half a turn
+  round (`Reach._planned`), which turned the held product over, no slip in the jaws -- 7 of the census's 24 dev
+  misses, the frame pressed on its panel's top and fallen at the let-go, the candle stood on its top. The robot
+  stands 3.5 cm further left of an upper label, the hand's aim off the label unchanged: set-out 0's frame (label 84)
+  is gripped 0.22 m left at its set-down on the stub (0.255 by round 5's reference), the candle's lower label as
+  before."""
+  body, ran, log, so, tags = _shelf_flown()
+  assert ran["ok"], ran
+  assert so.slots == {"candle": 80, "frame": 84}, so.slots
+  downs = [a for v, a, pose in log if v == "reach" and pose[3]]
+  assert [d["y"] for d in downs] == pytest.approx([0.22, 0.22], abs=1e-9), downs
+
+
+def test_a_lower_label_is_read_off_its_twin_above():
+  """⚠ A LOWER LABEL IS READ OFF ITS TWIN ABOVE (#736 stage 2, round 6): from nearer than 0.48 m a lower label's tag
+  is past the colour picture's bottom (the census's looks: 5 read of 53 at 0.45 m, 134 of 138 at 0.48), and a
+  carried trip's sidesteps creep 2-8 cm in -- 8 of the census's 24 dev misses ended at a lower label never read.
+  Its twin, the same slot's on the upper board, is read from 0.45 m: a stub that never shows a lower label stocks
+  the shelf, its set-downs where they are with the lower labels in view."""
+  body, ran, log, so, tags = _shelf_flown()
+  assert ran["ok"], ran
+  seen = [a for v, a, pose in log if v == "reach" and pose[3]]
+  body, ran, log, so, tags = _shelf_flown(hide=lambda tag, b, n: 79 <= tag <= 81)
+  assert ran["ok"], ran
+  hidden = [a for v, a, pose in log if v == "reach" and pose[3]]
+  assert len(hidden) == len(seen) == 2, (seen, hidden)
+  for h, s_ in zip(hidden, seen):
+    assert [h[c] for c in "xyz"] == pytest.approx([s_[c] for c in "xyz"], abs=1e-9), (h, s_)
 
 
 def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
