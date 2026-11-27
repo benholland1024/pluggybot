@@ -13008,21 +13008,21 @@ over the planted sole; the board read 1.6 cm further at the look than at the
 plan, and the look's rise -- 1.2 cm into the board's underside by the truth
 -- read 0.14 cm clear: the head struck at 416 N and the robot fell (at the
 counter the drift ran 1.3-3 cm). But the reckoning is not drift alone: at a
-table check the true stance turned 3.2 deg in place while the feet stood,
-and the reckoning followed it (2.7 deg, drifting 1 cm). So no placement serves both. Placed through the believed
-stance at each frame's fold (`loop-763b`, measured, not merged), the rack
-went 3 -> 0 falls, but on Ben's bar it undid #763's four moved outcomes
-(a pass lost, a fall gained); turned by the reckoned heading's turn as well,
-it flew the same flights as the fold placement. Nor is the statue's walk a
-referee at that scale: judged against the table's true top, a carry's
-posture walked the torso 5.1 cm into it, and the flight that took it touched
-nothing. ⚠ What would answer it is a memory that sees during a bow. Frames
-taken bowed, levelled through the IMU as the LIDAR's band is, would place
-what the camera sees then through the body as it stands then, with no drift
-to carry. The cost: a depth render every 0.2 s through a reach (none is
-taken bowed today). And it would see only what the bowed camera sees: it
-looks down, so a board over the head may be out of its picture. Not built:
-that premise is checked first.
+table check the true stance turned 3.2 deg in place while the feet stood, and
+the reckoning followed it (2.7 deg, drifting 1 cm). So no placement serves
+both. Placed through the believed stance at each frame's fold (`loop-763b`,
+measured, not merged), the rack went 3 -> 0 falls, but on Ben's bar it undid
+#763's four moved outcomes (a pass lost, a fall gained); turned by the
+reckoned heading's turn as well, it flew the same flights as the fold
+placement. Nor is the statue's walk a referee at that scale: judged against
+the table's true top, a carry's posture walked the torso 5.1 cm into it, and
+the flight that took it touched nothing. ⚠ What would answer it is a memory
+that sees during a bow. Frames taken bowed, levelled through the IMU as the
+LIDAR's band is, would place what the camera sees then through the body as it
+stands then, with no drift to carry. The cost: a depth render every 0.2 s
+through a reach (none is taken bowed today). And it would see only what the
+bowed camera sees: it looks down, so a board over the head may be out of its
+picture. Not built: that premise is checked first.
 
 **What it does not do.** A posture already held, or one the body has got
 to on its way (what #719 keeps it in), is never judged (no change, nothing
