@@ -10,6 +10,41 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` and the
+session host's hello `9dcf6202` are byte for byte as they were, and so is
+every reading the LIDAR and the depth camera hand out, noise streams included
+(`test_cull.py`; on one pod the table check's and the drawer's set-outs 0-3,
+three station approaches, the served table job from the station and the
+pair's scripted day flew the same on both trees, end hashes equal). What
+moves is the served world's pace.
+
+**The change** (`perception.cull.Cull`; SimNotes, "The cull for what
+moves"). Only geoms welded to the world were left out of a cast past its
+sensor's reach. Now any geom is, but the sensor's own robot's and, for the
+depth camera, the robots it reads past its gate, past the farthest of which
+a geom that moves must lie. The place's dishware was the cost: compiled put
+away, its bodies have no bounding-volume tree, and both robots' every ray
+tested its 25 geoms in full wherever they stood.
+
+**What it does.** On one pod (a Xeon E5-2698 v4), the pair's walks in four
+interleaved rounds, the same walks on both trees: with the place set out
+(79 % of 11-25's running minutes, #775) the casts took 0.87-0.89 of their
+time and the pair ran 4.0 % faster with both robots in the house (faster in
+4 rounds of 4) and 3.5 % with one in the park (3 of 4); put away, the pace
+moved within its noise (x0.995 and x1.001), the casts 5 % cheaper with the
+robots far apart (the other robot past the LIDAR's 8 m). A faster world
+changes no reading, but it changes what a think costs in the world's time:
+an answer's wall seconds are as many as before, so each costs about 4 % more
+sim seconds while the place is out (#775): of a held job's minutes, of the
+battery standing still (about 93 W), and of `UNMINDED_AFTER_S`'s 1800 s.
+
+**To read.** `vitals.txt`'s rate a minute, the minutes with the place set
+out against those with it put away (C7's kit, section 6): 7.15 % slower out
+on 11-25 (#775). About half of that was the casts; the rest, the pieces'
+contacts at rest, stays.
+
 ### A procedure's posture keeps its head and trunk off what it saw since its feet moved (#763, #736's call 6; B2c, `loop-763`) — opens when this PR is deployed
 
 **What the robots read**: the prompt `3f8b2dc7…` (72,160 characters, 17
