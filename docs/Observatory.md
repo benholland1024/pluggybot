@@ -10,6 +10,61 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A table job's pieces are set out at its claim, its card at its offer (#775's option 1, C12, `loop-775-claim`) — opens when this PR is deployed
+
+**What the robots read** moves by two sentences, on purpose, a draft for
+Ben. The prompt `3f8b2dc7…` (72,160 characters, 17 sections) and the session
+host's hello `9dcf6202` are byte for byte as they were: an offer rides the
+turn, never the prefix, and a session's counter has no table. No History
+line moves; the set-out's own lines are narration (`status` alone).
+- `set_table`'s offer, BEFORE: "The pieces were set out at t={offered},
+  when this job was offered." AFTER: "The pieces are set out near the card
+  when you take this job." The description goes from 486 to 483 of its 500
+  characters at t=389255, and no longer grows with the clock. #775's draft
+  said "at the card"; "near" is what the place's directions say, and the job
+  is to lay the place AT the card.
+- The place's directions, which every offer at the table carries, BEFORE:
+  "When a job here is offered, the plate, the cup and the fork are set out
+  on the table near the card, none of them where it goes." AFTER: "When a
+  job here is taken, …" (838 to 836 characters).
+- The pass's and the kitchen shelf's sentences move alike ("These are set
+  out there when you take this job.", "Its pieces are …"; 495 to 484);
+  neither is offered.
+
+**What a deployed robot does.** While a job at the table stands untaken, the
+card stands on the table alone, found by its tag (93) as before; the plate,
+the cup and the fork wait under the floor, where no sensor reaches. The
+moment either robot takes the job they are set out where its draw lays them,
+as an offer set them out before. A robot that walks to the table before it
+claims sees no pieces there now: on the five wakes before this period, 2 of
+the 20 runs that read the pieces' tags were such looks (11-18, Luca let
+t_0498 lapse on what it saw; 11-25, Rowan declined t_0878 to look, and saw
+nothing), and each robot named looking first as a rule of its own.
+
+**Why** (#775). Set out with the offer, the place stood out 79.3 % of 11-25's
+534 running minutes, 20 of its 21 offers lapsing untaken, and those minutes
+ran 7.15 % slower (the pieces' 82 contacts at rest, and every cast). C9's cull
+took the casts' half; on 503a9a6c the place out still cost the pair x0.94-0.95
+of its pace (C10). The card alone costs nothing measurable (no contact, no
+constraint row, every other body bit for bit as with it away), so on 11-25's
+schedule the pieces would have been out 18.4 of the 534 minutes (t_0861, from
+its claim to its failure) where the place was out 423: about 4 % of the served
+pair's average pace back (3-5 %, by C10's offline cost or the wake's less C9's
+gain). Nothing else moves: on the dev box, base 503a9a6c against this branch,
+the counter's checks (drawer, door, place and lid, set-outs 0-1), six station
+approaches and the pair's fixture day flew the same, and so did the served
+table job from the station (draws 0-2) to the bit (end hashes of every qpos,
+qvel, act and mocap pose, and of the place's switched fields, equal), its log
+moved by the set-out's narration and the offer's sentence alone.
+
+**What to read.** `vitals.txt`'s rate a minute (C7's kit, section 6) with a
+table job taken against the rest, where an untaken offer's minutes should
+read as put away. What a robot that walks to the table before claiming does
+on finding the card alone: its notes, its `spot` and `look` there, and
+whether it claims. Across a restart, a taken table job's pieces back on the
+table: a claim the save never saw is set out as the world comes back, and
+the status line says "pieces are set out" as it is.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the

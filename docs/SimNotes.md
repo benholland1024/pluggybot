@@ -7262,6 +7262,33 @@ depth camera's `self_fraction` and peer draws, never its z or points: a far
 wall left out lets the camera count the other robot behind it past the gate
 (9 and 7 of 600 random pair poses; 7 and 7 of the walks' 706 frames).
 
+## The place set out at its claim (issue #775's option 1)
+
+**What is true now.** An offer of a job at table 0 sets out the card alone
+and draws the place's weights; the claim sets the pieces out where the draw
+lays them, at its own instant (`restaurant.offered`, `take`;
+`HubLifecycle._take_job`). Set out with the offer, the place stood out 79 %
+of 11-25's running minutes, 20 of its 21 offers untaken, and on 503a9a6c it
+still cost the pair x0.94-0.95 of its pace while out. The card alone costs
+nothing: in the served house it adds no contact and no constraint row (32
+and 181, as away; the whole place 114 and 509), and every other body steps
+bit for bit as with it away. On 11-25's schedule the pieces would have stood
+out 18.4 of 534 running minutes (t_0861, claim to failure), not 423. On one
+machine every flight with no table offer flew as before (the counter's
+checks, six station approaches, the pair's fixture day), and so did the
+served table job from the station, whose offer and claim come at one
+instant: three draws, the same to the bit at their end (every qpos, qvel and
+act, the mocap poses and the place's switched fields). A restart: the board
+is saved at every change and the world every minute, so a claim can be on
+the board and not in the world, and a live piece put back inside the floor's
+half-space is thrown out of it -- so the restore sets the geoms as the save
+placed the bodies before it steps the last step again (`jobs_as_saved`),
+then sets out what the save never saw (`set_out_unseen`). A claim sets the
+pieces out between two steps, so no save is taken in the next
+(`Keeper.landed`). A table rests from its last OFFER (`cooldownS`), so an
+offer can land in the tick its last job is settled, before the sweep: it
+puts that job's pieces away.
+
 ## The table set served (issue #560)
 
 **What is true now.** The restaurant's dining tables are a top on legs and
