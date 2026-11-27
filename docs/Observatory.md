@@ -88,9 +88,11 @@ reading, is still more than `ARRIVE_M` (1 cm) from its goal `HELD_BACK_S`
 holds or pushes on, that nothing measured. In C2d's checkout flights
 (`~/pluggybot-training/loop-1126b/c2d-checkout/`): holding the candle or the
 frame, 40 of 83 carries read held back, the hand's true grip 1.2-3.2 cm short
-(median 2.0, 1.6 of it low: the load's sag); empty, 29 of 55 straight
-approaches read held back while the hand truly stood 0.6-0.8 cm from its goal,
-inside the 1 cm, the item untouched. Live, five of Luca's cube runs ended on
+in the 32 measured (median 2.0, 1.6 of it low: the load's sag); empty, 29 of
+55 straight approaches read held back while on the open counter the hand
+truly stood 0.6-0.8 cm from its goal, inside the 1 cm (in a basket up to 9.7
+cm), the item it went to pick unmoved on the five flights checked. Live, five
+of Luca's cube runs ended on
 it (11-15, 11-18, 11-21 twice, 11-22), each at a lowering of a held cube that
 was not an `if`'s test, before its `pull` down and its let-go.
 
