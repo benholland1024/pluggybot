@@ -8113,7 +8113,9 @@ walk that carries, on walk2 (the loop of 11-12/13, L4; rows and probes in
   within 0.12 m is neither a point nor a ray that went on (a bearing the
   piece alone stopped reads nothing, never free), in the band and in the depth
   camera's low layer. Another robot's returns are kept: split out by the part,
-  dropped they would blind the front stop to it.
+  dropped they would blind the front stop to it. (Since #762 each sensor
+  drops at its own radius, sized by what a job carries: below, "The
+  self-filter sized by what a job carries". The flights here flew 0.12.)
 - **Flown on walk2** (one pod, a Ryzen 9 5950X, osmesa, c3dcca4; each flight
   its own noise and draw; rows `batches/b4/`):
   - the reference's own grip and lift, then the served hand-over (raised, out
@@ -8521,7 +8523,10 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   in on 9 of 64 legs flown alone from the tour and in none of 64 whole
   places; with the filter at 0.20 m its legs were walled in on 1 of 34
   (the same draws at 0.12 m, 6), but the carried fork struck the pass in 23
-  (13): a wider filter takes the walls away, not the head's reach.
+  (13): a wider filter takes the walls away, not the head's reach. (#762
+  flew whole places at 0.16-0.25 m: a wider LIDAR radius hides the pass's
+  edge beside the fork from the front stop, below, "The self-filter sized by
+  what a job carries".)
 - **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
   over the tour, a fall failing the try, on walk2 and on the carry walker,
   one pod, then 32 held-out draws each, sealed by the frozen commit), and
@@ -13207,6 +13212,87 @@ a minute where no step came between: such a ghost can pass a posture over
 too). The arm against its own trunk in a carry's posture is #726's, which
 judges a reach's plan alone (the checkout's carry met its own gripper with
 its head at 21-116 N).
+
+## The self-filter sized by what a job carries (issue #762)
+
+#682's self-filter dropped every LIDAR return and every depth point within
+0.12 m of a grip that reads held (Ben's call 5 of 11-12, sized on the table's
+plate and cup). #736's candle, carried at the carry pose, reaches 0.085-0.10
+m from its grip and stands in the LIDAR's steepest ring, whose range noise
+is about 4 cm a sigma there: five carried candle walks of five crawled, the
+front stop firing 88-206 times a walk (C2c's flights, the loop of 11-26b).
+This branch sizes a radius for each sensor (`HELD_DROP_M`, the LIDAR's,
+0.25 m; `HELD_DEPTH_M`, the depth camera's, 0.20 m; `tests/test_self_filter.py`)
+-- and the pass's bar shows that no sphere round the grip serves both jobs.
+
+- **The rule** (`CARRIED`: each piece's drawing, where its reference grips
+  it and the reach's turn there; posed in the hand at the carry pose on the
+  bare body, the arm at `Reach.carry_pose`): the farthest point of a piece
+  that sensor can see, the 3 cm the robot's model of itself may place its
+  grip off the true one (the placement pin's tolerance; 2-13 mm in a carried
+  walk) and two sigmas of the sensor's range noise there, to the cm. The
+  LIDAR sees what stands at or over its steepest ring (-52 deg), its noise
+  3.9 cm a sigma at 0.5-0.8 m; the depth camera looks down on a piece whole,
+  its noise a few mm. Needed: the LIDAR's 0.241 (the forks of the pass, the
+  kitchen shelf and the table check: the head's tip 0.135 m from a grip at
+  the tag, over the ring but beside the front stop's box), the depth
+  camera's 0.198 (the table check's plate: its rim). The plate and the cube
+  stand under the ring at the carry pose. #736's candle needs 0.117 and
+  0.194, its frame 0.130 and 0.207 (on loop-736 with this change applied,
+  never pushed): inside both.
+- **Why two radii.** The depth camera's frame feeds what a reach's swing is
+  judged against (#747), its trunk (#763) and a step's knee room (#717):
+  what a radius hides near a held hand -- a counter's face beside a handle,
+  a board -- those judgments never see. Its noise is a hundredth of the
+  LIDAR's.
+- **On the bare body** (C15's `c/c15_geom.py`: each piece a mocap posed as
+  gripped, the LIDAR cast 2000 times with its noise, the model's grip error
+  set 0, 1.3 and 3 cm the worst way): front-stop firings a scan at 0.12 --
+  the candle 19-43 %, the frame 11-24 %, the cup under 0.3 %, the fork none
+  (its returns lie beside the box) -- at 0.16 the candle 1.0-4.5 % and the
+  frame 0.25-0.5 %, and none from 0.19-0.22; the fork's own returns kept in
+  the band, laid in the map round the robot, on 62-88 % of scans at 0.12,
+  20-48 % at 0.16 and 0.05-0.55 % at 0.25; the depth camera kept 114 of the
+  plate's points a frame at 0.12 and none from 0.16.
+- **Flown** (C15; one Vast pod, an AMD EPYC 7B12; the base B 119c0a7e at
+  0.12; rows `~/pluggybot-training/batches/c15_part1/`, `c15_r2/`, `c15_d2/`):
+  - **#736's candle trips** (C2c's instrument: the rack's lower board to
+    labels 79-84 at its draws k2-k5, on loop-736 60ca7f32 with this change
+    applied, never pushed): at 0.12, 0 of 4 stocked -- walks of 123-273 s,
+    two giving up "stalled", two dropping the candle, 88-202 firings each
+    (C2c's flights to the second); at 0.25 / 0.20, 4 of 4 stocked, walks of
+    42.4-51.5 s, 7-10 firings; at 0.16 / 0.20, every walk arrived carrying
+    in 37.8-46.3 s, 3 of 4 stocked (the fourth tipped over in #736's own
+    upper-board set-down, as C2c's same flight did). The frame falls from
+    the jaws on every tree alike (its long-carry grip, #761).
+  - **The pass** (`set_table_pass`, draws 0-31 over the tour): B laid 26, no
+    fall, 23 strikes (a carried piece, or the robot, on the world's
+    furniture while a hand is carried). At 0.25 / 0.20, 20 laid and 32
+    strikes; at 0.22 / 0.20, 25 and 35 (16 places more, 7 fewer: sign test p
+    0.047); at 0.16 / 0.20, 21 and 22; at 0.16 / 0.12, 23 and 23. No fall
+    anywhere.
+  - **Why the wide radii strike: the pass's edge beside the carried fork.**
+    At the walk's start the pass's edge stands 0.17-0.19 m from the fork's
+    grip. At 0.12 the front stop fires on it after the hand-over and backs
+    the robot off before the walk turns (in 32 of the 32 fork trips; 30 at
+    0.16); inside 0.25 or 0.22 it is hidden (20 and 17 of 32), the walk turns
+    at the pass, and the fork's head strikes the pass's face about 7 s into
+    the find: the fork on the pass 6 times at 0.12, 7 at 0.16, 12 at 0.25 and
+    14 at 0.22 (round 6 of #682 saw the same at 0.20: 23 strikes against
+    13). No sphere round the grip both covers the fork's head with the
+    LIDAR's noise (0.241) and leaves an edge at 0.17 in view.
+  - **Why 0.16 still lays fewer: the put-downs.** The places lost at 0.16 are
+    a fork or a plate set down 3-4 cm off (the grader's 2 cm). The laid
+    places' median errors: on B the plate 1.1 cm and the fork 1.1; on every
+    changed tree but 0.22 the plate 1.35-1.4 and the fork 1.4-1.5. The pass's
+    put-downs sit near their tolerance and were tuned on the base's walk
+    (#751's cure cost them 16 -> 3 the same way).
+  - **What the wide radii hide.** On the hands checks the cupboard door's
+    top and panel at the head's height (1.05-1.07 m, 0.19-0.24 m from the
+    lever's grip, where `step`'s room reads), and a counter's top edge in the
+    front box (0.13-0.25 m from the grip); on the pass, the pass's edge in
+    the front box on about 4,000 of 48,000 held scans a tree. At 0.16 the
+    door's top, 0.19 m or more from the grip, would stay in view.
 
 ## Debugging workflow that worked
 

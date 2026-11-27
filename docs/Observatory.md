@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The self-filter round a held grip sized by what a job carries (#762, C15, `loop-762`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
+characters, 17 sections) and the session host's hello `9dcf6202` are byte for
+byte as they were, and no verb's text, History line or reading names the
+self-filter or its radius. What moves is what a robot's sensors keep while a
+gripper reads held, and so what its walks, its steps and its reaches do.
+
+**The change** (`HumanoidMission.HELD_DROP_M`, `HELD_DEPTH_M`, `_held_drop`;
+SimNotes, "The self-filter sized by what a job carries"). #682's
+self-filter dropped every LIDAR return and every depth point within 0.12 m of
+a grip that reads held. This branch drops LIDAR returns within 0.25 m and
+depth points within 0.20 m, each what the pieces a job carries need of it
+(`tests/test_self_filter.py`). Every served hand job holds something at some
+point -- a drawer's handle, a door's lever, the chest's knob, the cube, the
+table's pieces -- so the radii act on every served job while a gripper reads
+held.
+
+**What it does** (one pod, an AMD EPYC 7B12, against 119c0a7e). #736's candle
+(built, not offered) walks normally carried (4 of 4 stocked; at 0.12, 0 of 4,
+its walks crawling 123-273 s). The pass (#682's, built, not offered) lays 20
+of 32 against 26, its fork striking the pass's face as the walk turns away (12
+against 6): the wider LIDAR radius hides the pass's edge beside the carried
+fork, and the front stop no longer backs the robot off it. The served hands
+checks and tour jobs flown (201 of Ben's bar's 736 pairs) moved no verdict.
+
+**To read.** Each served job's passes and falls against the period before
+(`grades.txt`), the robots' own procedures among them; and any walk or `step`
+that met a counter, a table or a cupboard's top with a hand holding something
+(the falls' rows, `drift_fall.jsonl`; the contacts where a flight is
+replayed): the cupboard door's top, 0.19-0.24 m from a held lever's grip at
+the head's height, is no longer in what `step`'s room reads.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the

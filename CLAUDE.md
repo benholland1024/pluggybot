@@ -955,7 +955,10 @@ save a filmstrip PNG named after the script.
   may be off the true grip and two sigmas of its range noise -- the LIDAR's
   the pass's fork's head (0.241), the depth camera's the plate's rim (0.198):
   at 0.12, #736's candle fired the front stop on a fifth of the scans carried
-  and every carried walk crawled. ⚠ THE MAP'S SCAN IS
+  and every carried walk crawled. ⚠ WHAT IT HIDES THE FRONT STOP NEVER SEES:
+  inside 0.22 the pass's edge beside a carried fork (0.17-0.19 m from the
+  grip), and the walk turned into it (the fork on the pass 12 times in 32
+  places at 0.25, 6 at 0.12; SimNotes). ⚠ THE MAP'S SCAN IS
   THE BAND (`Lidar.band`): per bearing the nearest surface 0.15-2.2 m over
   the floor, levelled through the IMU's tilt and set over the floor by its
   model of itself -- the fences, the tables, the couch with the walls -- ⚠ its
