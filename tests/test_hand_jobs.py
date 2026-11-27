@@ -1375,8 +1375,8 @@ def test_a_job_whose_offer_sets_its_things_out_says_when_as_offered():
   drawing = [name for name, kind in KINDS.items() if kind.draws]
   assert set(HAND_JOBS) <= set(drawing)
   at_claim = {name for name in drawing
-              if hasattr(jobs.area_of(next(t for t, k in jobs.targets().items()
-                                           if k == KINDS[name].target_kind)), "take")}
+              if any(KINDS[name].target_kind in area.TARGETS.values() and hasattr(area, "take")
+                     for area in jobs.AREAS)}
   assert at_claim == {"set_table", "set_table_pass", "set_table_shelf"}
   for name in drawing:
     for t in (205338.0, 7.0):

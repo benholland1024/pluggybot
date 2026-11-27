@@ -505,6 +505,31 @@ def test_no_save_is_taken_in_the_step_after_a_claim_set_its_pieces_out(tmp_path)
   assert not keeper.landed()
 
 
+@pytest.mark.parametrize("taken", [False, True])
+def test_a_world_saved_with_an_offer_or_its_claim_comes_back_stepped_exactly(tmp_path, taken):
+  """...and a world saved as #775 leaves it -- an untaken offer's card out
+  and its pieces away, or a taken job's whole place out -- comes back with
+  its last step stepped again exactly, nothing set out after it and nothing
+  put away: what `restore_jobs` sets by the board is what the save had."""
+  from pluggybot import continuation
+  life = _life(tmp_path)
+  task = _offer(life)
+  if taken:
+    _claim(life, task)
+  path = tmp_path / "world.npz"
+  _saved(life, path)
+  said = []
+  back = _life(tmp_path, rebase=False)
+  back.say_hooks.append(lambda t, msg, *a: said.append(msg))
+  back.begin((0.0, 0.0, 0.0))
+  got = continuation.restore([back], continuation.read(path))
+  assert got["replayed"] is True and "setOut" not in got
+  assert not any("pieces are" in m for m in said), said
+  assert _away(back, *dw.PIECES) is (not taken) and not _away(back, "place_card")
+  for p in (*dw.PIECES, "place_card"):
+    assert _at(back, p) == pytest.approx(_at(life, p), abs=0.0), p
+
+
 # ---- the world --------------------------------------------------------------------------------
 
 
