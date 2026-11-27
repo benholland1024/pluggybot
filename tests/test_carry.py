@@ -14,7 +14,8 @@ rule pinned without a flight -- a fake reach, the stub body, a direct call
      the posture it holds now;
   3. a withdraw and a let-go end a carry: home is the rest again;
   4. the self-filter: the LIDAR's band and the depth camera's low layer
-     leave out every return within `HELD_DROP_M` of a grip that holds,
+     leave out every return within their radius of a grip that holds
+     (`HELD_DROP_M`, `HELD_DEPTH_M`: sized in `test_self_filter.py`),
      placed off the robot's model of itself -- and keep it with the grip
      empty;
   5. with another robot by, a held arm's way judged is the way to its carry
@@ -318,13 +319,14 @@ def test_the_mission_places_a_held_grip_off_its_model_of_itself_and_drops_it_fro
     centres, _ = m._held_drop()
     assert np.linalg.norm(centres[0] - truth()) < 0.03, (centres[0], truth())
     # ...and the low layer: a point at the grip folds in only unheld (its
-    # frame filtered once, `_held_out`, for the layer and the knees' memory)
+    # frame filtered once, `_held_out`, at the depth camera's own radius, for
+    # the layer and the knees' and arms' memories: #762)
     point = np.array([centres[0]])
     m.low[...] = 0.0
-    m._fold_low(hmis._held_out(point, m._held_drop()))
+    m._fold_low(hmis._held_out(point, m._held_drop(hmis.HELD_DEPTH_M)))
     assert not (m.low != 0.0).any(), "the held grip's point went into the layer"
     m.reach.grippers["left"].held = lambda: False
-    m._fold_low(hmis._held_out(point, m._held_drop()))
+    m._fold_low(hmis._held_out(point, m._held_drop(hmis.HELD_DEPTH_M)))
     assert (m.low > 0.0).any(), "the premise: unheld, the point is an obstacle"
   finally:
     body.close()

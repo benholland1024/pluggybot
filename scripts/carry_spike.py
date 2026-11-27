@@ -42,7 +42,8 @@ On a bare floor, an arm holds a piece:
                 a grip that reads held at the carry pose; `ref` left as its
                 lift leaves it
   --walker NPZ  another walking policy (#682's stage B), walk2 unset
-  --held-drop M the self-filter's radius round a held grip (0.12 unset)
+  --held-drop M the LIDAR's self-filter radius round a held grip (the
+                served `HELD_DROP_M` unset; the depth camera's as served)
   --pinch-out M a posed piece held this much further out toward the
                 fingertips than the reference's shut left it (the cup's
                 creep, #682's A7: how deep it is held)
@@ -228,8 +229,9 @@ WALKER = os.environ.get("CARRY_WALKER")
 if WALKER:
   from pluggybot.humanoid import mission as _mission
   _mission.WALK_NPZ = Path(WALKER)
-#: `--held-drop M`: the self-filter's radius round a held grip, m
-#: (`mission.HELD_DROP_M`, Ben's "about 0.12" unset).
+#: `--held-drop M`: the LIDAR's self-filter radius round a held grip, m
+#: (`mission.HELD_DROP_M`, as served unset; the depth camera's,
+#: `HELD_DEPTH_M`, is left as served).
 HELD_DROP = os.environ.get("CARRY_HELD_DROP")
 if HELD_DROP:
   from pluggybot.humanoid import mission as _mission2
@@ -1221,7 +1223,7 @@ def main(argv=None) -> None:
   ap.add_argument("--pinch-out", dest="pinch_out", type=float, default=None,
                   help="a posed piece this much further out toward the fingertips, m")
   ap.add_argument("--held-drop", type=float, default=None,
-                  help="the self-filter's radius round a held grip, m")
+                  help="the LIDAR's self-filter radius round a held grip, m")
   ap.add_argument("--read", default=None)
   ap.add_argument("--poses", action="store_true")
   ap.add_argument("--strip", default=None)

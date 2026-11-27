@@ -152,17 +152,24 @@ ARMS_TOP_M = 0.03
 
 def _bins(a: np.ndarray) -> np.ndarray:
   return np.floor((np.asarray(a) + math.pi) / (2 * math.pi / KNEE_BINS)).astype(np.int64) % KNEE_BINS
-#: THE SELF-FILTER (#682; Ben, 2026-11-12): a return within this of a grip
-#: whose gripper says it holds something, m -- placed off the robot's model of
-#: itself, as its LIDAR's band and its depth camera's layer are -- is the
-#: robot's own, in neither (`_held_drop`): seen, 7 of 10 poses holding the
-#: table's plate or cup never arrived walked to a goal 4 m off, the front stop
-#: backing it off its own plate (9-13 m backward) or the map leaving no
-#: route, and the plate held out fell from the hand in 4 of 12; hidden from
-#: every cast, all arrived (SimNotes, "Carrying while walking, measured").
-#: Never by the simulator's geoms: the robot knows its own hand and its
-#: grip's word, never what is in it.
-HELD_DROP_M = 0.12
+#: THE SELF-FILTER (#682; Ben, 2026-11-12): a LIDAR return within this of a
+#: grip whose gripper says it holds something, m -- placed off the robot's
+#: model of itself, as its band is -- is the robot's own (`_held_drop`): seen,
+#: 7 of 10 poses holding the table's plate or cup never arrived walked to a
+#: goal 4 m off, the front stop backing it off its own plate. Never by the
+#: simulator's geoms: the robot knows its own hand and its grip's word, never
+#: what is in it. ⚠ SIZED BY WHAT A JOB CARRIES (#762, `test_self_filter.py`):
+#: the farthest point of a carried piece its rings reach at the carry pose,
+#: the 3 cm the model may be off the true grip and two sigmas of its range
+#: noise -- the pass's fork's head, 0.135 m from the grip. At 0.12, #736's
+#: candle fired the front stop on a fifth of the scans carried, and every
+#: carried walk crawled (SimNotes, "The self-filter sized by what a job
+#: carries").
+HELD_DROP_M = 0.25
+#: ...and its depth camera's (its low layer, its knees' and arms' memories),
+#: m, sized the same way over a carried piece whole -- its noise a few mm --
+#: and no wider: the plate's rim, 0.16 m from its grip.
+HELD_DEPTH_M = 0.20
 #: A CARRY BEGINS WITH A LIFT, AND WHAT DOES NOT COME AWAY IS LET GO (#682;
 #: `to_walk_routine`): a hand that holds is first pulled this far straight up,
 #: m, with at most this much, N -- the most the standing body holds at a hand
@@ -1380,12 +1387,13 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                            float(self.odo.sm.d.qpos[2]), joints=self.waist_read(),
                            drop=self._held_drop())
 
-  def _held_drop(self) -> tuple[np.ndarray, float] | None:
-    """The self-filter (`HELD_DROP_M`, #682): each grip whose gripper says
-    it holds something, levelled as a scan's points are -- x and y from the
-    pelvis along its heading, z over the floor -- off its odometry's model
-    of itself as last posed (its drivers' readings and its IMU), and the
-    radius round it; None with nothing held."""
+  def _held_drop(self, radius: float | None = None) -> tuple[np.ndarray, float] | None:
+    """The self-filter (#682): each grip whose gripper says it holds
+    something, levelled as a scan's points are -- x and y from the pelvis
+    along its heading, z over the floor -- off its odometry's model of itself
+    as last posed (its drivers' readings and its IMU), and the radius round
+    it: `radius`, else the LIDAR's (`HELD_DROP_M`, read as it is called);
+    None with nothing held."""
     held = [s for s in hm.SIDES if self.reach.grippers[s].held()]
     if not held:
       return None
@@ -1399,7 +1407,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
       p = d.site_xpos[sm.grip[side]]
       v = p - root
       out.append((c * v[0] + s_ * v[1], -s_ * v[0] + c * v[1], float(p[2])))
-    return np.array(out), HELD_DROP_M
+    return np.array(out), HELD_DROP_M if radius is None else radius
 
   def _front_blocked(self, angles, ranges) -> bool:
     return bool(len(self.in_front(angles, ranges)))
@@ -1458,8 +1466,8 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     if frame is None or self._frame_t == self._frame_used_t or not self._frame_level:
       return
     self._frame_used_t = self._frame_t
-    # ...what a hand holds is no obstacle (#682's self-filter, `HELD_DROP_M`)
-    points = _held_out(frame.points, self._held_drop())
+    # ...what a hand holds is no obstacle (#682's self-filter, its own radius)
+    points = _held_out(frame.points, self._held_drop(HELD_DEPTH_M))
     self._fold_low(points)
     facing = float(self.odo.sm.q[self.odo.sm.waist][0])
     self.knee.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing)
