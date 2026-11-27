@@ -358,8 +358,8 @@ CARRY_THIN_M = 0.03
 #: shoulder, tilted ~145 deg, and swept it down at the robot's side (the pass
 #: met in 12 of 63, the shelf's board above in 3) -- judged by the hand's own
 #: descent (`carry_descent`), which sees neither its tilt nor what it holds.
-#: So it goes back, level, toward the toes, then down to the carry pose's
-#: height and across to its side, then in (`low_way`), planned on the stand's
+#: So it goes back, level, toward the toes, then down at the side it began at
+#: to the carry pose's height, then in (`low_way`), planned on the stand's
 #: statue, where the carry pose is solved and the body stands once the way is
 #: begun (planned as a bow stands, the hand was level only while the body
 #: stayed bowed: from 0.3 rad, it turned 40-47 deg once the trunk stood up).
@@ -367,14 +367,27 @@ CARRY_THIN_M = 0.03
 #: (rolled 1.8), changes no branch and goes by the judge, as before.
 CARRY_OVER_ROLL = 2.0
 #: ...a joint target every this much of its line, m, each solved from the last
-#: (`_level_fit`): the grip on its point and the hand's up as it began, each
-#: weighed this much...
+#: (`_turn_fit`): the grip on its point, weighed this much a metre...
 LOW_STEP_M, LOW_FIT_W = 0.02, 10.0
+#: ...and the hand's whole turn walked about the vertical from its start's to
+#: its carry pose's, its share along the whole line, weighed this much. ⚠ Its
+#: yaw left free, the hand turned what it held into the robot's own trunk: the
+#: shelf's plate met the torso and the pelvis in 61 of 61 hand-overs (51 N), 35
+#: let go carried where 9; a plate held level where the flights hold it, walked
+#: so on the robot's model, touched the trunk on all 93 of the census's plate
+#: ways, and none walked turned.
+LOW_TURN_W = 3.0
+#: ...back no nearer its own trunk -- the torso's and the pelvis's boxes on its
+#: model of itself -- than this, m, at the side it began at: the plate's
+#: touches began with its grip 0.11-0.155 m off the trunk (a piece's reach
+#: back from the hand, which the robot cannot know), and the carry pose holds
+#: it ~0.19 off.
+LOW_TRUNK_M = 0.16
 #: ...and on its way in, every joint pulled toward the carry pose's, the pull
 #: growing to this: the branch changes there, at the bottom behind the work --
 #: at a census of 205 such ways on the robot's model, the hand turned off level
-#: a median 13 deg (tilt 64 at most, in one way from a deep crouch) where the
-#: pull grown to 3 left 16, straight 40-50 and the side way ~145.
+#: a median 13 deg where the pull grown to 3 left 16, straight 40-50 and the
+#: side way ~145.
 LOW_IN_W = 10.0
 #: ...and home is the rest commanded and its drivers reading every joint
 #: within this of it, rad (they read to 0.0026).
@@ -1121,44 +1134,75 @@ def low_way(sm: SelfModel, side: str, q0, q1) -> list[np.ndarray]:
   """A thin carried piece's way from over the top to its carry pose `q1`
   (`CARRY_OVER_ROLL`), on the robot's model of itself as posed (the stand's
   statue, `Reach._picked`): the grip walked back, level, toward the toes
-  (`toes`), then down to the carry pose's grip height and across to its side,
-  then in to its grip -- a joint target every `LOW_STEP_M` of that line, each
-  the arm's six joints solved from the last (`_level_fit`), on its way in
-  every joint pulled toward the carry pose's (`LOW_IN_W`) -- then the carry
-  pose itself. Never higher than where it began. Leaves the arm at `q1`."""
+  (`toes`) but no nearer its own trunk than `LOW_TRUNK_M` (`_off_trunk`),
+  then down at the side it began at to the carry pose's grip height, then in
+  to its grip -- a joint target every `LOW_STEP_M` of that line, each the
+  arm's six joints solved from the last (`_turn_fit`), the hand's whole turn
+  walked about the vertical from its start's to its carry pose's, its share
+  along the line; on its way in every joint pulled toward the carry pose's
+  (`LOW_IN_W`) -- then the carry pose itself. Never higher than where it
+  began. Leaves the arm at `q1`."""
   q0, q1 = np.asarray(q0, dtype=float), np.asarray(q1, dtype=float)
   sm._set_arm(side, q0)
   p0, r0 = sm.grip_pose(side)
-  up = r0.T @ np.array([0.0, 0.0, 1.0])
   sm._set_arm(side, q1)
-  p1 = sm.grip_pose(side)[0]
-  back = np.array([min(float(p0[0]), toes(sm)), p0[1], p0[2]])
-  under = np.array([back[0], p1[1], min(float(p0[2]), float(p1[2]))])
-  ways, q = [], q0.copy()
-  for leg, (a, b) in enumerate(((p0, back), (back, under), (under, p1))):
-    n = max(1, math.ceil(float(np.linalg.norm(b - a)) / LOW_STEP_M))
+  p1, r1 = sm.grip_pose(side)
+  turn = r1 @ r0.T
+  yaw = math.atan2(turn[1, 0], turn[0, 0])
+  low, toe = min(float(p0[2]), float(p1[2])), toes(sm)
+  x = min(float(p0[0]), max(toe, max(_off_trunk(sm, float(p0[1]), float(z), toe, max(float(p0[0]), float(p1[0])))
+                                     for z in np.linspace(low, float(p0[2]), 6))))
+  back = np.array([x, p0[1], p0[2]])
+  under = np.array([x, p0[1], low])
+  lines = ((p0, back), (back, under), (under, p1))
+  total = sum(float(np.linalg.norm(b - a)) for a, b in lines) or 1.0
+  ways, q, done = [], q0.copy(), 0.0
+  for leg, (a, b) in enumerate(lines):
+    length = float(np.linalg.norm(b - a))
+    n = max(1, math.ceil(length / LOW_STEP_M))
     for i in range(1, n + 1):
-      pos = a + (b - a) * (i / n)
+      c, s = math.cos(yaw * (done + length * i / n) / total), math.sin(yaw * (done + length * i / n) / total)
+      rot = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]) @ r0
       toward = (q1, LOW_IN_W * (i / n) ** 2) if leg == 2 else None
-      q = _level_fit(sm, side, q, pos, up, toward=toward)
+      q = _turn_fit(sm, side, q, a + (b - a) * (i / n), rot, toward=toward)
       ways.append(q.copy())
+    done += length
   sm._set_arm(side, q1)
   return ways + [q1.copy()]
 
 
-def _level_fit(sm: SelfModel, side: str, q_from, pos, up, toward=None) -> np.ndarray:
-  """The arm's six joints, from `q_from`, that put its grip at `pos` with the
-  hand's own `up` pointing up (bounded least squares, as a statue's balance
-  is solved; every joint `RANGE_MARGIN` inside its range); `toward`,
-  (joints, a weight): every joint pulled toward those."""
+def _off_trunk(sm: SelfModel, y: float, z: float, lo: float, hi: float) -> float:
+  """The least x from `lo` to `hi` at which a grip at (x, `y`, `z`), stance
+  frame, is no nearer the robot's own trunk than `LOW_TRUNK_M` (the torso's
+  and the pelvis's boxes as `sm` is posed): `hi` where none is."""
+  parts = [(n, "box", sm.d.geom_xpos[g].copy(), sm.d.geom_xmat[g].reshape(3, 3).copy(), sm.m.geom_size[g].copy())
+           for n, g in ((n, sm.m.geom(n).id) for n in ("torso", "pelvis"))]
+
+  def clear(x: float) -> bool:
+    pt = np.array([[x, y, z]])
+    return min(float(trunk_gap(pt, part)[0]) for part in parts) >= LOW_TRUNK_M
+  if clear(lo):
+    return lo
+  if not clear(hi):
+    return hi
+  for _ in range(30):
+    mid = 0.5 * (lo + hi)
+    lo, hi = (lo, mid) if clear(mid) else (mid, hi)
+  return hi
+
+
+def _turn_fit(sm: SelfModel, side: str, q_from, pos, rot, toward=None) -> np.ndarray:
+  """The arm's six joints, from `q_from`, that put its grip at `pos` turned
+  `rot` (bounded least squares, as a statue's balance is solved; every joint
+  `RANGE_MARGIN` inside its range); `toward`, (joints, a weight): every joint
+  pulled toward those."""
   idx = sm.arm[side]
   lo, hi = sm.ranges[idx, 0] + RANGE_MARGIN, sm.ranges[idx, 1] - RANGE_MARGIN
-  sky = np.array([0.0, 0.0, 1.0])
 
   def resid(q):
     sm._set_arm(side, q)
     p, r = sm.grip_pose(side)
-    out = [(p - pos) * LOW_FIT_W, (r @ up - sky) * LOW_FIT_W]
+    out = [(p - pos) * LOW_FIT_W, (r - rot).ravel() * LOW_TURN_W]
     if toward is not None:
       out.append((q - toward[0]) * toward[1])
     return np.concatenate(out)

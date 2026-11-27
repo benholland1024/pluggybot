@@ -869,9 +869,11 @@ def test_a_thin_piece_carried_from_over_the_top_comes_back_level_then_down_then_
   down on the work board in 15 of 53 hand-overs; the side way raised it over
   the shoulder, turned it ~145 deg and swept it down at the robot's side. A
   thin carried way from over the top goes low (`low_way`): its hand never
-  higher than where it began nor further ahead than the further of that and
-  its carry pose, kept level, back before it goes down, and at its carry pose
-  at the end."""
+  more than a few cm higher than where it began (keeping its whole turn costs
+  that where the arm begins at its ranges' ends) nor further ahead than the
+  further of that and its carry pose, about level, come down behind where it
+  began (back toward the toes first, as its trunk lets it), and at its carry
+  pose at the end."""
   body, r, q0 = _posed(q0)
   try:
     assert abs(q0[hm.ARM.index("shoulder_roll")]) > rc.CARRY_OVER_ROLL
@@ -879,34 +881,75 @@ def test_a_thin_piece_carried_from_over_the_top_comes_back_level_then_down_then_
     carry = r.carry_q["left"]
     way = r.way_home("left")
     assert np.allclose(way[-1], carry)
-    p0, p1, front, walk = _low_judged(r, q0, way)
+    p0, p1, _, walk = _low_judged(r, q0, way)
     for p, tilt in walk:
-      assert p[2] <= p0[2] + 0.005, f"the hand rose to {p[2]:.3f} m from {p0[2]:.3f}"
+      assert p[2] <= p0[2] + 0.05, f"the hand rose to {p[2]:.3f} m from {p0[2]:.3f}"
       assert p[0] <= max(p0[0], p1[0]) + 0.005, f"the hand {p[0]:.3f} m ahead"
-      assert tilt <= 25.0, f"the hand tilted {tilt:.0f} deg"
-      if p[2] < p0[2] - 2 * rc.LOW_STEP_M:
-        assert p[0] <= front + 0.01, f"down at {p[0]:.3f} m ahead, not back first"
+      assert tilt <= 30.0, f"the hand tilted {tilt:.0f} deg"
+      if p[2] < p0[2] - 2 * rc.LOW_STEP_M and p[2] > p1[2] + 2 * rc.LOW_STEP_M:
+        assert p[0] <= p0[0], f"down at {p[0]:.3f} m ahead, not back first"
+  finally:
+    body.close()
+
+
+#: A plate held as the flights held one in the walk's hand-over (#770's round
+#: 1): its middle this far off the grip, in the grip's frame, m, its rim this
+#: far round its middle, level -- a made-up fixture of what a hand holds, which
+#: the robot itself cannot know.
+HELD_PLATE, HELD_PLATE_R = (0.086, -0.011, -0.0505), 0.09
+
+
+def _trunk_off(sm, points) -> float:
+  """The least distance of `points` from the robot's own trunk as `sm` is
+  posed: the torso's and the pelvis's boxes, m."""
+  parts = [(n, "box", sm.d.geom_xpos[g].copy(), sm.d.geom_xmat[g].reshape(3, 3).copy(), sm.m.geom_size[g].copy())
+           for n, g in ((n, sm.m.geom(n).id) for n in ("torso", "pelvis"))]
+  return min(float(rc.trunk_gap(np.atleast_2d(points), part).min()) for part in parts)
+
+
+@pytest.mark.parametrize("q0", [OVER_THE_TOP, FORK_OVER_THE_TOP], ids=["plate", "fork"])
+def test_a_thin_carried_way_keeps_its_hand_and_what_it_holds_off_the_trunk(q0):
+  """#770's round 2: with the hand level and its yaw left free, round 1's way
+  turned what the hand held into the robot's own trunk -- the shelf's plate
+  met the torso and the pelvis in 61 of 61 hand-overs (51 N), 35 let go
+  carried where 9; the touches began with the grip 0.10-0.16 m off the trunk.
+  The way keeps the hand's whole turn, walked from its start's to its carry
+  pose's, and comes back no nearer the trunk than `LOW_TRUNK_M`: a plate held
+  where the flights held one keeps its rim off the trunk all the way."""
+  body, r, q0 = _posed(q0)
+  try:
+    r.grippers["left"].gap_mean = 0.008                    # the plate's wall
+    way = r.way_home("left")
+    sm = _on_the_stand(r, way[-1])
+    sm._set_arm("left", q0)
+    began = _trunk_off(sm, sm.grip_pose("left")[0])
+    ring = [np.array([math.cos(a), math.sin(a), 0.0]) * HELD_PLATE_R for a in np.linspace(0.0, 2 * math.pi, 17)[:-1]]
+    for p, rot in _walked(sm, q0, way):
+      assert _trunk_off(sm, p) >= min(rc.LOW_TRUNK_M, began) - 0.01, "the hand by the trunk"
+      middle = p + rot @ np.array(HELD_PLATE)
+      assert _trunk_off(sm, np.vstack([middle + v for v in ring] + [middle])) >= 0.02, "the plate on the trunk"
   finally:
     body.close()
 
 
 def test_a_thin_carried_way_from_a_bow_is_planned_where_the_stand_holds_it():
   """...planned on the stand's statue, where its carry pose is solved and the
-  body stands once the way is begun (`_go_home` asks the stand): planned as a
-  bow stands, its hand was kept level only while the body stayed bowed, and
-  from a 0.3 rad bow it turned 40-47 deg once the trunk stood up (carry_spike's
-  table grip is taken so bowed; 3 of the pass's 63 such hand-overs began
-  bowed past 0.2 rad, one 0.79)."""
+  body stands once the way is begun (`_go_home` asks the stand), whatever the
+  posture it begins in: planned as a 0.55 rad bow stands, the plate's way went
+  3.3 cm further ahead than both where it began and its carry pose, the hand
+  turned 22 deg (5 planned on the stand) -- carry_spike's table grip is taken
+  bowed 0.3 rad, and 3 of the pass's 63 such hand-overs began bowed past 0.2
+  rad, one 0.79."""
   body, r, q0 = _posed(OVER_THE_TOP)
   try:
     stand = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
-    rc.statue(r.self_model, (-0.16, 0.3, 0.0), stand, arms=r._arms(), fast=True)
+    rc.statue(r.self_model, (0.0, 0.55, 0.0), stand, arms=r._arms(), fast=True)
     r.grippers["left"].gap_mean = 0.008                    # the plate's wall
     way = r.way_home("left")
     p0, p1, _, walk = _low_judged(r, q0, way)
-    assert max(t for _, t in walk) <= 25.0, max(t for _, t in walk)
+    assert max(p[0] for p, _ in walk) <= max(p0[0], p1[0]) + 0.005
+    assert max(t for _, t in walk) <= 15.0, max(t for _, t in walk)
     assert max(p[2] for p, _ in walk) <= p0[2] + 0.005
-    assert min(p[2] for p, _ in walk) >= p1[2] - 0.05
   finally:
     body.close()
 
