@@ -25,9 +25,10 @@ the belief as it is now. A reach's steps take no scan, so through a bow the
 belief moved by the legs' reckoning alone, and #763's view moved with it: 2
 cm at lane C's loading rack, where a look's rise 1.2 cm into a board read
 clear and the robot fell, 1.3 cm at the counter, where a cube's plan read
-clear what its torso then pressed at 486 N. A belief that jumped since moves
-none of it; a save from before this period's judges nothing until a frame
-folds again.
+clear what its torso then pressed at 486 N. A frame the believed stance has
+turned more than 3 deg from since judges nothing (the feet turned under it);
+a belief jump, or a save from before this period's, judges nothing until a
+frame folds again.
 
 **What the period is for.**
 - **The acceptance**: #763's own (its period, below), its trunk now judged

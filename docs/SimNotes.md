@@ -12852,12 +12852,20 @@ each voxel of the window is placed through its own frame's: the true stance
 has not moved since the feet last did, so where the camera saw a thing from
 the stance then is where it is now -- the frame's points carried into the
 stance frame by the robot's model of itself as it stood, no world belief in
-it, and a belief that jumped since moves none of them. With it the rack's
-look passed over the rise (the head 1.1 cm in by its view, the truth's 1.2)
-and the flight did not fall; the head met the board later, at 408 N, in the
-walk's hand-over stand, the way out, which is never judged. A save from
-before it kept no stances: its voxels judge nothing until a frame folds
-again.
+it. With it the rack's look passed over the rise (the head 1.1 cm in by its
+view, the truth's 1.2) and the flight did not fall; the head met the board
+later, at 408 N, in the walk's hand-over stand, the way out, which is never
+judged. ⚠ But the feet can turn with no step: a posture swivelled Luca's 15-26
+deg by its legs' reckoning (#746), and a frame kept at its fold's stance
+would then lie 13 cm off at half a metre. So a frame the believed stance has
+turned more than `KNEE_JUMP_RAD` (3 deg) from since -- the IMU's heading,
+held at a standstill -- judges nothing (an arm going out turns the stance
+1-1.5 deg; the rack's drift turned it 0.07). A slide the legs cannot reckon
+fools either placement alike. A belief jump still empties the memory where
+#747's faces read it through the belief (`near`, `faces`, `fold`), and a
+save from before the remedy kept no stances: either way nothing is judged
+until a frame folds again. #747's own faces are still placed through the
+belief as it is now: the swing check keeps the drift.
 
 **What it does not do.** A posture already held, or one the body has got
 to on its way (what #719 keeps it in), is never judged (no change, nothing

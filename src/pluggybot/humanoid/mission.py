@@ -444,19 +444,19 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
-  def since(self, t0: float) -> np.ndarray:
+  def since(self, t0: float, heading: float | None = None) -> np.ndarray:
     """The voxels last seen at or after `t0`, tops kept, each in the stance
     frame it was seen from: placed through the believed stance its frame was
     folded at (`fold`'s `stance`), never the stance now (#763's remedy, what a
     procedure's posture judges its trunk against, `Reach._trunk`). ⚠ THROUGH
-    A BOW THE BELIEF MOVES BY THE LEGS' RECKONING ALONE (a reach steps no
-    scan) and no frame folds: placed through it, lane C's rack's board read
-    1.6 cm further at a look than at its plan (the believed stance 2 cm off
-    as the pelvis went back 17 cm), and a rise 1.2 cm into its underside read
-    clear; the stance a frame was folded at is where it stands still while
-    the feet have not moved. A belief that jumped since moves none of it. None
-    from a frame folded with no stance (a memory kept from before it). A read
-    that forgets nothing."""
+    A BOW THE LEGS' RECKONING ALONE MOVES THE BELIEF (a reach steps no scan):
+    placed through it, a board read 1.6 cm off (SimNotes, "A reach's bow under
+    a shelf's board"). ⚠ BUT NONE FROM A FRAME THE BELIEVED STANCE HAS TURNED
+    PAST `KNEE_JUMP_RAD` FROM SINCE (`heading`, its heading now): the feet
+    turned under it, a posture's swivel with no step (#746). None from a frame
+    folded with no stance (a memory kept from before it); and a belief jump
+    still empties the memory where it is read placed through the belief
+    (`near`, `faces`, `fold`). A read that forgets nothing."""
     keep = self.t >= t0 - 1e-9
     if not keep.any():
       return np.zeros((0, 3))
@@ -464,6 +464,8 @@ class ArmsMemory(KneeMemory):
     folds = np.unique(ts)
     known = np.array([float(f) in self.stances for f in folds])
     at = np.array([self.stances.get(float(f), (0.0, 0.0, 0.0)) for f in folds]).reshape(-1, 3)
+    if heading is not None:
+      known &= np.abs(np.remainder(at[:, 2] - heading + math.pi, 2 * math.pi) - math.pi) <= KNEE_JUMP_RAD
     i = np.searchsorted(folds, ts)
     c, s = np.cos(at[i, 2]), np.sin(at[i, 2])
     dx, dy = pts[:, 0] - at[i, 0], pts[:, 1] - at[i, 1]
@@ -1519,9 +1521,11 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     a shelf's label the belief moved 6-8 cm against what it saw on the way,
     and a board laid before the last steps stood 2-7 cm nearer than it was. ⚠
     NEVER THROUGH THE BELIEF AS IT IS NOW (#763's remedy): through a bow the
-    legs' reckoning carries it 1-3 cm while the feet stand. Empty just after
-    a step, before the camera has seen again: nothing is judged."""
-    return self.swing.since(float(self.last_motion_t))
+    legs' reckoning carries it 1-3 cm while the feet stand -- but nothing from
+    a frame its believed stance has turned 3 deg from since (the feet turned
+    under it). Empty just after a step, before the camera has seen again, or
+    after a belief jump (#747's forget): nothing is judged."""
+    return self.swing.since(float(self.last_motion_t), self.believed_stance()[2])
 
   def believed_stance(self) -> tuple[float, float, float]:
     """Where it believes its stance is, (x, y, heading): its pelvis where it

@@ -228,13 +228,15 @@ def test_the_view_is_what_it_saw_since_its_feet_last_moved_tops_kept_and_a_pure_
   assert np.array_equal(mem.pts, pts) and np.array_equal(mem.t, ts) and mem.stances == folds
 
 
-def test_the_trunks_view_stays_where_it_was_seen_while_the_belief_drifts_or_jumps():
+def test_the_trunks_view_stays_where_it_was_seen_while_the_belief_drifts():
   """#763's remedy (`ArmsMemory.since`, `fold`'s `stance`): each voxel in the
   stance frame its frame was folded at, never through the belief as it is
-  now. ⚠ Through a bow the legs' reckoning carried lane C's rack's believed
-  stance 2 cm while the feet stood, and placed through it the board read 1.6
-  cm further at the look than at the plan; and a belief that jumped since (a
-  match) moves none of it -- round 1's view went empty."""
+  now -- read as a reach reads it, #747's faces first (`_reached`). ⚠ Through
+  a bow the legs' reckoning carried lane C's rack's believed stance 2 cm
+  while the feet stood, and placed through it the board read 1.6 cm further
+  at the look than at the plan. ⚠ A turn of the believed stance past
+  `KNEE_JUMP_RAD` since a frame drops that frame (the feet turned under it,
+  #746); a belief jump empties the memory as #747's faces read it."""
   from test_guard import _floor_body
   body = _floor_body()
   try:
@@ -242,15 +244,29 @@ def test_the_trunks_view_stays_where_it_was_seen_while_the_belief_drifts_or_jump
     top = np.array([[0.45, y, 0.96] for y in np.arange(-0.2, 0.2, 0.02)])
     mi.swing.fold(top, 1.0, mi.pose, mi.odo.corrected, stance=mi.believed_stance())
     mi.last_motion_t = 0.5
-    seen = mi.trunk_seen()
+
+    def read():
+      mi.arms_seen()
+      return mi.trunk_seen()
+    seen = read()
     assert len(seen) == len(top)
     # ...the legs' reckoning carries the belief 2 cm, the feet standing
     mi.odo.x += 0.02
-    assert np.allclose(mi.trunk_seen(), seen, rtol=0.0, atol=1e-12)
-    # ...and a match jumps it 0.2 m and 0.1 rad
+    assert np.allclose(read(), seen, rtol=0.0, atol=1e-12)
+    # ...its heading turns 2 deg (an arm going out turns the stance 1-1.5): kept
+    mi.odo.offset += math.radians(2.0)
+    assert np.allclose(read(), seen, rtol=0.0, atol=1e-12)
+    # ...4 deg from the frame's, the feet turned under it: nothing from it
+    mi.odo.offset += math.radians(2.0)
+    assert len(read()) == 0
+    mi.odo.offset -= math.radians(4.0)
+    assert np.allclose(read(), seen, rtol=0.0, atol=1e-12)
+    # ...and a match's jump of 0.2 m: a carry's read, its trunk's alone, finds
+    # the view where it was seen; a reach's, #747's faces first, forgets it
     x, y, yaw = mi.pose
-    mi.odo.correct(x + 0.2, y, yaw + 0.1)
+    mi.odo.correct(x + 0.2, y, yaw)
     assert np.allclose(mi.trunk_seen(), seen, rtol=0.0, atol=1e-12)
+    assert len(read()) == 0
   finally:
     body.close()
 
@@ -531,8 +547,9 @@ def test_a_procedures_pull_judges_its_trunk_going_on_and_the_loops_own_does_not(
 def test_the_body_hands_its_reach_what_it_saw_since_its_feet_moved_and_again_after_a_stand_up():
   """`HumanoidMission.trunk_seen`, the reach's `trunk_view` from its boot and
   again once a stand-up builds its reach anew: the arms' memory, tops kept,
-  seen since `last_motion_t`, placed in its stance frame as `arms_seen`
-  places its faces."""
+  seen since `last_motion_t`, each voxel placed through the believed stance
+  its frame was folded at (`ArmsMemory.since`) -- never as `arms_seen`
+  places its faces, through the belief now."""
   from test_guard import _floor_body
   body = _floor_body()
   try:
