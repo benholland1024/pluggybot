@@ -4026,8 +4026,8 @@ straight through (Webserver.md, the errand in flight). Saved at t = 200.088
 of the scripted day, mid-walk to a frontier 0.68 m off, the world came back
 bit for bit for 36 steps while both walks' commands sat on the turn limit;
 the restored explore had planned another frontier, 9 m off, and the walking
-policy's command parted at its tick at 200.16 (saved at 60.034, at the first
-sample). `determinism_spike.py --resume-at T --in-step` saves at the first
+policy's command parted at its tick at 200.16 (saved at 60.034, the day
+parted at its first sample). `determinism_spike.py --resume-at T --in-step` saves at the first
 owed step with nothing in flight and says what it passed over: from the
 stand-by at 257.488, 270.088, 300.088, 340.088 and 390.088, IDENTICAL to the
 day's end, as from the loop's pass at 257.434 and 302.434. ⚠ Not past the

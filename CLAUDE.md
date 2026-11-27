@@ -2166,9 +2166,10 @@ save a filmstrip PNG named after the script.
   in flight ends, below) and the day after differs; `--in-step` saves past
   them and says so (`Flight`), and one in the stand-by holds a fresh 5 s, so
   a branch a later pass takes (a charge) begins at another instant -- a save
-  at the loop's pass keeps its passes' times. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
-  or mid-move (a humanoid getting up is a policy part-way, one with a hand
-  out is `Body.working`, one stepping aside is a walk no routine holds;
+  at the loop's pass keeps its passes' times. ⚠ A signal only ASKS
+  (`Keeper.request_stop`); no save mid stand-up or mid-move (a humanoid
+  getting up is a policy part-way, one with a hand out is `Body.working`, one
+  stepping aside is a walk no routine holds;
   `Keeper.busy`), NEVER on a crash. ⚠ A STOP ASKED WHILE PAUSED ENDS THE
   PAUSE (#594, `HubLifecycle.stopping`): the world stops at that step, and
   the run's end (`Keeper.finish`) saves it -- unless a LIVING body was
