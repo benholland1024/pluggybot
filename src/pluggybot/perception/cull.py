@@ -1,5 +1,5 @@
-"""What a ray cast leaves out: what it cannot reach (issue #560), and nothing
-it can (issue #657).
+"""What a ray cast leaves out: what it cannot reach (issues #560 and #775),
+and nothing it can (issue #657).
 
 Every geom in the model costs every ray of an `mj_multiRay`, whether a ray
 could reach it or not -- 27 us a LIDAR frame each in the house -- and its
@@ -7,8 +7,11 @@ cutoff leaves them in (`perception.lidar`'s cast found one saved nothing).
 The grown world's 115 more geoms, nearly all of them past any one sensor's
 reach, cost the served pair a sixth of its speed. A geom whose every point
 lies past what a sensor can read could only come back as what that sensor
-already counts as nothing, so a cast without it is the same reading, bit for
-bit -- each sensor states why at its own call.
+already counts as nothing, so a cast without it is the same reading -- each
+sensor states why at its own call, and what it keeps whatever the distance.
+Welded to the world or not (#775): a body with no bounding-volume tree (the
+place's dishware, compiled put away) costs every ray in full wherever it
+stands, and set out it cost the casts a tenth.
 
 `static_inertials` is the other half: what keeps MuJoCo's own culling of a
 whole body from leaving out a body a ray does meet (SimNotes, "A ray through
@@ -34,6 +37,8 @@ UNCULLED_GROUPS = np.array([group != PARKED_GROUP for group in range(6)], dtype=
 SPHERE_OFF_M = 1e-6
 #: A box's corners, each half-size's sign.
 _CORNERS = np.array([[x, y, z] for x in (-1.0, 1.0) for y in (-1.0, 1.0) for z in (-1.0, 1.0)])
+#: The shapes with no far side, which no cast leaves out.
+_SIDELESS = (mujoco.mjtGeom.mjGEOM_PLANE, mujoco.mjtGeom.mjGEOM_HFIELD)
 
 
 def static_inertials(model) -> dict[str, tuple[np.ndarray, float, np.ndarray]]:
@@ -83,32 +88,24 @@ def fix_static_inertials(spec) -> None:
     body.ipos, body.iquat, body.mass, body.inertia = pos, [1.0, 0.0, 0.0, 0.0], mass, inertia
 
 
-class StaticCull:
-  """The geoms welded to the world, but a plane or a height field (no far
-  side), each judged afresh at every cast -- an activity moves and resizes
-  its geoms, and a mocap body moves -- against where it is and how big as
-  the cast is about to meet it. Off where some geom is in `CULL_GROUP`
-  already."""
+class _Boxes:
+  """Geoms' boxes, each in its own frame as a cast meets it: a primitive's
+  off its size (`geom_size`, which an activity may change), a mesh's its
+  compiled box (nothing resizes one)."""
 
-  def __init__(self, model) -> None:
-    self.model = m = model
-    self.static = np.flatnonzero(
-      (m.body_weldid[m.geom_bodyid] == 0)
-      & ~np.isin(m.geom_type, (mujoco.mjtGeom.mjGEOM_PLANE, mujoco.mjtGeom.mjGEOM_HFIELD)))
-    t = m.geom_type[self.static]
+  def __init__(self, model, geoms: np.ndarray) -> None:
+    self.model, self.geoms = model, geoms
+    t = model.geom_type[geoms]
     self._sphere = t == mujoco.mjtGeom.mjGEOM_SPHERE
     self._capsule = t == mujoco.mjtGeom.mjGEOM_CAPSULE
     self._cylinder = t == mujoco.mjtGeom.mjGEOM_CYLINDER
     self._mesh = ~np.isin(t, (mujoco.mjtGeom.mjGEOM_BOX, mujoco.mjtGeom.mjGEOM_ELLIPSOID,
                               mujoco.mjtGeom.mjGEOM_SPHERE, mujoco.mjtGeom.mjGEOM_CAPSULE,
                               mujoco.mjtGeom.mjGEOM_CYLINDER))
-    self.on = not np.any(m.geom_group == CULL_GROUP)
 
-  def far(self, data, pos, reach: float) -> np.ndarray:
-    """The static geoms every point of which lies past `reach` from `pos`:
-    each one's box in its own frame (`geom_xpos`, `geom_xmat`, `geom_size`;
-    a mesh's compiled box, as nothing resizes one)."""
-    m, g = self.model, self.static
+  def now(self) -> tuple[np.ndarray, np.ndarray]:
+    """(centre, half-extents) of each box in its geom's frame."""
+    m, g = self.model, self.geoms
     size = m.geom_size[g]
     half, centre = size.copy(), np.zeros((len(g), 3))
     half[self._sphere] = size[self._sphere, :1]
@@ -116,16 +113,78 @@ class StaticCull:
     half[cap] = np.column_stack((size[cap, 0], size[cap, 0], size[cap, 0] + size[cap, 1]))
     half[cyl] = np.column_stack((size[cyl, 0], size[cyl, 0], size[cyl, 1]))
     centre[self._mesh], half[self._mesh] = m.geom_aabb[g[self._mesh], :3], m.geom_aabb[g[self._mesh], 3:]
+    return centre, half
+
+
+class Cull:
+  """What a cast may leave out: every geom but a plane or a height field (no
+  far side) and those its sensor keeps whatever the distance (`keep`: its
+  own robot's), welded to the world or not (#775), each judged afresh at
+  every cast -- an activity moves and resizes its geoms, a body and a mocap
+  body move -- against where it is and how big as the cast is about to meet
+  it (`geom_xpos`, `geom_xmat`). Off where some geom is in `CULL_GROUP`
+  already."""
+
+  def __init__(self, model, keep=()) -> None:
+    self.model = m = model
+    kept = np.zeros(m.ngeom, dtype=bool)
+    kept[np.fromiter(keep, dtype=int)] = True
+    sided = ~np.isin(m.geom_type, _SIDELESS)
+    self.geoms = np.flatnonzero(sided & ~kept)
+    self._boxes = _Boxes(m, self.geoms)
+    #: ...which of them a body welded to the world carries: all #560's cull
+    #: left out.
+    self.welded = m.body_weldid[m.geom_bodyid[self.geoms]] == 0
+    #: What it keeps, judged for where a ray may last meet it (`farthest`).
+    self.kept = np.flatnonzero(sided & kept)
+    self._kept_boxes = _Boxes(m, self.kept)
+    #: Off, only what is welded to the world, as before #775: the measure of
+    #: the rest's leaving every reading as it was (`test_cull.py`).
+    self.moving = True
+    self.on = not np.any(m.geom_group == CULL_GROUP)
+
+  def far(self, data, pos, reach: float, moving_reach: float | None = None) -> np.ndarray:
+    """The geoms every point of which lies past `reach` from `pos` -- one a
+    body not welded to the world carries past `moving_reach`, where told --
+    each one's box in its own frame (`_Boxes`)."""
+    g = self.geoms
+    centre, half = self._boxes.now()
     xmat = data.geom_xmat[g].reshape(-1, 3, 3)
     local = np.einsum("nji,nj->ni", xmat, pos - data.geom_xpos[g]) - centre
     gap = np.linalg.norm(np.maximum(np.abs(local) - half, 0.0), axis=1)
-    return g[gap > reach]
+    if not self.moving:
+      return g[self.welded & (gap > reach)]
+    if moving_reach is None:
+      return g[gap > reach]
+    return g[gap > np.where(self.welded, reach, moving_reach)]
+
+  def farthest(self, data, pos, axis, half_angle: float) -> float:
+    """How far from `pos`, m, the farthest point lies of any geom it keeps
+    whose bounding sphere meets the cone `half_angle` round `axis` (a unit
+    vector): as far as a ray within it may meet what its sensor keeps. 0
+    where none does."""
+    g = self.kept
+    if not len(g):
+      return 0.0
+    centre, half = self._kept_boxes.now()
+    xmat = data.geom_xmat[g].reshape(-1, 3, 3)
+    middle = data.geom_xpos[g] + np.einsum("nij,nj->ni", xmat, centre)
+    to = middle - pos
+    d = np.linalg.norm(to, axis=1)
+    r = np.linalg.norm(half, axis=1)
+    off = np.arccos(np.clip(to @ axis / np.maximum(d, 1e-12), -1.0, 1.0))
+    seen = (d <= r) | (off - np.arcsin(np.clip(r / np.maximum(d, 1e-12), 0.0, 1.0)) <= half_angle)
+    if not seen.any():
+      return 0.0
+    corners = middle[seen][:, None, :] + np.einsum("nij,nkj->nki", xmat[seen],
+                                                   _CORNERS[None] * half[seen][:, None, :])
+    return float(np.linalg.norm(corners - pos, axis=2).max())
 
   def multi_ray(self, data, pos, dirs, bodyexclude: int, geomid, dist, n: int,
-                cutoff: float, reach: float) -> None:
-    """`mj_multiRay` from `pos` with every static geom past `reach` left
-    out, the model's groups as they were after."""
-    far = self.far(data, pos, reach) if self.on else self.static[:0]
+                cutoff: float, reach: float, moving_reach: float | None = None) -> None:
+    """`mj_multiRay` from `pos` with every geom `far` names left out, the
+    model's groups as they were after."""
+    far = self.far(data, pos, reach, moving_reach) if self.on else self.geoms[:0]
     groups = self.model.geom_group[far]
     self.model.geom_group[far] = CULL_GROUP
     try:

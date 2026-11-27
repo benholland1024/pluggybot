@@ -1,11 +1,16 @@
-"""A ray cast leaves out what it cannot reach (issue #560; `perception.cull`):
-every geom in the model costs every ray of an `mj_multiRay`, so a static
-geom past a sensor's reach is left out of its cast -- and the reading is the
-same reading, bit for bit, noise and all. Pinned on the served world, both
-sensors that cast, cull off against on; and on a small open world, the
-shapes, a long wall whose middle is far, and a far geom an activity moves or
-grows into reach. And it leaves out nothing it can reach (#657): MuJoCo's own
-cull of a whole body, in every world the robots fly."""
+"""A ray cast leaves out what it cannot reach (issues #560 and #775;
+`perception.cull`): every geom in the model costs every ray of an
+`mj_multiRay`, so a geom past a sensor's reach is left out of its cast,
+welded to the world or not -- and the reading is the same reading, bit for
+bit, noise and all. Pinned on the served world, both sensors that cast, cull
+off against on; on the pair in the house, the place put away and set out,
+the other robot near and far, the cull against the cull as it was (welded
+alone) and none, noise streams and all; and on small worlds, the shapes, a
+long wall whose middle is far, a far geom an activity moves or grows into
+reach, a far body that moves into reach, and a geom that moves kept where it
+could hide a robot the depth camera reads past its gate. And it leaves out
+nothing it can reach (#657): MuJoCo's own cull of a whole body, in every
+world the robots fly."""
 
 import dataclasses
 import math
@@ -15,13 +20,13 @@ import numpy as np
 import pytest
 
 from pluggybot.evaluation import counter as ct
-from pluggybot.home import storeroom
+from pluggybot.home import restaurant, storeroom
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.world import home_spec
 from pluggybot.perception.cull import CULL_GROUP
 from pluggybot.perception.depth import UNCULLED, DepthCamera
-from pluggybot.perception.lidar import Lidar
-from pluggybot.robot import FIRST
+from pluggybot.perception.lidar import Lidar, robot_geoms
+from pluggybot.robot import FIRST, SECOND
 
 #: The waist's reading at its zero, where these tests' bodies stand (#560's stage (c3):
 #: the head's sensors ride the waist, and a frame is laid through its reading).
@@ -33,12 +38,17 @@ PLACES = [(1.5, 0.5, 0.3), (4.0, -4.0, -1.0), (12.5, 1.0, 1.5), (20.5, 1.0, 1.0)
           (21.0, -13.0, 2.5), (18.0, -22.0, -2.0), (-1.0, -17.0, 0.7), (-11.0, -20.0, 0.2)]
 
 
-def _stand(model, data, x: float, y: float, yaw: float) -> None:
-  """The first robot standing at (x, y) facing `yaw`, placed, never stepped."""
-  q = FIRST.qpos_adr(model)
+def _place(model, data, handle, x: float, y: float, yaw: float) -> None:
+  """`handle`'s robot standing at (x, y) facing `yaw`, placed, never stepped."""
+  q = handle.qpos_adr(model)
   data.qpos[q:q + 7] = [x, y, hm.stand_height(), math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   for name, v in hm.stand_qpos().items():
-    data.qpos[model.jnt_qposadr[model.joint(name).id]] = v
+    data.qpos[model.jnt_qposadr[model.joint(handle.el(name)).id]] = v
+
+
+def _stand(model, data, x: float, y: float, yaw: float) -> None:
+  """The first robot standing at (x, y) facing `yaw`, posed, never stepped."""
+  _place(model, data, FIRST, x, y, yaw)
   mujoco.mj_kinematics(model, data)
   mujoco.mj_camlight(model, data)
 
@@ -92,29 +102,154 @@ OPEN = ('<geom name="near" type="box" size="0.05 2 1.2" pos="3 0 1.2"/>'
         '<geom name="long" type="box" size="15 0.05 1.2" pos="6 -20 1.2" euler="0 0 90"/>')
 
 
+#: ...and a body that moves, 12 m off (scenery with a joint goes after the
+#: robot's, `body_xml`).
+FREE = '<body name="far_free" pos="0 -12 0.5"><freejoint/><geom name="far_free" type="box" size="0.3 0.3 0.3"/></body>'
+
+
 def test_what_is_left_out_is_judged_where_and_how_big_it_is_now():
-  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=OPEN))
+  spec = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, scenery=OPEN, after=FREE))
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
+  free = model.jnt_qposadr[model.body("far_free").jntadr[0]]
+  data.qpos[free:free + 7] = [0.0, -12.0, 0.5, 1.0, 0.0, 0.0, 0.0]
   mujoco.mj_forward(model, data)
   lidars = Lidar(model), Lidar(model)
   lidars[0]._cull = None
   site = data.site_xpos[lidars[1].site_id]
   out = {model.geom(g).name for g in lidars[1]._cull.far(data, site, lidars[1].max_range)}
-  assert {"far_box", "far_cyl", "far_cap", "far_ball"} <= out and not {"near", "long"} & out, out
+  assert {"far_box", "far_cyl", "far_cap", "far_ball", "far_free"} <= out, out
+  assert not {"near", "long"} & out, out
 
   def same_band():
     return _same(*[lid.band(data, np.eye(3), hm.stand_height(), joints=W0) for lid in lidars])
   assert same_band()
   # ...an activity moves a geom into reach (`activity.base` writes
-  # `geom_pos`), and grows another (`geom_size`): each is cast where it is now
+  # `geom_pos`), and grows another (`geom_size`), and a body moves into reach
+  # (#775: where its joint puts it as the cast meets it): each is cast where
+  # it is now
   model.geom_pos[model.geom("far_box").id] = [-4.0, 0.0, 1.0]
   model.geom_size[model.geom("far_ball").id] = [9.0, 0.0, 0.0]
+  data.qpos[free:free + 3] = [0.0, -4.0, 0.5]
   mujoco.mj_kinematics(model, data)
   out = {model.geom(g).name for g in lidars[1]._cull.far(data, site, lidars[1].max_range)}
-  assert not {"far_box", "far_ball"} & out, out
+  assert not {"far_box", "far_ball", "far_free"} & out, out
   assert same_band()
+
+
+# ---- what moves (#775) ------------------------------------------------------
+
+#: The pair's poses in the served house, (x, y, heading) each robot: near each
+#: other in the living room; the second in the bedroom behind the first's
+#: wall; the second across the street in the research center's lobby; the
+#: first in the kitchen and the second in the dining room by the place's
+#: table; both in the mall, the first at that table and the second by the
+#: pass; the first in the concourse and the second in the park.
+PAIR_POSES = [((1.5, 0.5, 0.3), (3.0, 1.2, 2.5)),
+              ((0.5, 0.5, 1.4), (1.0, 4.5, -1.0)),
+              ((3.0, -1.0, 0.0), (20.5, 1.0, 3.1)),
+              ((-8.5, 4.0, -0.4), (21.0, -13.0, 2.5)),
+              ((21.2, -12.4, -1.6), (26.0, -12.0, 3.0)),
+              ((18.0, -22.0, 1.2), (-1.0, -17.0, 0.7))]
+
+
+def _pair_sensors(model, me, other) -> tuple[list, list]:
+  """`me`'s LIDAR and depth camera as the pair builds them, each excluding the
+  other robot (`HumanoidBody.know_peer`), three of each: this cull, the cull
+  as it was (welded to the world alone) and none."""
+  lidars = [Lidar(model, site_name=me.el("lidar"), robot_body=me.root, seed=11) for _ in range(3)]
+  depths = [DepthCamera(model, me, mount="body", reach=UNCULLED, seed=12) for _ in range(3)]
+  for sensor in lidars + depths:
+    sensor.exclude_robot(other.root)
+  lidars[1]._cull.moving = depths[1]._cull.moving = False
+  lidars[2]._cull = None
+  depths[2]._cull.on = False
+  return lidars, depths
+
+
+def _streams(sensor) -> tuple:
+  return sensor.rng.bit_generator.state, sensor.peer_rng.bit_generator.state
+
+
+def test_a_cast_leaves_out_what_moves_past_reach_and_every_reading_is_as_it_was(world):
+  model, data = world
+  sensors = {me: _pair_sensors(model, me, other) for me, other in ((FIRST, SECOND), (SECOND, FIRST))}
+  for me, (lidars, depths) in sensors.items():
+    assert not set(lidars[0]._cull.geoms) & robot_geoms(model, me.root), "a LIDAR left out its own robot"
+    assert not set(depths[0]._cull.geoms) & set(depths[0]._filtered), "a camera left out a robot it reads"
+  dish = np.isin(model.geom_bodyid, [model.body(n).id for n in restaurant.BODIES])
+  moves = model.body_weldid[model.geom_bodyid] != 0
+  theirs = {FIRST: np.isin(np.arange(model.ngeom), list(robot_geoms(model, SECOND.root))),
+            SECOND: np.isin(np.arange(model.ngeom), list(robot_geoms(model, FIRST.root)))}
+  left_out = {"the dishware": 0, "the props": 0, "the other robot": 0, "the dishware, by a camera": 0}
+  try:
+    for place in ("away", "out"):
+      if place == "out":
+        restaurant.set_out(model, data, restaurant.TABLE, 0)
+      for first, second in PAIR_POSES:
+        _place(model, data, FIRST, *first)
+        _place(model, data, SECOND, *second)
+        mujoco.mj_kinematics(model, data)
+        mujoco.mj_camlight(model, data)
+        for me, (lidars, depths) in sensors.items():
+          at = f"{me.root} at {first if me is FIRST else second}, the place {place}"
+          for read in (lambda lid: lid.band(data, np.eye(3), hm.stand_height(), joints=W0),
+                       lambda lid: lid.scan_split(data, W0), lambda lid: lid.cloud(data)):
+            got = [read(lid) for lid in lidars]
+            assert _same(got[0], got[1]) and _same(got[0], got[2]), f"a LIDAR reading, {at}"
+          assert _streams(lidars[0]) == _streams(lidars[1]) == _streams(lidars[2]), at
+          frames = [cam.frame(data, W0) for cam in depths]
+          assert _same(frames[0], frames[1]) and _streams(depths[0]) == _streams(depths[1]), \
+            f"the depth frame against the cull as it was, {at}"
+          # ...and against none: the room's pixels always; the rest where the
+          # cull as it was is none's (#775: a far wall culled may hide a robot
+          # the camera reads past its gate, SimNotes)
+          assert _same((frames[0].z, frames[0].points), (frames[2].z, frames[2].points)), at
+          if _same(frames[1], frames[2]) and _streams(depths[1]) == _streams(depths[2]):
+            assert _same(frames[0], frames[2]), f"the depth frame against none, {at}"
+          depths[2].rng.bit_generator.state, depths[2].peer_rng.bit_generator.state = _streams(depths[0])
+          site = data.site_xpos[lidars[0].site_id]
+          more = np.setdiff1d(lidars[0]._cull.far(data, site, lidars[0].max_range),
+                              lidars[1]._cull.far(data, site, lidars[1].max_range))
+          left_out["the dishware"] += int(np.count_nonzero(dish[more]))
+          left_out["the props"] += int(np.count_nonzero(moves[more] & ~dish[more] & ~theirs[me][more]))
+          left_out["the other robot"] += int(np.count_nonzero(theirs[me][more]))
+          cam, was = depths[0], depths[1]
+          eye, turn = data.cam_xpos[cam.cam_id], data.cam_xmat[cam.cam_id].reshape(3, 3)
+          seen = cam._cull.farthest(data, eye, -turn[:, 2], math.acos(cam._widest))
+          reach = cam.max_z / cam._widest
+          more = np.setdiff1d(cam._cull.far(data, eye, reach, max(cam.max_z, seen) / cam._widest),
+                              was._cull.far(data, eye, reach))
+          left_out["the dishware, by a camera"] += int(np.count_nonzero(dish[more]))
+  finally:
+    restaurant.put_away(model, data, restaurant.TABLE)
+  assert all(left_out.values()), f"what this cull left out that the cull as it was kept: {left_out}"
+
+
+#: A robot the depth camera reads (`exclude_robot`) 6 m ahead on an open
+#: floor, and a lump that moves 5 m ahead in front of its foot: past the
+#: gate's reach (4.4 m at the image's corner), nearer than the robot.
+HIDDEN = ('<body name="other" pos="6.0 0 0.3"><freejoint/><geom type="box" size="0.2 0.2 0.3"/></body>'
+          '<body name="lump" pos="5.0 0 0.15"><freejoint/><geom type="box" size="0.1 0.3 0.15"/></body>')
+
+
+def test_a_geom_that_moves_stays_in_a_depth_frame_where_it_could_hide_a_robot_it_reads():
+  model = mujoco.MjSpec.from_string(hm.body_xml(hm.CHOSEN, after=HIDDEN)).compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetData(model, data)
+  _stand(model, data, 0.0, 0.0, 0.0)
+  cams = [DepthCamera(model, mount="body", reach=UNCULLED, seed=5) for _ in range(3)]
+  for cam in cams:
+    cam.exclude_robot("other")
+  cams[1]._cull.moving = False
+  cams[2]._cull.farthest = lambda *a: 0.0         # left out at the gate's reach alone
+  frames = [cam.frame(data, W0) for cam in cams]
+  assert _same(frames[0], frames[1]) and _streams(cams[0]) == _streams(cams[1])
+  # ...where left out at the gate's reach, the rays through it read the robot
+  # behind it, past the gate: its share of the frame, and its peer stream drawn
+  assert frames[2].self_fraction > frames[0].self_fraction == 0.0
+  assert _streams(cams[2])[1] != _streams(cams[0])[1]
 
 
 # ---- nothing a ray meets is left out (#657) ----------------------------------
