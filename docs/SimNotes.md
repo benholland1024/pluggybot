@@ -8507,26 +8507,25 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   stance (`atan2(spot.ny, spot.nx)`: square-on, a 3 deg error is 1.3 cm
   toward the robot), and moved by where dev draws set the cup down
   (`PASS_CUP_AT`).
-- **A carried plate or fork walls the robot in.** The robot's own body is
-  left out of its depth camera by its geoms, and a held piece only within
-  `HELD_DROP_M` (0.12 m) of the grip: the cup, gripped at its middle, lies
-  inside it; the plate's rim reaches 0.18 m from its grip and the fork's head
-  0.13. Seen in the band and the depth camera's layer as the robot turns at
-  the pass, it rings the robot round: "no route over the floor mapped so
-  far", 4.5-4.8 m short after 0-2 s, or 0.1-0.4 m short of the place's
-  standoff. Walks lost carrying: the cup 1 of 64, the plate 2-6 of 32 a
-  round, the fork 5-7 of 32. With the self-filter at 0.20 m (measured, NOT
-  changed: its volume is Ben's call 5 on #682): the plate lost 0 of 32, the
-  fork 0 of 32 (its own base 6). The walk to the place's standoff is no
-  longer insisted on (`if not drive_to(...)`): stopped 0.1-0.4 m short, it
-  goes on to the card's own steps. Round 6 (below) found the fork walled
-  in on 9 of 64 legs flown alone from the tour and in none of 64 whole
-  places; with the filter at 0.20 m its legs were walled in on 1 of 34
-  (the same draws at 0.12 m, 6), but the carried fork struck the pass in 23
-  (13): a wider filter takes the walls away, not the head's reach. (#762
-  flew whole places at 0.16-0.25 m: a wider LIDAR radius hides the pass's
-  edge beside the fork from the front stop, below, "The self-filter sized by
-  what a job carries".)
+- **A carried plate or fork walls the robot in.** The robot's own body is left
+  out of its depth camera by its geoms, and a held piece only within 0.12 m of
+  the grip (`HELD_DEPTH_M`; the LIDAR's then too, 0.16 since #762): the cup,
+  gripped at its middle, lies inside it; the plate's rim reaches 0.18 m from
+  its grip and the fork's head 0.13. Seen in the band and the depth camera's
+  layer as the robot turns at the pass, it rings the robot round: "no route
+  over the floor mapped so far", 4.5-4.8 m short after 0-2 s, or 0.1-0.4 m
+  short of the place's standoff. Walks lost carrying: the cup 1 of 64, the
+  plate 2-6 of 32 a round, the fork 5-7 of 32. With the self-filter at 0.20 m
+  (measured, NOT changed: its volume is Ben's call 5 on #682): the plate lost
+  0 of 32, the fork 0 of 32 (its own base 6). The walk to the place's standoff
+  is no longer insisted on (`if not drive_to(...)`): stopped 0.1-0.4 m short,
+  it goes on to the card's own steps. Round 6 (below) found the fork walled in
+  on 9 of 64 legs flown alone from the tour and in none of 64 whole places;
+  with the filter at 0.20 m its legs were walled in on 1 of 34 (the same draws
+  at 0.12 m, 6), but the carried fork struck the pass in 23 (13): a wider
+  filter takes the walls away, not the head's reach. (#762 flew whole places
+  at 0.16-0.25 m: a wider LIDAR radius hides the pass's edge beside the fork
+  from the front stop, below, "The self-filter sized by what a job carries".)
 - **The bar's readings: NOT MET.** Written before any flight (24 of 32 draws
   over the tour, a fall failing the try, on walk2 and on the carry walker,
   one pod, then 32 held-out draws each, sealed by the frozen commit), and
@@ -8880,21 +8879,21 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
   5's tree it carried #713's tail, #721-#723, #726 and #728-#730): the fork
   gripped 3 cm along its handle toward its head, measured and taken back
   out; the reference still grips it at its tag.
-  - **On the fork's leg flown alone from the tour** (64 dev draws,
-    3400-3463, beside the reference on the same draws): gripped at its tag,
-    the head's tip was 0.132 m from the grip at the shut (a median, read off
-    the truth), past `HELD_DROP_M`'s 0.12 m, and the hand-over slid the fork
-    a further 0.8 cm out in the jaws (up to 2); the robot's own sensors
-    walled it in (9 legs), and the head reached the pass's face, 0.37 m
-    ahead of the fork's stance -- it struck the counter in 23 legs as the
-    walk turned away. Gripped 3 cm along and put down 3 cm further ahead,
-    its tip was 0.104 m from the grip (up to 0.128 after the slide): 57
-    legs laid where 33 (27 the reference did not lay, 3 the other way),
-    none walled, 11 struck, no fall. The other variants on all 64 laid
-    fewer: 2 cm along 49, 2 cm and 0.5 cm lower 50, 40 N 41, 2 or 3 cm along
-    at 40 N 50 and 52 (each of these fell once or twice), 3 cm along eased
-    to 5 N before its let-go 55; 0.5 cm lower alone laid 23 of its first 34
-    draws where the reference laid 18, and was not flown further.
+  - **On the fork's leg flown alone from the tour** (64 dev draws, 3400-3463,
+    beside the reference on the same draws): gripped at its tag, the head's
+    tip was 0.132 m from the grip at the shut (a median, read off the truth),
+    past the self-filter's 0.12 m (the LIDAR's 0.16 since #762), and the
+    hand-over slid the fork a further 0.8 cm out in the jaws (up to 2); the
+    robot's own sensors walled it in (9 legs), and the head reached the pass's
+    face, 0.37 m ahead of the fork's stance -- it struck the counter in 23
+    legs as the walk turned away. Gripped 3 cm along and put down 3 cm further
+    ahead, its tip was 0.104 m from the grip (up to 0.128 after the slide): 57
+    legs laid where 33 (27 the reference did not lay, 3 the other way), none
+    walled, 11 struck, no fall. The other variants on all 64 laid fewer: 2 cm
+    along 49, 2 cm and 0.5 cm lower 50, 40 N 41, 2 or 3 cm along at 40 N 50
+    and 52 (each of these fell once or twice), 3 cm along eased to 5 N before
+    its let-go 55; 0.5 cm lower alone laid 23 of its first 34 draws where the
+    reference laid 18, and was not flown further.
   - **In whole places** (a033fc7's reading, above) it laid 39 of 64 where the
     reference laid 35 (13 places it laid that the reference did not, 9 the
     other way) -- more of the bar's draws, fewer held out. No fork was walled
@@ -13360,7 +13359,15 @@ pass (below).
     0.12-0.16 m from a held grip, 3,703 in the front stop's box over 384 of
     its 3,371 held scans and none at the head's height (where `step`'s room
     reads): a counter's above all, then the cube's board, a drawer's top, the
-    pass and the chest's front. Round 1's 0.25 hid as well the
+    pass and the chest's front. A step's room and a look's bow read the band
+    at the head's height (`OVER_Z`, 1.05 m) and the depth camera at the knees,
+    never the band below -- a counter's or the pass's top edge (0.72-0.90 m)
+    is in neither at any radius -- and a step's front stop reads another robot
+    alone. At the carry pose the radius tops out 0.2-2.6 cm under the head's
+    height for the pass's and the table's pieces (a candle held with its
+    fingers level, its grip 1.0 m up, reaches 11 cm into it, 7 at 0.12); in
+    the robots' own tries, what it hid there (22 of 200) was nearly all the
+    chest's own lid beside the knob held. Round 1's 0.25 hid as well the
     cupboard door's top and panel at the head's height (1.05-1.07 m, 0.19-0.24
     m from the lever's grip) and, on the pass, the pass's edge on about 4,000
     of 48,000 held scans a tree.

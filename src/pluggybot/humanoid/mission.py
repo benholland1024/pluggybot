@@ -158,19 +158,13 @@ def _bins(a: np.ndarray) -> np.ndarray:
 #: 7 of 10 poses holding the table's plate or cup never arrived walked to a
 #: goal 4 m off, the front stop backing it off its own plate. Never by the
 #: simulator's geoms: the robot knows its own hand and its grip's word, never
-#: what is in it. ⚠ SIZED BETWEEN TWO MEASURES (#762, `test_self_filter.py`):
-#: over what a carried candle's own returns need at one sigma of the range
-#: noise -- its farthest point the rings reach at the carry pose and the 3 cm
-#: the model may place its grip off the true one, 0.154 (at 0.12, #736's
-#: candle fired the front stop on a fifth of the scans carried, and every
-#: carried walk crawled) -- and narrow enough for the front stop to see the
-#: nearest edge a carried piece's work puts in reach: the pass's beside the
-#: fork or the plate as its walk begins, its nearest point 0.13-0.27 m from
-#: the grip, the rest of it further (at 0.16 the front stop still fired on it
-#: in every trip it did at 0.12; at 0.25 in three of five, on a third as many
-#: scans, and the walk turned into it). Past it, the fork's head is laid in
-#: the map on a fifth to a half of the scans carried (SimNotes, "The
-#: self-filter sized by what a job carries").
+#: what is in it. ⚠ SIZED BETWEEN TWO MEASURES (#762, `test_self_filter.py`;
+#: SimNotes, "The self-filter sized by what a job carries"): over what a
+#: carried candle's own returns need at one sigma of the range noise, 0.154
+#: (at 0.12 they fired the front stop on a fifth of the scans carried, and its
+#: walks crawled), and narrow enough for the front stop to see the pass's edge
+#: beside a carried fork or plate as its walk begins (at 0.25 it saw it on a
+#: third as many scans, and the walk turned into it).
 HELD_DROP_M = 0.16
 #: ...and its depth camera's (its low layer, its knees' and arms' memories),
 #: m, #682's: a cup or a candle whole, its noise a few mm; a plate's rim and a

@@ -43,7 +43,8 @@ On a bare floor, an arm holds a piece:
                 lift leaves it
   --walker NPZ  another walking policy (#682's stage B), walk2 unset
   --held-drop M the LIDAR's self-filter radius round a held grip (the
-                served `HELD_DROP_M` unset; the depth camera's as served)
+                served `HELD_DROP_M` unset; the depth camera's as served:
+                before #762 it moved both, one constant)
   --pinch-out M a posed piece held this much further out toward the
                 fingertips than the reference's shut left it (the cup's
                 creep, #682's A7: how deep it is held)
@@ -231,7 +232,7 @@ if WALKER:
   _mission.WALK_NPZ = Path(WALKER)
 #: `--held-drop M`: the LIDAR's self-filter radius round a held grip, m
 #: (`mission.HELD_DROP_M`, as served unset; the depth camera's,
-#: `HELD_DEPTH_M`, is left as served).
+#: `HELD_DEPTH_M`, is left as served -- a row flown before #762 moved both).
 HELD_DROP = os.environ.get("CARRY_HELD_DROP")
 if HELD_DROP:
   from pluggybot.humanoid import mission as _mission2

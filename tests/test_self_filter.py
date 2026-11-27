@@ -265,6 +265,7 @@ def _fires(body, side, scans: int, radius: float, off: float = 0.0, piece: int |
   m.reach.grippers[side].held = lambda: True
   try:
     centres, _ = m._held_drop()
+    assert len(centres) == 1, "one grip held: the worst way is its own piece's"
     if off:
       mid = data.geom_xpos[np.flatnonzero(model.geom_bodyid == piece)].mean(axis=0) - data.xpos[root]
       mid = np.array([c * mid[0] + s * mid[1], -s * mid[0] + c * mid[1], data.xpos[root][2] + mid[2]])
@@ -409,6 +410,7 @@ def test_the_band_drops_at_the_lidars_radius_and_the_depth_frame_at_its_own(carr
     return real(points, drop)
   monkeypatch.setattr(hmis, "_held_out", held_out)
   frame = m.latest_depth()
+  assert frame is not None, "the premise: the bare body's depth camera gives a frame"
   m._frame_used_t, m._frame_level = -math.inf, True
   monkeypatch.setattr(m, "latest_depth", lambda: frame)
   monkeypatch.setattr(m, "level", lambda: True)
