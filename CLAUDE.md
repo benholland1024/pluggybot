@@ -468,8 +468,10 @@ save a filmstrip PNG named after the script.
   column's top whole, no face, and what it laid before its last steps stood
   2-7 cm nearer than it was. None clear: a reach moves nothing, "head"; a
   carry is refused before it moves, or held where it is; a pull is held
-  where it is. ⚠ Nothing seen since the feet moved judges nothing. ⚠ Never
-  the loop's own, nor a way home: the withdraw's stand is the way out. ⚠ The
+  where it is. ⚠ Nothing seen since the feet moved judges nothing, nor
+  anything over 1.35 m (`ARMS_TOP_Z`: the camera never sees above itself). ⚠
+  Never the loop's own, nor a posture held or got to, nor the words' own
+  queries, nor a way home: the withdraw's stand is the way out. ⚠ The
   live trunk goes deeper than its walk: a press whose walk up kept 0.6 mm off
   a board pressed the head on it at 457 N. ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,

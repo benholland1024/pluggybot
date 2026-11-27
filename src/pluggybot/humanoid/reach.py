@@ -1727,6 +1727,10 @@ class Reach:
     #: (`_trunk`'s answer), else None.
     self.trunk_view = None
     self.trunked: dict[str, dict | None] = {s: None for s in hm.SIDES}
+    #: ...and the statues its trunk's walks are posed with (`_trunk`): this
+    #: robot's own, set on the one shared model as `_swing` sets the planner's
+    #: -- never the planner's, whose kept statues a later plan's fit starts from.
+    self._trunk_statues: dict = {}
     #: ...and, by side, what a procedure's reach under way was planned
     #: against, which its look judges a posture's swing against too (`_look`);
     #: None for the loop's own.
@@ -1895,7 +1899,9 @@ class Reach:
     lean = self._lean()
     kw = {"lean": lean, "arms": self._arms(but=side), "start": self.q_cmd[side]}
     arms_judged = swing and self.seen is not None and len(self.seen) > 0
-    view = self._trunk_view() if swing else (None, None)
+    # ...and its trunk, for a procedure's query alone (`seen` set by the body,
+    # as #747's swing is): the words' own queries never judge it
+    view = self._trunk_view() if swing and self.seen is not None else (None, None)
     judged = arms_judged or view[0] is not None
     # ...never the posture the body holds or has got to (the one #719 keeps it
     # in): no posture changes, nothing of its trunk walks
@@ -2106,6 +2112,7 @@ class Reach:
       return None
     posture = tuple(float(v) for v in posture)
     sm = trunk_model()
+    sm.statues = self._trunk_statues
     sm.q = self.self_model.q.copy()
     sm.d.qpos[:] = self.self_model.d.qpos
     mujoco.mj_kinematics(sm.m, sm.d)
@@ -2138,7 +2145,9 @@ class Reach:
         d.qpos[0:2] = a_[0:2] + (b_[0:2] - a_[0:2]) * f
         d.qpos[2] = a_[2] + (b_[2] - a_[2]) * (fh if fh is not None else f)
         d.qpos[3:7] = _slerp(a_[3:7], b_[3:7], f)
-        d.qpos[waist] = w
+        # ...the waist where its command has it -- at the walk's start where it
+        # reads itself
+        d.qpos[waist] = a_[waist] if t == 0.0 else w
         mujoco.mj_kinematics(sm.m, d)
         flat += [(way, t, part) for part in trunk_parts(sm)]
     # ...each part against what lies within its own reach: its gap as the body
@@ -2357,6 +2366,9 @@ class Reach:
       order = ([p_ for p_ in CARRY_POSTURES if tuple(p_) not in gone] if onward
                else [here] + [p_ for p_ in CARRY_POSTURES if tuple(p_) != here])
     view = self._trunk_view() if judge else (None, None)
+    # ...never the posture the body holds or has got to (the one #719 keeps
+    # it in): it changes nothing, nothing of its trunk walks
+    held = {here, self._in_or_got_to()} if view[0] is not None else set()
     if judge:
       self.trunked[side] = None
     for posture in order:
@@ -2370,7 +2382,7 @@ class Reach:
         q, ep, er = sm.solve(side, pos, rot, iters=80)
         if ep < REACH_POS_TOL and er < REACH_ROT_TOL:
           # ...and a procedure's, its trunk walked into it and back up (#763)
-          met = (None if view[0] is None or tuple(float(v) for v in posture) == here
+          met = (None if view[0] is None or tuple(float(v) for v in posture) in held
                  else self._trunk(posture, {**arms, **_arm(side, q)}, lean, view))
           if met is None:
             return tuple(posture)
@@ -2415,6 +2427,9 @@ class Reach:
       order = [tuple(float(v) for v in p_) for p_ in postures]
     lean, arms = self._lean(), self._arms()
     view = self._trunk_view() if judge else (None, None)
+    # ...never the posture the body holds or has got to (the one #719 keeps
+    # it in): it changes nothing, nothing of its trunk walks
+    held = {here, self._in_or_got_to()} if view[0] is not None else set()
     if judge:
       self.trunked[side] = None
     for posture in order:
@@ -2456,7 +2471,7 @@ class Reach:
           break
       else:
         # ...and a procedure's, its trunk walked into it and back up (#763)
-        met = (None if view[0] is None or live or tuple(float(v) for v in posture) == here
+        met = (None if view[0] is None or live or tuple(float(v) for v in posture) in held
                else self._trunk(posture, {**arms, **_arm(side, q)}, lean, view))
         if met is None:
           return tuple(posture)

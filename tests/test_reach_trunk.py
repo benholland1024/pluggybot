@@ -58,11 +58,14 @@ def floor():
 
 
 def _plan(reach, goal, seen, postures=SHORT):
+  """A procedure's plan: its body hands it what it saw where its arms swing
+  (`seen`, none here) and, for its trunk, `seen` (the board) as its view."""
   reach.trunk_view = None if seen is None else (lambda: seen)
+  reach.seen = np.zeros((0, 3))
   try:
     return reach._planned("left", goal, rc.APPROACH_M, postures, True, swing=True, passed=[])
   finally:
-    reach.trunk_view = None
+    reach.trunk_view, reach.seen = None, None
 
 
 # ---- the judgment ---------------------------------------------------------------------------
@@ -102,6 +105,8 @@ def test_where_no_posture_keeps_the_trunk_clear_a_procedures_reach_moves_nothing
   reach = _floor()
   board = _board(0.42)
   reach.trunk_view = lambda: board
+  # ...as its body hands a procedure's reach what it saw (`_reached`)
+  reach.seen = np.zeros((0, 3))
   posture, phase = reach.posture.copy(), dict(reach.phase)
   assert not reach.reach("left", K253, postures=(DEEP,), verb=True)
   assert reach.phase == phase and np.array_equal(reach.posture, posture)
@@ -118,6 +123,7 @@ def test_a_plan_that_passed_over_a_posture_for_its_trunk_takes_no_look():
   reach = _floor()
   board = _board(0.42)
   reach.trunk_view = lambda: board
+  reach.seen = np.zeros((0, 3))
   assert reach.reach("left", K253, postures=SHORT, verb=True)
   assert reach.looks["left"] == rc.LOOKS and tuple(reach.posture) != DEEP
 
@@ -273,6 +279,7 @@ def test_the_trunk_is_judged_on_the_robots_model_of_itself_never_the_simulators_
     mujoco.mj_step(model, data)
   board = _board(0.42)
   reach.trunk_view = lambda: board
+  reach.seen = np.zeros((0, 3))
   spy.read.clear()
   assert not reach.reach("left", K253, postures=(DEEP,), verb=True)
   assert reach.swung["left"] is not None and reach.swung["left"]["trunk"], "the premise"
@@ -525,3 +532,92 @@ def test_each_walk_begins_where_the_body_stands_and_the_walk_up_ends_at_its_lean
   q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
   rc.statue(sm, (0.0, 0.0, 0.0), q0, arms, lean, fast=True)
   assert np.allclose(posed[-1], sm.d.qpos[:7], atol=1e-9)
+
+
+def test_a_robots_trunk_judgment_is_the_same_whatever_any_statues_cache_held_before(monkeypatch):
+  """Each robot's trunk is walked on statues of its own (round 2's review),
+  and a statue is the same from a cold cache as from a warm one: one robot's
+  judgment, posed sample by sample, is the same bit for bit after the other
+  robot has judged other postures, and after its own cache is emptied (a
+  restart builds it again lazily)."""
+  a, b = _floor(), _floor()
+  board = _board(0.42)
+  lean, arms = a._lean(), a._arms()
+  posed = []
+  real = rc.trunk_parts
+  monkeypatch.setattr(rc, "trunk_parts", lambda sm: posed.append(sm.d.qpos[:].copy()) or real(sm))
+
+  def walk():
+    posed.clear()
+    met = a._trunk(DEEP, arms, lean, _view(board))
+    return met, np.array(posed)
+  first, walked = walk()
+  assert first is not None, "the premise: the deep bow meets the board"
+  for p in rc.CARRY_POSTURES[:30]:
+    b._trunk(p, b._arms(), b._lean(), _view(board))
+  assert a._trunk_statues is not b._trunk_statues
+  again, rewalked = walk()
+  assert again == first and np.array_equal(rewalked, walked)
+  a._trunk_statues.clear()
+  cold, cold_walk = walk()
+  assert cold == first and np.array_equal(cold_walk, walked)
+
+
+def test_a_carry_and_a_pull_never_judge_the_posture_the_body_has_got_to(monkeypatch):
+  """`posture_for` and `path_for` judging pass over neither the posture the
+  body holds nor the one it has got to on its way (what #719 keeps it in,
+  `_in_or_got_to`: round 2's review); any other posture they judge."""
+  reach = _floor()
+  board = _board(0.42)
+  reach.trunk_view = lambda: board
+  judged = []
+  real = reach._trunk
+  monkeypatch.setattr(reach, "_trunk", lambda posture, *a: judged.append(tuple(posture)) or real(posture, *a))
+  goal = np.array([0.30, 0.10, 0.80])
+  reach.hold_posture(*DEEP)
+  try:
+    got_to = reach._in_or_got_to()
+    assert got_to != DEEP and got_to != tuple(float(v) for v in reach.posture), "the premise: still coming"
+    for ask in (lambda ps: reach.posture_for("left", goal, postures=ps, judge=True),
+                lambda ps: reach.path_for("left", [goal, goal + [0.0, 0.0, 0.02]], postures=ps, judge=True)):
+      judged.clear()
+      ask((got_to,))
+      assert judged == []
+      ask(((-0.08, 0.0, 0.0),))
+      assert judged == [(-0.08, 0.0, 0.0)], "the premise: another posture is judged"
+  finally:
+    reach.hold_posture(0.0, 0.0, 0.0)
+    reach.trunk_view = None
+
+
+def test_the_words_own_queries_never_judge_the_trunk(monkeypatch):
+  """A plan asked for the words (`hand_reaches` with `verb` False: its body
+  hands it no `seen`) judges no trunk, as #747's swing judges no arm there;
+  a procedure's (its body hands it `seen`) does."""
+  reach = _floor()
+  board = _board(0.42)
+  reach.trunk_view = lambda: board
+  calls = []
+  monkeypatch.setattr(reach, "_trunk", lambda *a: calls.append(a) or None)
+  reach.seen = None
+  assert reach.plans("left", K253, postures=SHORT)
+  assert calls == []
+  reach.seen = np.zeros((0, 3))
+  reach.plans("left", K253, postures=SHORT)
+  assert calls, "the premise: a procedure's query judges it"
+  reach.trunk_view, reach.seen = None, None
+
+
+def test_the_walk_in_begins_at_the_waist_the_body_reads(monkeypatch):
+  """The walk's first sample turns the waist where its encoder reads it, not
+  where its command already is (round 2's review)."""
+  reach = _floor()
+  posed = []
+  real = rc.trunk_parts
+  monkeypatch.setattr(rc, "trunk_parts", lambda sm: posed.append(sm.d.qpos.copy()) or real(sm))
+  sm = rc.trunk_model()
+  waist = sm.qadr[sm.waist]
+  reach.waist_cmd[:] = 0.3
+  reach._trunk(DEEP, reach._arms(), reach._lean(), _view(_board(0.42)))
+  assert abs(float(reach.self_model.d.qpos[waist][0]) - 0.3) > 0.1, "the premise: its command is elsewhere"
+  assert np.allclose(posed[0][waist], reach.self_model.d.qpos[waist])

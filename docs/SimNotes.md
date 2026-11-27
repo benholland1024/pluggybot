@@ -12809,9 +12809,16 @@ passes one over, the search goes on through the rest of the postures as
 #747's refusals do (k253's pre-point with the board 0.42 m ahead, 6.5 -> 11.5
 s of the one physics thread). A hands check's door, five judgments, 44 ms.
 
-**What it does not do.** A posture already held is never judged (no change,
-nothing walks), nor one the loop's own move takes (a charge's plug-in). A
-thing the camera saw before the feet last moved is not there; one moved
+**What it does not do.** A posture already held, or one the body has got
+to on its way (what #719 keeps it in), is never judged (no change, nothing
+walks), nor one the loop's own move takes (a charge's plug-in), nor a plan
+the words ask for themselves (`hand_reaches` without `verb`). Nothing over
+1.35 m is in its view (`ARMS_TOP_Z`; the camera never sees above itself), so
+a board over the standing head's rise goes unjudged. Each robot's walks are
+posed on statues of its own; measured, a statue is the same bit for bit from
+a cold cache as from a warm one (12 of 12, the held posture's least squares
+among them), so neither the other robot's judgments nor a restart's rebuild
+changes one. A thing the camera saw before the feet last moved is not there; one moved
 since it was seen is (#747's memory keeps a picked piece's former place up to
 a minute where no step came between: such a ghost can pass a posture over
 too). The arm against its own trunk in a carry's posture is #726's, which
