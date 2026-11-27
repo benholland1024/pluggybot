@@ -9403,15 +9403,16 @@ one the open hand caught again as it rose after the let-go.
 
 **Rounds 6-8** (the loop of 11-26b's A5,
 `~/pluggybot-training/loop-1126b/a5-fork/`, each round's rule sent before it
-flew; NONE FROZEN; one pod, a Xeon E5-2698 v4, on which the reference
-replayed A3's rows bit for bit on both walls).
+flew; NONE FROZEN). The levers flew on one pod, a Xeon E5-2698 v4, on which
+the reference replayed A3's rows bit for bit on both walls. The stow-catch
+and cup let-go pools are A3's and C8's dev rows, flown on their own pods.
 
 *The fork's stow catches the work board: the fork's largest failure.* The
 fork lies with its head toward the shelf, its tip 0.125 m ahead of the grip.
 Brought back to 0.22 m, the tip stood -2.5 to +11 cm short of the board's
 front edge (median +3.7), over 658 fork trips in 11 batches of the 64 dev
 draws. Where it stood over the edge (48 trips, 27 distinct draws), the
-lowering pressed it on the board's top and turned the fork 25-54 deg in the
+lowering pressed it on the board's top and turned the fork 26-54 deg in the
 jaws in 40; where it stood 1 cm or more short, in 4 of 569. Of the 51 forks
 turned 20 deg or more, 40 decided their place, and 2 of those were laid (one
 trajectory, flown in two batches). No move back fixes it. From 0.18-0.20 m
@@ -9422,16 +9423,18 @@ caught (the fork turned 46 deg).
 
 *Capped at 3 N, the lowering stops held fast where the tip meets the board*
 (round 7), the fork turned 4-8 deg in the jaws.
-- On every catching draw of 4300-4363, which nobody tuned on, the fork was
-  laid, though the hand-over begun at the board's edge touched the board
-  above in all 8.
-- On 4400-4463's four it changed none: one fork stopped flat was still
-  dropped at the put-down, and one had turned before the stow. Over every
-  catching draw, fresh and dev, it gained 11 places and lost none.
+- On every catching draw of 4300-4363 (round 8; draws nobody tuned on), the
+  fork was laid, though the hand-over begun at the board's edge touched the
+  board above in all 8.
+- On 4400-4463 (round 8) it changed none of the four where the reference's
+  fork stood turned 20 deg or more in the jaws after the stow: one stopped
+  flat was still dropped at the put-down, and one (lab_4451) had turned before
+  the stow. Over every draw so counted, fresh and dev, it gained 11 places and
+  lost none.
 - But a pull's first tenth of a second reads well over 3 N in free air, so
-  the cap changes almost every stow's start, and every fork trip is flown
-  afresh. Those redrawn trips came out +3 -10 on the dev draws and +11 -14 on
-  fresh ones.
+  the cap changes almost every stow's start, and almost every fork trip is
+  flown afresh. Elsewhere it came out +3 -10 on the dev draws and +11 -14 on
+  fresh ones, counting the few flights that replayed the reference.
 - On dev it laid 41 and 48 against the reference's 42 and 51 (served,
   raised). On fresh draws (round 8): on 4300-4363 it laid 38 against 31
   (+11 -4, one-sided p 0.06) and 44 against 45; on 4400-4463 (served) 33
@@ -9442,8 +9445,8 @@ caught (the fork turned 46 deg).
 worse* (round 6): 41 and 46 against 42 and 51. Re-set 33 times, the fork
 ended closer in 6 and further in 17. Three things were found.
 - The place in the card's frame equals the tuned aim only at the heading it
-  was fitted at, so it moved forks that lay where they should 1-1.5 cm to the
-  right.
+  was fitted at, so it moved the 11 re-set forks that lay under 1 cm from
+  their place 0.5-1.8 cm to the right.
 - The second set-down drifted the hand 0.1-2.1 cm forward in 32 of the 33
   (one 1.1 cm back): the lifted fork pitched 4-5 deg, met the table at its
   tip and lay flat about it.
