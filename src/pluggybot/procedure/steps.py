@@ -1087,8 +1087,8 @@ REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "swing": "every posture that puts your {hand} hand there would swing an arm into "
                       "something your depth camera saw, so your arm did not move",
              # ...said with what the first would meet (`REACH_HEAD`), where the body says
-             "head": "no posture that puts your {hand} hand there keeps your head and trunk "
-                     "clear of what your depth camera saw, so your arm did not move",
+             "head": "every posture that puts your {hand} hand there would bring your head or "
+                     "trunk into something your depth camera saw, so your arm did not move",
              "fell": "you fell on the way there, and let go",
              "out of time": "your {hand} hand did not get there in time"}
 #: ...and one that stopped short, by the rule its body says stopped it
@@ -1115,15 +1115,16 @@ REACH_SWUNG_KEPT = ("your {other} hand is out holding something, so your body ke
 #: ...the arm's parts as the robot says them.
 SWUNG_PARTS = {"upper_arm": "upper arm", "forearm": "forearm", "gripper": "hand",
                "jaw_a_pad": "fingers", "jaw_b_pad": "fingers"}
-#: ...and one none of whose postures keeps its trunk clear of what its depth
-#: camera saw since its feet moved (#763, `Body.hand_swung`'s `way`): what the
-#: first would bring its head or trunk into, as it took it or stood up from it.
-REACH_HEAD = ("no posture that puts your {hand} hand there keeps your head and trunk clear of "
-              "what your depth camera saw: the first would bring your {part} into it {way}, at x "
-              "{x:.2f}, y {y:.2f}, z {z:.2f} in your stance frame -- so your arm did not move")
+#: ...and one none of whose postures keeps it clear of what its depth camera
+#: saw, the first for its trunk (#763, `Body.hand_swung`'s `way`): what the
+#: first brings into it, taking that posture or standing up from it -- said
+#: as #747's line is, and no longer than it (History's run line, #658).
+REACH_HEAD = ("every posture that puts your {hand} hand there meets something your depth camera "
+              "saw -- the first your {part}, {way}, at x {x:.2f}, y {y:.2f}, z {z:.2f} in your "
+              "stance frame -- so your arm did not move")
 #: ...the trunk's parts and its two walks as the robot says them.
 TRUNK_PARTS = {"torso": "trunk"}
-TRUNK_WAYS = {"in": "as you took it", "up": "as you stood up from it"}
+TRUNK_WAYS = {"in": "taking it", "up": "standing up from it"}
 #: ...and a `move_hand` held in the posture it is in (#763): every other
 #: posture that reached would bring its head or trunk into what it saw.
 MOVE_HEAD = ("your {hand} hand could reach no further that way from the posture you are in: "
@@ -1217,10 +1218,10 @@ OTHER_HAND_KEPT = {True: "; your {other} hand's ways there and home keep clear o
                    # its depth camera saw (#747)
                    "swing": "; your {other} hand's every posture there would swing an arm into "
                             "something your depth camera saw",
-                   # ...and one none of whose postures there keeps your head and trunk
-                   # clear of what it saw (#763)
-                   "head": "; no posture of your {other} hand's there keeps your head and trunk "
-                           "clear of what your depth camera saw"}
+                   # ...and one whose first posture there would bring the trunk into
+                   # what it saw (#763)
+                   "head": "; your {other} hand's every posture there meets something your "
+                           "depth camera saw, the first with your head or trunk"}
 
 
 def _where(kept: dict) -> str:

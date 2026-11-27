@@ -343,7 +343,7 @@ def test_a_reach_held_out_by_its_trunk_says_what_it_would_meet_and_whether_the_o
     assert not step["ok"] and step["why"] == "head"
     said = st.REACH_HEAD.format(hand="left", part="head" if part != "torso" else "trunk",
                                 way=st.TRUNK_WAYS[way], x=0.42, y=0.02, z=0.94)
-    assert ("stood up from it" if way == "up" else "as you took it") in said
+    assert ("standing up from it" if way == "up" else "taking it") in said
     assert step["reason"] == said + ("; your right hand could reach it as asked" if reaches else "")
 
 
