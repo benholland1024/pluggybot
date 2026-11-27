@@ -358,11 +358,12 @@ KINDS: dict[str, TaskKind] = {
   # pieces set out on the restaurant kitchen's shelf, on its third board
   # (`home.restaurant.SET_OUTS`), each carried 10-13 m through the staff door
   # and graded by the table's evaluator. NOT OFFERED and paid nothing, as the
-  # pass's. Its energy, a claim's fallback, is UNMEASURED: the pass's 20.59 Wh
-  # as A FLOOR -- its hand work the same, its walks about three times the
-  # pass's -- measured from each station as the pass's was once its reference
-  # stands (whether the served pack funds it at all is that measurement's to
-  # say). ⚠ NOT a row of `energy.json`, for the pass's reason.
+  # pass's. Its energy is its own, measured 27 Nov 2026 at 2bf94b77 as the
+  # pass's was, from each station (`energy_spike.py --station S --actions
+  # set_table_shelf`, the pass's tags and the card found first; each laid):
+  # the research center's 25.16 Wh over 535 s, the mall's 23.37 over 498, the
+  # house's 22.56 over 488 -- the dearest, inside 90 % of the served pack's
+  # 33 Wh. ⚠ NOT a row of `energy.json`, for the pass's reason.
   "set_table_shelf": TaskKind(
     "set_table_shelf", task="set_table_shelf", target_kind="table",
     template="Lay the card's place on the restaurant's table from its kitchen shelf: "
@@ -372,7 +373,7 @@ KINDS: dict[str, TaskKind] = {
              "taking this job, without falling; graded when you say you are done and 5 s later. "
              "Its pieces were set out at t={offered}, when this job was offered. No errand does "
              "this: write the procedure.",
-    estimate_wh=20.59, discharge="procedure", draws=True, minutes=SHELF_MINUTES),
+    estimate_wh=25.16, discharge="procedure", draws=True, minutes=SHELF_MINUTES),
 }
 
 #: The hand jobs' graders (#559, #560): each served job's row is its own --
