@@ -587,23 +587,27 @@ def _energy_spike(monkeypatch):
 
 def test_energy_spike_writes_no_row_a_job_was_not_priced_for(monkeypatch, tmp_path):
   """`--write` folds what was measured into the energy table, but never a
-  job flown with its area forgotten -- a first search of the map is never
-  priced (#736's review) -- nor the explore's rate and the charge's watts
-  measured in a house the shop's stock was put into, which no served house
-  has; its note says what it was measured on."""
+  job flown with its area forgotten (a first search of the map is never
+  priced), nor a kind its world offers no robot (the dearest row prices
+  every errand without one), nor anything of a run in a house the shop's
+  stock was put into, which no served house is (#736's review) -- and its
+  note only where something was written."""
   spike = _energy_spike(monkeypatch)
   path = tmp_path / "energy.json"
-  path.write_text(json.dumps({"worlds": {"w": {"errandWh": {"set_table": 9.0}, "chargeW": 300.0}}}))
+  before = {"worlds": {HUMANOID_HOME: {"errandWh": {"set_table": 9.0}, "chargeW": 300.0,
+                                       "measuredOn": "old"}}}
+  path.write_text(json.dumps(before))
   row = {"wh": 8.5, "remembered": True}
-  spike.fold({"actions": {"stock_shelf": dict(row, remembered=False), "set_table": dict(row)},
-              "stock": True, "exploreWhPerS": 0.06, "chargeW": 330.0}, path, "w", "a note")
-  block = json.loads(path.read_text())["worlds"]["w"]
-  assert block["errandWh"] == {"set_table": 8.5}, "a row flown with its area forgotten written"
-  assert block["chargeW"] == 300.0 and "exploreWhPerS" not in block, "a stocked house's rates written"
-  assert block["measuredOn"] == "a note"
-  spike.fold({"actions": {}, "stock": False, "exploreWhPerS": 0.06, "chargeW": 330.0}, path, "w", "n")
-  block = json.loads(path.read_text())["worlds"]["w"]
-  assert block["chargeW"] == 330.0 and block["exploreWhPerS"] == 0.06
+  spike.fold({"actions": {"set_table": dict(row)}, "stock": True, "chargeW": 330.0}, path,
+             HUMANOID_HOME, "new")
+  assert json.loads(path.read_text()) == before, "a stocked house's run written"
+  spike.fold({"actions": {"stock_shelf": dict(row), "open_door": dict(row, remembered=False)},
+              "stock": False}, path, HUMANOID_HOME, "new")
+  assert json.loads(path.read_text()) == before, "an unoffered kind's or a forgotten area's row written"
+  spike.fold({"actions": {"set_table": dict(row)}, "stock": False, "chargeW": 330.0}, path,
+             HUMANOID_HOME, "new")
+  block = json.loads(path.read_text())["worlds"][HUMANOID_HOME]
+  assert (block["errandWh"], block["chargeW"], block["measuredOn"]) == ({"set_table": 8.5}, 330.0, "new")
 
 
 def test_energy_spike_finds_every_tag_a_reference_finds_before_it_flies(monkeypatch):
@@ -624,7 +628,7 @@ def test_energy_spike_finds_every_tag_a_reference_finds_before_it_flies(monkeypa
     sources = (*solutions.LIBRARY.get(kind, ()), *(runs if isinstance(runs, tuple) else (runs,)))
     finds = [(int(t), float(x), float(y)) for s in sources
              for t, x, y in re.findall(r"\bfind\(\s*(\d+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)", s)]
-    assert finds, kind
+    assert finds and len(finds) == sum(len(re.findall(r"\bfind\(", s)) for s in sources), kind
     at = spike.address_of(target)
     for tag, x, y in finds:
       assert tag in spike.found_first(kind), (kind, tag)
@@ -690,7 +694,14 @@ def test_energy_spike_finds_an_area_again_that_a_stations_fix_dropped(monkeypatc
   life = Life(drops=spike.FIND_ROUNDS)
   assert not spike.remember_area(life, "stock_shelf")
   assert len(life.body.found) == spike.FIND_ROUNDS, "unbounded"
-  # ...but a find that failed is no fix's: searched once, never again
+  # ...but a find that failed is no fix's: searched once, never again, and
+  # the round ends there
   life = Life(drops=0, finds=False)
   assert not spike.remember_area(life, "stock_shelf")
   assert life.body.found == [spike.STORE_TAG], "a failed find searched again"
+  from pluggybot.home import restaurant
+  monkeypatch.setattr(restaurant, "set_out", lambda *a, **kw: None)   # ...the card's things, set out to be found
+  life = Life(drops=0, finds=False)
+  life.model = life.data = None
+  assert not spike.remember_area(life, "set_table_pass")
+  assert life.body.found == [spike.found_first("set_table_pass")[0]], "searched on past a failed find"
