@@ -1252,9 +1252,9 @@ def test_the_upper_boards_set_down_stands_further_left_of_its_label():
   about 0.26 m to the robot's left at the upper board's height, the set-down's square grip planned only half a turn
   round (`Reach._planned`), which turned the held product over, no slip in the jaws -- 7 of the census's 24 dev
   misses, the frame pressed on its panel's top and fallen at the let-go, the candle stood on its top. The robot
-  stands 3.5 cm further left of an upper label, the hand's aim off the label unchanged: set-out 0's frame (label 84)
-  is gripped 0.22 m left at its set-down on the stub (0.255 by round 5's reference), the candle's lower label as
-  before."""
+  stands 3.5 cm further left of the frame's upper label (the frame's alone since round 11), the hand's aim off the
+  label unchanged: set-out 0's frame (label 84) is gripped 0.22 m left at its set-down on the stub (0.255 by round
+  5's reference), the candle's lower label as before."""
   body, ran, log, so, tags = _shelf_flown()
   assert ran["ok"], ran
   assert so.slots == {"candle": 80, "frame": 84}, so.slots
@@ -1277,6 +1277,33 @@ def test_a_lower_label_is_read_off_its_twin_above():
   assert len(hidden) == len(seen) == 2, (seen, hidden)
   for h, s_ in zip(hidden, seen):
     assert [h[c] for c in "xyz"] == pytest.approx([s_[c] for c in "xyz"], abs=1e-9), (h, s_)
+
+
+def test_the_candles_step_at_the_cart_is_taken_sideways_first():
+  """⚠ AT THE CART THE CANDLE'S STEP IS TAKEN SIDEWAYS ALONE WHILE ITS SIDEWAYS ERROR IS PAST NEAR'S TOLERANCE (#736
+  stage 2, round 10): the trip back over-travels to the left (the candle first read 0.10-0.20 m left in 548 of 599
+  dev flights, its mark 0.225), and corrected by one step ahead and to the right at once, a tour's step was stopped by
+  the cart's front-right leg at the knees' height (#717's room keeps 0.20 m) -- 13 of the 14 tour picks out of reach
+  came after such a block -- or, on a check, went ahead and stayed right. On a stub whose steps count short (the trip
+  back over-travels) with the products 3 cm further out, the first step after the candle's first look is sideways
+  alone; its next, the sideways error inside the tolerance, takes the ahead part."""
+  body, ran, log, so, tags = _shelf_flown(undercount=0.15, cart_far=0.03)
+  assert ran["ok"], ran
+  after = [a for v, a, _ in _after(log, "spot", 76) if v == "step"]
+  assert after and after[0]["ahead"] == 0 and abs(after[0]["left"]) > 0.0346, after
+
+
+def test_the_upper_boards_further_left_stance_is_the_frames_alone():
+  """⚠ ON THE UPPER BOARD ONLY THE FRAME STANDS 3.5 CM FURTHER LEFT OF ITS LABEL (#736 stage 2, round 11): the
+  candle is round, and stood so its turnovers did not fall while its placements landed further left and its press
+  and back-out left the bow -- upper candles ended on their board in 89 % of 220 flights with it against 93 % of 206
+  without, upper frames 91 % against 82 %. Set-out 4 (the frame over label 84, the candle over 83): on the stub the
+  frame is set down 0.22 m left, the candle 0.255 (round 4's reference's)."""
+  body, ran, log, so, tags = _shelf_flown(k=4)
+  assert ran["ok"], ran
+  assert so.slots == {"candle": 83, "frame": 84}, so.slots
+  downs = [a for v, a, pose in log if v == "reach" and pose[3]]
+  assert [d["y"] for d in downs] == pytest.approx([0.22, 0.255], abs=1e-9), downs
 
 
 def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
