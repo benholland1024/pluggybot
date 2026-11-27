@@ -61,8 +61,10 @@ from typing import Any, Callable
 
 from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M,
                                      STEP_FRONT_HALF_M, STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M,
-                                     STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
-                                     STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
+                                     STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PATIENCE_S,
+                                     STEP_PRESSED_M, STEP_PRESSED_SHARE, STEP_SHORT_M,
+                                     STEP_START_S, STEP_STUCK_M, STEP_STUCK_S, STEP_WALL_M,
+                                     TURN_CLOSE_S, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
 from pluggybot.humanoid.reach import (CARRY_PRESSED_SHARE, LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS,
                                       PRESSED_ASK_N)
@@ -1903,6 +1905,12 @@ HANDS_VERBS: dict[str, Verb] = {
                f"{100 * STEP_SHORT_M:.0f} cm may take none, and a walk may stop a few cm off "
                f"what you asked. A walk asked at least {100 * STEP_LEAST_M:.0f} cm that your own "
                "legs count as under it reads false and says your step was too short to walk. "
+               # ...its windows and its patience, said beforehand (#766 (b))
+               f"A walk that your legs count under {100 * STEP_STUCK_M:g} cm along its way in "
+               f"its first {STEP_START_S:g} s, or in any {STEP_STUCK_S:g} s after that, reads "
+               "false and says your step got nowhere or stalled; and a step not done "
+               f"{STEP_PATIENCE_S:g} s after it began ({STEP_PATIENCE_S + TURN_CLOSE_S:.1f} s with "
+               "a turn) reads false and says it ran out of time. "
                "A walk keeps off another robot as your walks over the map do. It stops "
                f"before it would take your middle within {STEP_KEEP_M:g} m of that robot's "
                f"middle ({STEP_KEEP_DOWN_M:g} m of one that has fallen) -- standing within that "
