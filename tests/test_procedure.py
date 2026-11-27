@@ -242,9 +242,9 @@ def _stub_life(clock=None):
     actuator=_no_actuator, ramp_routine=routine("ramp"),
     setpoint=lambda act: 0.0,
     go_to_routine=routine("drive_to", True), in_sight=lambda x, y: True,
-    face_routine=routine("face", True), hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), falls=0, arm_kept=lambda: None, carrying=lambda side: False, arm_held=lambda side: False,
-    forgo_owed=lambda: None)
+    step_routine=routine("step", {"why": "stepped"}), hold_routine=routine("wait"),
+    pose=(0.0, 0.0, 0.0), stance=(0.0, 0.0, 0.0), falls=0, arm_kept=lambda: None,
+    carrying=lambda side: False, arm_held=lambda side: False, forgo_owed=lambda: None)
   life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupt_due=lambda: False,
                          interrupted_routine=lambda: tick.result(False),
@@ -293,7 +293,8 @@ def test_every_step_gets_a_verdict_and_the_order_is_the_programs():
   assert r["ok"] and r["completed"] == 3 and r["total"] == 3
   assert [s["verb"] for s in r["steps"]] == ["wait", "face", "drive_to"]
   assert all(s["ok"] for s in r["steps"])
-  assert [c[0] for c in life.calls] == ["wait", "face", "drive_to"]
+  # ...`face` the body's step, its turn alone (#765)
+  assert life.calls == [("wait", (1.0,)), ("step", (0.0, 0.0, 1.0)), ("drive_to", (1.0, 1.0))]
 
 
 def test_a_failed_step_stops_the_program_with_an_honest_partial_result():

@@ -284,36 +284,40 @@ def test_faces_line_says_its_heading_is_in_the_map_as_every_place_reading_names_
   assert "in your map" in line and "stance frame" not in line, line
 
 
-def test_face_turns_until_its_belief_reads_the_heading_so_its_line_is_true():
-  """...and the line is the routine's rule (#754): `face` turns until the
-  robot's pose in its map -- its belief, all a fake body has -- reads the
-  heading, never by a turn from where it stands: asked the heading it holds
-  it turns nothing, and from map heading -0.98 `face(-0.21)` turns 0.77 rad
-  left (t_0800's, where 0.21 right was meant). A PREMISE PIN: #754 moved
-  only words, so this passes on either side of it, and fails where the
-  routine stops closing on the belief (a turn from where it stands, a
-  heading read off the truth) and the line would be false. The fake carries
-  what the routine reads; a new read fails here by its name."""
+def test_face_turns_from_where_its_stance_faces_in_its_map_so_its_line_is_true():
+  """...and the line is the verb's rule (#754, #765): `face` asks the body
+  the turn from the heading its STANCE believes it has in its map to the
+  heading, never a turn from where it stands: asked the heading its stance
+  holds it asks none, and from map heading -0.98 `face(-0.21)` turns 0.77
+  rad left (t_0800's, where 0.21 right was meant) -- whatever its pelvis's
+  believed heading (here a few degrees off its feet's, as a walker leaves
+  it). Fails where the verb reads the pelvis's heading (`pose`), hands the
+  heading over as a turn, or reads the truth. The fake carries what the
+  verb reads; a new read fails here by its name."""
+  import math
   from types import SimpleNamespace
-  from pluggybot.humanoid.mission import HumanoidMission
-  dt, tol = 0.002, HumanoidMission.FACING_TOLERANCE
 
-  def turned(start: float, heading: float) -> float:
-    body = SimpleNamespace(model=SimpleNamespace(opt=SimpleNamespace(timestep=dt)),
-                           FACING_TOLERANCE=tol, pose=(0.0, 0.0, start))
+  def turned(stance: float, heading: float) -> float:
+    asked = []
 
-    def twist(vx, vy, w):
-      body.pose = (0.0, 0.0, body.pose[2] + w * dt)
-      yield None
-    body._twist_routine = twist
-    run = HumanoidMission.face_routine(body, heading)
+    def step_routine(ahead, left=0.0, turn=0.0):
+      asked.append((ahead, left, turn))
+      return {"why": "stepped"}
+      yield
+    body = SimpleNamespace(stance=(0.0, 0.0, stance), pose=(0.0, 0.0, stance + 0.07),
+                           arm_kept=lambda: None, carrying=lambda side: False,
+                           arm_held=lambda side: False, step_routine=step_routine)
+    run = st._face(SimpleNamespace(body=body), {"heading": heading})
     with pytest.raises(StopIteration) as done:
       while True:
         next(run)
-    assert done.value.value is True, "squared within its budget"
-    return body.pose[2] - start
+    assert done.value.value["ok"] is True
+    assert [a[:2] for a in asked] == [(0.0, 0.0)], "a face is a turn alone"
+    return asked[0][2]
   assert turned(1.0, 1.0) == 0.0
-  assert turned(-0.98, -0.21) == pytest.approx(0.77, abs=tol)
+  assert turned(-0.98, -0.21) == pytest.approx(0.77, abs=1e-12)
+  # ...the shorter way round, through pi
+  assert turned(3.0, -3.0) == pytest.approx(2 * math.pi - 6.0, abs=1e-12)
 
 
 def test_the_body_says_how_far_its_fingertips_reach_past_the_grip_off_the_model():

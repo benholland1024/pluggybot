@@ -264,8 +264,9 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def face_routine(self, heading: float) -> Routine:
     """Turn where it stands to a heading in its map -- its belief's, as
-    `pose` reads it, never a turn from where it stands (`face`'s line says
-    so, #754); False if its budget ran out."""
+    `pose` reads it, never a turn from where it stands; False if its budget
+    ran out. The loop's own turn (a find's, a dock's): the verb `face` is
+    `step_routine`'s turn, closed on the stance (#765)."""
 
   @abc.abstractmethod
   def hold_routine(self, seconds: float) -> Routine:

@@ -364,9 +364,9 @@ def _stub_life():
   body = SimpleNamespace(
     ramp_routine=routine("ramp"), handle=FIRST,
     actuator=_no_actuator, setpoint=lambda act: 0.0,
-    go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
+    go_to_routine=routine("drive_to", True), step_routine=routine("step", {"why": "stepped"}),
     in_sight=lambda x, y: True, hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0, arm_kept=lambda: None, carrying=lambda side: False, arm_held=lambda side: False,
+    pose=(0.0, 0.0, 0.0), stance=(0.0, 0.0, 0.0), watch=lambda tag: None, falls=0, arm_kept=lambda: None, carrying=lambda side: False, arm_held=lambda side: False,
     forgo_owed=lambda: None)
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          interrupt_due=lambda: False,

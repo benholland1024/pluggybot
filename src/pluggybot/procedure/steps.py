@@ -14,7 +14,7 @@ The verbs: the walks and a look, and the hands' (`HANDS_VERBS`, #525;
 docs/Hands.md has each one's meaning, report and failure):
 
   drive_to(x, y)       walk to a world point            `Body.go_to_routine`
-  face(heading)        turn to a map heading            `Body.face_routine`
+  face(heading)        turn to a map heading            `Body.step_routine`'s turn
   find(tag, x, y)      a task area found by its tag     `Body.find_tag_routine`
   wait(seconds)        stand still
   move(axis, target)   one axis to a setpoint           `procedure/axes.py`
@@ -349,15 +349,31 @@ def _drive_to(life, args: dict) -> Routine:
           "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
+#: What a `face` that did not get there says, by how its turn ended (#765).
+FACE_WHY = {"turned short": "your turn stopped short of heading {heading:.2f} rad",
+            "fell": "you fell",
+            "out of time": "did not square up to heading {heading:.2f} rad within its time"}
+
+
 def _face(life, args: dict) -> Routine:
+  """`face` (#765): the turn from the heading its stance believes it has in
+  the map to `heading`, taken as `step` takes its turn -- closed on the
+  stance's own heading, the legs back on the standing policy after
+  (`Body.step_routine`, its turn alone). ⚠ NEVER THE LOOP'S OWN TURN
+  (`Body.face_routine`, closed on the pelvis): the walker yaws the pelvis
+  over planted feet, so the feet ended 6-10 deg short of a turn of 10 deg
+  or more, and turned back further once the legs stood again (SimNotes,
+  "`face` turned as `step` turns")."""
   refused = _arm_out(life, "walk")
   if refused is not None:
     return refused
-  squared = yield from life.body.face_routine(float(args["heading"]))
-  return {"ok": bool(squared), **_carried(life),
-          **({} if squared else {"reason": (
-            f"did not square up to heading {float(args['heading']):.2f} rad "
-            "within its time")})}
+  heading = float(args["heading"])
+  rep = yield from life.body.step_routine(
+    0.0, 0.0, math.remainder(heading - life.body.stance[2], 2 * math.pi))
+  if rep["why"] == "stepped":
+    return {"ok": True, **_carried(life)}
+  return {"ok": False, "why": rep["why"], **_carried(life),
+          "reason": FACE_WHY.get(rep["why"], FACE_WHY["turned short"]).format(heading=heading)}
 
 
 def _wait(life, args: dict) -> Routine:
@@ -1731,8 +1747,9 @@ VERBS: dict[str, Verb] = {
                                                 default=DRIVE_TIMEOUT_S)},
                    _drive_to, drive_to_doc(WALK_KEEP_M)),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
-               _face, "turn in place to `heading`, rad in your map; ok when squared "
-               "within the budget"),
+               _face, "turn in place to `heading`, rad in your map: ok once your feet are "
+               "turned to it within a degree or two and your legs stand again; a turn that "
+               "does not get there reads false and says so"),
   # PLACES (issue #419): a task area found by its tag and remembered -- the
   # robot's own knowledge, never a coordinate handed over
   "find": Verb("find", {"tag": Arg("float", choices="places"), "x": Arg("float"),
