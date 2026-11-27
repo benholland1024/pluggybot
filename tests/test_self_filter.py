@@ -329,7 +329,7 @@ def test_a_carried_candle_rarely_stops_the_walk_at_the_lidars_radius(carry):
   the scans with the grip as the model places it, and on two in five with
   the model 3 cm off the worst way; at the LIDAR's radius, on one in a
   hundred and one in sixteen (400 scans of the test's own cast) -- the
-  carried candle's walks of #762's flights fired it 8-11 times each, and
+  carried candle's walks of #762's flights fired it 9-12 times each, and
   arrived in 38-46 s."""
   _, drawing, side, grip, fingers, jaws = CANDLE
   body, _, b = carry(side, grip, fingers, jaws, drawing)

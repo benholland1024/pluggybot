@@ -13340,9 +13340,11 @@ pass (below).
     `batches/c16_cf/`): from 160 s (1e-6 and 1e-5, 24 a tree) B fell 1 and C
     1, B's plate dropped twice more and C's once; from 182.8 s, the parting
     moment (1e-7, 12 a tree), B fell 2 -- at 198.3 s, C's own moment -- and C
-    6. Pooled, 3 of 36 against 7 (one-sided Fisher p 0.15): the table lay at
+    6 (one-sided Fisher p 0.097). Pooled, 3 of 36 against 7 (p 0.15; the
+    reading rule written after 2 of the 72 rows had landed): the table lay at
     draw 25 holds a fall on B's own tree, and a nudge a ten-millionth of a
-    metre a second at the parting moment flips it either way.
+    metre a second at the parting moment flips it either way -- but from that
+    moment C's falls three times as often as B's.
   - **The robots' own 200 tries** (X5's kit, each at its live draw, both
     trees on C16's pod): B passed 2 and C 1, one fall each (the same try,
     unmoved); 17 moved in their verbs' reports, 1 in its end. The pass lost is
