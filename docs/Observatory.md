@@ -10,6 +10,32 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The trunk's view placed where each voxel was seen (#763's remedy; B2c, `loop-763b`) — opens when this PR is deployed
+
+**What the robots read**: nothing new. The prompt `3f8b2dc7…` and the
+session host's hello `9dcf6202` are byte for byte as they were, and the
+lines #763 writes are its own.
+
+**The change** (`ArmsMemory.since`, `fold`'s `stance`,
+`HumanoidMission.believed_stance`; SimNotes, "A reach's bow under a
+shelf's board"). What a procedure's posture judges its trunk against --
+what its depth camera saw since its feet last moved, tops kept -- is placed
+through the believed stance each frame of it was folded at, never through
+the belief as it is now. A reach's steps take no scan, so through a bow the
+belief moved by the legs' reckoning alone, and #763's view moved with it: 2
+cm at lane C's loading rack, where a look's rise 1.2 cm into a board read
+clear and the robot fell, 1.3 cm at the counter, where a cube's plan read
+clear what its torso then pressed at 486 N. A belief that jumped since moves
+none of it; a save from before this period's judges nothing until a frame
+folds again.
+
+**What the period is for.**
+- **The acceptance**: #763's own (its period, below), its trunk now judged
+  where its camera saw things: the procedures' heads and trunks on the
+  world over 20 N in a judged posture, against #763's period.
+- **What would close it**: a head or trunk on the world in a judged posture
+  that its view placed clear while the truth did not.
+
 ### A procedure's posture keeps its head and trunk off what it saw since its feet moved (#763, #736's call 6; B2c, `loop-763`) — opens when this PR is deployed
 
 **What the robots read**: the prompt `3f8b2dc7…` (72,160 characters, 17

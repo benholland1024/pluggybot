@@ -12835,21 +12835,29 @@ came down 6 cm off its mat. Lane C's loading rack, its 12 upper-board
 flights: falls 3 -> 1, the head on the world in 6 -> 1, the 5 it did not act
 on replaying exactly.
 
-⚠ **Its view drifts through a bow.** A reach's steps take no scan, so through
-a bow the belief moves only by the legs' reckoning, and the window's voxels,
-folded level before the bow, are placed through the belief as it is now. At
-the rack the believed stance drifted 2 cm as the pelvis went back 17 cm over
-the planted sole (the reckoning's contact corner switching as it went); the
+⚠ **Each voxel is placed where it was seen** (the remedy, `loop-763b`;
+`ArmsMemory.since`, `fold`'s `stance`, `HumanoidMission.believed_stance`). A
+reach's steps take no scan, so through a bow the belief moves only by the
+legs' reckoning, and placed through the belief as it is now, the window's
+voxels -- folded level, before the bow -- drifted with it. At lane C's rack
+the believed stance drifted 2 cm as the pelvis went back 17 cm over the
+planted sole (the reckoning's contact corner switching as it went); the
 board read 1.6 cm further at the look than at the plan, and the look's rise
 -- 1.2 cm into the board's underside by the truth -- read 0.14 cm clear: the
 head struck at 416 N and the robot fell. At the counter a cube's plan, 15.5 s
 after the feet last moved, read the torso's walk 1.3 cm clear where the truth
 touched, and a lid's carry judged voxels laid 3 cm off the counter's true
-edge. Placed through the believed stance at their fold instead (an
-instrument's experiment, not built: the true stance has not moved since), the
-rack's look passed over and the flight did not fall. On the shop shelf the
-view read clear where the truth read into it at 5 of 1,316 choices, each
-under 1 cm.
+edge. So the memory keeps the believed stance each frame was folded at, and
+each voxel of the window is placed through its own frame's: the true stance
+has not moved since the feet last did, so where the camera saw a thing from
+the stance then is where it is now -- the frame's points carried into the
+stance frame by the robot's model of itself as it stood, no world belief in
+it, and a belief that jumped since moves none of them. With it the rack's
+look passed over the rise (the head 1.1 cm in by its view, the truth's 1.2)
+and the flight did not fall; the head met the board later, at 408 N, in the
+walk's hand-over stand, the way out, which is never judged. A save from
+before it kept no stances: its voxels judge nothing until a frame folds
+again.
 
 **What it does not do.** A posture already held, or one the body has got
 to on its way (what #719 keeps it in), is never judged (no change, nothing
