@@ -9223,7 +9223,7 @@ the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
 each piece fetched from the shelf and laid as the pass lays it (below).
 Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
 32 draws sealed by that commit, no fall, one pod: THE BAR IS NOT MET (its
-misses below). Eight rounds of levers, below, were tried and none frozen.
+misses below). Eight rounds, below, were flown and none frozen.
 Its largest miss on the dev draws and the bar's is the plate let go carried,
 which a rounder wall all but took away (#771). The fork's largest is its
 stow catching the work board (below). ⚠ The dev draws 4000-4063 flatter the
@@ -9305,8 +9305,9 @@ a2_shelf/`):
   pre-posed gripper came between the camera and the cup's lid: the look comes
   first, and again after only where it is seen.
 - **Each thin piece stowed low before the walk** (the next paragraph): brought
-  back clear of the board's face (the plate's grip to 0.20 m ahead, the
-  fork's to 0.22) and lowered to 0.92 m, near the carry pose, so the
+  back from over the board (the plate's grip to 0.20 m ahead, the fork's to
+  0.22, its head still over the board's edge in some trips: "Rounds 6-8",
+  below) and lowered to 0.92 m, near the carry pose, so the
   hand-over's way is short -- the plate by `move_hand`, the fork by a `pull`
   that holds its line and turn (by `move_hand`, two forks of eight turned in
   the jaws, 11 to 65 deg, on the way down and fell out; by the `pull`, none
@@ -9408,16 +9409,19 @@ replayed A3's rows bit for bit on both walls).
 *The fork's stow catches the work board: the fork's largest failure.* The
 fork lies with its head toward the shelf, its tip 0.125 m ahead of the grip.
 Brought back to 0.22 m, the tip stood -2.5 to +11 cm short of the board's
-front edge over 658 dev trips (median +3.7). Where it stood over the edge
-(48 trips), the lowering pressed it on the board's top and turned the fork
-20-50 deg in the jaws in 40; where it stood 1 cm or more short, in 4 of 417.
-A fork so turned was laid in 2 of the 40 places it decided. No move back
-fixes it: from 0.18-0.21 m the arm cannot lower the fork with its grip's
-turn held. In 8 of 14 probe lowerings it ran out of reach, most of them with
-the waist turned 0.52 rad and the hand swung up.
+front edge (median +3.7), over 658 fork trips in 11 batches of the 64 dev
+draws. Where it stood over the edge (48 trips, 27 distinct draws), the
+lowering pressed it on the board's top and turned the fork 25-54 deg in the
+jaws in 40; where it stood 1 cm or more short, in 4 of 569. Of the 51 forks
+turned 20 deg or more, 40 decided their place, and 2 of those were laid (one
+trajectory, flown in two batches). No move back fixes it. From 0.18-0.20 m
+the arm cannot lower the fork with its grip's turn held: 7 of 9 probe
+lowerings ran out of reach, most of them with the waist turned 0.52 rad and
+the hand swung up. From 0.21 it lowered in 4 of 5, but a catching draw still
+caught (the fork turned 46 deg).
 
 *Capped at 3 N, the lowering stops held fast where the tip meets the board*
-(round 7), the fork turned 4-7 deg in the jaws.
+(round 7), the fork turned 4-8 deg in the jaws.
 - On every catching draw of 4300-4363, which nobody tuned on, the fork was
   laid, though the hand-over begun at the board's edge touched the board
   above in all 8.
@@ -9429,25 +9433,30 @@ the waist turned 0.52 rad and the hand swung up.
   afresh. Those redrawn trips came out +3 -10 on the dev draws and +11 -14 on
   fresh ones.
 - On dev it laid 41 and 48 against the reference's 42 and 51 (served,
-  raised). On 4300-4363 it laid 38 against 31 (+11 -4, one-sided p 0.06) and
-  44 against 45; on 4400-4463 (served) 33 against 34. Both fresh sets pooled,
-  on the served plate: 71 against 65 (+13 -7, p 0.13).
+  raised). On fresh draws (round 8): on 4300-4363 it laid 38 against 31
+  (+11 -4, one-sided p 0.06) and 44 against 45; on 4400-4463 (served) 33
+  against 34. Both fresh sets pooled, on the served plate: 71 against 65
+  (+13 -7, p 0.13).
 
 *A second look at the card, as the cup's (`PASS_CUP_AGAIN`), made the fork
 worse* (round 6): 41 and 46 against 42 and 51. Re-set 33 times, the fork
-ended closer in 6 and further in 17, for two reasons.
+ended closer in 6 and further in 17. Three things were found.
 - The place in the card's frame equals the tuned aim only at the heading it
-  was fitted at, so it moved forks that lay right 1-1.5 cm to the right.
-- The second set-down drifted the hand 0.5-2.1 cm forward: the lifted fork
-  pitched 4-5 deg, met the table at its tip and lay flat about it.
+  was fitted at, so it moved forks that lay where they should 1-1.5 cm to the
+  right.
+- The second set-down drifted the hand 0.1-2.1 cm forward in 32 of the 33
+  (one 1.1 cm back): the lifted fork pitched 4-5 deg, met the table at its
+  tip and lay flat about it.
 - And no look at the card sees the fork's error along the card's line.
   Between the two looks the card moved 0.11-0.13 cm along it (sd), where the
   fork's error along it ran 1.1-1.2 cm: that error is the hand's own, its
   arrival and the put-down's drift.
 
-*The cup's let-go.* In 6 of 812 dev put-downs the pull up after the let-go
-took a new posture, and the cup moved in all 6. The touch begins while the
-jaws open: lifted 3 cm instead of 8, it caught the cup the same way.
+*The cup's let-go.* In 6 of 812 dev put-downs (4 distinct trajectories of
+190: the cup's trip flies the same in batches that change only later trips)
+the pull up after the let-go took a new posture, and the cup moved in all 6.
+The touch begins while the jaws open: lifted 3 cm instead of 8, it caught the
+cup the same way.
 
 **A thin piece's hand-over rises over the shoulder and sweeps down at the
 robot's side** (#770; not fixed). The walk's hand-over takes the side way for

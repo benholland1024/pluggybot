@@ -1239,8 +1239,9 @@ save a filmstrip PNG named after the script.
   the board above, ⚠ each thin piece is brought back from over the board and
   lowered to 0.92 m before the walk (the hand-over's side way rises up to
   0.39 m) -- ⚠ but the fork's head, 0.125 m ahead of its grip, still stood
-  over the board's edge in 48 of 658 dev trips, and the lowering turned it
-  20-50 deg in the jaws: the fork's largest failure --, ⚠ the fork's hand
+  over the board's edge in 48 of 658 dev trips (27 distinct draws), and the
+  lowering turned it 25-54 deg in the jaws in 40 of them: the fork's largest
+  failure --, ⚠ the fork's hand
   stays at least 0.25 m left of the middle (nearer, its pulls bowed the head
   onto the board), and ⚠ a put-down waits on its hand reading held (from the
   hanging arm the reach fell). ⚠ ITS BAR (the pass's) IS NOT MET: 20 of 32 on
