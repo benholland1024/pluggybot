@@ -347,6 +347,35 @@ CARRY_AHEAD_M = 0.02
 #: counter in none of 30 hand-overs, and taken the side way its trip parted
 #: from there for nothing (3 of 7 cups set down off their spot, where 0).
 CARRY_THIN_M = 0.03
+#: A THIN CARRIED WAY FROM OVER THE TOP GOES LOW (#770; SimNotes, "The place
+#: laid from the kitchen's shelf"): an arm that begins its way to its carry
+#: pose rolled out past this, rad -- its upper arm raised over its shoulder,
+#: as a grip over the top leaves it (2.5-3.0 at the pass and the shelf) --
+#: changes branch on its way to the hanging carry pose, and every way in joint
+#: space swung what it held: straight, the hand tilted 40-50 deg and swung 6-9
+#: cm further out, and the shelf's plate came down on the work board in 15 of
+#: 53 hand-overs, its fork in 10 of 25; the side way raised it over the
+#: shoulder, tilted ~145 deg, and swept it down at the robot's side (the pass
+#: met in 12 of 63, the shelf's board above in 3) -- judged by the hand's own
+#: descent (`carry_descent`), which sees neither its tilt nor what it holds.
+#: So it goes back, level, toward the toes, then down to the carry pose's
+#: height and across to its side, then in (`low_way`), planned on the stand's
+#: statue, where the carry pose is solved and the body stands once the way is
+#: begun (planned as a bow stands, the hand was level only while the body
+#: stayed bowed: from 0.3 rad, it turned 40-47 deg once the trunk stood up).
+#: ⚠ A grip held fingers forward, its elbow out at its shoulder's height
+#: (rolled 1.8), changes no branch and goes by the judge, as before.
+CARRY_OVER_ROLL = 2.0
+#: ...a joint target every this much of its line, m, each solved from the last
+#: (`_level_fit`): the grip on its point and the hand's up as it began, each
+#: weighed this much...
+LOW_STEP_M, LOW_FIT_W = 0.02, 10.0
+#: ...and on its way in, every joint pulled toward the carry pose's, the pull
+#: growing to this: the branch changes there, at the bottom behind the work --
+#: at a census of 205 such ways on the robot's model, the hand turned off level
+#: a median 13 deg (tilt 64 at most, in one way from a deep crouch) where the
+#: pull grown to 3 left 16, straight 40-50 and the side way ~145.
+LOW_IN_W = 10.0
 #: ...and home is the rest commanded and its drivers reading every joint
 #: within this of it, rad (they read to 0.0026).
 HOME_RAD = 0.05
@@ -1086,6 +1115,55 @@ def carry_descent(sm: SelfModel, side: str, q0, ways) -> float:
         worst = max(worst, top - float(pos[2]))
     prev = w
   return worst
+
+
+def low_way(sm: SelfModel, side: str, q0, q1) -> list[np.ndarray]:
+  """A thin carried piece's way from over the top to its carry pose `q1`
+  (`CARRY_OVER_ROLL`), on the robot's model of itself as posed (the stand's
+  statue, `Reach._picked`): the grip walked back, level, toward the toes
+  (`toes`), then down to the carry pose's grip height and across to its side,
+  then in to its grip -- a joint target every `LOW_STEP_M` of that line, each
+  the arm's six joints solved from the last (`_level_fit`), on its way in
+  every joint pulled toward the carry pose's (`LOW_IN_W`) -- then the carry
+  pose itself. Never higher than where it began. Leaves the arm at `q1`."""
+  q0, q1 = np.asarray(q0, dtype=float), np.asarray(q1, dtype=float)
+  sm._set_arm(side, q0)
+  p0, r0 = sm.grip_pose(side)
+  up = r0.T @ np.array([0.0, 0.0, 1.0])
+  sm._set_arm(side, q1)
+  p1 = sm.grip_pose(side)[0]
+  back = np.array([min(float(p0[0]), toes(sm)), p0[1], p0[2]])
+  under = np.array([back[0], p1[1], min(float(p0[2]), float(p1[2]))])
+  ways, q = [], q0.copy()
+  for leg, (a, b) in enumerate(((p0, back), (back, under), (under, p1))):
+    n = max(1, math.ceil(float(np.linalg.norm(b - a)) / LOW_STEP_M))
+    for i in range(1, n + 1):
+      pos = a + (b - a) * (i / n)
+      toward = (q1, LOW_IN_W * (i / n) ** 2) if leg == 2 else None
+      q = _level_fit(sm, side, q, pos, up, toward=toward)
+      ways.append(q.copy())
+  sm._set_arm(side, q1)
+  return ways + [q1.copy()]
+
+
+def _level_fit(sm: SelfModel, side: str, q_from, pos, up, toward=None) -> np.ndarray:
+  """The arm's six joints, from `q_from`, that put its grip at `pos` with the
+  hand's own `up` pointing up (bounded least squares, as a statue's balance
+  is solved; every joint `RANGE_MARGIN` inside its range); `toward`,
+  (joints, a weight): every joint pulled toward those."""
+  idx = sm.arm[side]
+  lo, hi = sm.ranges[idx, 0] + RANGE_MARGIN, sm.ranges[idx, 1] - RANGE_MARGIN
+  sky = np.array([0.0, 0.0, 1.0])
+
+  def resid(q):
+    sm._set_arm(side, q)
+    p, r = sm.grip_pose(side)
+    out = [(p - pos) * LOW_FIT_W, (r @ up - sky) * LOW_FIT_W]
+    if toward is not None:
+      out.append((q - toward[0]) * toward[1])
+    return np.concatenate(out)
+  x0 = np.clip(np.asarray(q_from, dtype=float), lo + 1e-9, hi - 1e-9)
+  return least_squares(resid, x0, bounds=(lo, hi), xtol=1e-10, ftol=1e-10, max_nfev=300).x
 
 
 def _side_way(side: str, q_out, q_home) -> list[np.ndarray]:
@@ -3087,6 +3165,13 @@ class Reach:
     dips = _dips(sm, side, q0, q1 if out else q0, ahead)
     if (not out and not np.array_equal(np.asarray(q1, dtype=float), self.rest[side])
             and self.grippers[side].gap_mean < CARRY_THIN_M):
+      if abs(float(np.asarray(q0, dtype=float)[hm.ARM.index("shoulder_roll")])) > CARRY_OVER_ROLL:
+        # ...from over the top, low: back, level, then down, then in (#770),
+        # on the stand's statue, as its carry pose is solved (`carry_pose`)
+        arms = {**self._arms(), **_arm(side, q1)}
+        stand = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+        statue(sm, (0.0, 0.0, 0.0), stand, arms=arms, fast=True)
+        return low_way(sm, side, q0, q1), dips
       # ...a carried arm's way, home to its carry pose (`home_to`), holding
       # something thin (`CARRY_THIN_M`): by its hand's descent further out
       # than both where it began and its carry pose (`CARRY_AHEAD_M`), the

@@ -774,6 +774,9 @@ def test_only_a_walker_that_never_trained_carrying_is_shown_its_arms_at_rest():
 #: (85449ac8's, the census of the loop of 11-26b, its six joints): over the
 #: top, its shoulder rolled 3 rad, its hand 0.2 m ahead at the pass's height.
 OVER_THE_TOP = (-0.241, 2.987, -0.381, 1.784, 1.058, 1.195)
+#: ...and holding the fork after its line out (a80b5375's, #770's census, the
+#: bar's draw 0): over the top too, its hand further out than its carry pose.
+FORK_OVER_THE_TOP = (0.17, 2.987, -0.225, 2.053, 0.327, 1.498)
 
 
 def _posed(q0):
@@ -786,7 +789,54 @@ def _posed(q0):
   return body, r, q0
 
 
-def test_a_carried_arms_way_home_keeps_its_hand_up_past_where_it_began():
+def _walked(sm, q0, way, dq=0.02):
+  """The grip's place and turn as the arm walks `way` from `q0` in joint
+  space, every joint arriving together (`Reach._joints`), every `dq` rad of
+  its furthest joint."""
+  out, prev = [], np.asarray(q0, dtype=float)
+  for w in way:
+    w = np.asarray(w, dtype=float)
+    n = max(1, math.ceil(float(np.abs(w - prev).max()) / dq))
+    for k in range(1, n + 1):
+      sm._set_arm("left", prev + (w - prev) * (k / n))
+      out.append(sm.grip_pose("left"))
+    prev = w
+  return out
+
+
+def _as_it_stands(r):
+  sm = r._planner_model()
+  sm.q = r.self_model.q.copy()
+  sm.d.qpos[:] = r.self_model.d.qpos
+  return sm
+
+
+def _on_the_stand(r, carry):
+  """The planner's model as the stand's statue, the left arm at its carry
+  pose, the right as commanded: where a carried way is planned (#770)."""
+  sm = r._planner_model()
+  stand = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  rc.statue(sm, (0.0, 0.0, 0.0), stand, arms={**r._arms(), **rc._arm("left", carry)}, fast=True)
+  return sm
+
+
+def _low_judged(r, q0, way):
+  """The way walked on the stand's statue: where its grip began and its carry
+  pose's, the toes, and each sample's grip and the hand's tilt off level."""
+  carry = way[-1]
+  sm = _on_the_stand(r, carry)
+  sm._set_arm("left", carry)
+  p1 = sm.grip_pose("left")[0]
+  sm._set_arm("left", q0)
+  p0, r0 = sm.grip_pose("left")
+  up = r0.T @ np.array([0.0, 0.0, 1.0])
+  front = max(rc.toes(sm), float(p1[0]))
+  walk = [(p, math.degrees(math.acos(np.clip((rot @ up) @ np.array([0.0, 0.0, 1.0]), -1.0, 1.0))))
+          for p, rot in _walked(sm, q0, way)]
+  return p0, p1, front, walk
+
+
+def test_a_carried_arms_way_is_judged_by_its_hands_descent_past_where_it_began():
   """#682's round 2 (the loop of 11-26b; SimNotes, "The place laid from the
   pass"): a walk's hand-over walked a carried arm to its carry pose the way
   home is judged -- by the arm alone, which a carry pose ahead of the
@@ -794,22 +844,69 @@ def test_a_carried_arms_way_home_keeps_its_hand_up_past_where_it_began():
   from the pass, its hand swung 0.1 m further out and came down while
   0.25-0.3 m ahead, and the plate met the counter it was lifted from in 30
   of 32 hand-overs, the fork in 19 of 31, every fork that turned past 10
-  deg in the jaws turning after such a touch. A carried way is judged by
-  its hand's descent while further out than both where it began and its
-  carry pose (`carry_descent`, `CARRY_AHEAD_M`): the side way, where it
-  comes down less there."""
+  deg in the jaws turning after such a touch. A thin carried way under
+  level is judged by its hand's descent while further out than both where
+  it began and its carry pose (`carry_descent`, `CARRY_AHEAD_M`): from over
+  the top, straight comes down past them and the side way less -- though
+  over the top the low way now takes it (#770, below)."""
   body, r, q0 = _posed(OVER_THE_TOP)
   try:
+    carry = r.carry_q["left"]
+    sm = _as_it_stands(r)
+    straight = rc.carry_descent(sm, "left", q0, [carry])
+    assert straight > rc.HOME_DIP_M, straight
+    assert rc.carry_descent(sm, "left", q0, rc._aside("left", q0, carry, False)) < straight
+  finally:
+    body.close()
+
+
+@pytest.mark.parametrize("q0", [OVER_THE_TOP, FORK_OVER_THE_TOP], ids=["plate", "fork"])
+def test_a_thin_piece_carried_from_over_the_top_comes_back_level_then_down_then_in(q0):
+  """#770 (SimNotes, "The place laid from the kitchen's shelf"): from over
+  the top -- its shoulder rolled past `CARRY_OVER_ROLL` -- every way in joint
+  space to the hanging carry pose swung what the hand held: straight, it
+  tilted 40-50 deg and swung 6-9 cm further out, the shelf's plate coming
+  down on the work board in 15 of 53 hand-overs; the side way raised it over
+  the shoulder, turned it ~145 deg and swept it down at the robot's side. A
+  thin carried way from over the top goes low (`low_way`): its hand never
+  higher than where it began nor further ahead than the further of that and
+  its carry pose, kept level, back before it goes down, and at its carry pose
+  at the end."""
+  body, r, q0 = _posed(q0)
+  try:
+    assert abs(q0[hm.ARM.index("shoulder_roll")]) > rc.CARRY_OVER_ROLL
     r.grippers["left"].gap_mean = 0.008                    # the plate's wall
     carry = r.carry_q["left"]
     way = r.way_home("left")
-    assert len(way) > 1 and np.allclose(way[-1], carry), "straight in joint space from over the top"
-    sm = r._planner_model()
-    sm.q = r.self_model.q.copy()
-    sm.d.qpos[:] = r.self_model.d.qpos
-    straight = rc.carry_descent(sm, "left", q0, [carry])
-    assert straight > rc.HOME_DIP_M, straight
-    assert rc.carry_descent(sm, "left", q0, way) < straight
+    assert np.allclose(way[-1], carry)
+    p0, p1, front, walk = _low_judged(r, q0, way)
+    for p, tilt in walk:
+      assert p[2] <= p0[2] + 0.005, f"the hand rose to {p[2]:.3f} m from {p0[2]:.3f}"
+      assert p[0] <= max(p0[0], p1[0]) + 0.005, f"the hand {p[0]:.3f} m ahead"
+      assert tilt <= 25.0, f"the hand tilted {tilt:.0f} deg"
+      if p[2] < p0[2] - 2 * rc.LOW_STEP_M:
+        assert p[0] <= front + 0.01, f"down at {p[0]:.3f} m ahead, not back first"
+  finally:
+    body.close()
+
+
+def test_a_thin_carried_way_from_a_bow_is_planned_where_the_stand_holds_it():
+  """...planned on the stand's statue, where its carry pose is solved and the
+  body stands once the way is begun (`_go_home` asks the stand): planned as a
+  bow stands, its hand was kept level only while the body stayed bowed, and
+  from a 0.3 rad bow it turned 40-47 deg once the trunk stood up (carry_spike's
+  table grip is taken so bowed; 3 of the pass's 63 such hand-overs began
+  bowed past 0.2 rad, one 0.79)."""
+  body, r, q0 = _posed(OVER_THE_TOP)
+  try:
+    stand = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    rc.statue(r.self_model, (-0.16, 0.3, 0.0), stand, arms=r._arms(), fast=True)
+    r.grippers["left"].gap_mean = 0.008                    # the plate's wall
+    way = r.way_home("left")
+    p0, p1, _, walk = _low_judged(r, q0, way)
+    assert max(t for _, t in walk) <= 25.0, max(t for _, t in walk)
+    assert max(p[2] for p, _ in walk) <= p0[2] + 0.005
+    assert min(p[2] for p, _ in walk) >= p1[2] - 0.05
   finally:
     body.close()
 
@@ -857,8 +954,9 @@ def test_a_carried_way_goes_aside_only_where_that_comes_down_less(monkeypatch):
   """...the judge's order, as the way home's (`HOME_DIP_M`): straight where
   going straight comes down no more than that past where it began, else the
   side way only where it comes down less there -- never one that comes down
-  as far or further."""
-  body, r, q0 = _posed(OVER_THE_TOP)
+  as far or further. A thin grip under level (over the top the low way takes
+  it, #770)."""
+  body, r, q0 = _posed(HELD_OUT)
   try:
     r.grippers["left"].gap_mean = 0.008
     for straight, aside, want in ((rc.HOME_DIP_M, 0.0, 1), (0.05, 0.02, 4), (0.05, 0.05, 1), (0.05, 0.08, 1)):
@@ -876,24 +974,21 @@ def test_a_carried_way_down_into_a_carry_pose_further_out_is_no_descent_past_it(
   way begins (0.213 m ahead, 0.183), and judged past where the way began
   alone, the coming down into it counted for every way alike (0.366 m each)
   and the plate went straight, meeting the counter as before. Over the top,
-  its carry pose put further out (its shoulder pitched forward), it goes the
-  side way, which comes down less past both (SimNotes, "The place laid from
-  the pass")."""
+  its carry pose put further out (its shoulder pitched forward), straight
+  still comes down past both and the side way less (SimNotes, "The place
+  laid from the pass"): the judge a thin grip under level keeps."""
   body, r, q0 = _posed(OVER_THE_TOP)
   try:
-    r.grippers["left"].gap_mean = 0.008                    # the plate's wall
     carry = r.carry_q["left"].copy()
     carry[hm.ARM.index("shoulder_pitch")] -= 0.2
-    r.carry_q["left"] = carry
-    sm = r._planner_model()
-    sm.q = r.self_model.q.copy()
-    sm.d.qpos[:] = r.self_model.d.qpos
+    sm = _as_it_stands(r)
     sm._set_arm("left", carry)
     out = float(sm.grip_pose("left")[0][0])
     sm._set_arm("left", q0)
     assert out > float(sm.grip_pose("left")[0][0]) + rc.CARRY_AHEAD_M, "the carry pose is not further out"
-    way = r.way_home("left")
-    assert len(way) > 1 and np.allclose(way[-1], carry), "straight down into a carry pose further out"
+    straight = rc.carry_descent(sm, "left", q0, [carry])
+    assert straight > rc.HOME_DIP_M, "straight down into a carry pose further out"
+    assert rc.carry_descent(sm, "left", q0, rc._aside("left", q0, carry, False)) < straight
   finally:
     body.close()
 
@@ -932,12 +1027,14 @@ def test_a_carried_arm_that_never_comes_down_past_its_pose_goes_straight():
   """...and one whose straight way keeps its hand up while further out than
   where it began -- a hand that holds fingers forward, as the shelf's do --
   goes straight, as before: the side way rolls the arm out with what it
-  holds."""
+  holds. Its elbow out at its shoulder's height, it is not over the top
+  (`CARRY_OVER_ROLL`, #770): no branch changes on its way."""
   from pluggybot.humanoid.arms import FORWARD
   body = body_for(*_floor())
   r = body.mission.reach
   try:
     q0, _, _ = r.self_model.solve("left", (0.35, 0.2, 1.0), FORWARD)
+    assert abs(q0[hm.ARM.index("shoulder_roll")]) < rc.CARRY_OVER_ROLL
     body.close()
     body, r, q0 = _posed(q0)
     r.grippers["left"].gap_mean = 0.008                    # something thin: judged by its hand
