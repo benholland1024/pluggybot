@@ -478,9 +478,10 @@ save a filmstrip PNG named after the script.
   (#763's remedy; `ArmsMemory.since`, `HumanoidMission.believed_stance`): a
   reach steps no scan, the legs' reckoning moved the believed stance 2 cm as
   the pelvis went back 17 cm, and placed through it a look's rise 1.2 cm
-  into a board read clear -- ⚠ but none from a frame the believed stance has
-  turned `KNEE_JUMP_RAD` (3 deg) from since: a posture can swivel the feet
-  15-26 deg with no step (#746). ⚠
+  into a board read clear -- ⚠ but none from a frame the legs reckon the
+  stance has turned `KNEE_JUMP_RAD` (3 deg) or moved `KNEE_JUMP_M` (10 cm)
+  from since (`reckoned_stance`: no scan match counts): a posture can swivel
+  the feet 15-26 deg with no step (#746). ⚠
   JUDGED AS IT STANDS, FLOWN AS IT STANDS (#693; `Reach._go_home`,
   `_ahead`; SimNotes, "The way home flown in the posture it was judged
   in"): off the stand, an arm with none of it ahead of the front -- judged

@@ -377,10 +377,10 @@ class ArmsMemory(KneeMemory):
   def __init__(self) -> None:
     super().__init__()
     self.pts = np.zeros((0, 3))
-    #: The believed stance (x, y, heading) each kept frame was folded at, by
-    #: the frame's time (`fold`'s `stance`): what `since` places its voxels
-    #: through (#763's remedy).
-    self.stances: dict[float, tuple[float, float, float]] = {}
+    #: The believed stance (x, y, heading) each kept frame was folded at, and
+    #: its legs' reckoning of it (`fold`'s `stance`, `reckoned`), by the
+    #: frame's time: what `since` places its voxels through (#763's remedy).
+    self.stances: dict[float, tuple[float, ...]] = {}
 
   def forget(self) -> None:
     self.pts, self.t = np.zeros((0, 3)), np.zeros(0)
@@ -392,18 +392,20 @@ class ArmsMemory(KneeMemory):
     self.stances = {k: v for k, v in self.stances.items() if k in held}
 
   def fold(self, points: np.ndarray, t: float, pose, corrected, facing: float = 0.0,
-           stance=None) -> None:
+           stance=None, reckoned=None) -> None:
     """A levelled frame's points (from the pelvis along its heading, z over
     the floor; what a hand holds already out) at time `t`, its camera turned
     `facing` rad off the heading: those from `LOW_MIN_Z` to `ARMS_TOP_Z`
     within `KNEE_M` kept, in the believed world, in place of what was kept
     where the frame saw past it afresh (`KneeMemory.fold`'s rule); what is
     older or further gone. `stance`, the believed stance the frame is folded
-    at (`HumanoidMission.believed_stance`), is kept while any voxel's newest
-    sight is this frame (`since`)."""
+    at (`HumanoidMission.believed_stance`), and `reckoned`, the legs' own
+    reckoning of it (`reckoned_stance`), are kept while any voxel's newest
+    sight is this frame (`since`): the first fold of a time keeps its own."""
     self._jumped(corrected)
     if stance is not None:
-      self.stances[float(t)] = tuple(float(v) for v in stance)
+      self.stances.setdefault(float(t), tuple(float(v) for v in stance)
+                              + tuple(float(v) for v in (stance if reckoned is None else reckoned)))
     p = points
     keep = ((p[:, 2] >= LOW_MIN_Z) & (p[:, 2] <= ARMS_TOP_Z)
             & (np.hypot(p[:, 0], p[:, 1]) <= KNEE_M)) if len(p) else np.zeros(0, dtype=bool)
@@ -444,28 +446,31 @@ class ArmsMemory(KneeMemory):
       return self.pts
     return np.concatenate((self._from(pose), self.pts[:, 2:3]), axis=1)
 
-  def since(self, t0: float, heading: float | None = None) -> np.ndarray:
+  def since(self, t0: float, reckoned=None) -> np.ndarray:
     """The voxels last seen at or after `t0`, tops kept, each in the stance
     frame it was seen from: placed through the believed stance its frame was
     folded at (`fold`'s `stance`), never the stance now (#763's remedy, what a
     procedure's posture judges its trunk against, `Reach._trunk`). ⚠ THROUGH
     A BOW THE LEGS' RECKONING ALONE MOVES THE BELIEF (a reach steps no scan):
     placed through it, a board read 1.6 cm off (SimNotes, "A reach's bow under
-    a shelf's board"). ⚠ BUT NONE FROM A FRAME THE BELIEVED STANCE HAS TURNED
-    PAST `KNEE_JUMP_RAD` FROM SINCE (`heading`, its heading now): the feet
-    turned under it, a posture's swivel with no step (#746). None from a frame
-    folded with no stance (a memory kept from before it); and a belief jump
-    still empties the memory where it is read placed through the belief
-    (`near`, `faces`, `fold`). A read that forgets nothing."""
+    a shelf's board"). ⚠ BUT NONE FROM A FRAME THE LEGS RECKON THE STANCE HAS
+    TURNED PAST `KNEE_JUMP_RAD` OR MOVED PAST `KNEE_JUMP_M` FROM SINCE
+    (`reckoned`, their reckoning now, less every outside correction): the feet
+    moved under it with no step (#746's swivel, a foot dragged), and no scan
+    match counts. None from a frame folded with no stance (a memory kept from
+    before it). A read that forgets nothing -- but a belief jump empties the
+    memory where it is read through the belief (`near`, `faces`, `fold`)."""
     keep = self.t >= t0 - 1e-9
     if not keep.any():
       return np.zeros((0, 3))
     pts, ts = self.pts[keep], self.t[keep]
     folds = np.unique(ts)
     known = np.array([float(f) in self.stances for f in folds])
-    at = np.array([self.stances.get(float(f), (0.0, 0.0, 0.0)) for f in folds]).reshape(-1, 3)
-    if heading is not None:
-      known &= np.abs(np.remainder(at[:, 2] - heading + math.pi, 2 * math.pi) - math.pi) <= KNEE_JUMP_RAD
+    at = np.array([self.stances.get(float(f), (0.0,) * 6) for f in folds]).reshape(-1, 6)
+    if reckoned is not None:
+      rx, ry, ryaw = (float(v) for v in reckoned)
+      known &= np.abs(np.remainder(at[:, 5] - ryaw + math.pi, 2 * math.pi) - math.pi) <= KNEE_JUMP_RAD
+      known &= np.hypot(at[:, 3] - rx, at[:, 4] - ry) <= KNEE_JUMP_M
     i = np.searchsorted(folds, ts)
     c, s = np.cos(at[i, 2]), np.sin(at[i, 2])
     dx, dy = pts[:, 0] - at[i, 0], pts[:, 1] - at[i, 1]
@@ -492,7 +497,7 @@ class ArmsMemory(KneeMemory):
     return ({"seen": None if self.seen is None else [float(v) for v in self.seen]},
             {"armsPts": self.pts, "armsT": self.t,
              "armsFoldT": np.array(folds, dtype=float),
-             "armsFoldStance": np.array([self.stances[f] for f in folds], dtype=float).reshape(-1, 3)})
+             "armsFoldStance": np.array([self.stances[f] for f in folds], dtype=float).reshape(-1, 6)})
 
   def restore_kept(self, state: dict | None, arrays: dict) -> None:
     if state is None or "armsPts" not in arrays:
@@ -505,7 +510,7 @@ class ArmsMemory(KneeMemory):
     # ...a save from before #763's remedy kept no stances: its voxels judge
     # no trunk until a frame folds again (`since`)
     folds = np.asarray(arrays.get("armsFoldT", np.zeros(0)), dtype=float).reshape(-1)
-    at = np.asarray(arrays.get("armsFoldStance", np.zeros((0, 3))), dtype=float).reshape(-1, 3)
+    at = np.asarray(arrays.get("armsFoldStance", np.zeros((0, 6))), dtype=float).reshape(-1, 6)
     self.stances = {float(f): tuple(float(v) for v in a) for f, a in zip(folds, at)}
 
 
@@ -1500,7 +1505,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     facing = float(self.odo.sm.q[self.odo.sm.waist][0])
     self.knee.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing)
     self.swing.fold(points, self._frame_t, self.pose, self.odo.corrected, facing=facing,
-                    stance=self.believed_stance())
+                    stance=self.believed_stance(), reckoned=self.reckoned_stance())
 
   def arms_seen(self) -> np.ndarray:
     """What its depth camera has seen where its arms swing (`ArmsMemory`) at a
@@ -1522,10 +1527,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     and a board laid before the last steps stood 2-7 cm nearer than it was. ⚠
     NEVER THROUGH THE BELIEF AS IT IS NOW (#763's remedy): through a bow the
     legs' reckoning carries it 1-3 cm while the feet stand -- but nothing from
-    a frame its believed stance has turned 3 deg from since (the feet turned
-    under it). Empty just after a step, before the camera has seen again, or
-    after a belief jump (#747's forget): nothing is judged."""
-    return self.swing.since(float(self.last_motion_t), self.believed_stance()[2])
+    a frame the legs reckon the stance has turned 3 deg or moved 10 cm from
+    since (the feet moved under it). Empty just after a step, before the
+    camera has seen again: nothing is judged; after a belief jump, empty
+    where #747's faces were read first (a reach), whole where they were not
+    (a carry's, a pull's)."""
+    return self.swing.since(float(self.last_motion_t), self.reckoned_stance())
 
   def believed_stance(self) -> tuple[float, float, float]:
     """Where it believes its stance is, (x, y, heading): its pelvis where it
@@ -1540,6 +1547,14 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     c, s = math.cos(syaw), math.sin(syaw)
     px, py = float(sm.d.qpos[0]), float(sm.d.qpos[1])
     return x - (c * px - s * py), y - (s * px + c * py), syaw
+
+  def reckoned_stance(self) -> tuple[float, float, float]:
+    """Its stance by its legs' own reckoning: `believed_stance` less every
+    correction from outside it -- a scan match, a station's look -- summed
+    (`StanceOdometry.corrected`); `HumanoidBody.reckoned`, one definition."""
+    x, y, yaw = self.believed_stance()
+    c = self.odo.corrected
+    return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
 
   def _in_stance(self, pts: np.ndarray) -> np.ndarray:
     """Voxels from its pelvis along its heading (the memory's), in its stance

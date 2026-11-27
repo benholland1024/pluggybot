@@ -234,9 +234,10 @@ def test_the_trunks_view_stays_where_it_was_seen_while_the_belief_drifts():
   now -- read as a reach reads it, #747's faces first (`_reached`). ⚠ Through
   a bow the legs' reckoning carried lane C's rack's believed stance 2 cm
   while the feet stood, and placed through it the board read 1.6 cm further
-  at the look than at the plan. ⚠ A turn of the believed stance past
-  `KNEE_JUMP_RAD` since a frame drops that frame (the feet turned under it,
-  #746); a belief jump empties the memory as #747's faces read it."""
+  at the look than at the plan. ⚠ A turn past `KNEE_JUMP_RAD` or a move past
+  `KNEE_JUMP_M` the legs reckon since a frame drops that frame (the feet
+  moved under it, #746), never a match's correction; a belief jump empties
+  the memory as #747's faces read it."""
   from test_guard import _floor_body
   body = _floor_body()
   try:
@@ -261,8 +262,18 @@ def test_the_trunks_view_stays_where_it_was_seen_while_the_belief_drifts():
     assert len(read()) == 0
     mi.odo.offset -= math.radians(4.0)
     assert np.allclose(read(), seen, rtol=0.0, atol=1e-12)
-    # ...and a match's jump of 0.2 m: a carry's read, its trunk's alone, finds
-    # the view where it was seen; a reach's, #747's faces first, forgets it
+    # ...the legs reckon it 12 cm from the frame's, a foot dragged: nothing
+    mi.odo.x += 0.10
+    assert len(read()) == 0
+    mi.odo.x -= 0.10
+    assert np.allclose(read(), seen, rtol=0.0, atol=1e-12)
+    # ...a match turns the belief 4 deg: no turn of the feet, the view in place
+    # for a carry's read, its trunk's alone
+    x, y, yaw = mi.pose
+    mi.odo.correct(x, y, yaw + math.radians(4.0))
+    assert np.allclose(mi.trunk_seen(), seen, rtol=0.0, atol=1e-12)
+    # ...and a match's jump of 0.2 m: a carry's read still finds the view
+    # where it was seen; a reach's, #747's faces first, forgets it
     x, y, yaw = mi.pose
     mi.odo.correct(x + 0.2, y, yaw)
     assert np.allclose(mi.trunk_seen(), seen, rtol=0.0, atol=1e-12)
@@ -286,6 +297,9 @@ def test_a_voxel_seen_again_is_placed_by_its_newest_frames_stance():
   mem.fold(np.array([[0.41, 0.3, 0.9]]), 3.0, (0.03, 0.0, 0.0), z, stance=(0.02, 0.01, 0.0))
   got = sorted(map(tuple, np.round(mem.since(0.5), 9)))
   assert got == [(0.42, 0.29, 0.9), (0.49, 0.0, 0.96)] and sorted(mem.stances) == [2.0, 3.0]
+  # ...and a frame's time folded again keeps the stance its voxels were laid by
+  mem.fold(np.array([[0.41, 0.3, 0.9]]), 3.0, (0.03, 0.0, 0.0), z, stance=(0.5, 0.5, 0.5))
+  assert sorted(map(tuple, np.round(mem.since(0.5), 9))) == got
 
 
 def test_the_folds_stances_ride_a_restart_and_a_save_without_them_judges_nothing(tmp_path):
@@ -314,8 +328,9 @@ def test_the_folds_stances_ride_a_restart_and_a_save_without_them_judges_nothing
 
 def test_the_look_step_folds_its_frame_at_the_stance_the_body_believes(monkeypatch):
   """`HumanoidMission._look_step` hands the arms' memory the believed stance
-  it folds a frame at -- `HumanoidBody.stance`'s, one definition
-  (`believed_stance`)."""
+  it folds a frame at and its legs' reckoning of it -- `HumanoidBody.stance`
+  and `reckoned`, one definition each (`believed_stance`,
+  `reckoned_stance`)."""
   from test_guard import _floor_body
   body = _floor_body()
   try:
@@ -328,12 +343,14 @@ def test_the_look_step_folds_its_frame_at_the_stance_the_body_believes(monkeypat
     real = mi.swing.fold
 
     def spy(*a, **kw):
-      folded.append(kw.get("stance"))
+      folded.append((kw.get("stance"), kw.get("reckoned")))
       return real(*a, **kw)
     monkeypatch.setattr(mi.swing, "fold", spy)
     mi._look_step()
-    assert folded == [body.stance] and folded[0] == mi.believed_stance()
-    assert mi.swing.stances[5.0] == tuple(body.stance)
+    assert folded == [(body.stance, body.reckoned)]
+    assert folded[0] == (mi.believed_stance(), mi.reckoned_stance())
+    assert body.stance != body.reckoned, "the premise: a correction parts the two"
+    assert mi.swing.stances[5.0] == tuple(body.stance) + tuple(body.reckoned)
   finally:
     body.close()
 

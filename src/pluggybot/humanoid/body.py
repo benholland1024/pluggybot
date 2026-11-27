@@ -650,10 +650,9 @@ class HumanoidBody(Body):
     odometry moves the pelvis in the believed heading, and so turned, a bow
     read as the feet moving. A turn corrected while a verb runs leaves that
     place turned by it, at most the place times the turn (mm). Off the
-    odometry's state as it last ticked: nothing read afresh."""
-    x, y, yaw = self.stance
-    c = self.mission.odo.corrected
-    return x - float(c[0]), y - float(c[1]), yaw - float(c[2])
+    odometry's state as it last ticked: nothing read afresh
+    (`HumanoidMission.reckoned_stance`, one definition)."""
+    return self.mission.reckoned_stance()
 
   def to_stance(self, p) -> np.ndarray:
     """A believed world point in its stance frame."""
