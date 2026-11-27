@@ -13353,9 +13353,9 @@ base's 576 hands checks are C15's rows):
   the pass laid 2 fewer (7 lost, 5 gained, sign p 0.39), by the rule written
   before the flights. It was made for the old face's 5.6 deg; the face now
   lands square and the turn leaves the plate's trip about 6 deg left of it,
-  where the plate met the pass's top in 4 hand-overs of 64 against 1 without
-  the turn: the turn over-correcting now, which a round of its own can take
-  out. Held out (32 draws sealed by ed99708): today's tree 25 with a fall,
+  where the plate struck the pass's top in 4 places of 64 against 1 without
+  the turn (3 on today's tree): the turn over-correcting now, which a round of
+  its own can take out. Held out (32 draws sealed by ed99708): today's tree 25 with a fall,
   the face's 23 with none (7 lost, 5 gained, sign p 0.39).
 - **The robots' own 200 tries** (X5's kit: the robots' kept procedures at
   their live draws; every try runs a `face`, so every one moved): passes 2 to
