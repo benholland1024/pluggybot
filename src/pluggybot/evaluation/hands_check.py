@@ -571,9 +571,26 @@ TABLE_STANCES = '''def lay_place():
 #: square grip planned only half a turn round, which turned the held product
 #: over; ⚠ a lower label is read off its twin above it, the set-down 0.40 m
 #: under it (round 6): from nearer than 0.48 m a lower label's tag is past the
-#: colour picture's bottom, and the carried trip's sidesteps creep 2-8 cm in
-#: (SimNotes, "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are
-#: the job's labels (`source`).
+#: colour picture's bottom, and the carried trip's sidesteps creep 2-8 cm in; ⚠
+#: at the cart the candle's step is taken sideways alone while its sideways
+#: error is past near()'s tolerance (round 10): taken ahead and sideways at once
+#: after the trip back, the cart's front-right leg at the knees' height stopped
+#: it, and the pick was out of reach; ⚠ a frame whose label reads nearer than
+#: 0.45 m once the robot stands at it steps back 8 cm before its set-down (round
+#: 13): the carried trip's sidesteps bring the robot in, and from there the set-
+#: down's bow stopped short, its fallback was planned standing with the waist
+#: turned and the frame turned over, or the trip back was blocked by the cart's
+#: front-right leg (a carried step asked under about 6 cm moves nothing); ⚠ the
+#: lower candle is aimed 1 cm further right (round 13): the set-down's postures
+#: swivel the feet, and its placements landed a mean 1 cm left; ⚠ an upper
+#: candle whose label reads further than 0.50 m is set down 2 cm less deep
+#: (round 17): from there the press at full stretch ran out of reach with a jaw
+#: on the board and slid the hand back toward the board's edge, and the candle
+#: let go there fell; ⚠ an upper candle whose label reads nearer than 0.45 m
+#: steps back 8 cm before its set-down too (round 18): set down from nearer, the
+#: reach took its deepest posture and put the head on the board (SimNotes,
+#: "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are the job's
+#: labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=200,seconds=290)
   one(%(frame)d,0)
@@ -606,6 +623,9 @@ def one(lab,i):
   tz=0.035*(lab>81)
   side(my-0.87+0.36*i-0.25*k+tz)
   near(tl,0.5,0.23-tz,0.08)
+  if ((i<1)+i*(lab>81))*(read("spot.x")<0.45):
+    if not step(-0.08,0):pass
+    near(tl,0.5,0.23-tz,0.08)
   a=atan2(read("spot.ny"),read("spot.nx"))
   if a*a>0.0012:
     if not step(0,0,a):pass
@@ -616,7 +636,7 @@ def one(lab,i):
       if not step(0,ly-0.23+tz+0.03*(2*(ly>0.27-tz)-1)):pass
       x=x-read("step.dx");ly=ly-read("step.dy")
       if spot(tl):x=read("spot.x");ly=read("spot.y")
-  x=x+0.08-q;z=z+0.075+oz;w=ly-r-0.01+0.035*(lab>81)
+  x=x+0.08-0.02*i*(lab>81)*(x>0.5)-q;z=z+0.075+oz;w=ly-r-0.01-0.01*i*(lab<82)+0.035*(lab>81)
   if not reach("left",x-0.17,w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
   if not move_hand("left",x,w,z):
     if x-read("left.x")>0.01:pull("left",1,0,0,10,x-read("left.x"),give=0)
@@ -649,7 +669,7 @@ def near(t,w,yt,o):
     if spot(t):x=read("spot.x");d=read("spot.y")-yt;b=(x-w)*(w>0)*(1-(w>0.4)*(0.5+0.5*(x<w+0.05))-0.4*(w<0.4)*(x>w));q=0
     if q+d*d+b*b<=0.0012:return
     if d*d+b*b>0.0012:
-      if not step(b,d):pass
+      if not step(b*(1-(w<0.4)*(d*d>0.0012)),d):pass
   spot(t)
 '''
 
