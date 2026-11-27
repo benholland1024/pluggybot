@@ -370,9 +370,12 @@ def _face(life, args: dict) -> Routine:
   heading = float(args["heading"])
   rep = yield from life.body.step_routine(
     0.0, 0.0, math.remainder(heading - life.body.stance[2], 2 * math.pi))
+  # ...and its legs gone back to standing before both soles read down, as a
+  # step's (#740)
+  down = {"feetDown": False} if rep.get("feetDown") is False else {}
   if rep["why"] == "stepped":
-    return {"ok": True, **_carried(life)}
-  return {"ok": False, "why": rep["why"], **_carried(life),
+    return {"ok": True, **_carried(life), **down}
+  return {"ok": False, "why": rep["why"], **_carried(life), **down,
           "reason": FACE_WHY.get(rep["why"], FACE_WHY["turned short"]).format(heading=heading)}
 
 

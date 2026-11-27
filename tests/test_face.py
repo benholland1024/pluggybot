@@ -122,6 +122,23 @@ def test_a_face_that_does_not_get_there_reads_false_saying_how(why, said):
   assert done.value.value == {"ok": False, "why": why, "reason": said}
 
 
+def test_a_face_whose_legs_went_back_before_both_soles_read_down_says_so():
+  """#740's hand-back is a face's too: where its settle's bound ran out first
+  the verdict says so (`feetDown`: false), as a step's does, and nothing
+  where both soles read down."""
+  def faced(settled):
+    def step_routine(ahead, left=0.0, turn=0.0):
+      return {"why": "stepped", **({} if settled else {"feetDown": False})}
+      yield
+    body = NS(stance=(0.0, 0.0, 0.0), arm_kept=lambda: None, carrying=lambda s: False,
+              arm_held=lambda s: False, step_routine=step_routine)
+    with pytest.raises(StopIteration) as done:
+      next(st._face(NS(body=body), {"heading": 0.5}))
+    return done.value.value
+  assert faced(False) == {"ok": True, "feetDown": False}
+  assert faced(True) == {"ok": True}
+
+
 def test_faces_text_says_where_its_feet_end_as_steps_says_its_turns():
   """Its line says what it now does (#765): a turn in place to a heading in
   the map (#754), ok once the feet are turned to it within the step's own
