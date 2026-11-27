@@ -1129,8 +1129,9 @@ def test_the_shelf_fork_s_stow_asks_little_only_where_its_tip_stands_at_the_boar
   edge, and the stow's lowering, asking 20 N, pressed it on the board's top
   and turned the fork 28-57 deg in the jaws in 14 of 15 trips. Asking 3 N it
   stops where the tip meets the board, the fork flat; asked of every stow, 3
-  N slowed almost every one as it began and redrew every fork trip (A5's and
-  A6's flights; SimNotes, "The place laid from the kitchen's shelf"). Off
+  N slowed almost every one as it began and flew almost every fork trip
+  afresh (A5's and A6's flights; SimNotes, "The place laid from the kitchen's
+  shelf"). Off
   the reference's own source: the grip's place is read where the move back
   begins, no verb between; the lowering asks `SHELF_FORK_STOW_N` where it
   reads nearer than `SHELF_FORK_EDGE` -- the tip then within 1 cm of the edge
@@ -1243,10 +1244,11 @@ def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) 
 def test_the_shelf_cup_s_re_set_move_is_taken_back_where_it_reads_false(monkeypatch):
   """The cup's re-set (the pass's: looked at again set down and still held,
   lifted 1.5 cm and moved where the card puts its place) moved the cup
-  further off in every re-set whose move read false: out of reach, the move
-  swung the hand 5-8 cm to the right, and the cup came down 3-7 cm off a
-  place it had first been set down within 2.5 cm of (A6's reading of A5's
-  rows; SimNotes, "The place laid from the kitchen's shelf"). Off the
+  further off in 7 of the 8 re-sets whose move read false that can be read:
+  out of reach, the move swung the hand 5-8 cm to the right, and the cup came
+  down 3-7 cm off a place it had first been set down within 2.5 cm of (A6's
+  reading of A5's rows; SimNotes, "The place laid from the kitchen's
+  shelf"). Off the
   reference's own source, run by the language: where the re-set's move
   reads false, the hand goes back to where the move began by `go` -- the
   place read as it began, no verb between -- before it sets the cup down;

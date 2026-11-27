@@ -736,8 +736,8 @@ SHELF_FORK_LEFT = 0.25
 #: board's top and turned the fork 28-57 deg in the jaws in 14 of 15 trips
 #: from under 0.41 m. At 3 N it stops where the tip meets the board, the fork
 #: turned 4-8 deg; asked of every stow, 3 N slowed almost every one as it
-#: began and redrew every fork trip (SimNotes, "The place laid from the
-#: kitchen's shelf").
+#: began and flew almost every fork trip afresh (SimNotes, "The place laid
+#: from the kitchen's shelf").
 SHELF_FORK_EDGE, SHELF_FORK_STOW_N = 0.425, 3
 #: Each shelf run's put-down only while its hand still holds the piece, the
 #: run ended otherwise: after the step at the table let the plate go, the
@@ -748,8 +748,9 @@ SHELF_HELD = '''  if read("%s.held") < 0.5:
 #: The cup's re-set (the pass's, `PASS_CUP_AGAIN`) taken back where its move
 #: reads false, the hand sent back to where that move began before the cup
 #: is set down: out of reach, the move swung the hand 5-8 cm to the right,
-#: and the cup came down 3-7 cm off a place it had first been set down
-#: within 2.5 cm of (SimNotes, "The place laid from the kitchen's shelf").
+#: and where it read false the cup came down 3-7 cm off in 7 of 8, each set
+#: down within 2.5 cm before (SimNotes, "The place laid from the kitchen's
+#: shelf").
 SHELF_CUP_UNDO = ('''      if not move_hand("right", read("right.x") + dx, read("right.y") + dy, read("right.z")):
         pass
 ''', '''      rx = read("right.x")
