@@ -1004,12 +1004,22 @@ save a filmstrip PNG named after the script.
   every ray met it. The level ring stays for the instruments and as the
   Navigator's default scan; nothing the humanoid decides reads it since
   #572's stage 3. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a plane by its
-  centre. ⚠ A STATIC GEOM PAST A SENSOR'S REACH IS LEFT OUT OF ITS CAST
-  (`perception.cull`, #560; the LIDAR's and the depth camera's): every geom
-  costs every ray, reachable or not, and the readings are the same bit for
-  bit (`test_cull.py`) -- judged afresh each cast, as activities move and
-  resize geoms. ⚠ WHAT IS PUT AWAY IS IN NO CAST (`cull.PARKED_GROUP`, 3;
-  the restaurant's dishware between its jobs): every cast leaves the group
+  centre. ⚠ A GEOM PAST A SENSOR'S REACH IS LEFT OUT OF ITS CAST, WELDED
+  TO THE WORLD OR NOT (`perception.cull.Cull`, #560, #775; the LIDAR's and
+  the depth camera's): every geom costs every ray, reachable or not, a body
+  with no bounding-volume tree in full (the place's dishware) -- judged
+  afresh each cast where the cast meets it. ⚠ NEVER THE SENSOR'S OWN ROBOT,
+  NOR A ROBOT THE DEPTH CAMERA FILTERS: it reads them past its range gate
+  (`self_fraction`, and whether its peer stream draws), so a geom that moves
+  leaves a depth frame only past the farthest such robot in its view
+  (`Cull.farthest`). Every reading is as it was before #775, bit for bit,
+  noise streams included (`test_cull.py`); ⚠ but against no cull at all,
+  #560's welded cull parts the pair's depth camera's `self_fraction` and
+  peer draws (never its z or points) where a far wall hides the other robot
+  past the gate, 9 and 7 of 600 pair poses (SimNotes, "The cull for what
+  moves"). ⚠ WHAT IS PUT AWAY
+  IS IN NO CAST (`cull.PARKED_GROUP`, 3; the restaurant's dishware between
+  its jobs): every cast leaves the group
   out, the cull off or on, and MuJoCo's cameras draw groups 0-2 alone. ⚠ AND
   A CAST LOSES NO BODY IT MEETS (#657; `cull.static_inertials`; SimNotes, "A
   ray through a body MuJoCo's cull left out"): MuJoCo 3.10's `mj_multiRay`

@@ -7235,6 +7235,33 @@ alone would not do: a body yawed in the world turns a horizontal offset (the
 shelves' centres of mass lie off their boxes' middles), so the frame stands
 on the box's middle, where there is no offset to turn.
 
+## The cull for what moves (issue #775)
+
+**What is true now.** A cast leaves out every geom past its sensor's reach,
+welded to the world or not (`perception.cull.Cull`), judged where the cast
+meets it. The LIDAR keeps its own robot and leaves out the rest past 8 m, the
+other robot too: past its reach a return is what `_sort` calls far, whatever
+it hit. The depth camera keeps the robots it filters, because it reads them
+past its range gate (`self_fraction`, and whether its peer stream draws), so
+a geom that moves leaves its cast only past the farthest of them in its view
+(`Cull.farthest`). Every reading is as it was, bit for bit, noise streams
+included (`test_cull.py`; on one pod, the table check's and the drawer's
+set-outs 0-3, three station approaches, the served table job and the pair's
+scripted day flew the same on both trees). What it bought was the place:
+compiled put away (contype and conaffinity 0), the dishware has no
+bounding-volume tree, so `mj_multiRay` tested every ray against its 25 geoms
+in full wherever it stood. At the pair's walks in the house it cost 1.1 ms of
+a LIDAR frame's 11.6 and 1.6 of a depth frame's 15.4, a tenth of each, where
+the counter's 26 props, each body with its tree, cost nothing measurable.
+Compiled with a tree, the place set out costs a far cast nothing too, but
+the served table job's flights part (not built). On one pod the pair's walks
+ran 4.0 % faster with the place set out and both robots in the house, 3.5 %
+with one in the park, the casts 0.87-0.89 of their time; put away, within
+noise. ⚠ Against no cull at all, #560's welded cull already parts the pair's
+depth camera's `self_fraction` and peer draws, never its z or points: a far
+wall left out lets the camera count the other robot behind it past the gate
+(9 and 7 of 600 random pair poses; 7 and 7 of the walks' 706 frames).
+
 ## The table set served (issue #560)
 
 **What is true now.** The restaurant's dining tables are a top on legs and
