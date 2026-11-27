@@ -944,21 +944,26 @@ save a filmstrip PNG named after the script.
   out (#316), its noise its robot's own (`imu.seed_for`). ⚠ WHAT A HAND HOLDS
   IS NO RETURN (#682, Ben's call 5; `HumanoidMission.HELD_DROP_M`,
   `HELD_DEPTH_M`, `_held_drop`, `Lidar.band`'s `drop`): every return within
-  0.25 m of a grip that reads held -- in the depth camera's frame, 0.20 --
+  0.16 m of a grip that reads held -- in the depth camera's frame, 0.12 --
   placed off the robot's model of itself, never the simulator's geoms, is
   neither a point nor a ray that went on (a bearing it stopped reads nothing,
   never free): seen, 7 of 10 holding poses never arrived, the front stop
-  backing the robot off its own plate. ⚠ EACH RADIUS IS WHAT A JOB'S CARRIED
-  PIECES NEED OF IT, TO THE CM AND NO WIDER (#762; `tests/test_self_filter.py`,
-  its `CARRIED` the references' grips, which #736's merge grows): the farthest
-  point of a piece that sensor can see at the carry pose, the 3 cm the model
-  may be off the true grip and two sigmas of its range noise -- the LIDAR's
-  the pass's fork's head (0.241), the depth camera's the plate's rim (0.198):
-  at 0.12, #736's candle fired the front stop on a fifth of the scans carried
-  and every carried walk crawled. ⚠ WHAT IT HIDES THE FRONT STOP NEVER SEES:
-  inside 0.22 the pass's edge beside a carried fork (0.17-0.19 m from the
-  grip), and the walk turned into it (the fork on the pass 12 times in 32
-  places at 0.25, 6 at 0.12; SimNotes). ⚠ THE MAP'S SCAN IS
+  backing the robot off its own plate. ⚠ THE LIDAR'S RADIUS LIES BETWEEN TWO
+  MEASURES (#762; `tests/test_self_filter.py`): over what a carried candle's
+  own returns need at ONE sigma of its range noise -- its farthest point the
+  rings reach at the carry pose and the 3 cm the model may be off the true
+  grip, 0.154 (at 0.12, #736's candle fired the front stop on a fifth of the
+  scans carried and every carried walk crawled) -- and narrow enough for the
+  front stop to see the pass's edge beside a carried fork as its walk
+  begins, its nearest point 0.16-0.21 m from the grip: at 0.22 and 0.25 it
+  saw it on few scans, the walk turned into it, and the fork struck the pass
+  12 and 14 times in 32 places, against 6 at 0.12. ⚠ SO IT LEAVES WHAT IT
+  CANNOT COVER: a candle still fires the front stop on 1-6 % of the scans
+  carried, and a fork's head (0.24 at two sigmas) is laid in the map on a
+  fifth to a half of them. ⚠ THE DEPTH CAMERA'S IS #682'S, a cup or a candle
+  whole (its noise a few mm): a plate's rim and a fork's head stay in its
+  frame, which a reach's swing, its trunk and a step's knee room are judged
+  against (at 0.20 the pass laid no better; SimNotes). ⚠ THE MAP'S SCAN IS
   THE BAND (`Lidar.band`): per bearing the nearest surface 0.15-2.2 m over
   the floor, levelled through the IMU's tilt and set over the floor by its
   model of itself -- the fences, the tables, the couch with the walls -- ⚠ its

@@ -158,18 +158,23 @@ def _bins(a: np.ndarray) -> np.ndarray:
 #: 7 of 10 poses holding the table's plate or cup never arrived walked to a
 #: goal 4 m off, the front stop backing it off its own plate. Never by the
 #: simulator's geoms: the robot knows its own hand and its grip's word, never
-#: what is in it. ⚠ SIZED BY WHAT A JOB CARRIES (#762, `test_self_filter.py`):
-#: the farthest point of a carried piece its rings reach at the carry pose,
-#: the 3 cm the model may be off the true grip and two sigmas of its range
-#: noise -- the pass's fork's head, 0.135 m from the grip. At 0.12, #736's
+#: what is in it. ⚠ SIZED BETWEEN TWO MEASURES (#762, `test_self_filter.py`):
+#: over what a carried candle's own returns need at one sigma of the range
+#: noise -- its farthest point the rings reach at the carry pose and the 3 cm
+#: the model may place its grip off the true one, 0.154 (at 0.12, #736's
 #: candle fired the front stop on a fifth of the scans carried, and every
-#: carried walk crawled (SimNotes, "The self-filter sized by what a job
-#: carries").
-HELD_DROP_M = 0.25
+#: carried walk crawled) -- and narrow enough for the front stop to see the
+#: nearest edge a carried piece's work puts in reach: the pass's beside the
+#: fork as its walk begins, its nearest point 0.16-0.21 m from the grip (at
+#: 0.22 and 0.25 it saw it on few scans, and the walk turned into it). Past
+#: it, the fork's head is laid in the map on a fifth to a half of the scans
+#: carried (SimNotes, "The self-filter sized by what a job carries").
+HELD_DROP_M = 0.16
 #: ...and its depth camera's (its low layer, its knees' and arms' memories),
-#: m, sized the same way over a carried piece whole -- its noise a few mm --
-#: and no wider: the plate's rim, 0.16 m from its grip.
-HELD_DEPTH_M = 0.20
+#: m, #682's: a cup or a candle whole, its noise a few mm; a plate's rim and a
+#: fork's head stay in its frame, as they did (#762: at 0.20 the pass laid
+#: no better).
+HELD_DEPTH_M = 0.12
 #: A CARRY BEGINS WITH A LIFT, AND WHAT DOES NOT COME AWAY IS LET GO (#682;
 #: `to_walk_routine`): a hand that holds is first pulled this far straight up,
 #: m, with at most this much, N -- the most the standing body holds at a hand
