@@ -47,6 +47,7 @@ could not read it beforehand.
 stalled ("got nowhere", "stalled") and out of time, by procedure, and whether
 a procedure's steps change their length or their count after reading it,
 against the weekend's wakes (11-28 and 11-29, which fly the old text).
+
 ### A carry "held back" says how far short its hand ended, by its own reading, and `move_hand.short` reads it (#774 (b)'s option 1, C11, `loop-words4`) — opens when this PR is deployed
 
 **What the robots read** moves by one failure's words and one sensor, on
@@ -100,6 +101,7 @@ was not an `if`'s test, before its `pull` down and its let-go.
 false held back and the shortfalls their words say, by hand and by whether it
 held something; whether a procedure reads `move_hand.short` and what it does
 with it (a retry, a `pull`, going on), against the weekend's wakes.
+
 ### A hand a walk carried is no longer out, and the body text says so (#774 (a)'s option 1, C11, `loop-words4`) — opens when this PR is deployed
 
 **What the robots read** moves by one clause, on purpose: the prompt
@@ -136,6 +138,7 @@ wakes of 11-15, 11-18, 11-22 and 11-25; they rarely walk holding something.
 **What to read.** On the wakes after this deploys: a `move_hand` or `pull`
 refused "not out" after a walk that carried that hand, against none before;
 and a `reach` with a carried hand after a walk, its piece still held.
+
 ### `spot`'s words say its normal points into the tag's face (#776's option 1, C11, `loop-words4`) — opens when this PR is deployed
 
 **What the robots read** moves by one sentence and six sensor lines, on
