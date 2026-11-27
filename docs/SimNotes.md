@@ -12757,7 +12757,7 @@ and never sees it. And what the memory holds of it was laid on the way in:
 walking the last steps to the label the belief moved 6-8 cm against what the
 camera saw on the way, and a board laid before stood 2-7 cm nearer than it
 was (six cases against the truth); seen since the feet last moved, within 1
-cm (`ArmsMemory.since`, `last_motion_t`). At the 754 posture choices the
+cm (`ArmsMemory.since`, `last_motion_t`). At the 1,469 posture choices the
 shadow census below judged, that view was never empty.
 
 **The judgment** (`Reach._trunk`, `trunk_parts`, `trunk_gap`;
@@ -12778,22 +12778,22 @@ stand is the way out. Nothing seen since the feet moved judges nothing.
 
 **Calibrated in a shadow census before it acted** (B2c's `headrec`, its
 verdicts recorded and never acted on; a census flight with it is the plain
-flight to the bit but its wall clock): the shop shelf's dev flights -- the
-census's 64 checks and 32 tours, the arm A10's (#736's round 5) 64 and 32,
-and the three other falls -- on one pod (a Xeon E5-2698 v4, which the dev box
-replays): 162 upper set-downs, 156 in bows of 0.8 rad or more, the head on
-the world over 20 N in 10, a fall after it in 5 (the five traced). Two of the
-five were clear on the way in and met the board only on the way up (the
-fallback reach's deepest bow, A10's k228 and U35's k213). The view since the
-feet moved, at a clearance of 0: every fall's entry passed over, 9 of the 10
-contacts flagged before they came, 3 set-downs flagged that met nothing; at
-#747's -0.005, k228's entry is taken (its walk up 3 mm in) and only the rise
-out of it is flagged, which leaves the head under the board for the
-withdraw's stand to jam -- the rule's written criterion, read to the letter
-(a choice flagged at or before the first contact), had picked -0.005 through
-that rise; 0 was chosen by the entry, 5 of 5 against 4 of 5, at one more
-set-down flagged that met nothing. The whole memory at -0.005 flagged 17, 7 of
-them nothing but a board laid before the last steps. ⚠ THE LIVE TRUNK GOES
+flight to the bit but its wall clock): the shop shelf's 384 dev flights --
+the census's 64 checks and 32 tours, and as many of each of the arms A10,
+NO10 and U35 (#736's rounds 5-6) -- on one pod (a Xeon E5-2698 v4, which the
+dev box replays): 312 upper set-downs, 294 in bows of 0.8 rad or more, the
+head on the world over 20 N in 15, a fall after it in 5 (the five traced).
+Two of the five were clear on the way in and met the board only on the way
+up (the fallback reach's deepest bow, A10's k228 and U35's k213). The view
+since the feet moved, at a clearance of 0: every fall's entry passed over, 14
+of the 15 contacts flagged before they came, 6 set-downs flagged that met
+nothing; at #747's -0.005, k228's entry is taken (its walk up 3 mm in) and
+only the rise out of it is flagged, which leaves the head under the board for
+the withdraw's stand to jam -- the rule's written criterion, read to the
+letter (a choice flagged at or before the first contact), had picked -0.005
+through that rise; 0 was chosen by the entry, 5 of 5 against 4 of 5, at two
+more set-downs flagged that met nothing. The whole memory at -0.005 flagged
+28, 13 of them nothing (a board laid before the last steps). ⚠ THE LIVE TRUNK GOES
 DEEPER THAN THE STATUE'S WALK: a tour's press into a 0.95 rad bow whose walk up
 kept 0.6 mm off the board (the truth 3.8 mm in) pressed the head on it at 457
 N in the withdraw -- the rule's known limit.

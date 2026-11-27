@@ -1504,10 +1504,11 @@ def part_gap(points: np.ndarray, part: tuple) -> np.ndarray:
 #: stands, no nearer than it began less `SWING_SLACK_M`. A shelf's deepest
 #: bows put the head under the board above the hands, and the next change of
 #: posture jammed it there: 5 of the shop shelf's 7 falls traced, the head on
-#: the board at 65-514 N. MEASURED in a shadow census (the shop shelf's dev
-#: flights, 162 upper set-downs): at 0 every one of the five falls' entries
-#: is passed over; at #747's -0.005 the fallback reach into the deepest bow in
-#: A10's k228 (its walk up 3 mm in) is taken, and the rise out of it jams.
+#: the board at 65-514 N. MEASURED in a shadow census (the shop shelf's 384
+#: dev flights, 312 upper set-downs): at 0 every one of the five falls'
+#: entries is passed over; at #747's -0.005 the fallback reach into the
+#: deepest bow in A10's k228 (its walk up 3 mm in) is taken, and the rise out
+#: of it jams.
 #: ⚠ The live trunk goes deeper than the statue's walk: a press's bow whose
 #: walk up kept 0.6 mm off the board pressed the head on it at 457 N.
 TRUNK_CLEAR_M = 0.0
