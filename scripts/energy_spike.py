@@ -63,11 +63,13 @@ from pluggybot.lifecycle import (
 #: solutions`) flown from the station with its place remembered.
 HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
              "open_chest": "chest", "set_table": "dining_table_0",
-             "set_table_pass": "dining_table_0"}
+             "set_table_pass": "dining_table_0", "set_table_shelf": "dining_table_0"}
 #: ...and the tags a job's reference finds before its place's, found first
 #: too, so no first search of a fresh map is priced: the pass's pair (#682's
-#: stage C), which every trip of the place laid from the pass finds first.
-FOUND_FIRST = {"set_table_pass": (69, 68)}  # tags.RESTAURANT_TAG_IDS, as `solutions.PASS_TO` finds them
+#: stage C), which every trip of the place laid from the pass, and from the
+#: kitchen's shelf, finds first.
+FOUND_FIRST = {"set_table_pass": (69, 68),   # tags.RESTAURANT_TAG_IDS, as `solutions.PASS_TO`
+               "set_table_shelf": (69, 68)}  # ...and `solutions.SHELF_TO` find them
 
 
 class _Writer:

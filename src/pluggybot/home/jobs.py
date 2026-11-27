@@ -11,7 +11,8 @@ counter, the table a place is laid at.
   set_out(model, data, t, k, kind)
                                an offer's: the thing as draw k of the job's
                                kind sets it out (the table's place laid
-                               from beside it or from the pass)
+                               from beside it, from the pass or from the
+                               kitchen's shelf)
   redraw(model, data, t, k)    draw k's hidden dynamics alone (a restart's)
   drawn(t, k)                  draw k's truth, its activity's
   touched_by(model, data, t, geoms)

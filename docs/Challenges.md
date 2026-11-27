@@ -535,9 +535,35 @@ held out where 1, no fall, one pod. With the walk's hand-over judging a thin
 piece's way by where its hand comes down, the plate's card stepped ahead where
 its put-down would come near the body's middle and the fork pulled back once
 (rounds 2 and 3), it lays 17 of 32 where round 1's laid 12, and 20 of 32 held
-out where 17, no fall.
+out where 17, no fall. With the cup's and the fork's cards stepped toward,
+sideways, where their put-down would go far enough to the side that its reach
+changed posture under it (round 4), it lays 20 of 32 where 17, and 20 of 32
+held out where 18, no fall. With the cup looked at again once set down and
+moved where the stance turned under it, and the plate's trip squared to the
+pass before its pick (round 5), it lays 26 of 32 where 20, and 27 of 32 held
+out where 21, no fall: the bar, 24 of 32, is met.
 Offering it is Ben's call (SimNotes, "The place laid from the pass", has
 what flying took and what it read).
+
+**Laid from the kitchen's shelf: `set_table_shelf`** (#682's stage C, its
+full task; Ben, 2026-11-26). The same place, graded by this check's evaluator
+under a row of its own, its pieces set out on the restaurant kitchen's shelf
+instead -- against the kitchen's east wall, across from the pass -- on its
+third board (its top 0.96 m, the board above 0.38 m over it): the pass's row,
+near the board's front edge, for the pass's reasons (`counter.shelf_set_out`).
+Each piece is a trip through the staff door, 10-13 m each way. Its set-out is
+the kind's (`restaurant.SET_OUTS`); the dishware, the shelf and the house are
+the served ones, and no tag was added: our reference (`solutions.SHELF`, the
+pass's three runs, each piece fetched from the shelf and laid as the pass lays
+it) finds the kitchen off the pass's pair. NOT OFFERED and paid nothing
+(`shown: false`), its minutes a generous 45 (`tasks.SHELF_MINUTES`); its bar
+is the pass's, written before any reference flew -- 24 of 32 draws over the
+tour, a fall failing its try, then 32 draws sealed by the frozen commit
+(`scripts/solve.py --feature kitchen`; SimNotes, "The place laid from the
+kitchen's shelf"): frozen at 2bf94b77, our reference laid 20 of 32 on the
+bar's draws and 25 of 32 sealed, no fall -- not met. Offered, like the pass's
+it moves the place's directions, which every kind's offer at the table
+carries: they say an offer sets the pieces out on the table near the card.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.
@@ -549,7 +575,7 @@ The store's first job, easy mode (#736's nine calls, Ben's defaults of
 the shop's back shelf beside its slots, and each set down over the label its
 job names (`challenge/shelf.py`; the stock `activity/stock.py`; where the
 labels and the cart stand `home/store.py`; the set-out
-`counter.shelf_set_out`). Its slots are three on each of the shelf's second
+`counter.stock_set_out`). Its slots are three on each of the shelf's second
 and third boards (tops 0.56 and 0.96 m: the two whose fronts the body
 reaches), each marked by a 40 mm label on the board's front edge, 79-81 and
 82-84 left to right as one faces it; the products wear 76 (the candle's top)
@@ -580,7 +606,7 @@ reading against its line as the five graders say theirs (`lid.against`,
 #737): "4.01 cm" against "within 4 cm", never the line's own number.
 
 **Our reference** (`hands_check.SHELF`, the check's procedure from the
-check's start, and `solutions.SHELF_APPROACH`, the walk there from the
+check's start, and `solutions.STOCK_APPROACH`, the walk there from the
 shop's address; Evaluation.md §7): the frame, then the candle, each read off
 its tag, taken from above, carried by sidesteps to its label, squared off
 the label's face, set down from in front of the board and let go of, then

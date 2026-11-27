@@ -549,6 +549,8 @@ def _bare_reach():
   r.seen, r.swung = None, {s: None for s in hm.SIDES}
   r.seen_at = {s: None for s in hm.SIDES}
   r._tree_seen, r._tree_key, r._tree = None, None, (None, None)
+  # ...nor what it saw since its feet moved for its trunk, nor a trunk kept out (#763)
+  r.trunk_view, r.trunked = None, {s: None for s in hm.SIDES}
   r._tip = {s: 0.0 for s in hm.SIDES}
   r._shove = {s: 0.0 for s in hm.SIDES}
   r.watch_home = {s: False for s in hm.SIDES}

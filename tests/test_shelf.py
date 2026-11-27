@@ -342,13 +342,13 @@ def test_the_set_out_is_seeded_on_the_cart_and_each_product_its_own_label():
   cart_front = store.CART_BACK_GAP + 2 * st.CART_HALF[0]
   seen = set()
   for k in range(64):
-    so = ct.shelf_set_out(k)
-    assert so == ct.shelf_set_out(k)
+    so = ct.stock_set_out(k)
+    assert so == ct.stock_set_out(k)
     assert set(so.slots) == set(st.PRODUCTS) and set(so.slots.values()) <= set(st.LABEL_IDS)
     assert so.slots["candle"] != so.slots["frame"]
     seen |= {(p, i) for p, i in so.slots.items()}
     for p, (x, y, yaw) in so.products.items():
-      (s0, d0), (ds, dd), turn = ct.SHELF_SOURCES[p]
+      (s0, d0), (ds, dd), turn = ct.STOCK_SOURCES[p]
       s, d = _in_s(x, y)
       assert abs(s - store.CART_AT - s0) <= ds + 1e-9 and abs(d - cart_front - d0) <= dd + 1e-9
       assert abs(math.remainder(yaw - store.facing_in(), 2 * math.pi)) <= turn + 1e-9
@@ -371,7 +371,7 @@ def test_a_set_outs_places_are_not_its_products_hidden_draw():
   set-out's stream, its weight off the stock's."""
   ks = range(32)
   for p in st.PRODUCTS:
-    placed = [_in_s(*ct.shelf_set_out(k).products[p][:2])[0] for k in ks]
+    placed = [_in_s(*ct.stock_set_out(k).products[p][:2])[0] for k in ks]
     hidden = [getattr(st.draw(k), f"{p}_kg") for k in ks]
     assert abs(np.corrcoef(placed, hidden)[0, 1]) < 0.9, p
   for k in ks:
@@ -385,7 +385,7 @@ def test_a_set_outs_places_are_not_its_products_hidden_draw():
 
 def _house_with_stock():
   spec = mujoco.MjSpec.from_file(ct.HOME_XML)
-  store.attach(spec, ct.shelf_set_out(0))
+  store.attach(spec, ct.stock_set_out(0))
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
@@ -419,7 +419,7 @@ def test_the_stock_is_compiled_put_away_set_out_and_put_away_again():
     assert model.body_gravcomp[b] == 0.0
   for _ in range(500):
     mujoco.mj_step(model, data)
-  so = ct.shelf_set_out(k)
+  so = ct.stock_set_out(k)
   for p in st.PRODUCTS:
     at = data.xpos[model.body(p).id]
     assert np.allclose(at, [*so.products[p][:2], st.CART_TOP], atol=2e-3), (p, at)
@@ -538,7 +538,7 @@ def test_our_reference_is_told_each_set_outs_labels_as_an_offer_would():
   from pluggybot.evaluation import hands_check as hc
   from pluggybot.procedure import lang
   for k in range(8):
-    so = ct.shelf_set_out(k)
+    so = ct.stock_set_out(k)
     src = hc.source("shelf", k)
     # ...its spacing the source's own (written with the fewest spaces its words need)
     flat = src.replace(" ", "")

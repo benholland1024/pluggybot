@@ -144,7 +144,7 @@ def source(job: str) -> None:
 PROPS = {"lid": lambda k: ct.set_out(k).chest, "drawer": lambda k: ct.drawer_set_out(k).cabinet,
          "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube,
          "table": lambda k: ct.table_set_out(k).card,
-         "shelf": lambda k: (*ct.shelf_set_out(k).products["candle"][:2], _store().facing_in())}
+         "shelf": lambda k: (*ct.stock_set_out(k).products["candle"][:2], _store().facing_in())}
 BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9, "table": 1.6, "shelf": 1.2}
 
 

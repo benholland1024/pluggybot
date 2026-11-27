@@ -535,7 +535,7 @@ TABLE_STANCES = '''def lay_place():
 '''
 
 #: THE SHELF STOCKED (#736) from the cart beside its slots, the left hand,
-#: from where the check starts (`counter.shelf_set_out`): the frame, then
+#: from where the check starts (`counter.stock_set_out`): the frame, then
 #: the candle (`one`), each read off its tag and taken level from 10 cm above
 #: it, carried by sidesteps to its label, set down 8 cm behind the board's
 #: edge from 17 cm in front of it, let go, backed out 15 cm and only then
@@ -654,7 +654,7 @@ def source(job: str, k: int = 0) -> str:
     return SCENES[job][1]
   if job == "shelf":
     from pluggybot.evaluation import counter as ct
-    return SHELF % ct.shelf_set_out(k).slots
+    return SHELF % ct.stock_set_out(k).slots
   return JOBS[job]
 #: A SCENE to watch, never a job the check grades (#554): the lid's
 #: procedure with its lift STOPPED ON ITS HAND'S HEIGHT 10 cm up -- the lid

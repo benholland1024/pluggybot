@@ -11,7 +11,7 @@ physics and every geom a ray, and a world is compiled once.
 moves the served world's geometry fingerprint (`continuation.fingerprint`:
 both robots' maps and bodies are dropped at the deploy that brings it) and
 the scenes the site vendors (`telemetry.scene`), so it comes in with the job
-that offers it. The offline check (`evaluation.counter.shelf_set_out`) and
+that offers it. The offline check (`evaluation.counter.stock_set_out`) and
 `scripts/solve.py --feature shelf` put it into their own house.
 
 The shelf's own frame here, S: from the middle of its boards' front edge on
@@ -110,7 +110,7 @@ def labels_place() -> tuple[float, float, float]:
 
 def attach(spec, so, parked: bool = True) -> None:
   """The stock into a world's `spec`: the cart, the labels and each product
-  where the set-out `so` (`counter.shelf_set_out`) puts it, at its hidden
+  where the set-out `so` (`counter.stock_set_out`) puts it, at its hidden
   weights and friction -- PUT AWAY (`dishware.park_spec`) unless `parked`
   is False, as an offline set-out's own world has it out."""
   cx, cy, cyaw = cart_place()
@@ -167,7 +167,7 @@ def labels(k: int) -> dict[str, int]:
   """Which label each product goes over at draw `k`, as its offer says it
   (`{candle}`, `{frame}`): set-out k's."""
   from pluggybot.evaluation import counter as ct
-  return dict(ct.shelf_set_out(k).slots)
+  return dict(ct.stock_set_out(k).slots)
 
 
 def redraw(model, data, target: str, k: int) -> None:
@@ -194,7 +194,7 @@ def set_out(model, data, target: str, k: int, kind: str = "shelf") -> None:
   hidden parameters drawn (`redraw`)."""
   from pluggybot.evaluation import counter as ct
   _ours(target)
-  so = ct.shelf_set_out(k)
+  so = ct.stock_set_out(k)
   redraw(model, data, target, k)
   st.place(model, data, so.products, cart_place(), labels_place())
 
@@ -216,7 +216,7 @@ def activity_for(model, data, target: str, k: int):
   (`stock.Stock`), its slots set-out k's."""
   from pluggybot.evaluation import counter as ct
   _ours(target)
-  return st.Stock(model, data, st.draw(k), ct.shelf_set_out(k).slots, name=target)
+  return st.Stock(model, data, st.draw(k), ct.stock_set_out(k).slots, name=target)
 
 
 def activities(model, data) -> list:

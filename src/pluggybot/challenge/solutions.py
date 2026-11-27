@@ -388,6 +388,32 @@ PASS_PLATE_LEFT = PASS_PLATE_AIM + PASS_PLATE_ACROSS
 #: (the walk's last step forward leaves the card 2-5 cm across; SimNotes,
 #: "The place laid from the pass").
 PASS_PLATE_LEAST = 0.05
+#: How far right of the stance's middle the cup's put-down goes at the most,
+#: m, the card looked at after the walk to the place, and where a step puts
+#: it from further: further right than about 0.20 m the cup's reach took no
+#: waist turn and its pull down crouched, and the feet swivelled 3-7 deg
+#: under the posture's change and carried the cup 3-5 cm off its place --
+#: 25 of 44 put-downs within 2.5 cm past 0.19 m, where nearer 0.11-0.19 m all
+#: 75 were (SimNotes, "The place laid from the pass").
+PASS_CUP_RIGHT, PASS_CUP_MID = 0.20, 0.15
+#: How far left of the stance's middle the fork's put-down goes at the most,
+#: m, and where a step puts it from further: past about 0.18 m its pull down
+#: crouched and swivelled the feet as the cup's did -- 25 of 37 put-downs
+#: within 2.5 cm there, 54 of 57 at 0.11-0.17 m.
+PASS_FORK_LEFT, PASS_FORK_MID = 0.18, 0.14
+#: How far the cup set down may lie from where the card, looked at again with
+#: the cup down and still held, puts its place before it is lifted 1.5 cm,
+#: moved there and set down again, m: the reach and the pull down turned the
+#: stance under the hand 1-2.5 deg (a stance stepped sideways before them, 2.5
+#: deg), each degree 0.6 cm at the cup's place (SimNotes, "The place laid from
+#: the pass").
+PASS_CUP_AGAIN = 0.01
+#: How far the plate's trip turns left after its walk to the pass, rad, before
+#: it walks up to the plate: the walk's `face` stops 5.6 deg short of square to
+#: the pass (median; sd 2.9), and turned right of square 8 deg or more, the
+#: walk's hand-over swung the plate into the pass's top (12 of 25, square 1 of
+#: 38) and the plate came loose in the jaws for an instant, a drop.
+PASS_PLATE_TURN = 0.10
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),
                  ("  drive_to(cx - %(back)g, cy - %(back)g, 180)\n",
@@ -435,9 +461,27 @@ PASS_CUP = '''def lay_cup():
   to_place(%(cup_facing)g)
   spot(93)
   a = atan2(read("spot.ny"), read("spot.nx"))
+  tx = read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox
+  ty = read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy
+  if ty < -%(cup_right)g:
+    if not step(0, ty + %(cup_mid)g):
+      pass
+    spot(93)
+    a = atan2(read("spot.ny"), read("spot.nx"))
+    tx = read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox
+    ty = read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy
   tz = read("spot.z") - 0.055 + oz + 0.10
-  reach("right", read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox, read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy, tz, 0.707, 0, -0.707, 0, 1, 0)
+  reach("right", tx, ty, tz, 0.707, 0, -0.707, 0, 1, 0)
   pull("right", 0, 0, -1, 6, 0.15, give=0)
+  if spot(93):
+    a = atan2(read("spot.ny"), read("spot.nx"))
+    dx = read("spot.x") - %(cup_a)g * cos(a) + %(cup_b)g * sin(a) - ox - tx
+    dy = read("spot.y") - %(cup_a)g * sin(a) - %(cup_b)g * cos(a) - oy - ty
+    if dx * dx + dy * dy > %(cup_again)g * %(cup_again)g:
+      pull("right", 0, 0, 1, 20, 0.015, give=0)
+      if not move_hand("right", read("right.x") + dx, read("right.y") + dy, read("right.z")):
+        pass
+      pull("right", 0, 0, -1, 6, 0.05, give=0)
   open_hand("right")
   wait(0.4)
   pull("right", 0, 0, 1, 20, 0.08, give=0)
@@ -446,6 +490,8 @@ PASS_CUP = '''def lay_cup():
 PASS_PLATE = '''def lay_plate():
   budget(steps=120, seconds=1200)
   to_pass(-0.18)
+  if not step(0, 0, %(plate_turn)g):
+    pass
   near(90, 0.50, %(plate_aim)g)
   move("left_shoulder_roll", 0.9)
   move("left_elbow", 1.4)
@@ -520,6 +566,10 @@ PASS_FORK = '''def lay_fork():
   go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)
   to_place(%(facing)g)
   spot(93)
+  if read("spot.y") + %(fork_at_b)s > %(fork_left)g:
+    if not step(0, read("spot.y") + %(fork_at_b)s - %(fork_mid)g):
+      pass
+    spot(93)
   tz = read("spot.z") - 0.055 + oz + 0.05
   reach("left", read("spot.x") - %(fork_at_a)s, read("spot.y") + %(fork_at_b)s, tz, 0.5, 0, -0.866, 0, -1, 0)
   pull("left", 0, 0, -1, 6, 0.11, give=0)
@@ -537,29 +587,38 @@ def _aim(v: float) -> str:
   return two if float(two) == v else repr(float(v))
 
 
-def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
-  """The place laid from the pass's reference: the procedures its runs call
-  (the walks to the pass and to the place, `near`, `go`) and its
-  three runs, a piece each, the address its offer gives in its finds."""
+def _pass_terms() -> dict:
+  """The place laid from the pass's terms: what its sources format in -- the
+  address its offer gives, the place's distances off the set-out's, and the
+  constants above."""
   from pluggybot.activity import dishware as dw
   from pluggybot.evaluation import counter as ct
   from pluggybot.home import places as addresses
   from pluggybot.home import restaurant
   address = addresses.area(restaurant.TABLE)["address"]
   ahead = ct.CARD_IN + ct.TABLE_GAP - dw.CARD[1] - dw.FILM
+  return {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
+          "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
+          "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
+          "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_back": PASS_FORK_BACK,
+          "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
+          "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
+          "plate_least": PASS_PLATE_LEAST, "cup_right": PASS_CUP_RIGHT, "cup_mid": PASS_CUP_MID,
+          "fork_left": PASS_FORK_LEFT, "fork_mid": PASS_FORK_MID, "cup_again": PASS_CUP_AGAIN,
+          "plate_turn": PASS_PLATE_TURN,
+          "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
+          "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
+
+
+def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
+  """The place laid from the pass's reference: the procedures its runs call
+  (the walks to the pass and to the place, `near`, `go`) and its
+  three runs, a piece each, the address its offer gives in its finds."""
   place = TABLE_APPROACH
   for old, new in PASS_TO_PLACE:
     assert place.count(old) == 1, old
     place = place.replace(old, new)
-  terms = {"ax": address["x"], "ay": address["y"], "ahead": round(ahead, 4),
-           "back": round(ahead + 0.3, 4), "wider": WIDER, "nearer": NEARER, "facing": FACING,
-           "back_pass": PASS_BACK, "cup_facing": PASS_CUP_FACING,
-           "cup_a": PASS_CUP_AT[0], "cup_b": PASS_CUP_AT[1], "fork_back": PASS_FORK_BACK,
-           "plate_back": PASS_PLATE_BACK, "plate_left": PASS_PLATE_LEFT,
-           "plate_aim": PASS_PLATE_AIM, "plate_across": PASS_PLATE_ACROSS,
-           "plate_least": PASS_PLATE_LEAST,
-           "plate_at_a": _aim(PASS_PLATE_AT[0]), "plate_at_b": _aim(PASS_PLATE_AT[1]),
-           "fork_at_a": _aim(PASS_FORK_AT[0]), "fork_at_b": _aim(PASS_FORK_AT[1])}
+  terms = _pass_terms()
   return ((PASS_TO % terms, place % terms, PASS_NEAR, PASS_GO),
           (PASS_CUP % terms, PASS_PLATE % terms, PASS_FORK % terms))
 
@@ -567,12 +626,249 @@ def _pass_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
 PASS_LIBRARY, PASS = _pass_job()
 
 
+#: THE PLACE LAID FROM THE KITCHEN'S SHELF (#682's stage C, the full task;
+#: Ben, 11-26): the pass's three runs over the procedures they call, each
+#: trip begun at the kitchen's shelf instead (`counter.shelf_set_out`) -- the
+#: kitchen found off the pass's two tags, across the wall from the pass and
+#: through the staff door beside it, the walk's planner finding the way -- and
+#: each piece laid as the pass lays it. What the shelf changes, each measured
+#: (SimNotes, "The place laid from the kitchen's shelf"):
+#:  - the walk stands `SHELF_ACROSS` behind the pass's tags, where `spot`
+#:    reads each piece at the first look (on the shelf's 0.96 m board the
+#:    cup's lid reads only within about 0.6 m), its last leg straight in, and
+#:    `SHELF_S` to the left, so `near` steps little or nothing across;
+#:  - `near` stands `SHELF_NEAR_BACK` further off each piece than the pass's;
+#:  - the left hand's pre-pose rolled out to `SHELF_LEFT_ROLL` before its
+#:    elbow bends to `SHELF_LEFT_ELBOW`: the pass's 0.9 and 1.4 hold the
+#:    gripper on the board's front edge;
+#:  - the cup is read before the right hand's pre-pose, and again after it
+#:    only where it is seen (stood 0.43 m from the cup, the pre-posed gripper
+#:    came between the camera and the cup's lid and the look failed); its
+#:    retries bring the hand straight back to `SHELF_CUP_BACK` before they
+#:    withdraw it (from the hover over the cup, the way home rose into the
+#:    board above and was held there);
+#:  - the cup's and the fork's look after `near` that misses turns
+#:    `SHELF_LOOK_TURN` toward the piece and looks again;
+#:  - each thin piece brought back clear of the board and lowered to
+#:    `SHELF_STOW_Z` before the walk, the fork by a `pull` that holds its
+#:    line and turn, its hand at least `SHELF_FORK_LEFT` left of the middle;
+#:  - each piece put down only while its hand still holds it (`SHELF_HELD`);
+#:  - no plate turn after the walk (`PASS_PLATE_TURN`'s reason is the pass's
+#:    `face`, which stopped short turning the other way).
+SHELF_TO = '''def to_shelf(s):
+  face(0)
+  find(69, %(ax)g, %(ay)g, 600)
+  bx = read("find.x")
+  by = read("find.y")
+  find(68, %(ax)g, %(ay)g, 600)
+  cx = read("find.x")
+  cy = read("find.y")
+  f = atan2(cy - by, cx - bx) + 1.5708
+  mx = (bx + cx) / 2 - %(first)g * cos(f) + s * sin(f)
+  my = (by + cy) / 2 - %(first)g * sin(f) - s * cos(f)
+  if not drive_to(mx, my, 300):
+    pass
+  if not drive_to(mx - %(last)g * cos(f), my - %(last)g * sin(f), 60):
+    pass
+  face(f + 3.14159 - 6.28318 * (f > 0))
+'''
+#: How far behind the pass's tags the walk to the shelf stands, m, across the
+#: wall from them: the shelf's front is 2.65 m behind the wall's face, and a
+#: walk that stops its pelvis 2.0 m behind left the pieces 0.67-0.72 m from
+#: the soles' middle, past what a look reads (every first look failed). It
+#: stops first `SHELF_FIRST` behind and walks the rest straight in: come from
+#: the staff door, the walk ended turned 40 deg off the shelf, and the `face`
+#: after it stopped 5-13 deg short, the cup outside the picture's side.
+SHELF_ACROSS, SHELF_FIRST = 2.2, 1.4
+#: The left hand's pre-pose before its reach, rad: the shoulder rolled out
+#: first, then the elbow bent -- on the robot's model of itself no part of
+#: the arm meets a board's front edge 0.33-0.36 m ahead of the pelvis on the
+#: way, and the gripper ends 1.03-1.17 m up, over the 0.96 m board and under
+#: the one above. The pass's 0.9 and 1.4 hold the gripper 0.40 m ahead at
+#: 0.93-0.97 m: two forks of four stopped short there, caught on the edge.
+SHELF_LEFT_ROLL, SHELF_LEFT_ELBOW = 1.2, 1.9
+#: Where a cup's retry brings its hand back to before it withdraws it, m
+#: ahead: in front of the board above, which the way home from the hover over
+#: the cup rose into (13-39 N) and was held under.
+SHELF_CUP_BACK = 0.25
+#: How much further from each piece than the pass's `near` puts it the
+#: shelf's does, m: `near`'s step goes past what it asks (a median 1.2 cm for
+#: the cup, 3.6 for the plate, 1.0 for the fork, at most 5.6), and stood that
+#: near, the shelf board's edge met the left pre-pose (125 N) and the cup's
+#: lid left the picture's side.
+SHELF_NEAR_BACK = 0.03
+#: Where the cup's or the fork's look after `near` misses, the turn toward it
+#: before it looks again, rad -- the cup's to the right, the fork's to the
+#: left: `near`'s step went 2x across where asked and left the cup 35 deg off
+#: the facing, at the picture's side.
+SHELF_LOOK_TURN = 0.15
+#: How far each walk to the shelf stands to the left of the pass's middle, m:
+#: where the trip's piece -- its row 0.5 m left of the pass's middle plus its
+#: place in it (`counter.SHELF_SOURCES`) -- stands where `near` puts it, so
+#: `near` steps nothing across (an oblique step went twice across what it
+#: asked): the cup 0.25 right, the plate 0.184 left -- but the fork 5 cm
+#: short of its 0.20 left, `near` asking that across: stood square on it, its
+#: step straight ahead turned the stance 5 deg and one fork of three was laid,
+#: where stood 5 cm short six of seven were.
+SHELF_S = {"cup": 0.40, "plate": 0.32, "fork": 0.60}
+#: Where a thin piece is brought back to before the walk, m ahead -- the
+#: plate's grip at its near wall, the fork's at its handle's tag -- and the
+#: height its hand is then lowered to, m: the walk's hand-over takes a thin
+#: grip's side way, which rose a median 0.21 m and swung 0.06-0.16 m forward
+#: before it came down, so from over the board the plate's far rim came down
+#: on the board's edge (18 of 58) and the fork struck the board above (46 of
+#: 52) and fell out of the jaws 8 times. Brought back clear of the board's
+#: face and lowered near the carry pose, its way there is short. The fork is
+#: lowered by a `pull` that holds its line and turn: by `move_hand` two forks
+#: of eight turned in the jaws (11 to 65 deg) and fell out on the way down.
+SHELF_PLATE_BACK, SHELF_FORK_BACK, SHELF_STOW_Z = 0.20, 0.22, 0.92
+#: The least the fork's hand stands left of the middle from its pull off the
+#: shelf on, m (the pass's plate's own least): nearer the middle, the pull,
+#: the move back and the stow took a 0.55-0.95 rad bow and the waist up to 60
+#: deg in 10 of 49 trips -- the head on the work board in 7, one fall -- and
+#: from 0.23 m or more none of 7.
+SHELF_FORK_LEFT = 0.25
+#: Each shelf run's put-down only while its hand still holds the piece, the
+#: run ended otherwise: after the step at the table let the plate go, the
+#: put-down's reach from the hanging arm bowed the robot 1.10 rad and it fell.
+SHELF_HELD = '''  if read("%s.held") < 0.5:
+    return
+'''
+#: What the shelf's runs change in the pass's, each (old, new) once: the
+#: trip's walk, the plate's turn, `near`'s distance, the left pre-pose, the
+#: cup's and the fork's looks, the cup's retries, each thin piece's stow
+#: before the walk, and each put-down's check that its piece is still held.
+SHELF_FROM_PASS = {
+  "cup": (("  to_pass(-0.10)\n", "  to_shelf(%(cup_s)g)\n"),
+          ("  to_place(%(cup_facing)g)\n", "  to_place(%(cup_facing)g)\n" + SHELF_HELD % "right"),
+          ('''  near(91, 0.47, -0.25)
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
+  open_hand("right")
+  spot(91)
+  x = read("spot.x")
+  y = read("spot.y")
+  cz = read("spot.z") - 0.015
+''', '''  near(91, %(cup_near)g, -0.25)
+  if not spot(91):
+    if not step(0, 0, -%(look_turn)g):
+      pass
+    spot(91)
+  x = read("spot.x")
+  y = read("spot.y")
+  cz = read("spot.z") - 0.015
+  move("right_shoulder_roll", -0.9)
+  move("right_elbow", 1.4)
+  open_hand("right")
+  if spot(91):
+    x = read("spot.x")
+    y = read("spot.y")
+    cz = read("spot.z") - 0.015
+'''),
+          ('''    withdraw("right")
+    move("right_shoulder_roll", -0.9)
+    move("right_elbow", 1.4)
+    open_hand("right")
+    spot(91)
+    x = read("spot.x")
+    y = read("spot.y")
+    cz = read("spot.z") - 0.015
+''', '''    withdraw("right")
+    spot(91)
+    x = read("spot.x")
+    y = read("spot.y")
+    cz = read("spot.z") - 0.015
+    move("right_shoulder_roll", -0.9)
+    move("right_elbow", 1.4)
+    open_hand("right")
+    if spot(91):
+      x = read("spot.x")
+      y = read("spot.y")
+      cz = read("spot.z") - 0.015
+'''),
+          ('''  if not reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+    withdraw("right")
+''', '''  if not reach("right", x, y, cz + 0.10, 0.707, 0, -0.707, 0, 1, 0):
+    if not move_hand("right", %(cup_back)g, read("right.y"), read("right.z")):
+      pass
+    withdraw("right")
+'''),
+          ('''    if not move_hand("right", x, y, cz + 0.10):
+      pass
+    withdraw("right")
+''', '''    if not move_hand("right", x, y, cz + 0.10):
+      pass
+    if not move_hand("right", %(cup_back)g, read("right.y"), read("right.z")):
+      pass
+    withdraw("right")
+''')),
+  "plate": (("  to_pass(-0.18)\n  if not step(0, 0, %(plate_turn)g):\n    pass\n",
+             "  to_shelf(%(plate_s)g)\n"),
+            ("  near(90, 0.50, %(plate_aim)g)\n", "  near(90, %(plate_near)g, %(plate_aim)g)\n"),
+            ('  move("left_shoulder_roll", 0.9)\n  move("left_elbow", 1.4)\n',
+             '  move("left_shoulder_roll", %(left_roll)g)\n  move("left_elbow", %(left_elbow)g)\n'),
+            ("  to_place(%(facing)g)\n", "  to_place(%(facing)g)\n" + SHELF_HELD % "left"),
+            ('(read("left.x") + %(plate_back)g) / 2', '(read("left.x") + %(shelf_plate_back)g) / 2'),
+            ('  if not move_hand("left", %(plate_back)g, y, read("left.z")):\n    pass\n',
+             '  if not move_hand("left", %(shelf_plate_back)g, y, read("left.z")):\n    pass\n'
+             '  if not move_hand("left", read("left.x"), read("left.y"), %(stow_z)g):\n    pass\n')),
+  "fork": (("  to_pass(0.10)\n", "  to_shelf(%(fork_s)g)\n"),
+           ("  near(92, 0.44, 0.20)\n  spot(92)\n",
+            "  near(92, %(fork_near)g, 0.20)\n"
+            "  if not spot(92):\n    if not step(0, 0, %(look_turn)g):\n      pass\n    spot(92)\n"),
+           ("  to_place(%(facing)g)\n", "  to_place(%(facing)g)\n" + SHELF_HELD % "left"),
+           ('  move("left_shoulder_roll", 0.9)\n  move("left_elbow", 1.4)\n',
+            '  move("left_shoulder_roll", %(left_roll)g)\n  move("left_elbow", %(left_elbow)g)\n'),
+           ('  go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)\n',
+            '  y = read("left.y")\n  if y < %(shelf_fork_left)g:\n    y = %(shelf_fork_left)g\n'
+            '  go("left", %(fork_back)g, y, read("left.z"), 20, 0)\n'
+            '  if not move_hand("left", %(shelf_fork_back)g, read("left.y"), read("left.z")):\n    pass\n'
+            '  if read("left.z") > %(stow_above)g:\n'
+            '    pull("left", 0, 0, -1, 20, read("left.z") - %(stow_z)g, give=0)\n')),
+}
+
+
+def _shelf_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
+  """The place laid from the kitchen's shelf's reference: the walk to the
+  shelf, the pass's walk to the place, `near` and `go`, and the pass's three
+  runs changed where `SHELF_FROM_PASS` says, the address its offer gives in
+  its finds."""
+  from pluggybot.home import places as addresses
+  from pluggybot.home import restaurant
+  address = addresses.area(restaurant.TABLE)["address"]
+  runs = []
+  for piece, source in (("cup", PASS_CUP), ("plate", PASS_PLATE), ("fork", PASS_FORK)):
+    for old, new in SHELF_FROM_PASS[piece]:
+      assert source.count(old) == 1, (piece, old)
+      source = source.replace(old, new)
+    runs.append(source)
+  # ...each run's terms the pass's, and the shelf's
+  terms = _pass_terms()
+  terms.update({"left_roll": SHELF_LEFT_ROLL, "left_elbow": SHELF_LEFT_ELBOW,
+                "cup_back": SHELF_CUP_BACK, "look_turn": SHELF_LOOK_TURN,
+                "cup_s": SHELF_S["cup"], "plate_s": SHELF_S["plate"], "fork_s": SHELF_S["fork"],
+                "cup_near": round(0.47 + SHELF_NEAR_BACK, 4),
+                "plate_near": round(0.50 + SHELF_NEAR_BACK, 4),
+                "fork_near": round(0.44 + SHELF_NEAR_BACK, 4),
+                "shelf_plate_back": SHELF_PLATE_BACK, "shelf_fork_back": SHELF_FORK_BACK,
+                "shelf_fork_left": SHELF_FORK_LEFT,
+                "stow_z": SHELF_STOW_Z, "stow_above": round(SHELF_STOW_Z + 0.01, 4)})
+  _, place, near, go = PASS_LIBRARY
+  return ((SHELF_TO % {"ax": address["x"], "ay": address["y"], "first": SHELF_FIRST,
+                       "last": round(SHELF_ACROSS - SHELF_FIRST, 4)},
+           place, near, go),
+          tuple(source % terms for source in runs))
+
+
+SHELF_LIBRARY, SHELF = _shelf_job()
+
+
 #: THE SHOP'S SHELF STOCKED (#736; not offered): the walk to the cart, then
 #: the shelf check's procedure from the check's start
 #: (`evaluation.hands_check.SHELF`, its labels filled from the job's,
 #: `job_routine`). The walk finds the shop's left wall tag (70) round the
 #: shop's address -- the labels are no place of the served house's
-#: (`world_facts`), so `find` takes none of them -- walks to `SHELF_OUT` m
+#: (`world_facts`), so `find` takes none of them -- walks to `STOCK_OUT` m
 #: out of the shelf in front of where the cart stands (off that tag by the
 #: store's layout, `home.store`), faces the shelf, steps to 0.62 m from the
 #: frame's tag, then in to leave the frame 0.35 m ahead and 0.19 m left
@@ -588,7 +884,7 @@ PASS_LIBRARY, PASS = _pass_job()
 #: (SimNotes, "Stocking the shop's shelf"). ⚠ `square`'S LOOKS ARE TESTED: a
 #: walk whose look missed failed, and the job's runner stopped there, the
 #: check never begun.
-SHELF_APPROACH = '''def to_shelf():
+STOCK_APPROACH = '''def to_shelf():
   budget(steps=30, seconds=900)
   find(70, %(ax)g, %(ay)g, 600)
   drive_to(read("find.x") + %(dx)g, read("find.y") + %(dy)g, 180)
@@ -611,11 +907,11 @@ def square():
 '''
 #: How far out of the shelf's front the walk stops, m: half a metre further
 #: out than the check's start, in the aisle (1.68 m wide) clear of the cart.
-SHELF_OUT = 1.0
+STOCK_OUT = 1.0
 
 
-def _shelf_job() -> tuple[str, str]:
-  """The shelf job's reference: the walk to the cart (`SHELF_APPROACH`)
+def _stock_job() -> tuple[str, str]:
+  """The shelf job's reference: the walk to the cart (`STOCK_APPROACH`)
   from the shop's address, then the shelf check's procedure
   (`hands_check.SHELF`, a template its job's labels fill)."""
   from pluggybot.evaluation import hands_check
@@ -623,29 +919,31 @@ def _shelf_job() -> tuple[str, str]:
   from pluggybot.home import places as addresses
   address = addresses.area("shop")["address"]
   _, tx, ty, _ = next(t for t in areas.area_tags()["shop"] if t[0] == 70)
-  x, y = store.to_world(store.CART_AT, SHELF_OUT)
-  return (SHELF_APPROACH % {"ax": address["x"], "ay": address["y"], "dx": round(x - tx, 4),
+  x, y = store.to_world(store.CART_AT, STOCK_OUT)
+  return (STOCK_APPROACH % {"ax": address["x"], "ay": address["y"], "dx": round(x - tx, 4),
                             "dy": round(y - ty, 4), "facing": round(store.facing_in(), 4) + 0.0},
           hands_check.SHELF)
 
 
-SHELF = _shelf_job()
+STOCK = _stock_job()
 
 #: The procedures that discharge each job, by kind: each run in turn, a run
 #: that does not end ok the last.
 PROCEDURES = {"open_drawer": DRAWER, "open_door": DOOR, "place_cube": CUBE,
               "open_chest": CHEST, "set_table": TABLE, "set_table_pass": PASS,
-              "stock_shelf": SHELF}
+              "set_table_shelf": SHELF, "stock_shelf": STOCK}
 #: ...and the procedures they call, by kind: put in the library first, run
 #: only by a call (#560's defs that call defs).
-LIBRARY: dict = {"set_table_pass": PASS_LIBRARY}
+LIBRARY: dict = {"set_table_pass": PASS_LIBRARY, "set_table_shelf": SHELF_LIBRARY}
 
 
 #: The jobs by their place: the counter's props and the restaurant's table
-#: (`world_config`'s `jobs`) -- the place laid from the pass is the table's.
+#: (`world_config`'s `jobs`) -- the place laid from the pass, and from the
+#: kitchen's shelf, is the table's.
 TARGETS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "cube",
            "open_chest": "chest", "set_table": "dining_table_0",
-           "set_table_pass": "dining_table_0", "stock_shelf": "shop_shelf"}
+           "set_table_pass": "dining_table_0", "set_table_shelf": "dining_table_0",
+           "stock_shelf": "shop_shelf"}
 
 
 def _words(kind: str, k: int) -> dict:

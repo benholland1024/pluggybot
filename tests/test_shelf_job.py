@@ -51,7 +51,7 @@ def _shelf_world():
                                  quat=[math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)])
   for s, c, hh in hw.shelf_geoms(length, depth, double):
     body.add_geom(name=f"{name}_{s}", type=mujoco.mjtGeom.mjGEOM_BOX, pos=list(c), size=list(hh))
-  store.attach(spec, ct.shelf_set_out(0))
+  store.attach(spec, ct.stock_set_out(0))
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
@@ -110,7 +110,7 @@ def test_an_offer_sets_the_stock_out_at_its_draw_and_a_settled_job_puts_it_away(
   assert store.away(life.model, life.data, store.SHELF), "compiled put away"
   task = _offer(life)
   k = task.secret["draw"]
-  so, load = ct.shelf_set_out(k), st.draw(k)
+  so, load = ct.stock_set_out(k), st.draw(k)
   # ...its sentence names its draw's labels, says when, within the cap
   assert f"label {so.slots['candle']}" in task.description
   assert f"label {so.slots['frame']}" in task.description
@@ -138,7 +138,7 @@ def test_the_shelf_stocked_over_its_draws_labels_passes_and_pays_nothing(tmp_pat
   them it passes, over the two swapped it does not."""
   life = _life(tmp_path)
   task = _offer(life)
-  slots = ct.shelf_set_out(task.secret["draw"]).slots
+  slots = ct.stock_set_out(task.secret["draw"]).slots
   assert life._claim_task(task.id)
   _stock(life, slots)
   verdict = _grade(life, task.id)
@@ -163,7 +163,7 @@ def test_the_kind_is_offered_nowhere_and_its_sentence_fits_every_draw():
   for k in range(64):
     t = Task.create("stock_shelf", store.SHELF, "t_1", params=store.labels(k), t=9_999_999.0)
     assert len(t.description) < MAX_DESCRIPTION and t.description.endswith("procedure.")
-  assert dict(store.drawn(store.SHELF, 3).slots) == store.labels(3) == ct.shelf_set_out(3).slots
+  assert dict(store.drawn(store.SHELF, 3).slots) == store.labels(3) == ct.stock_set_out(3).slots
 
 
 def test_the_labels_are_places_only_where_the_stock_is():
@@ -171,7 +171,7 @@ def test_the_labels_are_places_only_where_the_stock_is():
   (`place_tags`), and the served house's places are as they were. ⚠ A
   procedure's `find` still takes none of them: the library checks a source
   against its world's facts (`world_facts`, the served house's places), so
-  the shelf job's walk finds the shop's wall tag (`solutions.SHELF`)."""
+  the shelf job's walk finds the shop's wall tag (`solutions.STOCK`)."""
   from pluggybot.humanoid.places import place_tags
   from pluggybot.perception.tags import LABEL_TAG_IDS
   from pluggybot.robot import world_spec
@@ -188,7 +188,7 @@ def test_the_stock_put_into_a_house_with_robots_is_compiled_put_away():
   (`dishware.park_body`, by the bodies themselves)."""
   from pluggybot.robot import world_spec
   spec = world_spec(world_config(HUMANOID_HOME)["model"])
-  store.attach(spec, ct.shelf_set_out(0))
+  store.attach(spec, ct.stock_set_out(0))
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)

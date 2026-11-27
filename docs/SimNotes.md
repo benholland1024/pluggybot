@@ -8283,13 +8283,15 @@ nothing; `counter.pass_set_out`; Challenges.md §12). Its reference
 (`challenge/solutions.py`, `PASS` over `LIBRARY`) was flown against the bar
 written before it, 24 of 32 draws over the tour on walk2 and on the carry
 walker (`scripts/solve.py --feature pass --from tour`; the readings are
-below), eleven times, and has not met it: the reference as it stands, round
-5's with its put-downs aimed again on #751's cure (round 9), the walk's
-hand-over judging a thin piece's way by where its hand comes down (round 10,
-served) and the plate's card stepped ahead, the fork pulled back once (round
-11; all below), lays 17 of 32 on the bar's draws and 20 of 32 sealed by
-532e6bb, no fall, where round 9's laid 12 and 17 on the same pod -- the bar
-is 7 away.
+below), thirteen times, and met it the thirteenth: the reference as it
+stands, round 5's with its put-downs aimed again on #751's cure (round 9),
+the walk's hand-over judging a thin piece's way by where its hand comes down
+(round 10, served), the plate's card stepped ahead, the fork pulled back once
+(round 11), the cup's and the fork's cards stepped toward where their reach
+keeps one posture (round 12), the cup looked at again once set down and the
+plate's trip squared to the pass (round 13; all below), lays 26 of 32 on the
+bar's draws and 27 of 32 on draws sealed by 63886fe, no fall, where round
+12's laid 20 and 21 on the same pod. Offering it is Ben's call.
 What developing it took, each
 measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
 9654, Xeon Gold 6138, osmesa, each draw its own noise; rows in
@@ -9109,6 +9111,241 @@ measured on the loops' pods (AMD EPYC 7B13, 7K62, 7763, 9684X, 7742 and
     32 identical; carry_spike's courses, which it was chosen after, 32 of 32
     round the house and 411 of 432 on the bare floor identical, the 21 the
     table reference's grip over the top (one more let go there).
+- **Round 12** (the loop of 11-26b, its lane A's round 4; one pod, a Xeon
+  E7-8890 v4, osmesa; rows in `~/pluggybot-training/batches/a1b_pass/`): the
+  cup's and the fork's put-downs from a stance that keeps their reach in one
+  posture.
+  - **What the cup's misses were.** Over round 11's flights and a census of 64
+    on fresh draws, the cup's put-down missed where its posture changed under
+    it: reached with no waist turn and pulled down in a crouch, the feet
+    swivelled 3-7 deg under the change and carried the cup 3-5 cm off its
+    place. Its error tracked the pelvis's turn from the last look to the
+    let-go, 0.6 cm a degree (correlation 0.95); the card's angle was read right
+    to about a degree. That came where the cup's hand was to go further right
+    of the stance's middle than about 0.20 m: on round 11's dev rows 25 of 44
+    put-downs within 2.5 cm past 0.19 m and all 75 at 0.11-0.19 m; on the
+    census 2 of 18 past 0.20 m and 35 of 36 at 0.10-0.19 m. The fork's was the
+    same mirrored, past 0.18 m left (25 of 37 within there, 54 of 57 nearer),
+    and its 0.9 cm toward the diner (round 11) lay mostly in that crouch: a
+    constant re-aim would have gained little.
+  - **The lever.** Looked at after the walk to the place, a card that puts the
+    cup's hand further right than `PASS_CUP_RIGHT` (0.20 m) is stepped toward
+    sideways so that the hand goes `PASS_CUP_MID` (0.15 m) right, and looked
+    at again; the fork's further left than `PASS_FORK_LEFT` (0.18 m) so that
+    it goes `PASS_FORK_MID` (0.14 m) left.
+  - **On fresh dev draws** (3800-3863, beside the census): 47 of 64 laid where
+    33 (+14 -0), no fall either way; the cup's step in 19 flights (the cup
+    within 2.5 cm in 14 where 2), the fork's in 13 (13 where 11); the 36
+    flights neither acted on identical to round 11's tree by path and end
+    state -- frozen. The sideways step went 1.6 times its ask (7-14 cm for
+    5-8), and from the stepped stance the reach and the pull down turned it a
+    median 2.5 deg back right (unstepped, 0.2): those cups came down a median
+    (+0.9, -1.8) cm off, 4 of 19 past 2.5 cm.
+  - **Read on the bar's draws and sealed draws** (beside round 11's tree, one
+    pod): 20 of 32 on the bar's draws where 17 (+4 -1) and 20 of 32 sealed by
+    3bfbb07 where 18 (+3 -1), no fall in the 128; the flights no step acted on
+    identical to round 11's (17 and 19). Kept. ⚠ The posture classes were found
+    first on rows that include the bar's draws 0-31 and 532e6bb's sealed
+    draws, so the bar's reading carries that; the draws 3bfbb07 sealed are
+    independent of it.
+- **Round 13** (the loop of 11-26b, its lane A's round 5; same pod): the cup
+  looked at again once set down, and the plate's trip squared to the pass.
+  - **The cup still moved with the stance after its last look.** From a
+    stance stepped sideways (round 12) the reach and the pull down turned it a
+    median 2.5 deg right under the held cup (unstepped, 0.2), 0.6 cm a degree
+    at the cup's place; the heading stood still through the look itself, so
+    there was nothing to wait out. Set down and still held, the cup's run looks
+    at the card again; where the cup's place it works out lies
+    `PASS_CUP_AGAIN` (1 cm) or more from where the hand was sent, it lifts the
+    cup 1.5 cm, moves the hand by that much, sets it down again and lets go.
+  - **The plate's drops at the pass.** Graded "came down ... with nothing
+    holding it": the walk's hand-over's side way (round 10) swept the plate
+    into the pass's top in its roll-in -- 12 of 25 hand-overs from a stance
+    turned right of square by 8 deg or more, 1 of 38 nearer square -- and the
+    plate came loose in the jaws for an instant. The stance stood turned right
+    because the walk's `face` to the pass stops a median 5.6 deg short of
+    square (the humanoid's 4 deg tolerance, then a settle against the turn;
+    the belief reads the truth there to 0.2 deg), and `near`'s oblique step
+    adds 2-5 deg. The plate's trip turns left `PASS_PLATE_TURN` (0.10 rad)
+    after its walk to the pass, before it walks up to the plate.
+  - **On fresh dev draws** (3900-3963, beside round 12's tree): 46 of 64 laid
+    where 38 (+15 -7), one fall either way -- frozen. The second look moved 39
+    cups (within 2.5 cm 34 where 31); the plate's hand-overs that met the pass
+    5 where 18, its drops 3 where 7. Its one new fall was round 11's deep bow
+    at the plate's put-down, aimed 0.052 m left of the middle, just over
+    `PASS_PLATE_LEAST`, downstream of the turn that parted that flight.
+  - **Read on the bar's draws and sealed draws** (beside round 12's tree, one
+    pod): 26 of 32 on the bar's draws where 20 (+9 -3) and 27 of 32 sealed by
+    63886fe where 21 (+7 -1), no fall in the 128 -- the bar met. Left: on the
+    bar's draws the cup let go by the walk's hand-over 2 (its pull-back off the
+    pass ran out of reach after 13-15 cm, its command left 6 cm beyond the
+    hand), the cup off 1, the fork off 1, a fork pick 1, the plate off 1; on
+    the sealed draws the plate off 3, the cup let go 1, the cup's walk 1.
+
+## The place laid from the kitchen's shelf (#682's stage C, the full task)
+
+**What is true now.** Table 0's place can be offered laid from its pieces set
+out on the restaurant kitchen's shelf -- against the kitchen's east wall,
+across from the pass, its third board (top 0.96 m) -- each piece carried
+through the staff door, 10-13 m (`set_table_shelf`, NOT OFFERED and paid
+nothing; `counter.shelf_set_out`, the pass's row in the shelf's own frame;
+Challenges.md §12). No geometry was added: the reference finds the kitchen
+off the pass's pair (68, 69). Its bar was written before any reference flew:
+24 of 32 draws over the tour, a fall failing the try, then 32 draws sealed by
+the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
+each piece fetched from the shelf and laid as the pass lays it (below).
+Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
+32 draws sealed by that commit, no fall, one pod: THE BAR IS NOT MET (its
+misses below; a first round of levers, below, was tried and not frozen).
+Measured first, before the kind was built, on a scratch
+set-out flying the pass's own pick halves from in front of the shelf (the
+loop of 11-26b's A2; `~/pluggybot-training/loop-1126b/a2-shelftable/`, 38
+flights, osmesa, each its own noise):
+
+- **The board above stands at the head's height.** Its underside is 1.34 m
+  up, and the standing head spans 1.20-1.48 m (the shoulders 1.15): only a
+  bow bringing the head about 0.3 m forward meets it. No reach, pull or
+  `move_hand` there took a bow (the deepest, a retry's `move_hand`, 0.30
+  rad), and nothing of the head touched the shelf.
+- **A look reads a piece only from close in.** `spot`'s picture's top stands
+  `SPOT_TOP_AT_FEET_M - SPOT_TOP_DROP x` over the floor (1.275 - 0.344 x m),
+  so the cup's lid tag, 1.05 m up on this board, reads only within about 0.6
+  m of the soles' middle, and the plate's and the fork's (0.97 m) within
+  about 0.8 (on the pass's top the same line gives 0.83 and 1.08). From the
+  pass's 0.90 m every look failed, all three of `near`'s in each of 9 flights;
+  from 0.60 m the plate read at 0.68-0.70 m and the fork at 0.64-0.67 at the
+  first look, the cup only after `near`'s 0.12 m step, at 0.54-0.56.
+- **The pass's left pre-pose meets the board's front edge.** Its shoulder
+  roll 0.9 and elbow 1.4 hold the gripper 0.40 m ahead of the pelvis, 0.93-0.97
+  m up (the robot's model of itself, standing): where the counter's top at
+  0.90 is under it, the shelf's board edge is in it (0.37 m ahead of the
+  pelvis at the fork's stance, the step having gone 2.6 cm long). Four forks
+  of four pressed their jaw on it, and two of them stopped short on the
+  reach's way out, "caught on something"; three plates of four pressed it at
+  44-112 N and were still picked. Bending the elbow to 1.8 alone did not
+  help (the elbow's sweep crosses the edge first: 1 fork of 4). Rolled out to
+  1.2, then bent to 1.9, no sweep of the arm meets the edge 0.33-0.36 m
+  ahead, and the gripper ends 1.03-1.17 m up, over the board's top and under
+  the board above: 4 forks and 4 plates of 4 picked and carried, nothing of
+  the robot touching the shelf.
+- **The cup's retry withdraws under the board above.** A descent held back on
+  the lid (the pass's case, 1 of 4 here) is tried again, and its `withdraw`
+  from the 10 cm hover rose to 1.29 m into the board above (13-39 N) and was
+  held there. With the hand first brought straight back to 0.25 m ahead, out
+  from under the board, it went home and the cup was picked again (1 of 1).
+- **A carried fork brushes the board above** in the walk's hand-over, on the
+  side way a thin grip takes to its carry pose (round 10 of the pass): 2.2-7.0
+  N for 0.2-0.4 s, in all 7 forks carried there (below, the whole trip's).
+
+**The reference** (`solutions.SHELF` over `SHELF_LIBRARY`) is the pass's three
+runs, each piece fetched from the shelf and laid as the pass lays it, byte for
+byte but a check that the piece is still held. What fetching from the shelf
+took, found on local flights and on dev draws from 4000 up (one pod, Xeon
+E7-8890 v4, osmesa, each its own noise; `~/pluggybot-training/batches/
+a2_shelf/`):
+
+- **The kitchen off the pass's pair.** Each trip finds the pass's two tags
+  from the dining room, as the pass's do, and walks to a stance across the
+  wall from them, through the staff door the planner finds. Stopped 2.0 m
+  behind them, the pieces lay 0.67-0.72 m from the soles, past what a look
+  reads, and every first look failed: it stands 2.2 m behind (`SHELF_ACROSS`),
+  stopping first 1.4 m behind (`SHELF_FIRST`) and walking the last 0.8 m
+  straight in -- walked from the staff
+  door, the robot arrived turned about 40 deg off the shelf, and the `face`
+  after it stopped 5-13 deg short, the cup outside the picture's side. The
+  belief in the kitchen ran 0.09-0.12 m behind the truth, so the walk stood
+  that much nearer than meant.
+- **`near` stood further off, its piece where it asks little across.**
+  `near`'s step goes past what it asks -- ahead a median 1.2 cm for the cup,
+  3.6 for the plate, 1.0 for the fork, at most 5.6; across, up to twice an
+  oblique ask (asked 0.13 m left, a fork's stance went 0.25) -- and stood that
+  near, the board's edge met the left pre-pose (125 N) and the cup's lid left
+  the picture's side. So each walk stands its piece's row where `near` asks
+  nothing across (`SHELF_S`; the fork's 5 cm short, as flown: stood square on
+  it, the step straight ahead turned the stance 5 deg and one fork of three
+  was laid), and `near` stands 3 cm further off than the pass's
+  (`SHELF_NEAR_BACK`). A look at the cup or the fork that still misses turns
+  0.15 rad toward its row and looks again (`SHELF_LOOK_TURN`).
+- **The cup read before the right pre-pose.** Stood 0.43 m from the cup, the
+  pre-posed gripper came between the camera and the cup's lid: the look comes
+  first, and again after only where it is seen.
+- **Each thin piece stowed low before the walk** (the next paragraph): brought
+  back clear of the board's face (the plate's grip to 0.20 m ahead, the
+  fork's to 0.22) and lowered to 0.92 m, near the carry pose, so the
+  hand-over's way is short -- the plate by `move_hand`, the fork by a `pull`
+  that holds its line and turn (by `move_hand`, two forks of eight turned in
+  the jaws, 11 to 65 deg, on the way down and fell out; by the `pull`, none
+  of seven) -- and the fork's hand kept at least 0.25 m left of the middle
+  from its pull off the shelf on (`SHELF_FORK_LEFT`): nearer the middle, the
+  pull, the move back and the stow took a 0.55-0.95 rad bow with the waist up
+  to 60 deg in 10 of 49 trips, the head on the work board in 7 (up to 606
+  N) and one fell; from 0.23 m none of 7.
+- **Each put-down only while its hand reads held.** A plate let go in the step
+  at the table (tilted 36-40 deg in the jaws) left the hand empty; the step
+  brought it home, and the put-down's reach from the hanging arm took a crouch
+  of 0.25 m, a bow of 1.10 rad and the waist 0.79, and the robot fell. Of 60
+  dev trips whose walk said it had dropped its piece (in 576), none laid it
+  within 2.5 cm, so the check costs no piece.
+
+On dev draws 4000-4063, each flown on one pod: with only the walk, the left
+pre-pose and the cup's look and retries, the reference laid 21 of 64, no
+fall; with `near` further off, the cup's look turned and each thin piece
+brought back further, 29, one fall; with the stows and the fork's look
+turned, 30, two falls and the head on the work board in 7 flights (the fork's
+lowering, at its hand under 0.23 m left of the middle, ended out of reach in
+33 of 51); and as frozen, with the held check and the fork's hand kept left,
+42, no fall and nothing of the head on the shelf -- paired with the one
+before, 13 more laid and 1 fewer. The cup's and the plate's trips fly the
+same, byte for byte, in the last two: the plate let go carried, 9 of 64, is
+the most of what is left. On the bar's draws the plate was let go carried in
+7 of 32, and the fork let go 4 cm over the table in 4 -- its descent at the
+place ended out of reach after 4-6 cm, its hand 0.17 m left of the middle,
+where the pass's lay steps across only past 0.18 -- and the plate dropped at
+its put-down in 1; on the sealed draws the cup and the fork were put down
+off in 2 each, the plate off in 1 and let go carried in 1, and the cup's
+retry did not see it again in 1.
+
+**Round 1** (from 2bf94b77's misses, its rule sent before it flew; NOT
+FROZEN): the cup's retry turned toward it, the fork's let-go eased and its
+put-down stepping across past 0.17 m, the plate walked in from the card's
+south and not lowered, the fork not lowered. On dev draws 4000-4063 the
+whole place came out even with the frozen reference's 42 of 64 -- with every
+lever, 42 (paired +7 -7); with the cup's and the fork's alone, 42 (+1 -1) --
+though each did its job (every cup laid; no fork's descent out of reach, no
+fork let go at a drop's speed): the plate is the gap, let go carried in 9-10
+of 64 on every form tried. What the plate's drop is, read off the frozen
+reference's plate trips: its tilt in its pinch before the walk 6 deg or more
+in 22 of 124, 15 of them let go carried, under 6 deg in 102, 1; the pinch
+gives in every phase (of 10 let go carried, it slipped in the lowering in 4,
+the hand-over in 7, the walk in 8; of 53 kept, 2, 18 and 14), and the
+hand-over adds 6-8 deg more without a slip (its normal tips back and right:
+the live trunk against the statue the carry is solved on). Probes of the
+plate alone from the pass misled: walked in from the south and not lowered it
+was laid 50 times in 64 where the frozen reference's was 42 (+10 -2), on the
+whole place 9 let go carried against 9. On the whole place, squeezed at the
+gripper's most (120 N) it was let go carried 9 times in 61 where the cup's
+and the fork's levers alone left 10 (the place 42 against 40, +9 -7), and its
+lowering counter-turned against the carry's tilt -- which cut that tilt to
+about 3 deg -- 16 times (34 against 40): the drops are the pinch giving, not
+the tilt. Twice a fork's lift after its let-go took the waist to 60 deg, went
+out of reach, and the withdraw after it fell (the pass's lay; once in 16
+single-fork trips, once in 61 places). A `move_hand` that only turns the
+hand reads "arrived" before its turn is done (#767).
+
+**A thin piece's hand-over rises under a board above** (served code since the
+pass's round 10; reported to #682, not fixed). The walk's hand-over takes the
+side way for a thin grip (`reach.CARRY_THIN_M`: the plate's wall, the fork's
+handle), and from a grip at the shelf's edge (the plate's 0.225 m ahead and
+1.07 m up, the fork's 0.33 and 1.08, medians) the hand rose a median 0.21 m
+(the fork's highest 0.36-0.39) and swung forward 0.06 m (fork) and 0.16
+(plate) before it came down. Under the board above, 1.34 m up, the carried
+fork touched the shelf in 46 of 52 hand-overs (up to 80 N; 107 with it pulled
+back further), 8 knocked loose and falling; the plate's far rim came down on
+the work board's edge in 18 of 58 (11-74 N), turning 4.7 deg in its pinch
+where untouched plates turned 1.8, and those tilted further on the long carry
+until 10 fell carried. On the pass nothing is over the counter. Any thin
+piece picked from under a board and walked off with meets it, unless the
+procedure first stows it low.
 
 ## The arms keep off the other robot (issue #678)
 
@@ -12194,7 +12431,7 @@ holds nothing by this rule.
 ## Stocking the shop's shelf (issue #736)
 
 Our reference for `shelf` (`hands_check.SHELF`, the walk there
-`solutions.SHELF_APPROACH`; Challenges.md §13), flown on Vast pods -- stage 1
+`solutions.STOCK_APPROACH`; Challenges.md §13), flown on Vast pods -- stage 1
 (the loop of 2026-11-22, task W3) on an EPYC 7C13 share, stage 2 (the loop of
 2026-11-23, task X6) on a Xeon E5-2697A v4 share for its dev draws and an EPYC
 7532 share for the bar, round 2 of stage 2 (the loop of 2026-11-24, task Y5)
@@ -12944,8 +13181,8 @@ P2's plans that passed over found their posture within 6 judgments in 85
 of 121, and a cap at 10 (about 1 s) would refuse the other 36 -- where P2
 held 13 to the base's 6 and fell once.
 
-**What it does not do.** The legs, the trunk and the head are not judged
-(the thighs never felled the robot alone). A face never seen, or moved
+**What it does not do.** The legs are not judged (the thighs never felled
+the robot alone); the trunk and the head are #763's (below). A face never seen, or moved
 since, is not there, nor one seen more than a minute before (`KNEE_S`, as
 the knees' memory): up close the camera sees the top alone, so a later
 procedure's reach at the counter is judged on the minute before it -- 112
@@ -12962,6 +13199,150 @@ none fell among the reaches it judged clear. A column's top 3 cm, a
 counter's front edge among them, is no face. A way home, a carry and a pull are not judged. The
 statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
 the truth lags the commands: the census, not the model, set the clearance.
+
+## A reach's bow under a shelf's board (issue #763)
+
+A procedure's reach takes the least bent posture its hand gets there from
+(`plan`). At the shop shelf's upper board (0.96 m) a set-down's pre-point
+0.24-0.33 m ahead at 1.07 m is reached only from the deepest bows -- 63 deg
+with the waist turned 60 -- and there the head comes under the board above
+the hands' work, or onto its front edge. Nothing judged the head: #747's
+swing walks the arms alone, #717's bow room bounds a look's bow. The next
+change of posture -- the move in, the press's search, the back-out, the
+withdraw's stand -- rises into the board, the trunk cannot come up while the
+legs' held pitch walks back to the stand, and the fall watch counts a fall.
+Five of the seven falls traced in #736's rounds 5-7 were this, the head on
+the board at 65-514 N; lane C's loading rack met it in 6 of 12 flights, a
+carry's bow struck the checkout counter at 105-193 N, and a gripped pull's
+the kitchen shelf's work board at 65-606 N (the loop of 11-26's lanes).
+
+**What the robot sees of the board.** The arms' memory (#747) keeps it, but
+not as a face: a 2 cm board's top and front edge lie within `ARMS_TOP_M` of
+its column's top, which a hand comes down over, and its underside is never
+seen from above. At the shop census's 59 upper set-down plans its front row
+was a face in 21 (0-4 voxels), in the whole memory in 54 (2-174) and its top
+in all 59. The LIDAR's band at the head's height starts at `OVER_Z` (1.05 m)
+and never sees it. And what the memory holds of it was laid on the way in:
+walking the last steps to the label the belief moved 6-8 cm against what the
+camera saw on the way, and a board laid before stood 2-7 cm nearer than it
+was (six cases against the truth); seen since the feet last moved, within 1
+cm (`ArmsMemory.since`, `last_motion_t`). At the 1,469 posture choices the
+shadow census below judged, that view was never empty.
+
+**The judgment** (`Reach._trunk`, `trunk_parts`, `trunk_gap`;
+`HumanoidMission.trunk_seen`). The trunk above the waist -- the torso, the
+head's parts and the LIDAR, each its exact signed distance -- walked on the
+commands' clocks into the posture, as #747 walks the trunk, and back up from
+it to the stand's at the lean it reads (as every stand a way home is judged
+in), the way every withdraw ends; against what the depth camera saw since
+the feet last moved, tops kept, nothing cut round the goal; never the
+posture the body holds or has got to, which changes nothing.
+A posture any part of whose trunk comes nearer than `TRUNK_CLEAR_M` -- or,
+begun nearer, nearer than it began less 5 mm -- is passed over: a reach's
+plan (beside #747's arms; a plan that passed one over takes no look) and its
+look's second posture, a carry's and a pull's at their ask and in their
+replans on the way. Where no posture keeps clear, a reach moves nothing and
+says what its first would meet ("head"); a carry is refused before it moves,
+or held in the posture it is in and ends out of reach; a pull is held where
+it is. The loop's own moves are never judged, nor a way home: the withdraw's
+stand is the way out. Nothing seen since the feet moved judges nothing, nor
+a memory read through a belief that jumped since it last read it (no frame
+folds while the body is bowed).
+
+**Calibrated in a shadow census before it acted** (B2c's `headrec`, its
+verdicts recorded and never acted on; a census flight with it is the plain
+flight to the bit but its wall clock): the shop shelf's 384 dev flights --
+the census's 64 checks and 32 tours, and as many of each of the arms A10,
+NO10 and U35 (#736's rounds 5-6) -- on one pod (a Xeon E5-2698 v4, which the
+dev box replays): 312 upper set-downs, 294 in bows of 0.8 rad or more, the
+head on the world over 20 N in 15, a fall after it in 5 (the five traced).
+Two of the five were clear on the way in and met the board only on the way
+up (the fallback reach's deepest bow, A10's k228 and U35's k213). The view
+since the feet moved, at a clearance of 0: every fall's entry passed over, 14
+of the 15 contacts flagged before they came, 6 set-downs flagged that met
+nothing; at #747's -0.005, k228's entry is taken (its walk up 3 mm in) and
+only the rise out of it is flagged, which leaves the head under the board for
+the withdraw's stand to jam -- the rule's written criterion, read to the
+letter (a choice flagged at or before the first contact), had picked -0.005
+through that rise; 0 was chosen by the entry, 5 of 5 against 4 of 5, at two
+more set-downs flagged that met nothing. The whole memory at -0.005 flagged
+28, 13 of them nothing (a board laid before the last steps). ⚠ THE LIVE TRUNK GOES
+DEEPER THAN THE STATUE'S WALK: a tour's press into a 0.95 rad bow whose walk up
+kept 0.6 mm off the board (the truth 3.8 mm in) pressed the head on it at 457
+N in the withdraw -- the rule's known limit. Walked up from the stand at the
+lean the body reads (the review's change), that walk reads into the board, and
+the final code's judge flags it before the contact; where a statue only
+touches, the live trunk can still press hard (a cube's plan at the counter,
+touching by the truth, put the torso on it at 486 N: below).
+
+**What it costs.** One judgment is 5-20 ms on the dev box; a plan it passes
+over nothing in, 0-15 ms more (k253's deep plan 6.48 -> 6.50 s, a reach
+across the body 660 -> 666 ms, one to its own side 64 -> 79 ms). Where it
+passes one over, the search goes on through the rest of the postures as
+#747's refusals do (k253's pre-point with the board 0.42 m ahead, 6.5 -> 11.5
+s of the one physics thread). A hands check's door, five judgments, 44 ms.
+On Ben's bar (below) a flight made 3.3 judgments, the table's 6-7; flown on
+the dev box, a table check's 18 took 1.1 s and the searches the rule
+lengthened 6.1, 0.8 and 0.8 s, a cube's plan's 10.6 s, and a whole flight
+took 0-15 s more wall than the base's (the pod's oversubscribed wall clock
+read the same searches 5-10 times longer).
+
+**On the final code** (b5bc660e). Ben's bar, on one pod beside loop-staging
+93c27983: passes 617 -> 618 of 736, falls 4 -> 3, and every one of the 722
+flights it did not act on replayed the base exactly. It acted in 14 -- at
+the storeroom's counter (its edge and top, the cube's board) and at the
+restaurant's table (its top, the plate) -- and four outcomes moved: two lids
+passed that had failed (a carry's posture whose torso came 4 mm into the
+counter's edge passed over, each lid was lowered at 0.30 rad/s where the
+base's came down at 3.2-4.1 rad/s while open); a table check's
+fall went (no trunk contact had caused it: the base's trunk touched nothing
+before it fell); and a cube's place was lost. There the base's torso pressed
+the counter at up to 486 N, the candidate's at 385 N, both from a plan the
+rule judged clear (below); the looks after it, the torso already on the
+counter, passed over the deeper crouches the base placed from, and the cube
+came down 6 cm off its mat. Lane C's loading rack, its 12 upper-board
+flights: falls 3 -> 1, the head on the world in 6 -> 1, the 5 it did not act
+on replaying exactly.
+
+⚠ **Its view drifts through a bow.** A reach's steps take no scan, so through
+a bow the belief moves only by the legs' reckoning, and the window's voxels,
+folded level before the bow, are placed through the belief as it is now. At
+lane C's rack the believed stance drifted 2 cm as the pelvis went back 17 cm
+over the planted sole; the board read 1.6 cm further at the look than at the
+plan, and the look's rise -- 1.2 cm into the board's underside by the truth
+-- read 0.14 cm clear: the head struck at 416 N and the robot fell (at the
+counter the drift ran 1.3-3 cm). But the reckoning is not drift alone: at a
+table check the true stance turned 3.2 deg in place while the feet stood, and
+the reckoning followed it (2.7 deg, drifting 1 cm). So no placement serves
+both. Placed through the believed stance at each frame's fold (`loop-763b`,
+measured, not merged), the rack went 3 -> 0 falls, but on Ben's bar it undid
+#763's four moved outcomes (a pass lost, a fall gained); turned by the
+reckoned heading's turn as well, it flew the same flights as the fold
+placement. Nor is the statue's walk a referee at that scale: judged against
+the table's true top, a carry's posture walked the torso 5.1 cm into it, and
+the flight that took it touched nothing. ⚠ What would answer it is a memory
+that sees during a bow. Frames taken bowed, levelled through the IMU as the
+LIDAR's band is, would place what the camera sees then through the body as it
+stands then, with no drift to carry. The cost: a depth render every 0.2 s
+through a reach (none is taken bowed today). And it would see only what the
+bowed camera sees: it looks down, so a board over the head may be out of its
+picture. Not built: that premise is checked first.
+
+**What it does not do.** A posture already held, or one the body has got
+to on its way (what #719 keeps it in), is never judged (no change, nothing
+walks), nor one the loop's own move takes (a charge's plug-in), nor a plan
+the words ask for themselves (`hand_reaches` without `verb`). Nothing over
+1.35 m is in its view (`ARMS_TOP_Z`; the camera never sees above itself), so
+a board over the standing head's rise goes unjudged. Each robot's walks are
+posed on statues of its own; measured, a statue is the same bit for bit from
+a cold cache as from a warm one (12 of 12, the held posture's least squares
+among them), so neither the other robot's judgments nor a restart's rebuild
+changes one. A thing the camera saw before the feet last moved is not there; one moved
+since it was seen is (#747's memory keeps a picked piece's former place up to
+a minute where no step came between: such a ghost can pass a posture over
+too). The arm against its own trunk in a carry's posture is #726's, which
+judges a reach's plan alone (the checkout's carry met its own gripper with
+its head at 21-116 N).
 
 ## Debugging workflow that worked
 

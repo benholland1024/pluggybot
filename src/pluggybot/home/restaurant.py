@@ -101,10 +101,12 @@ def redraw(model, data, target: str, k: int) -> None:
   dw.set_const(model)
 
 
-#: Each kind's set-out of the place: its pieces beside it on the table, or on
-#: the pass (#682's stage C, easy mode; `counter.pass_set_out`), the card at
-#: the table either way.
-SET_OUTS = {"set_table": ct.table_set_out, "set_table_pass": ct.pass_set_out}
+#: Each kind's set-out of the place: its pieces beside it on the table, on
+#: the pass (#682's stage C, easy mode; `counter.pass_set_out`) or on the
+#: kitchen's shelf (its full task; `counter.shelf_set_out`), the card at the
+#: table each way.
+SET_OUTS = {"set_table": ct.table_set_out, "set_table_pass": ct.pass_set_out,
+            "set_table_shelf": ct.shelf_set_out}
 
 
 def set_out(model, data, target: str, k: int, kind: str = "set_table") -> None:

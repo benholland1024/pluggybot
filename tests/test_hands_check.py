@@ -1101,7 +1101,7 @@ def _shelf_tags(k: int = 0):
   its face: the frame's on its face, the candle's on its top, each label on its board's front edge."""
   from pluggybot.activity import stock
   from pluggybot.home import store
-  so = ct.shelf_set_out(k)
+  so = ct.stock_set_out(k)
   o, out, right = store.axes()
   s0, d0 = store.CART_AT, store.CART_BACK_GAP + 2 * stock.CART_HALF[0] + ct.CART_GAP
   tags = {}
@@ -1275,7 +1275,7 @@ def test_a_set_down_reach_stopped_short_reaches_again_from_further_back_and_high
 
 
 def test_the_walk_to_the_shelf_squares_itself_off_the_frame_to_candle_line():
-  """⚠ THE WALK THERE SQUARES ITSELF (#736 stage 2; `solutions.SHELF_APPROACH`'s `square`): faced by
+  """⚠ THE WALK THERE SQUARES ITSELF (#736 stage 2; `solutions.STOCK_APPROACH`'s `square`): faced by
   its belief, the robot stood 10-12 deg off square in 5 of 9 flights from across the house, and its
   carried trips then took it out of the labels' view. The frame and the candle stand on the cart
   along a line 4.8 deg off the robot's side when square (to 2 either way over the set-outs'
@@ -1283,7 +1283,7 @@ def test_the_walk_to_the_shelf_squares_itself_off_the_frame_to_candle_line():
   from pluggybot.body import StubBody
   from pluggybot.challenge import solutions as so
   from test_hands import _bare, _Life
-  source = so.SHELF[0]
+  source = so.STOCK[0]
   square = source[source.index("def square():"):]
   so_, tags = _shelf_tags(0)
   line = math.atan2(tags[76][0] - tags[77][0], tags[77][1] - tags[76][1]) - 0.085
@@ -1322,13 +1322,13 @@ def test_at_a_label_no_step_back_and_no_small_step_ahead():
 
 
 def test_the_walk_to_the_shelf_never_ends_at_a_look_that_misses():
-  """⚠ THE WALK'S LOOKS AT THE CART ARE TESTED (#736 stage 2 round 2; `solutions.SHELF_APPROACH`): a walk whose
+  """⚠ THE WALK'S LOOKS AT THE CART ARE TESTED (#736 stage 2 round 2; `solutions.STOCK_APPROACH`): a walk whose
   look missed failed, and the job's runner stopped there, the check never begun (2 of the tour's 32 draws). With
   the frame unseen, `square` turns nothing and the walk ends ok."""
   from pluggybot.body import StubBody
   from pluggybot.challenge import solutions as so
   from test_hands import _bare, _Life
-  source = so.SHELF[0]
+  source = so.STOCK[0]
   square = source[source.index("def square():"):]
   body = StubBody(*_bare())
   body.spot = lambda tag, at_height=None: None

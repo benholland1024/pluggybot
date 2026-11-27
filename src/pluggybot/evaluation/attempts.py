@@ -370,7 +370,7 @@ def _check_set_out(task: Task, policy=None, noise: str | None = None) -> World:
     act = dw.Dishware(model, data, so.load, ct.TABLE_H)
   elif task.grader == "shelf":
     from pluggybot.activity import stock as st
-    so = ct.shelf_set_out(task.chest)
+    so = ct.stock_set_out(task.chest)
     model, data, body = ct.world(so, policy, noise=noise)
     act = st.Stock(model, data, so.load, so.slots)
   body.step_hooks.append(lambda: act.sense(model, data))
