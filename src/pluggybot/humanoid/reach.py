@@ -383,6 +383,13 @@ LOW_TURN_W = 3.0
 #: back from the hand, which the robot cannot know), and the carry pose holds
 #: it ~0.19 off.
 LOW_TRUNK_M = 0.16
+#: ...and only a hand holding a WALL -- its jaws under this apart, m: the
+#: plate's 8 mm wall reads 1.0-1.25 cm -- never a handle (the fork's 2.4 cm):
+#: held pointing ahead as it lay, a fork's head came down on the work it was
+#: lifted from while the hand, kept off the trunk at the fork's side, was
+#: still over it (the pass met in 43 of 61 hand-overs where 8; the shelf's
+#: work board 30 of 57 where 10); a handle goes by the judge, as before.
+CARRY_WALL_M = 0.018
 #: ...and on its way in, every joint pulled toward the carry pose's, the pull
 #: growing to this: the branch changes there, at the bottom behind the work --
 #: at a census of 205 such ways on the robot's model, the hand turned off level
@@ -3209,7 +3216,8 @@ class Reach:
     dips = _dips(sm, side, q0, q1 if out else q0, ahead)
     if (not out and not np.array_equal(np.asarray(q1, dtype=float), self.rest[side])
             and self.grippers[side].gap_mean < CARRY_THIN_M):
-      if abs(float(np.asarray(q0, dtype=float)[hm.ARM.index("shoulder_roll")])) > CARRY_OVER_ROLL:
+      if (abs(float(np.asarray(q0, dtype=float)[hm.ARM.index("shoulder_roll")])) > CARRY_OVER_ROLL
+              and self.grippers[side].gap_mean < CARRY_WALL_M):
         # ...from over the top, low: back, level, then down, then in (#770),
         # on the stand's statue, as its carry pose is solved (`carry_pose`)
         arms = {**self._arms(), **_arm(side, q1)}

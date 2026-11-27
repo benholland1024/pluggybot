@@ -860,6 +860,8 @@ def test_a_carried_arms_way_is_judged_by_its_hands_descent_past_where_it_began()
     body.close()
 
 
+# ...from where the plate's grip began and the fork's, a wall in the jaws
+# at both: the low way is a wall's alone (`CARRY_WALL_M`, round 3)
 @pytest.mark.parametrize("q0", [OVER_THE_TOP, FORK_OVER_THE_TOP], ids=["plate", "fork"])
 def test_a_thin_piece_carried_from_over_the_top_comes_back_level_then_down_then_in(q0):
   """#770 (SimNotes, "The place laid from the kitchen's shelf"): from over
@@ -907,6 +909,8 @@ def _trunk_off(sm, points) -> float:
   return min(float(rc.trunk_gap(np.atleast_2d(points), part).min()) for part in parts)
 
 
+# ...from where the plate's grip began and the fork's, a wall in the jaws
+# at both: the low way is a wall's alone (`CARRY_WALL_M`, round 3)
 @pytest.mark.parametrize("q0", [OVER_THE_TOP, FORK_OVER_THE_TOP], ids=["plate", "fork"])
 def test_a_thin_carried_way_keeps_its_hand_and_what_it_holds_off_the_trunk(q0):
   """#770's round 2: with the hand level and its yaw left free, round 1's way
@@ -950,6 +954,28 @@ def test_a_thin_carried_way_from_a_bow_is_planned_where_the_stand_holds_it():
     assert max(p[0] for p, _ in walk) <= max(p0[0], p1[0]) + 0.005
     assert max(t for _, t in walk) <= 15.0, max(t for _, t in walk)
     assert max(p[2] for p, _ in walk) <= p0[2] + 0.005
+  finally:
+    body.close()
+
+
+def test_a_handle_carried_from_over_the_top_goes_by_its_hands_descent():
+  """#770's round 3: ...but only a hand holding a WALL (`CARRY_WALL_M`): the
+  low way took the fork's handle too, held pointing ahead as it lay, and its
+  head came down on the work it was lifted from while the hand, kept off the
+  trunk at the fork's side, was still over it -- the pass met in 43 of 61
+  hand-overs where 8, the shelf's work board in 30 of 57 where 10. A handle
+  (the fork's jaws read 2.4 cm apart) from over the top goes by its hand's
+  descent (`carry_descent`), straight or the side way, as before."""
+  body, r, q0 = _posed(FORK_OVER_THE_TOP)
+  try:
+    assert abs(q0[hm.ARM.index("shoulder_roll")]) > rc.CARRY_OVER_ROLL
+    r.grippers["left"].gap_mean = 0.024                    # the fork's handle
+    carry = r.carry_q["left"]
+    sm = _as_it_stands(r)
+    straight = rc.carry_descent(sm, "left", q0, [carry])
+    aside = rc._aside("left", q0, carry, False)
+    judged = [carry] if straight <= rc.HOME_DIP_M or rc.carry_descent(sm, "left", q0, aside) >= straight else aside
+    assert [w.tolist() for w in r.way_home("left")] == [np.asarray(w).tolist() for w in judged]
   finally:
     body.close()
 
