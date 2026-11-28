@@ -219,13 +219,21 @@ class SelfModel:
     """The arm's joints that put its grip at `pos` (and `rot`, if given) in
     the stance frame, from where the arm is now: damped least squares,
     every joint held `RANGE_MARGIN` inside its range. Returns the joints and
-    how far off they leave the grip, m and rad."""
+    how far off they leave the grip, m and rad. ⚠ IT ENDS WHERE ITS JOINTS
+    COME BACK BIT FOR BIT TO JOINTS IT HELD (#769): an iteration is a
+    function of the joints alone (the target, the ranges and the rest of the
+    model held), so from there it cycles, and the joints its cap would end on
+    are known -- returned, and the model posed there, as the cap would leave
+    them. ⚠ NEVER ON A TOLERANCE: ended once no joint moved 1e-9 rad, no
+    verdict changed but every flight with a capped solve parted from its path
+    (C4's measure; SimNotes, "A solve ended where its joints come back")."""
     idx = self.arm[side]
     lo, hi = self.ranges[idx, 0] + RANGE_MARGIN, self.ranges[idx, 1] - RANGE_MARGIN
     q = np.clip(self.q[idx], lo, hi)
     self._set_arm(side, q)
     ep, er = np.inf, np.inf
-    for _ in range(iters):
+    held, seen = [q], {q.tobytes(): 0}
+    for k in range(1, iters + 1):
       have_p, have_r = self.grip_pose(side)
       e_p = np.asarray(pos, dtype=float) - have_p
       ep = float(np.linalg.norm(e_p))
@@ -242,6 +250,14 @@ class SelfModel:
       dq = j.T @ np.linalg.solve(j @ j.T + IK_DAMPING ** 2 * np.eye(len(e)), e)
       dq = np.clip(dq, -IK_STEP, IK_STEP)
       q = np.clip(q + dq, lo, hi)
+      at = seen.setdefault(q.tobytes(), k)
+      if at < k:
+        # ...iteration `at`'s joints again: a cycle of `k - at` from there,
+        # the cap's joints its member at the cap's phase
+        q = held[at + (iters - at) % (k - at)]
+        self._set_arm(side, q)
+        break
+      held.append(q)
       self._set_arm(side, q)
     have_p, have_r = self.grip_pose(side)
     ep = float(np.linalg.norm(np.asarray(pos) - have_p))
