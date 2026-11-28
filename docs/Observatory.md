@@ -10,6 +10,63 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A stall its scans say was held back reads pressed (#766 (a)'s option 2, C20, `loop-766a`) — opens when this PR is deployed
+
+**What the robots read** moves by one clause and one reading, on purpose: the
+prompt `3f8b2dc7…` (72,160 characters, 17 sections) becomes `0395bad4…`
+(72,208), one section moved, PROCEDURES YOU MAY WRITE (`step`'s line, 2,356
+-> 2,404); the session host's hello `9dcf6202` becomes `ac9d2a4e` (`step` is
+one of a session's verbs). A draft for Ben, in `step`'s text, BEFORE: "A walk
+your LIDAR's scans of the room say went under 0.5 of what your legs count,
+these 4 cm or more, reads false: pressed on something, a stride can come down
+where it began while your legs count it; `step.*` then says what your scans
+do." AFTER: "A walk your LIDAR's scans of the room say went under 0.5 of what
+your legs count, these 4 cm or more -- under 0.8, where it got nowhere or
+stalled -- reads false: pressed on something, a stride can come down where it
+began while your legs count it; `step.*` then says what your scans do." (+48)
+
+**What a step reports.** A walk that stalled, its scans under 0.8 of its legs'
+count (`STEP_STALL_PRESSED_SHARE`), these 4 cm or more along its way after its
+turn, BEFORE (#751's words, 103 characters, its head "your step stalled"
+History's shorter form): "your step stalled: once it was under way, your
+legs counted under 1 cm along the way you stepped in 1 s". AFTER (#718's, 128
+characters, no shorter form): "your legs counted 6 cm along the way you
+stepped, but your scans of the room put you only 3 cm on: something held your
+body back", and `step.dx`/`step.dy` the scans' move (flown: 0.034 and -0.001
+where the legs counted 0.055 and -0.016). A step reads false either way, and
+nothing moves the body: flown base against branch, every flight ended in the
+same state bit for bit, its calls the same, only the stalls' verdicts moved.
+A procedure that reads `step.*` after such a step reads the scans' numbers.
+
+**Why** (#766 (a); SimNotes, "A stall judged as a press"). A hand hanging at
+the robot's side pressed on the storeroom's counter held its body back while
+its legs counted on, and its step read "stalled": #718 judged only a walk that
+stepped. The 16 such stalls replayed (Rowan's `door_p7` line 39, 11-25) had
+their scans see 0.47-0.80 of the legs' count; untouched walks of a stall's
+length, 0.872 at the least (190), and all 748 untouched walks 0.773 (a step
+back).
+
+**History.** A press has no shorter form. On every real run line measured --
+Rowan's two `door_p7` runs of 11-25, and C1's 88 and X5's 200 replays laid
+again in today's words -- it pushes nothing out: line 20's `spot` reason fills
+the line and line 39 is among the "(+N more)". Where a pressed stall is the
+first false read of its line and the line is tight, its 128 characters can
+push a later line's reason into "(+N more)" where the stall's head left room.
+
+**With #766 (b)'s period** (C11, `loop-words4`, 8412e019): both are in
+`step`'s text, its sentence on a stall's windows ("...reads false and says your
+step got nowhere or stalled; ...") before this clause, which names the stalls
+that read pressed instead. Together they make the prompt `736ff350…` (72,462
+characters) and the hello `e2239d7f`.
+
+**What to read.** On the wakes after this deploys: the steps that read
+pressed, by whether their walk stepped or stalled; a stall that read pressed
+with nothing touching the robot but its soles (the bar's error: none of the
+190 untouched walks of a stall's length came under it); whether a procedure's
+steps, or its reads of `step.*`, change after a pressed stall, against the
+weekend's wakes (11-28 and 11-29); and run lines where a press put another
+line's reason into "(+N more)".
+
 ### A solve ends where its joints come back (#769, C18, `loop-769`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
