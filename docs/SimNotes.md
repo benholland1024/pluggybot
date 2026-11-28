@@ -13435,10 +13435,11 @@ given no turn arrives.
 
 **The tolerance is the solve's own**, `arms.REACH_ROT_TOL` (0.1 rad), as
 `ARRIVE_M` is its place's (1 cm, `REACH_POS_TOL`), and the evidence keeps it
-no tighter: holding the plate, the hand sat 0.029 and 0.035 rad off its kept
-turn as two plain carries arrived, steady at 0.03-0.04 over their last
-seconds -- its sag, which a tolerance under about 0.05 would read as held
-back -- and the solve stops refining a turn once within `IK_ROT_TOL` (0.02).
+no tighter: holding the cube, the plate, the cup or the fork, the hand sat
+0.001-0.048 rad off its kept turn as 23 plain carries of our references
+arrived, the plate's steady at 0.03-0.04 over their last seconds -- its sag,
+which a tolerance under about 0.05 would read as held back -- and the solve
+stops refining a turn once within `IK_ROT_TOL` (0.02).
 In free air the hand follows a turning command 0.01-0.03 rad behind and
 settles within 0.01 rad 0.1-0.2 s after its command stops.
 
@@ -13468,9 +13469,11 @@ at full size.
 **What it does.** #767's flight: the turn arrives at 0.14 s, the tick its
 command's turn gets there, its fingers 1.79 deg off the way asked (the arm's
 own lag behind a command that no longer has one), and the next move, keeping
-its turn, ends 0.30 deg off it (1.21 before). A2's probe: the pre-tilt arrived
-at 0.15 s, its command whole, the hand 0.028 rad off it, the fingers turned
-6.0 deg (0.13 before); the plate was laid as before (0.7 cm off, 0.4 before).
+its turn, ends 0.30 deg off it (1.21 before). A2's probe at draws 4160-4162:
+the pre-tilt arrived 0.15-0.21 s in, its command whole, the hand 0.028-0.042
+rad off it, the fingers turned 6.0-7.4 deg (0.11-0.17 before, 0.03-0.05 s in);
+the plate was laid on all three, 0.7-1.9 cm off, where before it was laid on
+two and dropped on the third -- one draw, no measured gain.
 What it lets through: a hand within 0.1 rad of its turn and still closing on
 it reads "arrived" -- the arm's lag, 1.8 deg there -- and the next move
 finishes it, keeping the whole turn.
@@ -13480,10 +13483,15 @@ charge's plug carried to the port turns; `evaluation.opener`'s lid arc), and
 every carry that keeps its turn. None of our references asks a turn (an ast
 scan of `solutions.PROCEDURES`, its `LIBRARY` and `hands_check`'s procedures),
 and a sample of them ended in the same state on both trees, end hashes equal:
-the lid's and the table's hands checks at set-outs 0-2. The robots' own: none
-of X5's 200 live tries asks one; of 592 distinct sources in five live exports
-(11-14 to 11-25), two did, Rowan's door procedures of 11-15 (it ran once,
-and fell at its 38th step) and 11-25 (refused, nested too deep).
+the hands checks of the lid, the table, the drawer, the door and the cube at
+set-outs 0-2, the pass and the kitchen's shelf from the tour at draws 0-1, and
+two of the station's approaches, whose plug-in is the loop's own turned carry
+(21 flights a tree). The robots' own: none of X5's 200 live tries asks one;
+of 592 distinct sources in five live exports (11-14 to 11-25), two did,
+Rowan's door procedures of 11-15 (it ran once, and fell at its 38th step) and
+11-25 (refused, nested too deep), each restating its reach's turn. The first,
+flown as the door's job from the store at draws 0-1, ended the same on both
+trees: its reaches never got its hand out, so its turned move read "not out".
 
 Measured on the dev box (an Intel i5-9600KF, osmesa),
 `~/pluggybot-training/loop-1126b/c19-turn/`: `c/turnrec.py` records every
