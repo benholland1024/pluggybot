@@ -597,8 +597,14 @@ TABLE_STANCES = '''def lay_place():
 #: dev rows, 41 of 85 upper products ended on their label, and 295 of 299 whose
 #: reach went at once to the deep bow, which reaches the set-down point and the
 #: press as well; the retry of a reach stopped short is unchanged, 8 cm behind
-#: the unclamped pre-pose and 3 cm higher (SimNotes, "Stocking the shop's
-#: shelf"). `%(candle)d` and `%(frame)d` are the job's labels (`source`).
+#: the unclamped pre-pose and 3 cm higher; ⚠ on the lower board a set-down is
+#: aimed no nearer the robot's middle than 0.19 m left (round 23): planned
+#: nearer, on the rows since round 9 a candle's first reach was refused 36 of 98
+#: times in checks and 12 of 96 in tours, and a frame's at one check's draw on
+#: every arm -- never one of 3,578 planned at 0.19 or more -- and in a tour the
+#: fallback was refused too, 10 times of 12, the product still in the hand
+#: (SimNotes, "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are the
+#: job's labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=200,seconds=290)
   one(%(frame)d,0)
@@ -644,7 +650,7 @@ def one(lab,i):
       if not step(0,ly-0.23+tz+0.03*(2*(ly>0.27-tz)-1)):pass
       x=x-read("step.dx");ly=ly-read("step.dy")
       if spot(tl):x=read("spot.x");ly=read("spot.y")
-  x=x+0.08-0.02*i*(lab>81)*(x>0.5)-q;z=z+0.075+oz;w=ly-r-0.01-0.01*(i*(lab<82)+1-i)+0.035*(lab>81)
+  x=x+0.08-0.02*i*(lab>81)*(x>0.5)-q;z=z+0.075+oz;w=ly-r-0.01-0.01*(i*(lab<82)+1-i)+0.035*(lab>81);w=w+(0.19-w)*(w<0.19)*(lab<82)
   if not reach("left",x-0.17-(x-0.52)*(x>0.52)*(lab>81),w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
   if not move_hand("left",x,w,z):
     if x-read("left.x")>0.01:pull("left",1,0,0,10,x-read("left.x"),give=0)

@@ -1122,7 +1122,7 @@ def _shelf_tags(k: int = 0):
 
 
 def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, undercount=0.0,
-                 label_far=0.0, cart_far=0.0, frame=None):
+                 label_far=0.0, cart_far=0.0, frame=None, label_left=0.0):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
   turning `drift` rad more than it asked and counting `undercount` short of where it went (a
@@ -1131,7 +1131,8 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   `held_back` descents onto a product held back and its first `short` set-down reaches stopped
   short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
   stub's pose then); and the products `cart_far` m further out than they stand; `frame` (dy, turn): the
-  frame's tag `dy` m further left than it stands and facing `turn` rad."""
+  frame's tag `dy` m further left than it stands and facing `turn` rad; each label `label_left` m further
+  left than it stands."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   so, tags = _shelf_tags(k)
@@ -1152,6 +1153,7 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
         return None
       x, y, z, n = tags[int(tag)]
       x += label_far if int(tag) >= 79 else cart_far
+      y += label_left if int(tag) >= 79 else 0.0
       return {"x": x, "y": y, "z": z, "normal": list(n), "edge": [0.0, 1.0, 0.0], "range": 0.5}
 
     def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
@@ -1382,6 +1384,28 @@ def test_an_upper_set_down_reach_is_planned_near_enough_to_go_deep(k, far):
   if (k, far) == (4, 0.03):
     assert all(first["x"] < carry_x - 0.17 - 0.02 for (j, first), carry_x in
                ((h, next(a for v, a, _ in log[h[0] + 1:] if v == "move_hand")["x"]) for h in held)), held
+
+
+@pytest.mark.parametrize("k, left, product, want", [(0, 0.14, "candle", 0.19), (3, 0.15, "frame", 0.19),
+                                                    (0, 0.0, "candle", 0.21), (0, 0.14, "frame", 0.186)])
+def test_a_lower_set_down_is_aimed_no_nearer_the_middle_than_019(k, left, product, want):
+  """⚠ ON THE LOWER BOARD A SET-DOWN IS AIMED NO NEARER THE ROBOT'S MIDDLE THAN 0.19 M LEFT (#736, round 23): planned
+  under it, the first set-down reach was refused, "no posture you hold puts your left hand there turned as asked"
+  (the rows since round 9: 36 of 98 such checks' candles and 12 of 96 tours', and a frame at one check's draw on every
+  arm; never one of 3,578 planned at 0.19 or more), and in a tour its fallback was refused too, 10 times of 12, the
+  product still in the hand. On a stub
+  whose labels stand `left` m further left, set-out 0's lower candle (label 80, 0.183 m unclamped) and set-out 3's
+  lower frame (label 81, 0.180) are set down at 0.19, reach and carry alike; a lower candle at 0.21, and an upper
+  frame at 0.186, as they were."""
+  body, ran, log, so, tags = _shelf_flown(k=k, label_left=left)
+  assert ran["ok"], ran
+  held = [(j, a) for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
+  assert len(held) == 2, held
+  j, first = held[("frame", "candle").index(product)]
+  carry = next(a for v, a, _ in log[j + 1:] if v == "move_hand")
+  assert (so.slots[product] <= 81) == (want != 0.186), so.slots
+  assert first["y"] == pytest.approx(want, abs=1e-4), (k, left, product, first)
+  assert carry["y"] == pytest.approx(first["y"], abs=1e-12), (first, carry)
 
 
 def test_a_press_that_never_landed_lowers_the_hand_before_the_let_go():
