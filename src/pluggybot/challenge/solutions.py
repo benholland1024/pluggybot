@@ -739,6 +739,13 @@ SHELF_FORK_LEFT = 0.25
 #: began and flew almost every fork trip afresh (SimNotes, "The place laid
 #: from the kitchen's shelf").
 SHELF_FORK_EDGE, SHELF_FORK_STOW_N = 0.425, 3
+#: How far left of the stance's middle the fork's put-down goes at the most,
+#: m, a step putting it `PASS_FORK_MID` left from further (the pass's
+#: `PASS_FORK_LEFT`, 0.18): on the shelf's trips the put-down aimed 0.17-0.18
+#: m left failed 18 of 83, its pull down out of reach or the stance turning
+#: under it, where stepped from 0.18-0.19 -- the step goes about half its way
+#: -- 1 of 42 did (SimNotes, "The place laid from the kitchen's shelf").
+SHELF_FORK_PUT = 0.17
 #: Each shelf run's put-down only while its hand still holds the piece, the
 #: run ended otherwise: after the step at the table let the plate go, the
 #: put-down's reach from the hanging arm bowed the robot 1.10 rad and it fell.
@@ -845,6 +852,8 @@ SHELF_FROM_PASS = {
             "  near(92, %(fork_near)g, 0.20)\n"
             "  if not spot(92):\n    if not step(0, 0, %(look_turn)g):\n      pass\n    spot(92)\n"),
            ("  to_place(%(facing)g)\n", "  to_place(%(facing)g)\n" + SHELF_HELD % "left"),
+           ('  if read("spot.y") + %(fork_at_b)s > %(fork_left)g:\n',
+            '  if read("spot.y") + %(fork_at_b)s > %(shelf_fork_put)g:\n'),
            ('  move("left_shoulder_roll", 0.9)\n  move("left_elbow", 1.4)\n',
             '  move("left_shoulder_roll", %(left_roll)g)\n  move("left_elbow", %(left_elbow)g)\n'),
            ('  go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)\n',
@@ -885,6 +894,7 @@ def _shelf_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
                 "shelf_plate_back": SHELF_PLATE_BACK, "shelf_fork_back": SHELF_FORK_BACK,
                 "shelf_fork_left": SHELF_FORK_LEFT,
                 "fork_edge": SHELF_FORK_EDGE, "stow_n": SHELF_FORK_STOW_N,
+                "shelf_fork_put": SHELF_FORK_PUT,
                 "stow_z": SHELF_STOW_Z, "stow_above": round(SHELF_STOW_Z + 0.01, 4)})
   _, place, near, go = PASS_LIBRARY
   return ((SHELF_TO % {"ax": address["x"], "ay": address["y"], "first": SHELF_FIRST,

@@ -357,9 +357,10 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(mo
 
 
 def _put_down(monkeypatch, run: int, spot: dict, env: dict,
-              steps: list | None = None) -> tuple[float, float]:
+              steps: list | None = None, kind: str = "set_table_pass") -> tuple[float, float]:
   """Where the pass reference's run `run` (0 the cup, 1 the plate, 2 the
-  fork) aims its put-down: the first `reach` after its walk to the place,
+  fork) aims its put-down -- or the kitchen shelf's (`kind`), its hands
+  reading held: the first `reach` after its walk to the place,
   its x and y worked out by the language's own evaluator (`lang._eval`)
   from the card's tag read at `spot` (`spot.*`) and the locals of `env`
   (set at the pass), the statements between run as the run sets them --
@@ -374,12 +375,14 @@ def _put_down(monkeypatch, run: int, spot: dict, env: dict,
   from pluggybot.procedure import library as lib
   facts = world_facts(HUMANOID_HOME)
   library = lib.Library(facts)
-  for source in (*solutions.LIBRARY["set_table_pass"], *solutions.PROCEDURES["set_table_pass"]):
+  for source in (*solutions.LIBRARY[kind], *solutions.PROCEDURES[kind]):
     library.define(solutions._def_name(source), source)
   body = library.entries[("lay_cup", "lay_plate", "lay_fork")[run]].procedure.body
   card, seen = dict(spot), dict(spot)
   for k in card:
     monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, k=k: seen[k]))
+  for hand in ("left", "right"):
+    monkeypatch.setitem(axes.SENSORS, f"{hand}.held", SimpleNamespace(read=lambda life: 1.0))
   env = dict(env)
   taken = [] if steps is None else steps
 
@@ -798,19 +801,27 @@ def test_the_shelf_reference_is_a_library_the_served_language_takes():
 
 def test_the_shelf_lays_each_piece_as_the_pass_lays_it():
   """Each run of the shelf's, from its walk to the place on, is the pass's
-  run byte for byte but its check that the piece is still held, and the
-  cup's re-set's move taken back where it reads false (`SHELF_CUP_UNDO`):
-  the shelf changes how a piece is fetched, and that one failure's answer."""
+  run byte for byte but its check that the piece is still held, the cup's
+  re-set's move taken back where it reads false (`SHELF_CUP_UNDO`), and the
+  line past which the fork's put-down steps first (`SHELF_FORK_PUT`): the
+  shelf changes how a piece is fetched, that one failure's answer, and that
+  one line."""
   from pluggybot.challenge import solutions
   undo_old, undo_new = solutions.SHELF_CUP_UNDO
-  for shelf, pass_, hand in zip(solutions.PROCEDURES["set_table_shelf"],
-                                solutions.PROCEDURES["set_table_pass"], ("right", "left", "left")):
+  far = f'  if read("spot.y") + {solutions._aim(solutions.PASS_FORK_AT[1])} > %g:\n'
+  for run, (shelf, pass_, hand) in enumerate(zip(solutions.PROCEDURES["set_table_shelf"],
+                                                 solutions.PROCEDURES["set_table_pass"],
+                                                 ("right", "left", "left"))):
     assert shelf.count("  to_place(") == pass_.count("  to_place(") == 1
     lay = shelf[shelf.index("  to_place("):]
     assert lay.count(solutions.SHELF_HELD % hand) == 1, hand
     if hand == "right":
       assert lay.count(undo_new) == 1 and pass_.count(undo_old) == 1
       lay = lay.replace(undo_new, undo_old)
+    if run == 2:
+      shelf_far, pass_far = far % solutions.SHELF_FORK_PUT, far % solutions.PASS_FORK_LEFT
+      assert lay.count(shelf_far) == 1 and pass_.count(pass_far) == 1, (shelf_far, pass_far)
+      lay = lay.replace(shelf_far, pass_far)
     assert lay.replace(solutions.SHELF_HELD % hand, "") == pass_[pass_.index("  to_place("):]
   assert solutions.LIBRARY["set_table_shelf"][1:] == solutions.LIBRARY["set_table_pass"][1:]
 
@@ -1163,6 +1174,33 @@ def test_the_shelf_fork_s_stow_asks_little_only_where_its_tip_stands_at_the_boar
             if isinstance(c, _ast.Call) and getattr(c.func, "id", "") == "pull"]
   assert asks(gate.body) == [solutions.SHELF_FORK_STOW_N] and asks(gate.orelse) == [20.0], _ast.unparse(gate)
   assert solutions.SHELF_FORK_STOW_N < 20
+
+
+def test_the_shelf_fork_steps_left_where_its_put_down_goes_past_the_shelf_s_line(monkeypatch):
+  """On the shelf's trips the fork's put-down aimed 0.17-0.18 m left of the
+  stance's middle failed 18 of 83 -- its pull down out of reach, or the
+  stance turning under it -- where those stepped from 0.18-0.19 m, a step
+  going about half its way, failed 1 of 42 (A7's reading of A6's rows;
+  SimNotes, "The place laid from the kitchen's shelf"). A card that puts the
+  fork's hand further left than `SHELF_FORK_PUT` is stepped toward, sideways,
+  so that the hand goes `PASS_FORK_MID` left, and looked at again; one that
+  does not is put down as read: the pass's rule (`PASS_FORK_LEFT`) at the
+  shelf's own line. Off the reference's own source, run by the language."""
+  from pluggybot.challenge import solutions
+  a, b = solutions.PASS_FORK_AT
+  assert solutions.PASS_FORK_MID < solutions.SHELF_FORK_PUT < solutions.PASS_FORK_LEFT
+  for sy in (solutions.SHELF_FORK_PUT - b + 0.002, solutions.PASS_FORK_LEFT - b - 0.002, 0.05):
+    steps = []
+    x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps,
+                     kind="set_table_shelf")
+    assert len(steps) == 1 and abs(steps[0][0]) < 1e-12, (sy, steps)
+    assert abs(steps[0][1] - (sy + b - solutions.PASS_FORK_MID)) < 1e-12, (sy, steps)
+    assert abs(x - (0.5 - a)) < 1e-9 and abs(y - solutions.PASS_FORK_MID) < 1e-9, (sy, x, y)
+  for sy in (solutions.SHELF_FORK_PUT - b - 0.002, 0.0, -0.04):
+    steps = []
+    x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps,
+                     kind="set_table_shelf")
+    assert not steps and abs(y - (sy + b)) < 1e-9, (sy, steps, y)
 
 
 def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) -> list:
