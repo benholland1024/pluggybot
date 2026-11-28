@@ -540,7 +540,8 @@ TABLE_STANCES = '''def lay_place():
 #: it, carried by sidesteps to its label, set down 8 cm behind the board's
 #: edge from 17 cm in front of it, let go, backed out 15 cm and only then
 #: withdrawn (never from over an edge, #736's item 9). Written with the fewest
-#: spaces its words need (the 3,000-character cap). Each choice measured
+#: spaces its words need, one space a level (the 3,000-character cap: at two
+#: a level round 25's is 3,042). Each choice measured
 #: (SimNotes, "Stocking the shop's shelf"): ⚠ a sidestep's count reads 1-4
 #: cm short of the feet, so a trip in steps over-travels: the carried one is
 #: aimed to bring its label in 0.06 m left of the robot's middle (a carried
@@ -560,7 +561,12 @@ TABLE_STANCES = '''def lay_place():
 #: pose); ⚠ a pick held back on a product's top tried again from a fresh look
 #: (the frame is 75 mm in the jaws' 90); ⚠ a set-down reach stopped short
 #: tried again from 0.25 m behind the set-down point (8 cm behind the pre-pose
-#: but for round 22b's clamp) and 3 cm higher; ⚠ a press that read under 3
+#: but for round 22b's clamp) and 3 cm higher -- but on the upper board, while
+#: the hand reads it holds its product, at its own point first, and from behind
+#: only where that stops too (round 25): from behind, a retry took a standing
+#: posture turned 30-60 deg and lost the product in 6 of round 24's 8 losses to
+#: its same-point arm; at its own point with the hand empty, one went into the
+#: deepest bow and fell; ⚠ a press that read under 3
 #: N never landed: the hand goes 5 cm lower before the let-go; ⚠ on the upper
 #: board the hand is aimed 2.5 cm left of its label, on the lower 1 cm right
 #: (where each board's placements landed); ⚠ a frame gripped never turned
@@ -602,85 +608,90 @@ TABLE_STANCES = '''def lay_place():
 #: never one of 3,578 planned at 0.19 or more (SimNotes, "Stocking the shop's
 #: shelf"). `%(candle)d` and `%(frame)d` are the job's labels (`source`).
 SHELF = '''def stock_shelf():
-  budget(steps=200,seconds=290)
-  one(%(frame)d,0)
-  one(%(candle)d,1)
+ budget(steps=200,seconds=290)
+ one(%(frame)d,0)
+ one(%(candle)d,1)
 
 
 def one(lab,i):
-  t=77-i
-  k=lab-79-3*(lab>81);tl=lab+3*(lab<82)
-  g=0
-  for n in range(2):
-    if g==0:
-      open_hand("left")
-      near(t,0.34*i,0.21+0.015*i,0.05*(1-i)+0.08*i)
-      j=1-i;a=j*atan2(read("spot.ny"),read("spot.nx"));e=cos(a);s=sin(a)
-      mx=read("spot.x")+0.01*e*j;my=read("spot.y")+0.01*s*j
-      if j*(a+0.1*(my<0.2))>0:c=-0.1*(my<0.2);e=cos(c);s=sin(c)
-      gz=read("spot.z")-0.035*i;bz=read("spot.z")-0.0575-0.0425*i
-      h=0.02+0.01*j
-      if not reach("left",mx-h*e,my-h*s,gz+0.1,e,s,0,-s,e,0):e=1;s=0;reach("left",mx-h,my,gz+0.1,1,0,0,0,1,0)
-      m=0
-      if not move_hand("left",mx-h*e,my-h*s,gz):m=1
-      if m*n==1:pull("left",0,0,1,20,0.08,give=0);reach("left",mx-h*e,my-h*s,gz,e,s,0,-s,e,0);m=0
-      if not close_hand("left",40):m=2
-      if m==0:g=1
-      if g==0:open_hand("left");pull("left",-2,0,1,20,0.25,give=0);withdraw("left")
-  u=mx-read("left.x");v=my-read("left.y")
-  q=u*e+v*s;r=v*e-u*s;oz=read("left.z")-bz
-  pull("left",0,0,1,20,0.03,give=0)
-  tz=0.035*(lab>81)
-  side(my-0.87+0.36*i-0.25*k+tz)
+ t=77-i
+ k=lab-79-3*(lab>81);tl=lab+3*(lab<82)
+ g=0
+ for n in range(2):
+  if g==0:
+   open_hand("left")
+   near(t,0.34*i,0.21+0.015*i,0.05*(1-i)+0.08*i)
+   j=1-i;a=j*atan2(read("spot.ny"),read("spot.nx"));e=cos(a);s=sin(a)
+   mx=read("spot.x")+0.01*e*j;my=read("spot.y")+0.01*s*j
+   if j*(a+0.1*(my<0.2))>0:c=-0.1*(my<0.2);e=cos(c);s=sin(c)
+   gz=read("spot.z")-0.035*i;bz=read("spot.z")-0.0575-0.0425*i
+   h=0.02+0.01*j
+   if not reach("left",mx-h*e,my-h*s,gz+0.1,e,s,0,-s,e,0):e=1;s=0;reach("left",mx-h,my,gz+0.1,1,0,0,0,1,0)
+   m=0
+   if not move_hand("left",mx-h*e,my-h*s,gz):m=1
+   if m*n==1:pull("left",0,0,1,20,0.08,give=0);reach("left",mx-h*e,my-h*s,gz,e,s,0,-s,e,0);m=0
+   if not close_hand("left",40):m=2
+   if m==0:g=1
+   if g==0:open_hand("left");pull("left",-2,0,1,20,0.25,give=0);withdraw("left")
+ u=mx-read("left.x");v=my-read("left.y")
+ q=u*e+v*s;r=v*e-u*s;oz=read("left.z")-bz
+ pull("left",0,0,1,20,0.03,give=0)
+ tz=0.035*(lab>81)
+ side(my-0.87+0.36*i-0.25*k+tz)
+ near(tl,0.5,0.23-tz,0.08)
+ if ((i<1)+i*(lab>81))*(read("spot.x")<0.45):
+  if not step(-0.08,0):pass
   near(tl,0.5,0.23-tz,0.08)
-  if ((i<1)+i*(lab>81))*(read("spot.x")<0.45):
-    if not step(-0.08,0):pass
-    near(tl,0.5,0.23-tz,0.08)
-  a=atan2(read("spot.ny"),read("spot.nx"))
+ a=atan2(read("spot.ny"),read("spot.nx"))
+ if a*a>0.0012:
+  if not step(0,0,a):pass
+  near(tl,0.5,0.23-tz,0.08)
+ x=read("spot.x");ly=read("spot.y");z=read("spot.z")-0.4*(lab<82)
+ for j in range(3):
+  if ly<0.19-tz or ly>0.27-tz:
+   if not step(0,ly-0.23+tz+0.03*(2*(ly>0.27-tz)-1)):pass
+   x=x-read("step.dx");ly=ly-read("step.dy")
+   if spot(tl):x=read("spot.x");ly=read("spot.y")
+ x=x+0.08-0.02*i*(lab>81)*(x>0.5)-q;z=z+0.075+oz;w=ly-r-0.01-0.01*(i*(lab<82)+1-i)+0.035*(lab>81);w=w+(0.19-w)*(w<0.19)*(lab<82)
+ p=x-0.17-(x-0.52)*(x>0.52)*(lab>81)
+ if not reach("left",p,w,z,1,0,0,0,1,0):
+  f=1-(lab>81)*read("left.held")
+  if f<1:
+   if reach("left",p,w,z,1,0,0,0,1,0):f=2
+  if f<2:reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
+ if not move_hand("left",x,w,z):
+  if x-read("left.x")>0.01:pull("left",1,0,0,10,x-read("left.x"),give=0)
+ pull("left",0,0,-1,6,0.1,give=0)
+ if read("pull.force")<3:
+  if not move_hand("left",read("left.x"),read("left.y"),read("left.z")-0.05):pass
+ open_hand("left");wait(0.3)
+ if not move_hand("left",read("left.x")-0.15,read("left.y"),read("left.z")+0.01):pull("left",-1,0,0,10,0.15,give=0)
+ withdraw("left")
+ if i==0:
+  a=0
+  if spot(tl):a=atan2(read("spot.ny"),read("spot.nx"))
   if a*a>0.0012:
-    if not step(0,0,a):pass
-    near(tl,0.5,0.23-tz,0.08)
-  x=read("spot.x");ly=read("spot.y");z=read("spot.z")-0.4*(lab<82)
-  for j in range(3):
-    if ly<0.19-tz or ly>0.27-tz:
-      if not step(0,ly-0.23+tz+0.03*(2*(ly>0.27-tz)-1)):pass
-      x=x-read("step.dx");ly=ly-read("step.dy")
-      if spot(tl):x=read("spot.x");ly=read("spot.y")
-  x=x+0.08-0.02*i*(lab>81)*(x>0.5)-q;z=z+0.075+oz;w=ly-r-0.01-0.01*(i*(lab<82)+1-i)+0.035*(lab>81);w=w+(0.19-w)*(w<0.19)*(lab<82)
-  if not reach("left",x-0.17-(x-0.52)*(x>0.52)*(lab>81),w,z,1,0,0,0,1,0):reach("left",x-0.25,w,z+0.03,1,0,0,0,1,0)
-  if not move_hand("left",x,w,z):
-    if x-read("left.x")>0.01:pull("left",1,0,0,10,x-read("left.x"),give=0)
-  pull("left",0,0,-1,6,0.1,give=0)
-  if read("pull.force")<3:
-    if not move_hand("left",read("left.x"),read("left.y"),read("left.z")-0.05):pass
-  open_hand("left");wait(0.3)
-  if not move_hand("left",read("left.x")-0.15,read("left.y"),read("left.z")+0.01):pull("left",-1,0,0,10,0.15,give=0)
-  withdraw("left")
-  if i==0:
-    a=0
-    if spot(tl):a=atan2(read("spot.ny"),read("spot.nx"))
-    if a*a>0.0012:
-      if not step(0,0,a):pass
-    side(0.225+0.25*k+ly)
+   if not step(0,0,a):pass
+  side(0.225+0.25*k+ly)
 
 
 def side(d):
-  for j in range(6):
-    if d*d>0.0036:
-      g=d
-      if d*d>0.2:g=0.45*d/sqrt(d*d)
-      if not step(0,g):pass
-      d=d-read("step.dy")
+ for j in range(6):
+  if d*d>0.0036:
+   g=d
+   if d*d>0.2:g=0.45*d/sqrt(d*d)
+   if not step(0,g):pass
+   d=d-read("step.dy")
 
 
 def near(t,w,yt,o):
-  for j in range(3):
-    d=o;b=0;q=1
-    if spot(t):x=read("spot.x");d=read("spot.y")-yt;b=(x-w)*(w>0)*(1-(w>0.4)*(0.5+0.5*(x<w+0.05))-0.4*(w<0.4)*(x>w));q=0
-    if q+d*d+b*b<=0.0012:return
-    if d*d+b*b>0.0012:
-      if not step(b*(1-(w<0.4)*(d*d>0.0012)),d):pass
-  spot(t)
+ for j in range(3):
+  d=o;b=0;q=1
+  if spot(t):x=read("spot.x");d=read("spot.y")-yt;b=(x-w)*(w>0)*(1-(w>0.4)*(0.5+0.5*(x<w+0.05))-0.4*(w<0.4)*(x>w));q=0
+  if q+d*d+b*b<=0.0012:return
+  if d*d+b*b>0.0012:
+   if not step(b*(1-(w<0.4)*(d*d>0.0012)),d):pass
+ spot(t)
 '''
 
 #: The jobs, each its grader (`attempts.GRADERS`) and its procedure.

@@ -1122,7 +1122,7 @@ def _shelf_tags(k: int = 0):
 
 
 def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, undercount=0.0,
-                 label_far=0.0, cart_far=0.0, frame=None, label_left=0.0):
+                 label_far=0.0, cart_far=0.0, frame=None, label_left=0.0, lose=0):
   """Our shelf procedure on a stub that does every move at once, as asked, and sees each tag where
   set-out k puts it (the start's stance frame) but where `hide(tag, body, looks)` says; each step
   turning `drift` rad more than it asked and counting `undercount` short of where it went (a
@@ -1132,7 +1132,8 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
   short; its presses landing at `press_n` N. The stub, the run and each verb as it began (with the
   stub's pose then); and the products `cart_far` m further out than they stand; `frame` (dy, turn): the
   frame's tag `dy` m further left than it stands and facing `turn` rad; each label `label_left` m further
-  left than it stands."""
+  left than it stands; the first `lose` of those stopped reaches losing the product as they stop (its grip
+  reads empty)."""
   from pluggybot.body import StubBody
   from test_hands import _bare, _Life
   so, tags = _shelf_tags(k)
@@ -1164,6 +1165,8 @@ def _shelf_flown(k=0, hide=None, drift=0.0, held_back=0, press_n=0.0, short=0, u
       if self.grips.get(side) and self.shorts < short:
         self.shorts += 1
         self._why[side] = "stopped short"
+        if self.shorts <= lose:
+          self.grips[side] = False
         return False
       return (yield from super().reach_routine(side, pos, rot, **kw))
 
@@ -1445,21 +1448,41 @@ def test_the_candle_is_gripped_above_its_middle():
   assert descent["z"] == pytest.approx(tags[76][2] - 0.035, abs=1e-6)
 
 
-def test_a_set_down_reach_stopped_short_reaches_again_from_further_back_and_higher():
-  """⚠ THE UPPER BOARD'S SET-DOWN REACH STOPPED SHORT (#736 stage 2): the frame carried at the hip
-  came forward but not up, 13-28 cm short of a goal 1.07 m up; tried again from 0.25 m behind the set-down point
-  (8 cm behind an unclamped pre-pose) and 3 cm higher, then carried in -- as before the upper board's pre-pose was
-  clamped (round 22b)."""
-  body, ran, log, _, _ = _shelf_flown(short=1)
+@pytest.mark.parametrize("k, short, lose, asks", [(0, 1, 0, ("there",)), (0, 2, 0, ("there", "behind")),
+                                                   (0, 1, 1, ("behind",)), (3, 1, 0, ("behind",))])
+def test_a_set_down_reach_stopped_short_reaches_again_at_its_own_point_while_its_product_is_held(k, short, lose,
+                                                                                                   asks):
+  """⚠ ON THE UPPER BOARD A SET-DOWN REACH STOPPED SHORT IS ASKED AGAIN AT ITS OWN POINT WHILE THE HAND READS IT
+  HOLDS ITS PRODUCT, AND FROM BEHIND ONLY WHERE THAT STOPS TOO (#736, rounds 24-25): tried again from 0.25 m behind
+  the set-down point and 3 cm higher, a retry took a standing posture with the waist turned 30-60 deg and lost the
+  product in 6 of the 8 flights round 24's same-point arm won; asked at its own point, planned afresh from where the
+  hand stopped, it mostly took the square deep bow. Where that re-reach stopped too, the run ended on it (3 flights
+  the old retry laid), so it goes on to the retry from behind. With the hand empty -- check 20's frame lost to a 255 N
+  push -- the same point asked again took the deepest bow turned 60 deg and the robot fell: there, and on the lower
+  board, a stopped reach still tries again from 0.25 m behind the set-down point and 3 cm higher (stage 2). On the
+  stub, set-out 0's frame (label 84) stopped `short` times, the first stop losing it where `lose` says; set-out 3's
+  frame on the lower board (label 81): each reach after the first is asked at the first's point ("there") or from
+  further back and higher ("behind")."""
+  body, ran, log, so, _ = _shelf_flown(k=k, short=short, lose=lose)
   assert ran["ok"], ran
-  held = [(j, a) for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
-  (_, first), (j, again) = held[0], held[1]
-  carry = next(a for v, a, _ in log[j + 1:] if v == "move_hand")
-  # round 22b: an upper first reach is planned no further out than 0.35 m; its retry stays the set-down
-  # point less 0.25, 8 cm behind where the first went before that clamp
-  assert first["x"] == pytest.approx(min(carry["x"] - 0.17, 0.35), abs=1e-6)
-  assert again["x"] == pytest.approx(carry["x"] - 0.25, abs=1e-6)
-  assert again["z"] == pytest.approx(first["z"] + 0.03, abs=1e-6)
+  j = next(j for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3])
+  first = log[j][1]
+  again = []
+  for v, a, _ in log[j + 1:]:
+    if v != "reach":
+      break
+    again.append(a)
+  carry = next(a for v, a, _ in log[j + 1 + len(again):] if v == "move_hand")
+  assert (so.slots["frame"] > 81) == (k == 0), so.slots
+  assert len(again) == len(asks), (again, asks)
+  for a, ask in zip(again, asks):
+    if ask == "there":
+      # round 22b: an upper first reach is planned no further out than 0.35 m
+      assert first["x"] == pytest.approx(min(carry["x"] - 0.17, 0.35), abs=1e-6)
+      assert (a["x"], a["y"], a["z"]) == (first["x"], first["y"], first["z"]), (first, a)
+    else:
+      assert a["x"] == pytest.approx(carry["x"] - 0.25, abs=1e-6), (first, a, carry)
+      assert a["z"] == pytest.approx(first["z"] + 0.03, abs=1e-6), (first, a)
 
 
 def test_the_walk_to_the_shelf_squares_itself_off_the_frame_to_candle_line():

@@ -628,8 +628,11 @@ tour (its 21) and 31 at the check (30); held out, on 32 draws sealed by
 against 102, no fall (one of round 20's). The bar's draws were read at every
 keep since round 9, and the 0.19 was read off rows that hold them, so only
 the sealed draws are independent; round 20's own held out 29 and 26 on two
-earlier pools. Offering it is Ben's call. SimNotes, "Stocking the shop's
-shelf", has what flying took.
+earlier pools. Offering it is Ben's call. On `loop-736c` the SHELF is round
+25's candidate instead (a stopped upper set-down reach asked again at its own
+point while the hand holds its product), frozen and NOT KEPT -- its keep is
+unflown -- and round 23's kept reference is `loop-736`'s and `loop-736b`'s.
+SimNotes, "Stocking the shop's shelf", has what flying took.
 
 **Where its offer says it is** (#419; drafts for Ben, #736's stage 1 made
 ready): the `shop_shelf` area (`places.json`), the mall's address and
