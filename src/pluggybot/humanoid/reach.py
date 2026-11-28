@@ -383,11 +383,13 @@ LIFT_M, LIFTS = 0.05, 2
 #: its drivers read it -- where that reading, on commands whose balance
 #: closes, passes the same line as long (#782; `_carry_shoved`; SimNotes,
 #: "An open hand pressed down onto a top"): carried down onto a cube's board,
-#: its arm walking on below the top, the hand pressed 21-110 N for up to 15
-#: s, the press shoved the pelvis back 6-16 cm in its last 1.5 s, and the
-#: robot went over backward as the carry ended. ⚠ NOT OFF THE TRUNK'S TIP
-#: BACK (`_leaning_back`'s line): it read 2 deg 0.19 s before the carry ended
-#: itself, and the robot fell all the same.
+#: its arm walking on below the top, the hand pressed for up to 15 s (48-77 N
+#: at its hardest where the robot fell, 21-110 N over every carry), the press
+#: shoved the pelvis back 6-16 cm in its last 1.5 s, and the robot went over
+#: backward as the carry ended. ⚠ ANY WAY IT TIPS THE BODY AWAY: a push away
+#: at the hand's height tips it as a press down ahead does. ⚠ NOT OFF THE
+#: TRUNK'S TIP BACK (`_leaning_back`'s line): it read 2 deg 0.19 s before the
+#: carry ended itself, and the robot fell all the same.
 HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: ...and any way home is held so where its drivers read the arm more than
 #: this off its command, rad, this long running, s (`_stalled`; SimNotes,
@@ -3622,7 +3624,7 @@ class Reach:
       # ...and one that reads a load whose arm's reading tips the body away
       # from the hand (`_carry_shoved`, #782) ends there, out of reach, its
       # arm held where its drivers read it, pressing on nothing
-      if self._carry_shoved(side, st, dt, loaded):
+      if self._carry_shoved(side, st, dt, loaded, settling):
         self._carry_held(side, h, r)
         return self.cmd[side].stiffness
     # ...never the body held where it stood at a loaded ask (`held_here`): no
@@ -3707,15 +3709,20 @@ class Reach:
         self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
 
-  def _carry_shoved(self, side: str, st: dict, dt: float, loaded: bool) -> bool:
+  def _carry_shoved(self, side: str, st: dict, dt: float, loaded: bool,
+                    moving: bool) -> bool:
     """Whether a procedure's carry of a hand that holds nothing (`carry`'s
     `verb`), reading a load (`loaded`: its mean past `CARRY_PRESSED_SHARE` of
     `PRESSED_ASK_N`), has read what its arm reads tip the body away from the
     hand past `HOME_TIP_NM` (minus `_tipping`), on commands whose balance
-    closes (`closed`), for `HOME_TIP_S` running (#782); `dt` its tick. The
-    count is the carry's own (`pulls`): any command under the line, or whose
-    balance does not close, begins it again."""
-    over = loaded and self.closed[side] and -self._tipping(side) > HOME_TIP_NM
+    closes (`closed`) with the body standing in its posture -- never while
+    one still comes (`moving`, the carry's `settling`, #699's back-off among
+    them: the balance takes the body as still) -- for `HOME_TIP_S` running
+    (#782); `dt` its tick. The count is the carry's own (`pulls`): any
+    command under the line, unclosed or with the body moving, begins it
+    again."""
+    over = (loaded and not moving and self.closed[side]
+            and -self._tipping(side) > HOME_TIP_NM)
     st["shoved"] = st.get("shoved", 0.0) + dt if over else 0.0
     return st["shoved"] >= HOME_TIP_S - 1e-9
 
@@ -3725,9 +3732,15 @@ class Reach:
     cannot follow from the posture it is kept in ends (`_end`; its words
     `steps.MOVE_LOADED`) -- but its arm held where its drivers read it
     ("blocked": nothing solves it again), pressing on nothing, never on
-    toward the command it drove on to below the top."""
+    toward the command it drove on to below the top; and the body held in
+    the posture it is in, or -- one still coming -- where it has got to
+    (`_in_or_got_to`), as `halt` holds a move: held at its joints alone, a
+    hand rides a posture still coming down into what it pressed."""
     self.pulls[side]["loaded"] = True
     self._end(side, "out of reach", h, r)
+    here = self._in_or_got_to()
+    if here != tuple(float(v) for v in self.posture):
+      self.hold_posture(*here)
     self.q_cmd[side] = self.sensed[self.self_model.arm[side]].copy()
     self.phase[side] = "blocked"
 

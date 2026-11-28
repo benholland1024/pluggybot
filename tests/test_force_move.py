@@ -1151,6 +1151,14 @@ def test_a_carry_whose_open_hands_press_tips_the_body_away_ends_where_its_driver
   assert np.allclose(r.q_cmd["left"], read), "still pressed on toward its command"
   # ...where the hand is, at the turn it was asked, as any carry out of reach ends
   assert np.allclose(r.cmd["left"].pos, H) and np.allclose(r.goal["left"].pos, H)
+  # ...whichever way the reading tips the body away: a push away at the hand's height, past the load's line
+  r, _ = _pressed_down(0.0)
+  away = 1.5 * rc.HOME_TIP_NM / H[2]
+  r.force["left"] = np.array([away, 0.0, 0.0])
+  assert away > CARRY_LINE and r._tipping("left") < -rc.HOME_TIP_NM
+  for _ in range(ticks):
+    r._held("left", dt, H, np.eye(3))
+  assert r.phase["left"] == "blocked" and r.report["left"]["loaded"]
 
 
 def test_a_carry_whose_press_tips_the_body_under_the_line_or_briefly_or_unread_or_reads_no_load_goes_on():
@@ -1200,6 +1208,59 @@ def test_a_carry_whose_press_tips_the_body_under_the_line_or_briefly_or_unread_o
   for grips, verb in ((True, True), (False, False)):
     r, _ = _pressed_down(over, grips=grips, verb=verb)
     assert carries_on(r), (grips, verb)
+
+
+def test_a_carry_ended_for_its_press_holds_the_body_where_it_has_got_to():
+  """#782's review, round 1: held at its joints alone, a hand rides a posture
+  still coming down into what it pressed (`halt`'s case: an arm stopped 0.15 s
+  into a reach rode its plan's crouch 17 cm down). Ended for its press, the
+  carry holds the body in the posture it holds where it stands within
+  `POSTURE_TOL` of it -- a trunk that only sways asks nothing new -- else
+  where it has got to."""
+  dt = 0.01
+  ticks = round(rc.HOME_TIP_S / dt)
+  over = 1.5 * rc.HOME_TIP_NM / PRESS_AT_M
+  got_to, sway = (-0.05, 0.1, 0.0), (0.01, 0.02, 0.0)
+  assert (np.abs(np.array(sway)) <= rc.POSTURE_TOL).all(), "the premise: a sway inside the tolerance"
+  assert not (np.abs(np.array(got_to)) <= rc.POSTURE_TOL).all(), "the premise: a posture still coming"
+  for now, asked in ((got_to, [got_to]), (sway, [])):
+    r, _ = _pressed_down(over)
+    before = list(r.postures)                    # the carry's own ask: the posture it holds
+    assert tuple(r.posture) == (0.0, 0.0, 0.0) and before == [(0.0, 0.0, 0.0)]
+    r.posture_now = lambda now=now: np.array(now)
+    for _ in range(ticks):
+      r._held("left", dt, H, np.eye(3))
+    assert r.phase["left"] == "blocked" and r.postures == before + asked, now
+
+
+def test_a_carrys_press_is_counted_only_while_its_body_stands_in_its_posture():
+  """#782's review, round 1: the whole body's balance takes the body as still,
+  and a posture coming reads what is no push (#699's phantom: up to 60 N
+  closed, the deepest bow). A press is counted only once the body stands in
+  its posture: while one still comes -- held where it has got to at a loaded
+  ask (`held_here`), or backed off for its load (#699's `backing`) -- the
+  count begins again, and once it stands there, it runs."""
+  dt = 0.01
+  ticks = round(rc.HOME_TIP_S / dt)
+  over = 1.5 * rc.HOME_TIP_NM / PRESS_AT_M
+  for given in (False, True):
+    r, _ = _pressed_down(over)
+    st_ = r.pulls["left"]
+    st_["postured"], st_["began"] = 0.0, (0.0, 0.0, 0.0)
+    if given:
+      st_["given"], st_["backing"] = True, True
+    else:
+      st_["held_here"] = True
+    r._posture_held = lambda: False
+    for k in range(3 * ticks):
+      r._held("left", dt, H, np.eye(3))
+      assert r.phase["left"] == "carry", (given, k)
+    r._posture_held = lambda: True
+    for k in range(ticks - 1):
+      r._held("left", dt, H, np.eye(3))
+      assert r.phase["left"] == "carry", (given, k)
+    r._held("left", dt, H, np.eye(3))
+    assert r.phase["left"] == "blocked", given
 
 
 def test_a_pinned_pull_is_held_fast_by_how_far_it_goes_along_its_way():
