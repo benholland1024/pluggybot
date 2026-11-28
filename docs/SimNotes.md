@@ -13123,6 +13123,88 @@ counter's front edge among them, is no face. A way home, a carry and a pull are 
 statue between the two ends is interpolated, off by 1-2.5 cm mid-bow, and
 the truth lags the commands: the census, not the model, set the clearance.
 
+## A solve ended where its joints come back (issue #769)
+
+`SelfModel.solve` (`humanoid/arms.py`) is damped least squares from where
+the arm is. Each iteration poses the robot's model of itself (`_set_arm`:
+`mj_kinematics` and `mj_comPos` over the whole body), reads where the grip
+is and its Jacobian, and steps the arm's joints by at most 0.2 rad. It ends
+at its tolerance (2 mm and 0.02 rad) or at its cap: 40 iterations, 80 where
+a planner or a seeded solve asks. A target out of reach never meets the
+tolerance, so its solve runs to the cap, and a plan that finds no posture
+reaching a target runs every posture's eight starts to it. C4 found the
+solve was all of a live door try's pulls' extra cost (159 of 282 wall s),
+and that a capped solve's last iterations move almost nothing: it settles
+geometrically on the nearest pose it reaches, or bounces between poses at
+its step's clip.
+
+**The stop.** An iteration is a function of the joints alone: the target,
+the ranges and the rest of the model are held through a solve, and the model
+is posed from the joints. So once an iteration's joints come back bit for bit
+to joints an earlier iteration held, every iteration after repeats the cycle
+from there -- a fixed point's own joints, or a cycle (of 2 most often, up to
+34 iterations on a grid of 4,800 solves) -- and the joints the cap would end
+on are the cycle's member at the cap's phase. The solve ends there and
+returns them, the model posed there as the cap leaves it, its errors read
+there. A solve that converges, or never comes back, runs as it did. ⚠ The
+rest of the model is part of the iteration: on that grid the right arm's
+2,400 solves with the left arm posed off the stand differed from the
+stand's in some bit of their errors 2,306 times, and came back at another
+iteration or not at all 187 times (a Jacobian is read through the body's
+centre of mass), so a return is judged within one solve. ⚠ Never on a
+tolerance: C4's rule that ended a solve once no joint moved 1e-9 rad saved a
+third to a half of the iterations and changed no verdict in 183,955 solves,
+but parted 26 of its 38 flights from their paths (Ben's bar).
+
+**What it saves** (local, osmesa, the two trees flown flight by flight, one
+at a time; the iterations counted off the solve's Jacobian reads, the time
+off its calls; `c18-review/p2/`). Over our hands checks -- each job's set-outs
+0-7 and C4's failing door 10 and 11 and drawers 9, 11, 12 and 15, 45 flights
+-- the iterations fell 10.0 % (11.72 to 10.54 million) and the solve's wall
+time 8.5 % (904 to 827 s): the door's iterations 6.0 %, the drawer's 10.7,
+the lid's 8.1, the cube's 10.9, the table's 10.2. It is a plan's seeded
+solves that come back (`_ranked`, 80 iterations from each start, where
+nothing reaches from a posture) and a pinned pull's re-plans
+(`posture_for`); the solves of each tick -- a carry's or a pull's command
+(`_pulled`), the hand's, the arm's update -- save 0-3 %: they converge, or
+wander in their last bits without coming back. The failing drawers (2, 6, 9,
+11, 12, 15), whose plans search every posture from every start to the cap
+and spend 85-91 % of their wall time solving, save 10-12 % of their
+iterations and 2-11 % of their flights' wall time (drawer 2 over three
+interleaved pairs: 111.2 to 105.0 s, faster in each). In the robots' own
+live tries (C4's six: Rowan's `door_fix3` at `t_0899`'s draw, Luca's
+`door_final56` at `t_0799`'s and `chest_run17` at `t_0892`'s, each at keys
+k0 and k1, run as their errands with the other robot standing at the house)
+the iterations fell 6.4 % (the doors 2.5 % and 6.6 %, the chest 11.0 %) and
+the solve's wall time 5.0 % (542 to 515 s); `door_fix3` at k1, the try whose
+30 pulls C4 timed, went from 2.12 to 2.09 wall s per sim s of pulling. The
+tour's table lay (draws 0 and 1) and the pass (draw 0): 11.9 % of the
+iterations; the pass's carries spend 4 % of its wall time solving. C4's
+scratch copy of the same rule read 10 % and 7 %. A flight's own wall time
+swings 5-10 % with the box's load, so the iterations and the solve's own time
+are the measures.
+
+**What it moves: nothing.** Each of those 54 flights (45 hands checks, 6 live
+tries, 3 from the tour) ended in the same state, a hash of every qpos and
+qvel, on both trees, with the same verdict and the same falls; in six of them
+(door 0, drawer 0 and 2, the cube 0, the table 0, `door_fix3` at k1) every
+solve, 66,288 in all, was run again as the solve before it from the same
+state and compared -- its answer and how it left the model -- with no
+difference; over the grid of 4,800 solves the same; the pair's scripted day
+(`determinism_spike.py --pair`, a charge, a fall and a death arranged, 262 s)
+was identical over its 525 state samples; and the suite passes as before.
+
+**What is left, measured, not built.** C4's stall rule (#769's option 2)
+moves every flight with a capped solve: Ben's bar. A solve whose whole input
+-- its start, its target, its cap and the rest of the model -- came before,
+bit for bit, gives what it gave then, so a memo of solves would be exact too:
+in our failing drawer 2 and door 0 a quarter to a third of the solves came
+again (34.8 % and 25.9 %, 35.7 % and 35.5 % of their iterations, every one a
+plan's), in the table's check 0.1 %, and in `door_fix3` at k1 3 of 37,784.
+And an iteration itself, timed apart on the model of itself: about 48 us, of
+which the step's small linear algebra in numpy is 26, the Jacobian 8, the
+posing 6, the errors 7, the grip 1; the stop's bookkeeping 0.2 (0.4 %).
+
 ## A reach's bow under a shelf's board (issue #763)
 
 A procedure's reach takes the least bent posture its hand gets there from
