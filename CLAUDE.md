@@ -1246,11 +1246,17 @@ save a filmstrip PNG named after the script.
   almost every fork trip afresh; SimNotes, "Rounds 6-8" and "Round 9"), ⚠ a
   cup re-set's move that reads false is taken back before the cup is set down
   (`SHELF_CUP_UNDO`), ⚠ the fork's hand stays at least 0.25 m left of the
-  middle (nearer, its pulls bowed the head onto the board), and ⚠ a put-down
-  waits on its hand reading held (from the hanging arm the reach fell). ⚠ ITS
-  BAR (the pass's) IS NOT MET: 22 of 32 on the bar's draws and 24 of 32
-  sealed, by 2ddbe238, no fall (SimNotes has each round; the plate's wall is
-  #771). ⚠ The dev draws
+  middle (nearer, its pulls bowed the head onto the board), ⚠ the fork's
+  put-down steps sideways first where its aim reads further left than
+  `SHELF_FORK_PUT` (0.17 m; the pass's 0.18: aimed 0.17-0.18 m and
+  unstepped, 18 of 83 failed, its pull down out of reach or the stance
+  turning under it), and ⚠ a put-down waits on its hand reading held (from
+  the hanging arm the reach fell). ⚠ ITS BAR (the pass's) IS MET ON ITS
+  DRAWS, NOT ON THE SEALED ONES: 24 of 32 over the tour by bd7146f1, no fall,
+  and 20 of 32 on 32 draws sealed by that commit (round 9's reference beside
+  it 22 and 18, where on 2ddbe238's sealed 32 it laid 24: 32 draws are that
+  noisy); offering it is Ben's call (SimNotes has each round; the plate's wall
+  is #771). ⚠ The dev draws
   4000-4063 flatter it (it was chosen on them; on fresh draws it laid 65 of 128
   on the served plate): read a lever that flies the fork's trip afresh on fresh
   draws.
