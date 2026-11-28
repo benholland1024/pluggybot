@@ -629,9 +629,12 @@ against 102, no fall (one of round 20's). The bar's draws were read at every
 keep since round 9, and the 0.19 was read off rows that hold them, so only
 the sealed draws are independent; round 20's own held out 29 and 26 on two
 earlier pools. Offering it is Ben's call. On `loop-736c` the SHELF is round
-25's candidate instead (a stopped upper set-down reach asked again at its own
-point while the hand holds its product), frozen and NOT KEPT -- its keep is
-unflown -- and round 23's kept reference is `loop-736`'s and `loop-736b`'s.
+25's instead (a stopped upper set-down reach asked again at its own point
+while the hand holds its product), kept beside round 23's on one pod, an AMD
+EPYC 7B13: on 128 draws sealed by d4c519c, 108 against 106 (the tour 23 of
+32, round 23's 22), and on the bar's draws 57 of 64 against 55 (the tour 26,
+round 23's 24), no fall either way; round 23's is `loop-736`'s and
+`loop-736b`'s.
 SimNotes, "Stocking the shop's shelf", has what flying took.
 
 **Where its offer says it is** (#419; drafts for Ben, #736's stage 1 made

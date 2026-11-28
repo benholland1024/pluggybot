@@ -13029,25 +13029,34 @@ product's true place and the true stance after each verb. What flying took:
   3 of 124 upper frame set-downs (round 20's none).
 - **An upper set-down reach that stops is asked again at its own point while
   the hand holds its product** (rounds 24-25, the loop of 2026-11-26 to
-  11-30's B2m; frozen on `loop-736c`, NOT KEPT: its keep is unflown). Over
-  round 23's 256 flights the first upper set-down reach stopped in 30 of 216
-  set-downs (26 out of reach; one that ended in the deep bow turned 15 deg
-  stopped 16 times of 17, the square deep bow 1 of 140), and those flights
-  ended 17 passes and 13 misses. Retried from 0.25 m behind the set-down
-  point and 3 cm higher, the retry often took a standing posture with the
-  waist turned 30-60 deg and lost the product; asked again at its own point,
-  planned afresh from where the hand stopped, it mostly took the square deep
-  bow. With the hand empty -- a frame lost to a 255 N push -- the same point
-  asked again took the deepest bow turned 60 deg and the robot fell, so where
-  the gripper reads nothing held the retry stays from behind, as it does where
-  the same-point re-reach stops too. On fresh dev draws on a Xeon Platinum
-  8163 (tours 800-895, checks 900-1155) the same-point re-reach alone (round
-  24) read 299 of 352 against 297, a tour fewer; with the fallback (round 25,
-  designed off those rows, so flattered) 302 against 297, the tours 79 and 79,
-  no fall against one. Only its keep, on draws sealed by its frozen commit,
-  can keep it. At two spaces a level round 25's procedure is 3,042 characters,
-  past the language's 3,000, so the SHELF is written one space a level
-  (whitespace alone: its AST and line numbers are the two-space form's).
+  11-30's B2m and B2n; kept on `loop-736c`). Over round 23's 256 flights the
+  first upper set-down reach stopped in 30 of 216 set-downs (26 out of reach;
+  one that ended in the deep bow turned 15 deg stopped 16 times of 17, the
+  square deep bow 1 of 140), and those flights ended 17 passes and 13 misses.
+  Retried from 0.25 m behind the set-down point and 3 cm higher, the retry
+  often took a standing posture with the waist turned 30-60 deg and lost the
+  product; asked again at its own point, planned afresh from where the hand
+  stopped, it mostly took the square deep bow. With the hand empty -- a frame
+  lost to a 255 N push -- the same point asked again took the deepest bow
+  turned 60 deg and the robot fell, so where the gripper reads nothing held
+  the retry stays from behind, as it does where the same-point re-reach stops
+  too. On fresh dev draws on a Xeon Platinum 8163 (tours 800-895, checks
+  900-1155) the same-point re-reach alone (round 24) read 299 of 352 against
+  297, a tour fewer; with the fallback (round 25, designed off those rows, so
+  flattered) 302 against 297, the tours 79 and 79, no fall against one. Kept
+  on 128 draws sealed by its frozen commit (d4c519c: 32 over the tour, 96 at
+  the check), flown beside round 23's reference on one pod, an AMD EPYC 7B13:
+  108 against 106 (the tours 23 and 22, the checks 85 and 84), and on the
+  bar's draws 57 of 64 against 55 (the tours 26 and 24, the checks 31 and 31),
+  no fall either way. 20 of each tree's 192 flights moved, every one at a stop
+  whose hand held its product: 5 won, 1 lost. In each win the retry from
+  behind went through and the product then came down (dropped, or tipped
+  over); in the loss the same point stopped again, and after the retry from
+  behind the frame came down. Its own sealed tour reads 23 of 32 (round 23's
+  reference 22 on those draws, and 25 on the draws its own commit sealed). At
+  two spaces a level round 25's procedure is 3,042 characters, past the
+  language's 3,000, so the SHELF is written one space a level (whitespace
+  alone: its AST and line numbers are the two-space form's).
 - **A lower set-down planned under 0.19 m left is refused** ("no posture you
   hold puts your left hand there turned as asked"): over the rows of rounds
   9-22b a candle's first reach 36 of 98 times in checks and 12 of 96 in
