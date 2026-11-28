@@ -8,6 +8,7 @@ shelf alone (`StubBody`), nothing flown. Our reference flown as the job is
 """
 
 import math
+import re
 
 import mujoco
 import numpy as np
@@ -164,6 +165,62 @@ def test_the_kind_is_offered_nowhere_and_its_sentence_fits_every_draw():
     t = Task.create("stock_shelf", store.SHELF, "t_1", params=store.labels(k), t=9_999_999.0)
     assert len(t.description) < MAX_DESCRIPTION and t.description.endswith("procedure.")
   assert dict(store.drawn(store.SHELF, 3).slots) == store.labels(3) == ct.stock_set_out(3).slots
+
+
+def test_the_offer_says_where_by_the_shelfs_own_area_and_never_a_position():
+  """The shelf's offer carries its own area's terms, as every hand job's
+  does (#419): the mall's address and the shop shelf's directions
+  (`places.json`), offered and held, on the wire too, its sentence no
+  position -- and the sentence and the directions name the one shelf they
+  mean, the back shelf (the store has a middle one too)."""
+  from pluggybot.home import places as addresses
+  board = TaskBoard(path=None)
+  params, secret = task_producer(board, HUMANOID_HOME, procedures=True)._build(
+    "stock_shelf", store.SHELF)
+  job = board.offer("stock_shelf", store.SHELF, params=params, secret=secret, t=1.0)
+  area = addresses.load()["areas"][store.SHELF]
+  assert area["house"] == "mall"
+  for shown in (job.as_context(1.0), job.as_held(1.0), job.as_dict()["params"]):
+    assert shown["address"] == addresses.address("mall") == addresses.area(store.SHELF)["address"]
+    assert shown["directions"] == area["directions"]
+  assert "the store's back shelf" in job.description and "the back shelf's" in area["directions"]
+  assert not re.search(r"-?\d+\.\d+\s*,\s*-?\d+\.\d+", job.description), job.description
+
+
+def test_the_shelfs_directions_say_where_an_offer_sets_the_stock_out():
+  """#723's rule at the shelf: its directions say where an offer's things
+  are -- the labels on the front edges of the back shelf's second and third
+  boards from the floor, from left to right as you face them; the candle
+  and the frame on a cart standing at the shelf beside the labels, on their
+  left; the candle's tag on its top and the frame's on its face -- true at
+  every draw by the set-out's own code, so the words move with it."""
+  from pluggybot.home import places as addresses
+  words = addresses.load()["areas"][store.SHELF]["directions"]
+  assert ("the back shelf's second and third boards from the floor mark its slots: tags 79, 80 "
+          "and 81 on the second board and 82, 83 and 84 on the third, from left to right as you "
+          "face them") in words
+  boards = sorted(range(len(hw.SHELF_BOARDS_Z)), key=lambda b: hw.SHELF_BOARDS_Z[b])
+  for row, board in ((st.LABEL_IDS[:3], boards[1]), (st.LABEL_IDS[3:], boards[2])):
+    assert row == ((79, 80, 81) if board == boards[1] else (82, 83, 84))
+    assert {st.BOARD_OF[i] for i in row} == {board}
+    along = [store.label_along(i) for i in row]
+    assert along == sorted(along) and len(set(along)) == 3, "left to right as you face them"
+  assert ("set out on a cart standing at the back shelf, beside the labels on their left as you "
+          "face them") in words
+  origin, out, right = store.axes()
+  assert store.CART_AT + st.CART_HALF[1] < min(store.label_along(i) for i in st.LABEL_IDS)
+  for k in range(64):
+    for p, (x, y, _) in ct.stock_set_out(k).products.items():
+      at = np.array([x, y]) - origin
+      s, d = float(at @ right), float(at @ out)
+      assert abs(s - store.CART_AT) < st.CART_HALF[1], (k, p, "along the cart")
+      assert store.CART_BACK_GAP < d < store.CART_BACK_GAP + 2 * st.CART_HALF[0], (k, p, "on it")
+  assert "The candle carries tag 76 on its top and the frame tag 77 on its face" in words
+  assert st.TAG_OF == {"candle": 76, "frame": 77}
+  model, _ = _shelf_world()
+  candle, frame = model.geom("candle_tag"), model.geom("frame_tag")
+  assert candle.pos[2] > st.CANDLE_H and abs(candle.pos[0]) + abs(candle.pos[1]) == 0, "its top"
+  assert frame.pos[0] < -st.PANEL[0] and abs(frame.pos[2] - st.PANEL[2]) < 1e-9, "its face"
 
 
 def test_the_labels_are_places_only_where_the_stock_is():

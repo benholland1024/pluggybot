@@ -631,6 +631,14 @@ the sealed draws are independent; round 20's own held out 29 and 26 on two
 earlier pools. Offering it is Ben's call. SimNotes, "Stocking the shop's
 shelf", has what flying took.
 
+**Where its offer says it is** (#419; drafts for Ben, #736's stage 1 made
+ready): the `shop_shelf` area (`places.json`), the mall's address and
+directions that give the `shop` area's paragraph word for word, then the
+labels by number on the back shelf's second and third boards, the cart
+beside them on their left with the candle and the frame on it, and each
+product's tag; the offer's sentence and its row name the back shelf, the
+store's other shelf being the gondola down its middle (`test_shelf_job`).
+
 **The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,
 as the checks' rows are. No world offers it: the stock is not in the served
 house (`home.store`'s docstring has why, and what bringing it in moves).

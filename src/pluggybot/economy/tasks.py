@@ -367,7 +367,7 @@ KINDS: dict[str, TaskKind] = {
   # placeholder never measured, and never a row of `energy.json`.
   "stock_shelf": TaskKind(
     "stock_shelf", task="stock_shelf", target_kind="shelf",
-    template="Stock the store's shelf from the cart: the candle over label {candle}, the frame "
+    template="Stock the store's back shelf from the cart: the candle over label {candle}, the frame "
              "over label {frame}, each upright on that label's board, its middle within 4 cm of "
              "the label's, its front within 10 cm of the board's edge and not over it, the frame "
              "facing the aisle. Set down and let go of, within {minutes} "

@@ -665,8 +665,9 @@ def test_the_directions_pass_the_dispatcher_test():
     tags = {int(t) for t in spec["tags"]}
     assert numbers == tags, (name, numbers - tags)
   # ...the areas' own tags, and the cubes their directions name (#407), the
-  # storeroom counter's row and the handles under it (#559), and the
-  # restaurant's place card and its dishware (#560)
+  # storeroom counter's row and the handles under it (#559), the
+  # restaurant's place card and its dishware (#560), and the shop shelf's
+  # labels and its products (#736)
   from pluggybot.perception import tags
   assert set(addresses.tag_names()) == {*PLATE_TAG_IDS, *area_ids(), *BLOCK_TAG_IDS,
                                         *MASS_TAG_IDS,
@@ -674,7 +675,8 @@ def test_the_directions_pass_the_dispatcher_test():
                                         *tags.COUNTER_TAG_IDS, *tags.CHEST_TAG_IDS,
                                         *tags.DRAWER_TAG_IDS, *tags.DOOR_TAG_IDS,
                                         *tags.CUBE_TAG_IDS, *tags.MAT_TAG_IDS,
-                                        *tags.PLACE_TAG_IDS, *tags.DISH_TAG_IDS}
+                                        *tags.PLACE_TAG_IDS, *tags.DISH_TAG_IDS,
+                                        *tags.LABEL_TAG_IDS, *tags.STOCK_TAG_IDS}
 
 
 def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_does():

@@ -957,12 +957,12 @@ STOCK_OUT = 1.0
 
 def _stock_job() -> tuple[str, str]:
   """The shelf job's reference: the walk to the cart (`STOCK_APPROACH`)
-  from the shop's address, then the shelf check's procedure
-  (`hands_check.SHELF`, a template its job's labels fill)."""
+  from the address its offer gives (its area's, the mall's), then the shelf
+  check's procedure (`hands_check.SHELF`, a template its job's labels fill)."""
   from pluggybot.evaluation import hands_check
   from pluggybot.home import areas, store
   from pluggybot.home import places as addresses
-  address = addresses.area("shop")["address"]
+  address = addresses.area(store.SHELF)["address"]
   _, tx, ty, _ = next(t for t in areas.area_tags()["shop"] if t[0] == 70)
   x, y = store.to_world(store.CART_AT, STOCK_OUT)
   return (STOCK_APPROACH % {"ax": address["x"], "ay": address["y"], "dx": round(x - tx, 4),
