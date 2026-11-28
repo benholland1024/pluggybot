@@ -10,6 +10,34 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A solve ends where its joints come back (#769, C18, `loop-769`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
+characters, 17 sections) and the session host's hello `9dcf6202` are byte for
+byte as they were, and so is everything a robot does: every solve of the arm
+returns what it returned, bit for bit (54 flights on both trees -- our hands
+checks, the robots' own six live tries, the tour's table and pass -- ended in
+the same state; 66,288 solves run again the old way, none differing; the
+pair's scripted day identical over its 525 state samples). What moves is the
+served world's pace, a little.
+
+**The change** (`arms.SelfModel.solve`; SimNotes, "A solve ended where its
+joints come back"). The arm's damped least squares ran to its cap (40
+iterations, 80 for a planner's or a seeded solve) long after its joints had
+come back to joints it had held -- a fixed point, or a cycle at its step's
+clip -- where no iteration changes what it returns. It now ends at the first
+return, with the joints the cap would end on.
+
+**What it does.** The robots' own live tries flown offline: 6.4 % fewer
+iterations, the solve's time 5.0 % less, Rowan's door try's pulls 2.12 to 2.09
+wall s per sim s; our hands checks: 10.0 % and 8.5 %. A faster world changes
+no reading, but it changes what a think costs in the world's time (C9's
+period, below), by as much as the pace moves.
+
+**To read.** `vitals.txt`'s rate a minute (C7's kit, section 6) in the
+minutes a robot works a hand job, against the wakes before: the change is
+small enough that the box's own drift (#755) may hide it.
+
 ### A cast leaves out a geom past its sensor's reach whatever its body (#775, C9, `loop-cull-moving`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` and the
