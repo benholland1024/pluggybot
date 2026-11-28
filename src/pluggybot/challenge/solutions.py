@@ -753,10 +753,11 @@ SHELF_FORK_LEFT = 0.25
 #: from the kitchen's shelf").
 SHELF_FORK_EDGE, SHELF_FORK_STOW_N = 0.425, 3
 #: How far left of the stance's middle the shelf's fork put-down may be
-#: aimed, m, past which it steps sideways first toward `PASS_FORK_MID` (the
-#: pass's `PASS_FORK_LEFT`, 0.18): on the shelf's trips the put-down aimed
-#: 0.17-0.18 m left failed 18 of 83, its pull down out of reach or the stance
-#: turning under it, where stepped from 0.18-0.19 1 of 42 did. A step goes
+#: aimed, m -- the shelf's own line, where the pass's is `PASS_FORK_LEFT`
+#: (0.18) -- past which it steps sideways first toward `PASS_FORK_MID`
+#: (0.14): on the shelf's trips the put-down aimed 0.17-0.18 m left failed 18
+#: of 83, its pull down out of reach or the stance turning under it, where
+#: stepped from 0.18-0.19 1 of 42 did. A step goes
 #: about half its way, so the card looked at after it is held to the line
 #: again, with one more step (`SHELF_FORK_STEP`): from 0.19-0.21 m one step
 #: left 26 of 50 aimed past it, and 4 of those lost the fork at the put-down
