@@ -13440,10 +13440,30 @@ turn as two plain carries arrived, steady at 0.03-0.04 over their last
 seconds -- its sag, which a tolerance under about 0.05 would read as held
 back -- and the solve stops refining a turn once within `IK_ROT_TOL` (0.02).
 In free air the hand follows a turning command 0.01-0.03 rad behind and
-settles within 0.01 rad 0.1-0.2 s after its command stops. ⚠ ITS LIMIT: a
-turn asked smaller than its allowance -- about 6 deg, more by the sag carried
-in and the solve's miss -- can read "arrived" with the hand not turned at
-all, as long as its place is there.
+settles within 0.01 rad 0.1-0.2 s after its command stops.
+
+**Its limits** (the review of the rule's second form; none flown live, each
+stated as what the rule cannot tell, never as what causes it):
+- a turn asked smaller than its allowance -- about 6 deg, more by the sag
+  carried in and the solve's miss -- can read "arrived" with the hand not
+  turned at all, as long as its place is there;
+- a retry of a turn just held back by it carries that offset in as its sag
+  (the carry before left its command at the turn asked), so it reads
+  "arrived" with the hand still where it was held. The next step, unbuilt:
+  no sag allowance where the carry before ended held back by its turn, or a
+  cap on it near the held plate's 0.05 rad;
+- a load that grows along a turned path -- a lid gripped light and heavy at
+  its arc's top, where #493's wrist gave 0.1-0.15 rad -- was never carried in
+  as sag, and can read "held back" by its turn where it arrived before;
+- a path's points are still left on their place (`ways`), their turns still
+  coming, as before: only its end waits for its turn.
+
+A slow, soft hand is not held back by its own lag, flown (`c/soft_c19.py`, the
+bare floor, from #767's reach): turns on the spot of 40, 80 and -50 deg at a
+stiffness of 1.0, 0.3, 0.2 and 0.1 all arrived, 1.5-4.3 s in, the true
+fingers 2.4-5.2 deg off the way asked -- where today's code read "arrived"
+0.3-1.0 s in with them 0.4-12 deg into the turn, 37.8-81.3 deg off it: #767
+at full size.
 
 **What it does.** #767's flight: the turn arrives at 0.14 s, the tick its
 command's turn gets there, its fingers 1.79 deg off the way asked (the arm's
