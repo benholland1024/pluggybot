@@ -178,11 +178,12 @@ def test_a_clear_far_from_home_stays_by_the_station_it_charged_at():
   assert "charging station" not in life.thoughts.read("History.md"), "one walk, nothing to tell"
 
 
-def test_a_far_clear_goes_home_only_with_no_spot_and_a_blocked_one_tries_the_others():
-  """...the start pose only where no spot round the station is reachable
-  (the map does not reach one yet), as before #781; and a spot that did not
-  get it away is followed by the next ones round the station, then History
-  says where it ended, as at the house's (#346)."""
+def test_a_far_clear_tries_the_spots_round_its_station_then_the_start_pose():
+  """...with no spot round the station reachable (the map does not reach
+  one yet), the start pose, as before #781; and spots that did not get it
+  away -- `CLEAR_SPOTS` of them, none twice -- are followed by the start
+  pose, the walk the clear always had (#346: done at the station means
+  gone), then History says where it ended."""
   life = _far_life()
   life.body.reachable = lambda points: [False] * len(points)
   drives = []
@@ -194,9 +195,34 @@ def test_a_far_clear_goes_home_only_with_no_spot_and_a_blocked_one_tries_the_oth
   drives = []
   life.body.go_to_routine = lambda *a, **kw: (drives.append(a[:2]), tick.result(False))[1]
   assert life.body.run(life._clear_rack_routine()) is False
-  assert len(set(drives)) == len(drives) == 1 + lc.CLEAR_SPOTS, drives
-  assert all(lc.RACK_CLEAR_M <= life.rack_distance(*d) < 3.0 for d in drives), drives
+  *spots, home = drives
+  assert home == life.home_pose[:2] and len(spots) == lc.CLEAR_SPOTS, drives
+  assert len(set(spots)) == len(spots), f"a spot tried twice: {drives}"
+  assert all(lc.RACK_CLEAR_M <= life.rack_distance(*d) < 3.0 for d in spots), drives
   assert "could not get clear of the charging station" in life.thoughts.read("History.md")
+
+
+def test_a_far_clears_next_spot_is_the_nearest_from_where_its_last_walk_left_it():
+  """#781's review: the spots are asked afresh after each walk that left
+  the robot within `RACK_CLEAR_M` -- the nearest from where it then
+  stands, and judged reachable as the map then is. Kept from before the
+  walk, the next was the nearest from where it had stood."""
+  life = _far_life()
+  r = life.body.rack_prior
+  drives = []
+
+  def stalls(x, y, timeout=90.0, stop=None):
+    drives.append((x, y))
+    if len(drives) == 1:
+      _at(life, *r.to_world(1.2, 1.2))           # gave up off to one side, inside 2 m
+    return tick.result(False)
+
+  life.body.go_to_routine = stalls
+  life.body.run(life._clear_rack_routine())
+  ring = lc.RACK_CLEAR_M + 0.5
+  assert drives[0] == pytest.approx(r.to_world(ring, 0.0))
+  assert drives[1] == pytest.approx(r.to_world(ring * math.cos(math.pi / 4),
+                                               ring * math.sin(math.pi / 4))), drives
 
 
 def test_the_loop_leaves_the_rack_before_it_thinks_but_only_for_somebody():

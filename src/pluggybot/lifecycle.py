@@ -369,17 +369,17 @@ WAIT_FOR_WORK_S = 5.0
 #: by at the bay standoff for six minutes, and the first robot's next pick
 #: failed 0.4 m from it. Standing by begins by clearing this radius of the
 #: station (`HubLifecycle.rack_distance`): back to the robot's own start
-#: pose where that is near it (`HOME_CLEAR_M`), else to a spot round it.
+#: pose where that is near it (`HOME_CLEAR_M`), else to the spots round it
+#: first.
 #: The bay standoff is ~1.2 m and `OTHER_NEAR_M` (what a planner routes
 #: round) is 1.2 m.
 RACK_CLEAR_M = 2.0
-#: ...THE START POSE ONLY WITHIN THIS OF THE STATION IT CHARGED AT (#781):
-#: the house's, the one the clear was written for (#346), whose starts lie
-#: 3.1 and 7.6 m from it. From the research center's lobby (20-25 m) or the
-#: mall's (30-33 m) the walk home came before the next decision, and the job
-#: taken then began 20 m further off (on 11-28 the chest's find ran out of
-#: time on its way back). There the clear is the nearest spot round that
-#: station (`_clear_spots`), and the start pose only where none is reachable.
+#: ...THE START POSE FIRST ONLY WITHIN THIS OF THE STATION IT CHARGED AT
+#: (#781): the house's, whose starts lie 3.1 and 7.6 m from it (the clear
+#: was written there, #346). From the research center's lobby's (20-25 m)
+#: or the mall's (30-33 m) the walk home came before the next decision;
+#: there the clear is the spots round that station first (SimNotes, "Two
+#: robots at one rack").
 HOME_CLEAR_M = 10.0
 #: ...and DONE AT THE RACK MEANS GONE (issue #346): a clear that did not
 #: arrive is read, and the robot tries these many other spots before it
@@ -2298,8 +2298,8 @@ class HubLifecycle:
   def _clear_rack_routine(self) -> Routine:
     """Stand by away from the station: within `RACK_CLEAR_M` of it, walk
     back to the start pose where that lies within `HOME_CLEAR_M` of it,
-    else to the nearest spot round it (`_clear_spots`, #781) -- the start
-    pose only where none is reachable; anywhere else, stay put. True if the
+    else to the nearest spots round it, then the start pose
+    (`_clear_far_routine`, #781); anywhere else, stay put. True if the
     robot ends clear of the station, or has no business being clear of it
     (plugged in).
 
@@ -2326,26 +2326,19 @@ class HubLifecycle:
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
       return True
     hx, hy = self.home_pose[0], self.home_pose[1]
-    spots = self._clear_spots() if self.rack_distance(hx, hy) > HOME_CLEAR_M else []
-    gx, gy = spots[0] if spots else (hx, hy)
-    self._say(f"standing by: clearing the charging station for the others -- "
-              f"back to ({gx:.1f}, {gy:.1f})", doing=True)
-    if spots:
-      yield from self.body.go_to_routine(gx, gy, timeout=CLEAR_DRIVE_S)
-      spots = spots[1:]
+    if self.rack_distance(hx, hy) > HOME_CLEAR_M:
+      tried = yield from self._clear_far_routine(hx, hy)
     else:
+      self._say_clearing(hx, hy)
       yield from self.body.go_to_routine(hx, hy)
-      spots = self._clear_spots()
-    tried = [(gx, gy)]
-    for spot in spots[:CLEAR_SPOTS]:
-      px, py, _ = self.body.pose
-      if self.rack_distance(px, py) >= RACK_CLEAR_M:
-        break
-      self._say(f"STATION: still {self.rack_distance(px, py):.1f} m from the "
-                f"charging station after heading for ({tried[-1][0]:.1f}, "
-                f"{tried[-1][1]:.1f}) -- trying ({spot[0]:.1f}, {spot[1]:.1f})", doing=True)
-      tried.append(spot)
-      yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
+      tried = [(hx, hy)]
+      for spot in self._clear_spots()[:CLEAR_SPOTS]:
+        px, py, _ = self.body.pose
+        if self.rack_distance(px, py) >= RACK_CLEAR_M:
+          break
+        self._say_still(tried[-1], spot)
+        tried.append(spot)
+        yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     px, py, _ = self.body.pose
     d = self.rack_distance(px, py)
     if len(tried) > 1 or d < RACK_CLEAR_M:
@@ -2356,6 +2349,41 @@ class HubLifecycle:
         f"spots and ended {d:.1f} m from it at ({px:.1f}, {py:.1f}), where I "
         "am in the way of anyone charging there")
     return d >= RACK_CLEAR_M
+
+  def _clear_far_routine(self, hx: float, hy: float) -> Routine:
+    """`_clear_rack_routine`'s walks where the start pose lies past
+    `HOME_CLEAR_M` of the station (#781): up to `CLEAR_SPOTS` spots round
+    it, each the nearest of `_clear_spots` asked afresh from where the robot
+    stands, none twice, while it is still within `RACK_CLEAR_M` -- then the
+    start pose, the walk the clear always had. The goals, in order."""
+    tried: list[tuple[float, float]] = []
+    while len(tried) <= CLEAR_SPOTS:
+      px, py, _ = self.body.pose
+      if tried and self.rack_distance(px, py) >= RACK_CLEAR_M:
+        break
+      spots = [] if len(tried) == CLEAR_SPOTS else [
+        s for s in self._clear_spots() if all(math.dist(s, t) > 1e-6 for t in tried)]
+      goal = spots[0] if spots else (hx, hy)
+      if tried:
+        self._say_still(tried[-1], goal)
+      else:
+        self._say_clearing(*goal)
+      tried.append(goal)
+      if not spots:
+        yield from self.body.go_to_routine(hx, hy)
+        break
+      yield from self.body.go_to_routine(*goal, timeout=CLEAR_DRIVE_S)
+    return tried
+
+  def _say_clearing(self, x: float, y: float) -> None:
+    self._say(f"standing by: clearing the charging station for the others -- "
+              f"back to ({x:.1f}, {y:.1f})", doing=True)
+
+  def _say_still(self, last: tuple[float, float], goal: tuple[float, float]) -> None:
+    px, py, _ = self.body.pose
+    self._say(f"STATION: still {self.rack_distance(px, py):.1f} m from the "
+              f"charging station after heading for ({last[0]:.1f}, "
+              f"{last[1]:.1f}) -- trying ({goal[0]:.1f}, {goal[1]:.1f})", doing=True)
 
   def _clear_spots(self) -> list[tuple[float, float]]:
     """Other places to stand clear of the rack, nearest first: a ring just
