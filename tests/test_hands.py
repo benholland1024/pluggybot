@@ -571,6 +571,9 @@ def _bare_reach():
   # balance, closed
   r.force = {s: np.zeros(3) for s in hm.SIDES}
   r.closed = {s: True for s in hm.SIDES}
+  # ...nor a grip its senses have placed: what an arm reads tips the body
+  # nowhere (`_tipping`, which a loaded carry reads: #782)
+  r.sensed_grip = {s: None for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.outs = {s: [] for s in hm.SIDES}
   # ...and no other robot's body for its ways to keep off (#678)

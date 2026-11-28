@@ -1103,6 +1103,105 @@ def test_a_move_out_of_reach_whose_open_hand_read_a_load_says_so():
   assert step["reason"] == st.MOVE_WHY["out of reach"].format(hand="left")
 
 
+#: A press straight down at a hand this far ahead of the stance's middle, m:
+#: what its arm reads tips the body away from the hand by this times the press
+#: (`Reach._tipping`).
+PRESS_AT_M = 0.45
+
+
+def _pressed_down(press, grips=False, verb=True, lag=0.3):
+  """`_carrying_open`'s carry with its open hand pressed straight down `press`
+  N on a top `PRESS_AT_M` ahead, as its senses place it, every command
+  closing; its arm's drivers read where it is commanded but for its first
+  joint, `lag` rad behind: something holds it."""
+  r = _carrying_open(press * np.array([0.0, 0.0, -1.0]), grips=grips, verb=verb)
+  r.sensed_grip = {"left": np.array([PRESS_AT_M, 0.0, H[2]]), "right": None}
+  arm = r.self_model.arm["left"]
+  r.sensed = np.zeros(len(hm.JOINT_NAMES))
+  r.sensed[arm] = r.q_cmd["left"]
+  r.sensed[arm[0]] += lag
+  return r, r.sensed[arm].copy()
+
+
+def test_a_carry_whose_open_hands_press_tips_the_body_away_ends_where_its_drivers_read_it():
+  """#782: Luca's `cube_seat6` (11-28, t_0920) carried its open hand 20 cm down
+  onto the cube's board at 1.5 cm/s; held for its load (#699) the carry went on,
+  its arm walking on below the top, the press rising to 48-77 N for up to 15 s,
+  and in its last 1.5 s the press shoved the pelvis back 6-16 cm: the carry
+  ended out of reach and the robot went over backward, in it or in the withdraw
+  after (8 of 24 flown at the live draw). A procedure's carry of a hand that
+  holds nothing, reading a load past the carry's line, whose arm's reading --
+  on commands whose balance closes -- tips the body away from the hand past
+  `HOME_TIP_NM` for `HOME_TIP_S` running (a walk's hand-over's line, `_shoved`)
+  ends there: out of reach and loaded, as one its arm cannot follow ends (its
+  words `steps.MOVE_LOADED`), its arm held where its drivers read it, pressing
+  on nothing -- never on toward the command its arm drove on to. Held, never
+  at once."""
+  dt = 0.01
+  ticks = round(rc.HOME_TIP_S / dt)
+  press = 1.5 * rc.HOME_TIP_NM / PRESS_AT_M
+  assert press > CARRY_LINE and 2 <= ticks, "the premise: a load, read over more than a tick"
+  r, read = _pressed_down(press)
+  for k in range(ticks - 1):
+    r._held("left", dt, H, np.eye(3))
+    assert r.phase["left"] == "carry", k
+  r._held("left", dt, H, np.eye(3))
+  assert r.phase["left"] == "blocked" and r.pulls["left"] is None
+  assert r.report["left"]["why"] == "out of reach" and r.report["left"]["loaded"]
+  assert np.allclose(r.q_cmd["left"], read), "still pressed on toward its command"
+  # ...where the hand is, at the turn it was asked, as any carry out of reach ends
+  assert np.allclose(r.cmd["left"].pos, H) and np.allclose(r.goal["left"].pos, H)
+
+
+def test_a_carry_whose_press_tips_the_body_under_the_line_or_briefly_or_unread_or_reads_no_load_goes_on():
+  """#782's rule, and no more: a press that tips the body under `HOME_TIP_NM`,
+  or past it for less than `HOME_TIP_S` (its count begins again), or read on
+  commands whose balance does not close (it reads nothing there: #699's
+  phantom), carries on however long; and a reading that tips the body past the
+  line with no load past the carry's line -- a push away at the hand's height
+  of 19 N -- is no load (`MOVE_LOADED`'s "a push of more than 20 N"). A hand
+  that grips what it carries, and the loop's own carry (a charge's plug), are
+  never held so."""
+  dt = 0.01
+  ticks = round(rc.HOME_TIP_S / dt)
+  n = 3 * ticks
+  over = 1.5 * rc.HOME_TIP_NM / PRESS_AT_M
+
+  def carries_on(r, each=None):
+    for k in range(n):
+      if each is not None:
+        each(r, k)
+      r._held("left", dt, H, np.eye(3))
+      assert r.phase["left"] == "carry", k
+    return True
+
+  # under the line, a load all the same
+  under = 0.95 * rc.HOME_TIP_NM / PRESS_AT_M
+  assert under > CARRY_LINE, "the premise: a load under the tip's line"
+  assert carries_on(_pressed_down(under)[0])
+  # past it, but a tick under every `HOME_TIP_S`
+  r, _ = _pressed_down(over)
+
+  def blink(r, k):
+    r.force["left"] = (0.0 if k % ticks == ticks - 1 else over) * np.array([0.0, 0.0, -1.0])
+  assert carries_on(r, blink)
+  # past it on commands that do not close, every other one
+  r, _ = _pressed_down(over)
+
+  def unclosed(r, k):
+    r.closed["left"] = k % 2 == 0
+  assert carries_on(r, unclosed)
+  # a push away at the hand's height that tips the body past the line, no load
+  r, _ = _pressed_down(0.0)
+  r.force["left"] = np.array([19.0, 0.0, 0.0])
+  assert r._tipping("left") < -rc.HOME_TIP_NM and float(np.linalg.norm(r.force["left"])) < CARRY_LINE
+  assert carries_on(r)
+  # a hand that grips what it carries, and the loop's own carry
+  for grips, verb in ((True, True), (False, False)):
+    r, _ = _pressed_down(over, grips=grips, verb=verb)
+    assert carries_on(r), (grips, verb)
+
+
 def test_a_pinned_pull_is_held_fast_by_how_far_it_goes_along_its_way():
   """Pinned on a locked bar, the hand's sensed place moved 4 mm in a tenth
   of a second and its grip slid 3-7 mm a second: held fast by its place

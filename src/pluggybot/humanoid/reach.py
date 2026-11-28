@@ -378,6 +378,16 @@ LIFT_M, LIFTS = 0.05, 2
 #: 0.2 s 1.0-1.7 s before their falls. ⚠ NEVER A WITHDRAW'S: its word is the
 #: arm's. ⚠ HELD, NEVER AT ONCE: a push on a prop that gives passes 20 N m for
 #: under 0.2 s; held 0.2 s, a way home that touches nothing read 9 at most.
+#: ...and A PROCEDURE'S CARRY OF A HAND THAT HOLDS NOTHING, READING A LOAD
+#: (`CARRY_PRESSED_SHARE`), IS ENDED SO -- out of reach, its arm held where
+#: its drivers read it -- where that reading, on commands whose balance
+#: closes, passes the same line as long (#782; `_carry_shoved`; SimNotes,
+#: "An open hand pressed down onto a top"): carried down onto a cube's board,
+#: its arm walking on below the top, the hand pressed 21-110 N for up to 15
+#: s, the press shoved the pelvis back 6-16 cm in its last 1.5 s, and the
+#: robot went over backward as the carry ended. ⚠ NOT OFF THE TRUNK'S TIP
+#: BACK (`_leaning_back`'s line): it read 2 deg 0.19 s before the carry ended
+#: itself, and the robot fell all the same.
 HOME_TIP_NM, HOME_TIP_S = 15.0, 0.2
 #: ...and any way home is held so where its drivers read the arm more than
 #: this off its command, rad, this long running, s (`_stalled`; SimNotes,
@@ -2491,8 +2501,11 @@ class Reach:
     load (`CARRY_PRESSED_SHARE`, #699): as it is asked, the one the body is
     in (or where it has got to); on its way, none until it reads light; and
     one coming is given up where it reads a load, the body backing off until
-    it reads none. How it ends is its `report` -- a `verb`'s that began on a
-    held grip ends "let go" where that grip is lost (`_held`)."""
+    it reads none; and one that reads a load whose arm's reading tips the
+    body away from the hand ends out of reach, its arm held where its
+    drivers read it (`_carry_shoved`, #782). How it ends is its `report` -- a
+    `verb`'s that began on a held grip ends "let go" where that grip is lost
+    (`_held`)."""
     kept = self.keep(side, verb)
     if not self.out(side):
       return False
@@ -3606,6 +3619,12 @@ class Reach:
         # `MEAN_S` running (`CARRY_PRESSED_SHARE`)
         st["over"] = st.get("over", 0.0) + dt if self._pressed(fm, 0.0, CARRY_PRESSED_SHARE) else 0.0
       loaded = st.get("fm") is not None and self._pressed(st["fm"], 0.0, CARRY_PRESSED_SHARE)
+      # ...and one that reads a load whose arm's reading tips the body away
+      # from the hand (`_carry_shoved`, #782) ends there, out of reach, its
+      # arm held where its drivers read it, pressing on nothing
+      if self._carry_shoved(side, st, dt, loaded):
+        self._carry_held(side, h, r)
+        return self.cmd[side].stiffness
     # ...never the body held where it stood at a loaded ask (`held_here`): no
     # posture came, and given up there, the carry took none once light
     if (settling and st.get("over", 0.0) >= MEAN_S - 1e-9 and not st.get("given")
@@ -3687,6 +3706,30 @@ class Reach:
       elif st["there"] >= HELD_BACK_S:
         self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
+
+  def _carry_shoved(self, side: str, st: dict, dt: float, loaded: bool) -> bool:
+    """Whether a procedure's carry of a hand that holds nothing (`carry`'s
+    `verb`), reading a load (`loaded`: its mean past `CARRY_PRESSED_SHARE` of
+    `PRESSED_ASK_N`), has read what its arm reads tip the body away from the
+    hand past `HOME_TIP_NM` (minus `_tipping`), on commands whose balance
+    closes (`closed`), for `HOME_TIP_S` running (#782); `dt` its tick. The
+    count is the carry's own (`pulls`): any command under the line, or whose
+    balance does not close, begins it again."""
+    over = loaded and self.closed[side] and -self._tipping(side) > HOME_TIP_NM
+    st["shoved"] = st.get("shoved", 0.0) + dt if over else 0.0
+    return st["shoved"] >= HOME_TIP_S - 1e-9
+
+  def _carry_held(self, side: str, h: np.ndarray, r: np.ndarray) -> None:
+    """A procedure's carry ended where its press tips the body away from its
+    hand (`_carry_shoved`, #782): out of reach, loaded -- as one whose arm
+    cannot follow from the posture it is kept in ends (`_end`; its words
+    `steps.MOVE_LOADED`) -- but its arm held where its drivers read it
+    ("blocked": nothing solves it again), pressing on nothing, never on
+    toward the command it drove on to below the top."""
+    self.pulls[side]["loaded"] = True
+    self._end(side, "out of reach", h, r)
+    self.q_cmd[side] = self.sensed[self.self_model.arm[side]].copy()
+    self.phase[side] = "blocked"
 
   def _pulled(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> float:
     """One command of a PULL (`pull`), `h` and `r` where its grip IS by its

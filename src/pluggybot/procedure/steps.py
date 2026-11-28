@@ -1377,7 +1377,9 @@ MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture 
              "your {other} hand is out holding something, so your body keeps it")
 #: ...and one out of reach whose hand, holding nothing, read a load as a
 #: posture would have come (#699 on a carry: `reach.CARRY_PRESSED_SHARE` of
-#: `reach.PRESSED_ASK_N`, its line).
+#: `reach.PRESSED_ASK_N`, its line) -- or ended where that load's press
+#: tipped the body away from the hand (#782, `Reach._carry_shoved`), each
+#: clause true of it too.
 MOVE_LOADED = ("your {hand} hand could reach no further that way from the posture you are in: "
                f"it holds nothing and read a push of more than "
                f"{CARRY_PRESSED_SHARE * PRESSED_ASK_N:.0f} N, so your body keeps it")
