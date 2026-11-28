@@ -1,9 +1,10 @@
 """`scripts/determinism_spike.py`'s restart check read without flying it
 (issue #780): a restore begins the day loop again at its top, so whatever the
 loop was inside -- its explore's walk, a walk off the rack, the day's start --
-ends there by design (Webserver.md: the errand in flight ends), and the day
-after differs from the one flown straight through. `--resume-at T --in-step`
-saves only at a step with nothing in flight, and says what it passed over.
+ends there by design (Webserver.md, under "The errand in flight ends"), and
+the day after differs from the one flown straight through. `--resume-at T
+--in-step` saves only at a step with nothing in flight, and says what it
+passed over.
 """
 
 import sys
@@ -70,16 +71,25 @@ def test_a_restart_ends_what_the_day_loop_is_inside_and_the_check_saves_past_it(
 
 def test_the_check_says_where_it_saved_and_what_a_restart_would_have_ended():
   """The line the check prints (`saved_words`): where it saved, and from
-  where it passed over how many steps, the first with what in flight -- or
-  that it saved nowhere, and why: what was in flight, or no step the keeper
-  saves in, or (at the pass) no pass."""
+  where it passed over how many steps, the first with what in flight and why
+  a restart ends it, in words true whatever that was -- the day's start, a
+  dead robot's wait and a charge trip are no errand -- or that it saved
+  nowhere, and why: what was in flight, or no step the keeper saves in, or
+  (at the pass) no pass."""
   first = {"t": 200.088, "inFlight": ["explore_routine", "drive_to_routine"]}
   assert ds.saved_words({"k": "saved", "t": 257.488, "passedOver": 573,
                          "firstInFlight": first}, True, 200.0) == (
     "saved inside the hooks of the step at t=257.488, the first with nothing in "
     "flight: from t=200.088 it passed over 573 steps the keeper would have saved in, "
     "the first with explore_routine > drive_to_routine in flight, which a restart ends "
-    "by design (the errand in flight ends, #780)")
+    "by design -- a restored day begins at its loop's top (#780)")
+  for names in (["the day's start"], ["_wait_dead_routine", "hold_routine"],
+                ["_charge_trip_routine", "go_charge_routine", "go_to_routine"]):
+    line = ds.saved_words({"k": "saved", "t": 257.488, "passedOver": 9,
+                           "firstInFlight": {"t": 200.088, "inFlight": names}}, True, 200.0)
+    assert "errand" not in line and line.endswith(
+      f"the first with {' > '.join(names)} in flight, which a restart ends by design -- a "
+      "restored day begins at its loop's top (#780)"), line
   assert ds.saved_words({"k": "saved", "t": 300.088, "passedOver": 0,
                          "firstInFlight": None}, True, 300.0) == (
     "saved inside the hooks of the step at t=300.088")

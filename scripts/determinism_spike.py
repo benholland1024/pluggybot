@@ -155,7 +155,8 @@ def saved_words(row: dict, in_step: bool, at: float) -> str:
   over = ("" if not first else
           f" from t={first['t']} it passed over {row['passedOver']} steps the keeper "
           f"would have saved in, the first with {' > '.join(first['inFlight'])} in "
-          "flight, which a restart ends by design (the errand in flight ends, #780)")
+          "flight, which a restart ends by design -- a restored day begins at its loop's "
+          "top (#780)")
   if row["k"] == "nosave" and not in_step:
     return f"NOT SAVED: the day loop never passed its top from t={at} to the day's end"
   if row["k"] == "nosave" and not first:
