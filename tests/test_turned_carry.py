@@ -82,11 +82,12 @@ def test_a_turn_on_the_spot_arrives_only_once_turned_and_the_next_move_keeps_all
     body.close()
 
 
-def _carrying(r, asked, turns=True, verb=True, hand=None):
-  """`r`'s left hand out where it is held, its command and the hand turned
-  `hand` (the turn it keeps, unturned, by default), then carried nowhere --
-  its place there at once -- turned to `asked` where `turns`, by a
-  procedure's verb where `verb`; its arm reaching whatever it is asked."""
+def _carrying(r, asked, turns=True, verb=True, hand=None, miss=0.0):
+  """`r`'s left hand out where it is held, its command unturned and the hand
+  turned `hand` as the carry begins (its command's, by default), then
+  carried nowhere -- its place there at once -- turned to `asked` where
+  `turns`, by a procedure's verb where `verb`; its arm's solve reaching
+  whatever it is asked to within `miss` of its turn, rad."""
   h = np.array([0.35, 0.2, 0.9])
   r.cmd["left"] = HandGoal(h.copy(), np.eye(3), 1.0)
   r.goal["left"] = HandGoal(h.copy(), np.eye(3), 1.0)
@@ -94,7 +95,7 @@ def _carrying(r, asked, turns=True, verb=True, hand=None):
   r.grip_now = lambda side: (h.copy(), np.eye(3) if hand is None else hand)
   r.posture_for = lambda side, pos, rot=None, **kw: (0.0, 0.0, 0.0)
   r.path_for = lambda side, poses, rot=None, **kw: (0.0, 0.0, 0.0)
-  r.self_model.solve = lambda side, pos, rot=None, iters=40: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  r.self_model.solve = lambda side, pos, rot=None, iters=40: (np.zeros(len(hm.ARM)), 0.0, miss)
   assert r.carry("left", h, **({"path": [], "turns": [asked]} if turns else {}), verb=verb)
   return h
 
@@ -153,6 +154,48 @@ def test_a_turned_carry_whose_hand_is_held_off_its_turn_is_held_back_by_its_turn
   r = _bare_reach()
   h = _carrying(r, asked)
   assert _ticks(r, h, lambda r: near) == turning and r.report["left"]["why"] == "arrived"
+
+
+def test_a_turn_its_solve_misses_arrives_once_the_hand_is_where_its_arm_turns_it():
+  """A carry goes on with its solve up to `HOLD_ROT_TOL` off its turn (#493's
+  lid arc at the wrist's end): its hand, where its arm turns it -- 0.15 rad
+  off the turn asked -- arrives on the tick its command's turn gets there,
+  never held back on the solve's own miss."""
+  r = _bare_reach()
+  asked = _turned(7.0)
+  assert 0.15 < rc.HOLD_ROT_TOL, "the premise: the carry goes on"
+  where = asked @ _turned(math.degrees(0.15)).T
+  h = _carrying(r, asked, miss=0.15)
+  turning = math.ceil(math.radians(7.0) / (rc.HAND_TURN * rc.EVERY_S) - 1e-9)
+  assert _ticks(r, h, lambda r: where) == turning and r.report["left"]["why"] == "arrived"
+
+
+def test_a_move_that_restates_its_turn_arrives_with_the_sag_it_carried_in():
+  """A move given the turn it keeps -- written out again -- by a hand a load
+  holds 0.12 rad off it as it begins arrives on its place as a move given
+  none does, its hand still that far off; one asked a turn arrives once
+  turned as far as asked, its sag kept."""
+  r = _bare_reach()
+  sagged = _turned(math.degrees(0.12))
+  h = _carrying(r, np.eye(3), hand=sagged)
+  assert _ticks(r, h, lambda r: sagged) == 1 and r.report["left"]["why"] == "arrived"
+  r = _bare_reach()
+  asked = _turned(7.0)
+  h = _carrying(r, asked, hand=sagged)
+  turning = math.ceil(math.radians(7.0) / (rc.HAND_TURN * rc.EVERY_S) - 1e-9)
+  assert _ticks(r, h, lambda r: asked @ sagged) == turning and r.report["left"]["why"] == "arrived"
+
+
+def test_a_stuck_turn_is_held_back_past_its_allowances():
+  """Past the solve's miss and the sag carried in, a hand held off its turn
+  is still held back by it: with 0.03 rad of each, one held 0.25 rad off."""
+  r = _bare_reach()
+  asked = _turned(7.0)
+  h = _carrying(r, asked, hand=_turned(math.degrees(0.03)), miss=0.03)
+  _ticks(r, h, lambda r: asked @ _turned(math.degrees(0.25)).T)
+  rep = r.report["left"]
+  assert rep["why"] == "held back" and rep["heldBy"] == "turn", rep
+  assert rep["turnRad"] == pytest.approx(0.25, abs=1e-4)
 
 
 def test_a_turned_carry_held_short_of_its_place_says_its_place():
@@ -238,7 +281,7 @@ def test_a_move_held_back_by_its_turn_says_how_far_short_its_turn_was():
   body = _Ends(*_bare())
   body.ends = [{"why": "held back", "heldBy": "turn", "turnRad": 0.1745, "shortM": 0.004},
                {"why": "held back", "heldBy": "place", "turnRad": 0.01, "shortM": 0.05}]
-  said = "your left hand got there, but turned 10 deg short of the turn asked"
+  said = "your left hand got there, but ended 10 deg off the turn asked"
   assert st.MOVE_TURN_SHORT.format(hand="left", deg=10.0) == said
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    n = 0\n'
              '    if not move_hand("left", 0.3, 0.2, 0.9, fx=1, fy=0, fz=0, jx=0, jy=1, jz=0):\n'

@@ -201,14 +201,19 @@ JOINT_END_RAD = 0.005
 #: held back by something (`carry`'s report says how far short).
 ARRIVE_M, HELD_BACK_S = 0.01, 1.0
 #: ...and a procedure's carry asked a turn once its command's turn is there
-#: too and the hand's within this of it, rad (#767): the solve's own, as
-#: `ARRIVE_M` is its place's. ⚠ Judged on the place alone, a turn on the
-#: spot of 7.5 deg read "arrived" in 0.03-0.11 s, its fingers 0.1-4.8 deg
-#: into it and its command still turning, and the next move kept that
-#: command's. ⚠ No tighter: holding the table's plate the hand sat 0.03-0.04
-#: rad off its turn at rest, and the solve stops refining a turn under
-#: `arms.IK_ROT_TOL`.
-ARRIVE_ROT = REACH_ROT_TOL
+#: too (within the second, rad, of the goal's: `_line` copies it there) and
+#: the hand's within the first of it, rad, the solve's own, as `ARRIVE_M` is
+#: its place's -- beyond the turn its solve misses it by and the hand's own
+#: off the turn it kept as the carry began (#767). ⚠ Judged on the place
+#: alone, a turn on the spot of 7.5 deg read "arrived" in 0.03-0.11 s, its
+#: fingers 0.1-4.8 deg into it and its command still turning, and the next
+#: move kept that command's. ⚠ No tighter: holding the table's plate the
+#: hand sat 0.03-0.04 rad off its turn at rest, and the solve stops refining
+#: a turn under `arms.IK_ROT_TOL`. ⚠ And never against the goal's turn
+#: alone: a carry goes on with its solve up to `HOLD_ROT_TOL` off (#493's
+#: lid arc at the wrist's end), and a move that restates its turn under a
+#: load sags as it did, neither of which a hand still turning is.
+ARRIVE_ROT, TURN_THERE_RAD = REACH_ROT_TOL, 1e-9
 #: A carried hand's solve that misses its command by this, m, has
 #: diverged and is never commanded; and a move is given this long, s, to
 #: begin before a miss can end it.
@@ -2507,6 +2512,7 @@ class Reach:
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
+    seen = r
     # ⚠ THE TURN IT WAS ASKED TO KEEP, never the one it sagged to: planned
     # from a hand stretched up a lid's arc, the wrist's 0.1-0.15 rad of give
     # put the path back down out of every posture's reach (#493)
@@ -2563,8 +2569,10 @@ class Reach:
                         **({"recheck": True} if loaded and fixed else {}),
                         # ...a `verb`'s, a grip it began with: lost, it ends there (`_held`)
                         **({"gripped": True} if verb and not open_ else {}),
-                        # ...a `verb`'s asked a turn: it arrives once turned too (`_held`, #767)
-                        **({"turned": True} if verb and turns is not None else {}),
+                        # ...a `verb`'s asked a turn: it arrives once turned too (`_held`, #767),
+                        # the hand's turn off the one it keeps as it begins carried in
+                        **({"turned": True, "sag": float(np.linalg.norm(_rot_error(r, seen)))}
+                           if verb and turns is not None else {}),
                         # ...a `verb`'s, its replans on its way judge its trunk (#763)
                         **({"verb": True} if verb else {})}
     if moved_posture:
@@ -3700,15 +3708,17 @@ class Reach:
     if there and self.phase[side] == "carry":
       # ...a procedure's asked a turn: its command there once its turn is too
       # (`_line` sets it to the goal's within a step of it), the hand turned
-      # within `ARRIVE_ROT` (#767)
+      # within `ARRIVE_ROT` of it -- beyond the turn its solve misses it by
+      # and the sag the hand carried in (#767)
       turned = st.get("turned", False)
-      if turned and not np.array_equal(c.rot, self.goal[side].rot):
+      if turned and float(np.linalg.norm(_rot_error(self.goal[side].rot, c.rot))) > TURN_THERE_RAD:
         return c.stiffness
       # arrived once the HAND is there, never its command alone: on a soft
       # arm a lid held the hand 5 cm back while every command arrived (#493)
       short = float(np.linalg.norm(self.goal[side].pos - h))
       st["there"] = st.get("there", 0.0) + dt
-      if short <= ARRIVE_M and (not turned or self._turn_short(side, r) <= ARRIVE_ROT):
+      if short <= ARRIVE_M and (not turned or self._turn_short(side, r)
+                                <= ARRIVE_ROT + er + st.get("sag", 0.0)):
         self._end(side, "arrived", h, r, at_goal=True)
       elif st["there"] >= HELD_BACK_S:
         self._end(side, "held back", h, r, at_goal=True)
