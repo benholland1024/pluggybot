@@ -13047,10 +13047,9 @@ product's true place and the true stance after each verb. What flying took:
   stance parts at the first verb), 41 of its 64 checks do; its dev tours read
   45 there, 52 on the Gold. A round on a new CPU type flies its base beside.
 - **Open:** drops at the upper board (the frame falling during its set-down
-  reach; a press at the deepest bow; a knock in the withdraw), the find's run-
-  outs (about 4% of tours), and an offer of it carries no address or
-  directions: its target, `shop_shelf`, is no area of `home/places.json`, and
-  our walk knows the shop's address itself.
+  reach; a press at the deepest bow; a knock in the withdraw) and the find's
+  run-outs (about 4% of tours). An offer of it says where by its area's terms
+  (`shop_shelf` in `home/places.json`, drafts for Ben; Challenges.md §13).
 
 ## A station's fix that moves the belief drops the map (issues #741, #681)
 

@@ -679,6 +679,21 @@ def test_the_directions_pass_the_dispatcher_test():
                                         *tags.LABEL_TAG_IDS, *tags.STOCK_TAG_IDS}
 
 
+def test_a_tag_two_areas_name_is_named_the_same_in_both():
+  """Areas that share a building's paragraph name its tags too (the storeroom
+  counter's four, the shop and its shelf, #736). `tag_names` keeps whichever
+  area comes last, so a tag named two ways would be said one way in History
+  and the places block, with no error: every tag is named one way wherever it
+  is named."""
+  names: dict[int, set[str]] = {}
+  for spec in addresses.load()["areas"].values():
+    for t, name in spec["tags"].items():
+      names.setdefault(int(t), set()).add(name)
+  assert {t: n for t, n in names.items() if len(n) > 1} == {}
+  assert len(names[70]) == 1 and len([a for a in addresses.load()["areas"].values()
+                                      if "70" in a["tags"]]) == 2, "premise: shared"
+
+
 def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_does():
   from pluggybot.economy.cadence import Cadence, TaskProducer
   from pluggybot.economy.tasks import TaskBoard
