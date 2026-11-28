@@ -565,10 +565,17 @@ bar's draws and 25 of 32 sealed, no fall -- not met. With round 9's two levers
 and round 10's (the fork's put-down stepped first past 0.17 m), at bd7146f1
 it laid 24 of 32 on the bar's draws and 20 of 32 on 32 draws sealed by that
 commit, no fall, where round 9's reference beside it laid 22 and 18 (on its
-own sealed draws 24: 32 draws are that noisy): the bar is met on its draws,
-not on the sealed ones. Offering it is Ben's call. Offered, like the pass's
-it moves the place's directions, which every kind's offer at the table
-carries: they say an offer sets the pieces out on the table near the card.
+own sealed draws 24: 32 draws are that noisy): the bar was met on its draws,
+not on the sealed ones. With round 11's three (the fork's look after its
+pre-pose turned toward it where it missed, its put-down held to its line after
+its step, and `near`'s misses turned further), at bd98064e it laid 24 of 32 on
+the bar's draws and 27 of 32 on 32 draws sealed by that commit, no fall, where
+round 10's reference beside it laid the same 24 and 27 -- the bar's 24 its own
+flights replayed, the sealed 27 on a kind pool -- and on fresh draws 172 of
+256 against 164 (+8 -0): the bar is met, both halves. Offering it is Ben's
+call. Offered, like the pass's it moves the place's directions, which every
+kind's offer at the table carries: they say an offer sets the pieces out on
+the table near the card.
 
 **What it cannot grade**, beyond §6: whether the place is pleasing -- a
 plate 2 cm off its spot passes -- and anything but its three pieces.

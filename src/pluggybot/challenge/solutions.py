@@ -649,11 +649,16 @@ PASS_LIBRARY, PASS = _pass_job()
 #:    withdraw it (from the hover over the cup, the way home rose into the
 #:    board above and was held there);
 #:  - the cup's and the fork's look after `near` that misses turns
-#:    `SHELF_LOOK_TURN` toward the piece and looks again;
+#:    `SHELF_LOOK_TURN` toward the piece and looks again, and so does the
+#:    fork's after its left pre-pose, the pre-pose taken again; where all
+#:    three of `near`'s looks at the fork miss, it turns `SHELF_NEAR_TURN`;
 #:  - each thin piece brought back clear of the board and lowered to
 #:    `SHELF_STOW_Z` before the walk, the fork by a `pull` that holds its
 #:    line and turn, its hand at least `SHELF_FORK_LEFT` left of the middle;
 #:  - each piece put down only while its hand still holds it (`SHELF_HELD`);
+#:  - the fork's put-down stepped toward the middle first past the shelf's own
+#:    line, `SHELF_FORK_PUT`, and held to it again after its step
+#:    (`SHELF_FORK_STEP`);
 #:  - no plate turn after the walk (`PASS_PLATE_TURN`'s reason is the pass's
 #:    `face`, which stopped short turning the other way).
 SHELF_TO = '''def to_shelf(s):
@@ -701,8 +706,23 @@ SHELF_NEAR_BACK = 0.03
 #: Where the cup's or the fork's look after `near` misses, the turn toward it
 #: before it looks again, rad -- the cup's to the right, the fork's to the
 #: left: `near`'s step went 2x across where asked and left the cup 35 deg off
-#: the facing, at the picture's side.
+#: the facing, at the picture's side. The fork's look after its left
+#: pre-pose turns so too where it misses, the pre-pose taken again: that look
+#: missed exactly where the fork stood past 32 deg left (18 of 384 trips),
+#: the pre-pose having turned the robot right 3 deg, and the reach then aimed
+#: at the look from before the turn landed the grip 1.8 cm along the fork and
+#: 2.6 across it -- 11 of those 18 lost the fork (SimNotes, "The place laid
+#: from the kitchen's shelf").
 SHELF_LOOK_TURN = 0.15
+#: Where all three of `near`'s looks at the fork miss, the turn toward it
+#: before it looks again, rad: arrived turned 6-10 deg right of the shelf and
+#: turned further by the looks' bows, the robot still had the fork past the
+#: picture's side after `near`'s own 0.20 rad turn and step (4 of 384 trips,
+#: the fork's run ended unpicked). Read as a test, `near` reads false only
+#: where that last look misses: its other verbs are tests already, its reads
+#: follow a look that saw the tag, and a fall or a limit ends the run either
+#: way.
+SHELF_NEAR_TURN = 0.35
 #: How far each walk to the shelf stands to the left of the pass's middle, m:
 #: where the trip's piece -- its row 0.5 m left of the pass's middle plus its
 #: place in it (`counter.SHELF_SOURCES`) -- stands where `near` puts it, so
@@ -741,13 +761,35 @@ SHELF_FORK_LEFT = 0.25
 #: from the kitchen's shelf").
 SHELF_FORK_EDGE, SHELF_FORK_STOW_N = 0.425, 3
 #: How far left of the stance's middle the shelf's fork put-down may be
-#: aimed, m, past which it steps sideways first toward `PASS_FORK_MID` (the
-#: pass's `PASS_FORK_LEFT`, 0.18) -- one step, which goes about half its way,
-#: so from further out its aim may still end past the line: on the shelf's
-#: trips the put-down aimed 0.17-0.18 m left failed 18 of 83, its pull down
-#: out of reach or the stance turning under it, where stepped from 0.18-0.19
-#: 1 of 42 did (SimNotes, "The place laid from the kitchen's shelf").
+#: aimed, m -- the shelf's own line, where the pass's is `PASS_FORK_LEFT`
+#: (0.18) -- past which it steps sideways first toward `PASS_FORK_MID`
+#: (0.14): on the shelf's trips the put-down aimed 0.17-0.18 m left failed 18
+#: of 83, its pull down out of reach or the stance turning under it, where
+#: stepped from 0.18-0.19 1 of 42 did. A step goes
+#: about half its way, so the card looked at after it is held to the line
+#: again, with one more step (`SHELF_FORK_STEP`): from 0.19-0.21 m one step
+#: left 26 of 50 aimed past it, and 4 of those lost the fork at the put-down
+#: (SimNotes, "The place laid from the kitchen's shelf").
 SHELF_FORK_PUT = 0.17
+#: The pass's fork put-down's step (old) and the shelf's (new): past
+#: `SHELF_FORK_PUT`, a step and a look, the card then held to the line again
+#: with one more of each; each look after a step taken again once where it
+#: misses, as a bare look that misses ends the run with the fork in the hand.
+SHELF_FORK_STEP = ('''  if read("spot.y") + %(fork_at_b)s > %(fork_left)g:
+    if not step(0, read("spot.y") + %(fork_at_b)s - %(fork_mid)g):
+      pass
+    spot(93)
+''', '''  if read("spot.y") + %(fork_at_b)s > %(shelf_fork_put)g:
+    if not step(0, read("spot.y") + %(fork_at_b)s - %(fork_mid)g):
+      pass
+    if not spot(93):
+      spot(93)
+    if read("spot.y") + %(fork_at_b)s > %(shelf_fork_put)g:
+      if not step(0, read("spot.y") + %(fork_at_b)s - %(fork_mid)g):
+        pass
+      if not spot(93):
+        spot(93)
+''')
 #: Each shelf run's put-down only while its hand still holds the piece, the
 #: run ended otherwise: after the step at the table let the plate go, the
 #: put-down's reach from the hanging arm bowed the robot 1.10 rad and it fell.
@@ -771,9 +813,11 @@ SHELF_CUP_UNDO = ('''      if not move_hand("right", read("right.x") + dx, read(
 ''')
 #: What the shelf's runs change in the pass's, each (old, new) once: the
 #: trip's walk, the plate's turn, `near`'s distance, the left pre-pose, the
-#: cup's and the fork's looks, the cup's retries and its re-set's move taken
-#: back, each thin piece's stow before the walk, and each put-down's check
-#: that its piece is still held.
+#: cup's and the fork's looks (the fork's after `near` and after its
+#: pre-pose, and `near`'s own where all three miss), the cup's retries and
+#: its re-set's move taken back, each thin piece's stow before the walk, the
+#: fork's put-down held to its line after its step, and each put-down's
+#: check that its piece is still held.
 SHELF_FROM_PASS = {
   "cup": (("  to_pass(-0.10)\n", "  to_shelf(%(cup_s)g)\n"),
           ("  to_place(%(cup_facing)g)\n", "  to_place(%(cup_facing)g)\n" + SHELF_HELD % "right"),
@@ -851,13 +895,29 @@ SHELF_FROM_PASS = {
              '  if not move_hand("left", read("left.x"), read("left.y"), %(stow_z)g):\n    pass\n')),
   "fork": (("  to_pass(0.10)\n", "  to_shelf(%(fork_s)g)\n"),
            ("  near(92, 0.44, 0.20)\n  spot(92)\n",
-            "  near(92, %(fork_near)g, 0.20)\n"
+            "  if not near(92, %(fork_near)g, 0.20):\n"
+            "    if not step(0, 0, %(near_turn)g):\n      pass\n"
+            "    if spot(92):\n"
+            '      x = read("spot.x") - %(fork_near)g\n      y = read("spot.y") - 0.20\n'
+            "      if y * y < 0.0009:\n        y = 0\n"
+            "      if not step(x, y):\n        pass\n"
             "  if not spot(92):\n    if not step(0, 0, %(look_turn)g):\n      pass\n    spot(92)\n"),
            ("  to_place(%(facing)g)\n", "  to_place(%(facing)g)\n" + SHELF_HELD % "left"),
-           ('  if read("spot.y") + %(fork_at_b)s > %(fork_left)g:\n',
-            '  if read("spot.y") + %(fork_at_b)s > %(shelf_fork_put)g:\n'),
+           SHELF_FORK_STEP,
            ('  move("left_shoulder_roll", 0.9)\n  move("left_elbow", 1.4)\n',
             '  move("left_shoulder_roll", %(left_roll)g)\n  move("left_elbow", %(left_elbow)g)\n'),
+           ('  if spot(92):\n    px = read("spot.x")\n    py = read("spot.y")\n',
+            '  if spot(92):\n    px = read("spot.x")\n    py = read("spot.y")\n'
+            '  else:\n'
+            '    if not step(0, 0, %(look_turn)g):\n      pass\n'
+            '    move("left_shoulder_roll", %(left_roll)g)\n    move("left_elbow", %(left_elbow)g)\n'
+            '    open_hand("left")\n'
+            '    spot(92)\n'
+            '    px = read("spot.x")\n    py = read("spot.y")\n'
+            '    gz = read("spot.z") + 0.0264\n'
+            '    a = atan2(read("spot.ey"), read("spot.ex"))\n'
+            '    while a > 0.79:\n      a = a - 1.571\n'
+            '    while a < -0.79:\n      a = a + 1.571\n'),
            ('  go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)\n',
             '  gx = read("left.x")\n'
             '  y = read("left.y")\n  if y < %(shelf_fork_left)g:\n    y = %(shelf_fork_left)g\n'
@@ -869,6 +929,24 @@ SHELF_FROM_PASS = {
             '    else:\n'
             '      pull("left", 0, 0, -1, 20, read("left.z") - %(stow_z)g, give=0)\n')),
 }
+
+
+def _shelf_terms() -> dict:
+  """The place laid from the kitchen's shelf's terms: the pass's
+  (`_pass_terms`), and the shelf's constants above."""
+  terms = _pass_terms()
+  terms.update({"left_roll": SHELF_LEFT_ROLL, "left_elbow": SHELF_LEFT_ELBOW,
+                "cup_back": SHELF_CUP_BACK, "look_turn": SHELF_LOOK_TURN, "near_turn": SHELF_NEAR_TURN,
+                "cup_s": SHELF_S["cup"], "plate_s": SHELF_S["plate"], "fork_s": SHELF_S["fork"],
+                "cup_near": round(0.47 + SHELF_NEAR_BACK, 4),
+                "plate_near": round(0.50 + SHELF_NEAR_BACK, 4),
+                "fork_near": round(0.44 + SHELF_NEAR_BACK, 4),
+                "shelf_plate_back": SHELF_PLATE_BACK, "shelf_fork_back": SHELF_FORK_BACK,
+                "shelf_fork_left": SHELF_FORK_LEFT,
+                "fork_edge": SHELF_FORK_EDGE, "stow_n": SHELF_FORK_STOW_N,
+                "shelf_fork_put": SHELF_FORK_PUT,
+                "stow_z": SHELF_STOW_Z, "stow_above": round(SHELF_STOW_Z + 0.01, 4)})
+  return terms
 
 
 def _shelf_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -886,18 +964,7 @@ def _shelf_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
       source = source.replace(old, new)
     runs.append(source)
   # ...each run's terms the pass's, and the shelf's
-  terms = _pass_terms()
-  terms.update({"left_roll": SHELF_LEFT_ROLL, "left_elbow": SHELF_LEFT_ELBOW,
-                "cup_back": SHELF_CUP_BACK, "look_turn": SHELF_LOOK_TURN,
-                "cup_s": SHELF_S["cup"], "plate_s": SHELF_S["plate"], "fork_s": SHELF_S["fork"],
-                "cup_near": round(0.47 + SHELF_NEAR_BACK, 4),
-                "plate_near": round(0.50 + SHELF_NEAR_BACK, 4),
-                "fork_near": round(0.44 + SHELF_NEAR_BACK, 4),
-                "shelf_plate_back": SHELF_PLATE_BACK, "shelf_fork_back": SHELF_FORK_BACK,
-                "shelf_fork_left": SHELF_FORK_LEFT,
-                "fork_edge": SHELF_FORK_EDGE, "stow_n": SHELF_FORK_STOW_N,
-                "shelf_fork_put": SHELF_FORK_PUT,
-                "stow_z": SHELF_STOW_Z, "stow_above": round(SHELF_STOW_Z + 0.01, 4)})
+  terms = _shelf_terms()
   _, place, near, go = PASS_LIBRARY
   return ((SHELF_TO % {"ax": address["x"], "ay": address["y"], "first": SHELF_FIRST,
                        "last": round(SHELF_ACROSS - SHELF_FIRST, 4)},
