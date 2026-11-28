@@ -4,9 +4,9 @@ its place read "arrived" once its place was within `reach.ARRIVE_M`, its
 command still turning, and whatever ran next kept that half-made turn. Its
 command now arrives once its place AND its turn are there -- the held-back
 clock starts then -- and it reads "arrived" once the hand is within
-`reach.ARRIVE_ROT` of that turn too, else "held back", saying which held it
-back; the loop's own carries and every carry that keeps its turn are as they
-were. One flight on the bare floor (#767's own, about 5 s of sim), the rest
+`reach.ARRIVE_ROT` of that turn too, beyond the turn its solve misses it by
+and the sag it carried in, else "held back", saying which held it back; the
+loop's own carries and every carry that keeps its turn are as they were. One flight on the bare floor (#767's own, about 5 s of sim), the rest
 direct calls."""
 
 import math

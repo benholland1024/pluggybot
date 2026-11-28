@@ -13418,13 +13418,20 @@ the command's turn: the pre-tilt never applied.
 turn are, and the held-back clock starts then: from its place's, a turn longer
 than `HELD_BACK_S` takes at `HAND_TURN` (57 deg) would be held back while its
 command still turned. It reads "arrived" once the hand is within `ARRIVE_M`
-and within `ARRIVE_ROT` of its goal's turn, else "held back" `HELD_BACK_S`
-on, its report saying which held it (`heldBy`) and how far its turn was off
-(`turnRad`); held back by its turn, the verb says how far short
-(`steps.MOVE_TURN_SHORT`), never why: a load or a press holds a hand off its
-turn, and so does an arm whose solve cannot take it from the posture it holds
-(`HOLD_ROT_TOL` lets a carry go on to 0.2 rad: #493's lid arc at the wrist's
-end missed 7-14 deg).
+and within `ARRIVE_ROT` of its goal's turn beyond two allowances, else "held
+back" `HELD_BACK_S` on, its report saying which held it (`heldBy`) and how
+far its turn was off (`turnRad`); held back by its turn, the verb says how far
+off ("your left hand got there, but ended 7 deg off the turn asked",
+`steps.MOVE_TURN_SHORT`), any way and never why. The allowances, each a turn
+no hand still turning is (the review of #767's first form): the turn its solve
+misses it by this tick -- a carry goes on with its solve up to `HOLD_ROT_TOL`
+off (0.2 rad: #493's lid arc at the wrist's end missed 7-14 deg), and judged
+against the goal's turn alone such a carry, its hand where its arm turns it,
+could never arrive -- and the hand's own turn off the one its carry keeps as
+the carry began, the sag it carried in: a move that writes out the turn it
+already keeps, as Rowan's door procedures did, is judged as one asked a turn,
+and a load holding its wrist past 0.1 rad would read held back where a move
+given no turn arrives.
 
 **The tolerance is the solve's own**, `arms.REACH_ROT_TOL` (0.1 rad), as
 `ARRIVE_M` is its place's (1 cm, `REACH_POS_TOL`), and the evidence keeps it
@@ -13433,7 +13440,10 @@ turn as two plain carries arrived, steady at 0.03-0.04 over their last
 seconds -- its sag, which a tolerance under about 0.05 would read as held
 back -- and the solve stops refining a turn once within `IK_ROT_TOL` (0.02).
 In free air the hand follows a turning command 0.01-0.03 rad behind and
-settles to 0.002-0.009 rad 0.1-0.2 s after its command stops.
+settles within 0.01 rad 0.1-0.2 s after its command stops. ⚠ ITS LIMIT: a
+turn asked smaller than its allowance -- about 6 deg, more by the sag carried
+in and the solve's miss -- can read "arrived" with the hand not turned at
+all, as long as its place is there.
 
 **What it does.** #767's flight: the turn arrives at 0.14 s, the tick its
 command's turn gets there, its fingers 1.79 deg off the way asked (the arm's
@@ -13449,16 +13459,17 @@ finishes it, keeping the whole turn.
 charge's plug carried to the port turns; `evaluation.opener`'s lid arc), and
 every carry that keeps its turn. None of our references asks a turn (an ast
 scan of `solutions.PROCEDURES`, its `LIBRARY` and `hands_check`'s procedures),
-and the lid's and the table's checks at set-outs 0-2 ended in the same state on both trees, end hashes equal. The robots' own: none of X5's 200 live tries asks one; of 592
-distinct sources in five live exports (11-14 to 11-25), two did, Rowan's door
-procedures of 11-15 (it ran once, and fell at its 38th step) and 11-25
-(refused, nested too deep).
+and a sample of them ended in the same state on both trees, end hashes equal:
+the lid's and the table's hands checks at set-outs 0-2. The robots' own: none
+of X5's 200 live tries asks one; of 592 distinct sources in five live exports
+(11-14 to 11-25), two did, Rowan's door procedures of 11-15 (it ran once,
+and fell at its 38th step) and 11-25 (refused, nested too deep).
 
 Measured on the dev box (an Intel i5-9600KF, osmesa),
 `~/pluggybot-training/loop-1126b/c19-turn/`: `c/turnrec.py` records every
 carry passively (end states equal with it and without), `c/turn_c19.py` and
 `c/back_c19.py` fly #767's flight, `c/run_a2.sh` A2's probe, and
-`c/chain_sample.sh` the sample on both trees.
+`c/chain_fix.sh` the sample on both trees (`c/compare.py` reads it).
 
 ## Debugging workflow that worked
 

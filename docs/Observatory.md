@@ -14,8 +14,8 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **What the robots read moves by one sentence, a draft for Ben**: a
 `move_hand` asked a turn and held back by it, its hand at its place, says in
-its step and History "your left hand got there, but turned 7 deg short of
-the turn asked" (its number its hand's reading) where it said "your left hand
+its step and History "your left hand got there, but ended 7 deg off the turn
+asked" (its number its hand's reading) where it said "your left hand
 was held back short of it: what it holds or pushes on stopped it"; held back
 by its place, it reads as before. The prompt `3f8b2dc7…` (72,160 characters,
 17 sections) and the session host's hello `9dcf6202` are byte for byte as
@@ -26,7 +26,9 @@ arrives once turned"). A procedure's carry asked a turn (`fx..jz`, or a
 `via` point's) read "arrived" once its place was there, its command and its
 hand still turning, and the next move kept the half-made turn. It now
 arrives once its command's turn is there too and its hand within 0.1 rad of
-it.
+it beyond the turn its solve misses it by and the sag the hand carried in.
+A turn asked under that allowance (about 6 deg) can still read "arrived" with
+the hand not turned.
 
 **What it does.** Only a procedure whose `move_hand` asks a turn moves: its
 turned moves take as long as their command's turn (1 rad/s), held back an
