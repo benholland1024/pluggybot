@@ -9241,17 +9241,22 @@ the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
 each piece fetched from the shelf and laid as the pass lays it (below).
 Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
 32 draws sealed by that commit, no fall, one pod. Eight rounds, below, were
-flown and none frozen; the ninth's two levers were kept, at 2ddbe238: 22 of 32
+flown and none frozen; the ninth's two levers were kept, at 2ddbe238 (22 of 32
 on the bar's draws and 24 of 32 on 32 draws sealed by that commit, where the
-reference beside it laid 20 and 20, no fall either way: THE BAR IS NOT MET
-(its misses below).
+reference beside it laid 20 and 20), and the tenth's one, at bd7146f1: 24 of
+32 on the bar's draws and 20 of 32 on 32 draws sealed by that commit, where
+round 9's reference beside it laid 22 and 18 (on its own sealed draws it had
+laid 24: 32 draws are that noisy), no fall either way: THE BAR IS MET ON ITS
+DRAWS, NOT ON THE SEALED ONES (its misses below); offering it is Ben's call.
 Its largest miss on the dev draws and the bar's is the plate let go carried,
 which a rounder wall all but took away (#771). The fork's largest was its stow
 catching the work board, which round 9 takes where the grip's own reading puts
-the head's tip at the board's edge (below). ⚠ The dev draws 4000-4063 flatter
-the reference, which was chosen on them. On the served plate, on draws nobody
-tuned on (4300-4363 and 4400-4463), it laid 65 of 128, where on the dev draws
-it laid 42 of 64; on the raised 48-box plate, 45 of 64 on 4300-4363 against 51.
+the head's tip at the board's edge, and then its put-down aimed just inside the
+pass's line, which round 10 steps away from (below). ⚠ The dev draws 4000-4063
+flatter the reference, which was chosen on them. On the served plate, on draws
+nobody tuned on (4300-4363 and 4400-4463), it laid 65 of 128, where on the dev
+draws it laid 42 of 64; on the raised 48-box plate, 45 of 64 on 4300-4363
+against 51.
 So a lever that flies the fork's trip afresh reads worse on the dev draws than
 it is: read one on fresh draws.
 Measured first, before the kind was built, on a scratch
@@ -9296,7 +9301,9 @@ flights, osmesa, each its own noise):
 
 **The reference** (`solutions.SHELF` over `SHELF_LIBRARY`) is the pass's three
 runs, each piece fetched from the shelf and laid as the pass lays it, byte for
-byte but a check that the piece is still held. What fetching from the shelf
+byte but a check that the piece is still held, the cup's failed re-set taken
+back (round 9, below) and the line past which the fork's put-down steps first
+(round 10). What fetching from the shelf
 took, found on local flights and on dev draws from 4000 up (one pod, Xeon
 E7-8890 v4, osmesa, each its own noise; `~/pluggybot-training/batches/
 a2_shelf/`):
@@ -9537,6 +9544,43 @@ reference laid 20 (+4 -0), no fall either way: the bar, 24 of 32 over the tour,
 is not met on the served plate. On #771's raised 48-box plate (never merged) it
 laid 26 of 32 over the tour and 23 of 32 on the sealed draws, no fall, its
 misses mostly the fork's.
+
+**Round 10** (the loop of 11-26b's A7 and A8,
+`~/pluggybot-training/loop-1126b/a7-fork/` and `a8-keep/`, its rule sent before
+it flew; KEPT at bd7146f1). *Where the fork's put-down is aimed.* Read off round
+9's own rows (every flight of its reference, 423 fork put-downs on both plates),
+a fork put-down fails by where its hand is aimed, the further left of the
+stance's middle the worse: aimed 0.17 m or nearer, 17 of 307 failed (6 %),
+stepped first or not; aimed further, 27 of 116 (23 %). All 8 of its pull downs
+that did not end held fast -- out of reach 6, the feet moved 1, the grip lost 1,
+each fork failed -- were aimed 0.170-0.179 m left, and those let go 4-9 cm over
+the table came down at 0.84-1.36 m/s. The pass's line (`PASS_FORK_LEFT`, 0.18 m)
+steps first only past it, and the walker's sideways step goes about half its way
+(0.31 of it at the least), so every put-down stepped from an aim of 0.18-0.19 m
+ended aimed at 0.17 or nearer and 1 of 42 failed, where the 83 aimed 0.17-0.18
+m, unstepped, failed 18. So the shelf's fork steps first past its own line,
+`SHELF_FORK_PUT` (0.17 m), toward `PASS_FORK_MID`; the pass keeps 0.18. Every
+reading below flew round 9's reference beside it on the same pod. On the dev
+draws (an AMD EPYC 7B12, which replays the Xeon E5-2698 v4's rows bit for bit;
+served 4300-4463 and 4500-4563, raised 4300-4363 and 4500-4563) the 265 flights
+it did not act on were the reference's to the bit, and every acted aim ended at
+0.146-0.161 m, its pull down held fast: served 111 of 192 against 106 (+5 -0,
+one-sided sign p 0.031), raised 101 of 128 against 100 (+1 -0, the reference's
+one fall a place laid), no fall -- the line read off these rows, so no
+independent reading of it. On a Xeon E5-2698 v4: on fresh draws nobody's before,
+4600-4663, it laid 43 of 64 where the reference laid 43 -- an exact tie, each of
+its 8 acts laying what the reference's did -- so, by the rule stated before that
+reading, 64 more fresh draws flew, 4700-4763: 44 against 43 (+1 -0); pooled, 87
+of 128 against 86 (+1 -0, its 22 acts losing none), no fall either way, plates
+let go carried 20 both: kept. On the bar's draws 0-31 it laid 24 of 32 where the
+reference laid 22 (+2 -0, the two forks the pass's line had let go over the
+table), and on the 32 draws sealed by bd7146f1 20 where the reference laid 18
+(+2 -0; on 2ddbe238's sealed draws it had laid 24: 32 draws are that noisy), no
+fall either way: the bar, 24 of 32 over the tour, is met on its draws, not on
+the sealed ones. On the sealed draws the plate was let go carried in 6 (#771),
+the fork tipped in 3 and let go carried in 3, the plate dropped at its put-down
+in 2, the cup and the fork put down off in 2 each and the plate in 1, seven
+flights missing two pieces.
 
 **A thin piece's hand-over rises over the shoulder and sweeps down at the
 robot's side** (#770; not fixed). The walk's hand-over takes the side way for
