@@ -13395,6 +13395,21 @@ base's 576 hands checks are C15's rows):
 | the robots' own tries | B | 275 | 275 | 4 | -8.4 | -13.7 to -1.4 | -8.5 (179) | -8.6 |
 | the robots' own tries | CO | 287 | 245 | 261 | -0.7 | -4.3 to +1.2 | -1.0 (180) | -1.1 |
 
+**Two of its review's questions, counted off the same rows** (#765's
+review; `c18-review/tools/count_765.py`, every face on this verb: the tour
+160, the pass 576 and held out 282, the tries 367). Its turn is closed on
+its legs' own reckoning, as `step`'s is, so a correction to the believed
+heading while it turns -- a scan match, a relocation -- is not followed;
+but in none of those 1,385 faces did the belief's heading move more than
+0.6 deg against the truth while one ran (none in the old verb's 1,388), and
+the 43 whose heading in the map ended 2-4.4 deg off the one asked are the
+turn's own settle, the belief moving under 0.4 deg in each. And a turn of
+0.5-4 deg now hands the legs to the walker, a hand out at work coming home
+first, where the old verb did nothing under its 4 deg: of the 92 faces asked
+under 4 deg, every one began with its legs on the walker or both hands at
+rest (in the tries, both at rest in all 367). `tests/test_face.py` pins
+both as they stand.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

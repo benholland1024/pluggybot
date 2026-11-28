@@ -413,9 +413,11 @@ PASS_CUP_AGAIN = 0.01
 #: hand-over swung the plate into the pass's top (12 of 25, square 1 of 38) and
 #: the plate came loose in the jaws for an instant, a drop. Made for the walk's
 #: `face`, which stopped 5.6 deg short of square; turned as `step` turns since
-#: #765 it lands square, and this leaves the trip about 6 deg left of it --
-#: kept because without it the pass laid fewer: 53 of 64 places against 55
-#: (two noise draws, one pod; SimNotes, "`face` turned as `step` turns").
+#: #765 it lands square, and this leaves the trip about 6 deg left of it,
+#: over-correcting (the plate struck the pass's top in 4 places of 64 with it,
+#: 1 without) -- kept because without it the pass laid fewer: 53 of 64 places
+#: against 55 (two noise draws, one pod; SimNotes, "`face` turned as `step`
+#: turns").
 PASS_PLATE_TURN = 0.10
 PASS_TO_PLACE = (("def to_table():\n  budget(steps=16, seconds=900)\n", "def to_place(f):\n"),
                  ("  h = a + %(facing)g - h - read(\"step.turn\")\n", "  h = a + f - h - read(\"step.turn\")\n"),

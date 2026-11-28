@@ -349,17 +349,20 @@ def _drive_to(life, args: dict) -> Routine:
           "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
-#: What a `face` that did not get there says, by how its turn ended (#765).
+#: What a `face` that did not get there says, by how its turn ended (#765);
+#: and an end a turn alone has none for (none today), no cause guessed.
 FACE_WHY = {"turned short": "your turn stopped short of heading {heading:.2f} rad",
             "fell": "you fell",
             "out of time": "did not square up to heading {heading:.2f} rad within its time"}
+FACE_ELSE = "did not turn to heading {heading:.2f} rad"
 
 
 def _face(life, args: dict) -> Routine:
   """`face` (#765): the turn from the heading its stance believes it has in
   the map to `heading`, taken as `step` takes its turn -- closed on the
-  stance's own heading, the legs back on the standing policy after
-  (`Body.step_routine`, its turn alone). ⚠ NEVER THE LOOP'S OWN TURN
+  stance's own heading by its legs' reckoning, a correction meanwhile not
+  followed, the legs back on the standing policy after (`Body.step_routine`,
+  its turn alone). ⚠ NEVER THE LOOP'S OWN TURN
   (`Body.face_routine`, closed on the pelvis): the walker yaws the pelvis
   over planted feet, so the feet ended 6-10 deg short of a turn of 10 deg
   or more, and turned back further once the legs stood again (SimNotes,
@@ -376,7 +379,7 @@ def _face(life, args: dict) -> Routine:
   if rep["why"] == "stepped":
     return {"ok": True, **_carried(life), **down}
   return {"ok": False, "why": rep["why"], **_carried(life), **down,
-          "reason": FACE_WHY.get(rep["why"], FACE_WHY["turned short"]).format(heading=heading)}
+          "reason": FACE_WHY.get(rep["why"], FACE_ELSE).format(heading=heading)}
 
 
 def _wait(life, args: dict) -> Routine:

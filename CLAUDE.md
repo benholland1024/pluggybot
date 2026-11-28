@@ -1224,10 +1224,10 @@ save a filmstrip PNG named after the script.
   failing the try) IS MET (the loop of 11-26b's round 5): 26 of 32 on the
   bar's draws and 27 of 32 on 32 draws sealed by 63886fe, no fall, one pod,
   where the reference before it laid 20 and 21 (SimNotes, "The place laid
-  from the pass", has every round); on #765's `face` (one pod, an EPYC 7702)
-  25 and 30 of 32 on two noise draws where the tree before it laid 26 and 25,
-  and 23 of 32 held out (sealed by ed99708) where it laid 25 and fell once;
-  offering it is Ben's call. ⚠ ITS PLACE
+  from the pass", has every round); on #765's `face` the bar's draws laid 25
+  and 30 of 32 on two noise draws (the tree before it 26 and 25), and 32
+  draws held out (sealed by ed99708) 23, one under the bar, where the tree
+  before it laid 25 and fell once; offering it is Ben's call. ⚠ ITS PLACE
   LAID FROM THE KITCHEN'S SHELF IS A KIND OF ITS OWN TOO, NEVER OFFERED
   (`set_table_shelf`, #682's stage C, the full task; `counter.shelf_set_out`,
   the pass's row on the shelf's third board, top 0.96 m; `solve.py --feature
@@ -1520,14 +1520,13 @@ save a filmstrip PNG named after the script.
   ⚠ THE VERB `face` IS THAT TURN ALONE (#765; `steps._face`; SimNotes, "`face`
   turned as `step` turns"): from the heading the stance believes it has in
   the map to the one asked (#754's line), the legs on the standing policy
-  after -- closed on the pelvis's, as the loop's own `face_routine` still is
-  (a find's, a dock's, the lost search's, the charge's look), its feet ended
-  6-10 deg short of a turn of 10 deg or more, reading ok, and turned back
-  further once the legs stood (on a bare floor a median 7.0 short at the
-  return and 12.3 four seconds after); so turned, they land within a degree
-  or two (a median 0.7), ⚠ and the turn's own settle still takes them back a
-  median 2.6 deg in 4 s (at most 4.8, carrying), as after any `step`'s turn:
-  `tests/test_face.py` bounds it at 5;
+  after -- closed on the pelvis's, as the loop's own `face_routine` still is,
+  its feet ended 6-10 deg short of a turn of 10 deg or more, reading ok --
+  so, as a step's, a turn over 0.5 deg hands the legs to the walker first (a
+  hand out at work comes home) and a correction to the believed heading while
+  it turns is not followed (neither arose in #765's 1,385 flown faces); ⚠ the
+  turn's own settle takes the feet back a median 2.6 deg in the 4 s after the
+  legs stand, `tests/test_face.py` bounding it at 5;
   -- ⚠ measured only
   once the walker has the legs (out of a bow the pelvis came 16 cm forward
   on its own), ⚠ its first window `STEP_START_S` (2 s: from the stand's

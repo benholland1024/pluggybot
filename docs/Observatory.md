@@ -25,12 +25,16 @@ characters). It names no `step`: a world whose verbs have none is told none.
 History's run line has two new reasons where a face does not get there, each
 a draft: "your turn stopped short of heading 1.20 rad" (its pulses spent, still 2
 deg off; 43 characters, against the 53 of the one beside it) and "you fell";
-"did not square up to heading 1.20 rad within its time" is as it was.
+"did not square up to heading 1.20 rad within its time" is as it was; and an
+end a turn alone has no words for (none today) would read "did not turn to
+heading 1.20 rad".
 
 **What a deployed robot does**: `face(heading)` turns from the heading its
 stance believes it has in its map, as `step` turns -- the walker's own turn
-to the pelvis's heading, then pulses closed on the stance's own heading --
-and ends with its legs on the standing policy. Before, it turned until its
+to the pelvis's heading, then pulses closed on the stance's own heading, by
+its legs' reckoning (a correction to the believed heading meanwhile is not
+followed; in #765's flights the belief moved at most 0.6 deg while a face ran)
+-- and ends with its legs on the standing policy. Before, it turned until its
 believed pelvis heading was within 4 deg and stood the walker still, and its
 feet ended 6-10 deg short of a turn of 10 deg or more, reading ok. A face of
 0.5-4 deg now hands its legs to the walker, and an arm that is out comes
