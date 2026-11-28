@@ -3,7 +3,10 @@ held (#769): an iteration is a function of the joints alone, so from there it
 cycles and its cap's joints are known -- returned, and the model posed, as
 the cap would leave them (SimNotes, "A solve ended where its joints come
 back"). Each rule pinned on the robot's model of itself, against the solve
-before #769 copied line for line (`_to_the_cap`), as cheaply as it fails.
+before #769 copied line for line (`_to_the_cap`), as cheaply as it fails --
+and the cycle's phase on iterations whose cycles are known (`_Walked`): the
+model's grid meets a cycle whose cap falls off its first member only as the
+machine's last bits fall.
 """
 
 import math
@@ -152,7 +155,9 @@ def test_a_solve_ends_where_its_joints_come_back_with_what_its_cap_would_return(
   one that converges or never comes back runs as it did. Every solve of the
   grid is the cap's to the bit and runs to its own first return; which kinds
   the grid meets is the machine's arithmetic, so a kind missing is said, not
-  failed, but a grid where nothing came back leaves the rule unflown."""
+  failed (the phase is pinned apart, on cycles that are known:
+  `test_a_cycle_ends_on_its_member_at_the_caps_phase`), but a grid where
+  nothing came back leaves the rule unflown."""
   kinds = {"fixed": 0, "cycle, first member": 0, "cycle, another": 0, "converges": 0, "capped": 0}
   saved = 0
   for side, pos, turn, start, iters, cap, new in grid:
@@ -194,3 +199,88 @@ def test_the_stop_at_the_cap_the_start_and_no_iteration_returns_what_the_cap_wou
   c, n = _both(sm, ran, side, pos, rot, start, 0)
   _same(c, n)
   assert c[2] == n[2] == 0 and math.isfinite(n[0][1])
+
+
+#: Corners of three joints' ranges, each joint at its low end (False) or its
+#: high (True), all apart: `_Walked` walks the first `n`.
+CORNERS = [(False, False, False), (True, False, False), (True, True, False),
+           (False, True, True), (True, True, True), (False, False, True),
+           (True, False, True), (False, True, False)]
+
+
+def _next(path, at, corner):
+  """The known iteration: the next corner of `path`, and from its last back
+  to `path[at]`."""
+  i = path.index(corner)
+  return path[i + 1] if i + 1 < len(path) else path[at]
+
+
+class _Walked(arms.SelfModel):
+  """A model of itself with no drawing, its iteration KNOWN: three joints,
+  each range narrower than a step's clip (`arms.IK_STEP`), so every
+  iteration puts each joint on an end of its range EXACTLY, whatever the
+  machine's arithmetic -- the grip read pushed past a step toward the next
+  corner (`_next`) -- and the joints walk `path`, then come back to
+  `path[at]`: a cycle of `len(path) - at` from iteration `at`, its first
+  return at iteration `len(path)`. Each corner's error has a size of its
+  own; where the model was posed and read, and its iterations, are kept.
+  ⚠ It stands in for what `solve` reads today -- `arm`, `ranges`, `q`,
+  `_set_arm`, `grip_pose`, `jacobian` -- and nothing else (no drawing, no
+  `d`): a solve that reads more fails here by that name, and its stand-in
+  goes here."""
+
+  def __init__(self, path, at):
+    half = arms.RANGE_MARGIN + arms.IK_STEP / 4
+    self.path, self.at = path, at
+    self.arm = {"left": np.arange(3)}
+    self.ranges = np.array([[-half, half]] * 3)
+    self.q = self.corner(path[0])
+    self.posed, self.read, self.ran = [], [], 0
+
+  def corner(self, bits):
+    """A corner's joints: each on the end of its range `solve` holds it to."""
+    lo, hi = self.ranges[:, 0] + arms.RANGE_MARGIN, self.ranges[:, 1] - arms.RANGE_MARGIN
+    return np.where(bits, hi, lo)
+
+  def _set_arm(self, side, q_arm):
+    self.q[self.arm[side]] = q_arm
+    self.posed.append(self.q.copy())
+
+  def grip_pose(self, side):
+    self.read.append(self.q.copy())
+    now = tuple(bool(b) for b in self.q > 0.0)
+    push = np.where(_next(self.path, self.at, now), 1.0, -1.0)
+    past = 10.0 * arms.IK_STEP * (1.0 + arms.IK_DAMPING ** 2)   # ...a step's clip, once damped
+    return -push * past * (1 + self.path.index(now)), np.eye(3)
+
+  def jacobian(self, side):
+    self.ran += 1
+    return np.vstack([np.eye(3), np.zeros((3, 3))])
+
+
+@pytest.mark.parametrize("n, at", [(5, 2), (4, 0), (3, 2), (7, 1)],
+                         ids=["3 from 2", "4 from 0", "fixed at 2", "6 from 1"])
+def test_a_cycle_ends_on_its_member_at_the_caps_phase(n, at):
+  """#769's stop on cycles that are known (`_Walked`): the grid above meets a
+  cycle whose cap falls off its first member only as the machine's last bits
+  fall, and where it meets none it only warns. Here every cap from none to
+  three laps past the first return: the joints the cap would end on -- the
+  corner the iteration walks to in that many steps, never the stop's own
+  arithmetic -- the model posed and its errors read there, and the solve
+  ended at its first return; beside the solve before #769, run to its cap on
+  the same iteration, which comes back where it is said to."""
+  path = CORNERS[:n]
+  for iters in range(n + 3 * (n - at) + 1):
+    want = path[0]
+    for _ in range(iters):
+      want = _next(path, at, want)
+    new, old = _Walked(path, at), _Walked(path, at)
+    q, ep, er = new.solve("left", np.zeros(3), None, iters)
+    joints, where = new.corner(want), f"cap {iters}"
+    assert q.tobytes() == joints.tobytes(), f"{where}: not the joints its cap ends on"
+    assert new.posed[-1].tobytes() == new.read[-1].tobytes() == joints.tobytes(), (
+      f"{where}: not posed and read where its cap leaves it")
+    assert new.ran == min(iters, n), f"{where}: {new.ran} iterations, its first return at {n}"
+    q0, ep0, er0, back = _to_the_cap(old, "left", np.zeros(3), None, iters)
+    assert q0.tobytes() == q.tobytes() and (ep0, er0) == (ep, er), f"{where}: not the cap's"
+    assert back == ((n, at) if iters >= n else None) and old.ran == iters, (where, back, old.ran)
