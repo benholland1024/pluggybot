@@ -223,7 +223,11 @@ class _Walked(arms.SelfModel):
   corner (`_next`) -- and the joints walk `path`, then come back to
   `path[at]`: a cycle of `len(path) - at` from iteration `at`, its first
   return at iteration `len(path)`. Each corner's error has a size of its
-  own; where the model was posed and read, and its iterations, are kept."""
+  own; where the model was posed and read, and its iterations, are kept.
+  ⚠ It stands in for what `solve` reads today -- `arm`, `ranges`, `q`,
+  `_set_arm`, `grip_pose`, `jacobian` -- and nothing else (no drawing, no
+  `d`): a solve that reads more fails here by that name, and its stand-in
+  goes here."""
 
   def __init__(self, path, at):
     half = arms.RANGE_MARGIN + arms.IK_STEP / 4
