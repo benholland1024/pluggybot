@@ -62,7 +62,8 @@ from typing import Any, Callable
 from pluggybot.humanoid.body import (BOW_CLEAR_M, STEP_DY_LEFT_AFTER_M, STEP_DY_SHORT_M,
                                      STEP_FRONT_HALF_M, STEP_FRONT_M, STEP_KEEP_DOWN_M, STEP_KEEP_M,
                                      STEP_JUMP_M, STEP_LEAST_M, STEP_LOW_M, STEP_PRESSED_M,
-                                     STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_WALL_M, WALK_KEEP_M)
+                                     STEP_PRESSED_SHARE, STEP_SHORT_M, STEP_STALL_PRESSED_SHARE,
+                                     STEP_WALL_M, WALK_KEEP_M)
 from pluggybot.humanoid.mission import KNEE_Z
 from pluggybot.humanoid.reach import (CARRY_PRESSED_SHARE, LIFT_M as HELD_LIFT_M, LIFTS as HELD_LIFTS,
                                       PRESSED_ASK_N)
@@ -1585,7 +1586,8 @@ def _step(life, args: dict) -> Routine:
   return {"ok": True, **out}
 
 
-#: ...and one its scans say went under half of what its legs count (#718).
+#: ...and one its scans say went under half of what its legs count (#718), or
+#: a stalled one under `STEP_STALL_PRESSED_SHARE` (#766).
 STEP_PRESSED = ("your legs counted {legsCm:.0f} cm along the way you stepped, but your scans of "
                 "the room put you only {scansCm:.0f} cm on: something held your body back")
 
@@ -1596,17 +1598,21 @@ def _pressed(rep: dict, ahead: float, left: float) -> dict:
   `STEP_PRESSED_SHARE` of what its legs count, these at least
   `STEP_PRESSED_M` along its walk's way (after its turn), did not go (#718):
   "pressed", `step.*` then the scans' move -- never judged where its belief
-  jumped as it walked (`jump`, past `STEP_JUMP_M`)."""
+  jumped as it walked (`jump`, past `STEP_JUMP_M`). One whose walk stalled
+  (`stuck`, #751) is judged so under `STEP_STALL_PRESSED_SHARE` (#766: a hand
+  pressed on a counter held the body back while its legs counted on); one
+  kept off something (`keptOff`, never with `stuck`) never."""
   n = math.hypot(ahead, left)
-  if (rep.get("why") != "stepped" or "mdx" not in rep or not n
-      or float(rep.get("jump", 0.0)) > STEP_JUMP_M):
+  share = (STEP_PRESSED_SHARE if rep.get("why") == "stepped"
+           else STEP_STALL_PRESSED_SHARE if rep.get("stuck") else None)
+  if share is None or "mdx" not in rep or not n or float(rep.get("jump", 0.0)) > STEP_JUMP_M:
     return rep
   # ...along its walk's way in the frame it stood in before: after its turn
   c, s = math.cos(float(rep.get("turn", 0.0))), math.sin(float(rep.get("turn", 0.0)))
   ux, uy = (c * ahead - s * left) / n, (s * ahead + c * left) / n
   legs = float(rep["dx"]) * ux + float(rep["dy"]) * uy
   scans = float(rep["mdx"]) * ux + float(rep["mdy"]) * uy
-  if legs < STEP_PRESSED_M or scans >= STEP_PRESSED_SHARE * legs:
+  if legs < STEP_PRESSED_M or scans >= share * legs:
     return rep
   return {**rep, "why": "pressed", "dx": float(rep["mdx"]), "dy": float(rep["mdy"]),
           "legsCm": 100 * legs, "scansCm": 100 * scans}
@@ -1904,7 +1910,8 @@ HANDS_VERBS: dict[str, Verb] = {
                "that near already, a walk goes along it but no nearer. "
                "That too reads false and says so. A walk your LIDAR's scans of the room say "
                f"went under {STEP_PRESSED_SHARE:g} of what your legs count, these "
-               f"{100 * STEP_PRESSED_M:.0f} cm or more, reads false: pressed on something, a "
+               f"{100 * STEP_PRESSED_M:.0f} cm or more -- under {STEP_STALL_PRESSED_SHARE:g}, where "
+               "it got nowhere or stalled -- reads false: pressed on something, a "
                "stride can come down where it began while your legs count it; `step.*` then "
                "says what your scans do. "
                "A turn lands within a degree or two of what you asked -- one that does not "

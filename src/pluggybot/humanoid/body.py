@@ -159,6 +159,16 @@ STEP_NEAREST = 3
 #: every step whose legs counted 4 cm or more over the truth's travel matched
 #: under half of their count, and no step whose truth went more than half did.
 STEP_PRESSED_M, STEP_PRESSED_SHARE = 0.04, 0.5
+#: ...and a walk that STALLED ("got nowhere", "stalled": `stuck`), under this
+#: share (#766; `steps._pressed`; SimNotes, "A stall judged as a press"): a
+#: hand hanging at the robot's side pressed on a counter at 21-41 N held the
+#: body back, its legs counting 1.5-3.4 cm past where its soles went, and its
+#: scans saw 0.47-0.80 of the legs' count (16 stalls of 4.9-7.8 cm, Rowan's
+#: `door_p7` line 39 replayed). MEASURED on untouched walks that stepped:
+#: 0.872 at the least of 190 whose legs counted 4-8 cm, a stall's length;
+#: 0.773 of all 748 (a 12 cm step back). ⚠ ONLY A STALL: walks that stepped
+#: with a hand on the counter saw under this in 58 of 224.
+STEP_STALL_PRESSED_SHARE = 0.8
 #: ...never judged where a single correction past this, m, moved its belief
 #: as it walked (`jump`): a relocation, a doubt's take, a station's fix --
 #: the matcher's own corrections along a pressed step come under a cm a scan.
