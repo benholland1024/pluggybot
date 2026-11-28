@@ -11839,17 +11839,22 @@ back read pressed for a sidestep that stalled 0.5 cm on, at the stall's bar
 a walk that stepped. Its words name that walk's way as a stall's do ("to your
 left"), and its two counts are printed against each other (`lid.against`,
 #737's rule): at this bar two whole cm can read alike, "4 cm, but only 4 cm".
-A walk that got nowhere in its first window (none such was measured), a step
-kept off something and one its belief jumped across are never judged so, and
-a walk that stepped keeps #718's half. The step's text says both bars. No
-motion moves: flown base against branch, every flight ended in the same state
-bit for bit, its steps and its calls the same, and only the stalls' verdicts
-moved. A press has no shorter form: where a stall is the first false read of
-its line and History's line is tight, its 128 characters can push a later
-line's reason into "(+N more)" where the stall's head (17) left room. On
-every real run line measured (both live runs, 288 replays laid again in
-today's words) line 39 was never said. ⚠ The bar is read off one counter,
-one procedure and one run, and the 16th stall stands at 0.799.
+A walk that got nowhere in its first window by its own windows (none such
+was measured; an oblique step's second walk is under way as a step where its
+first walked), a step kept off something and one its belief jumped across are
+never judged so, and a walk that stepped keeps #718's half. The step's text
+says both bars. No motion moves: flown base against branch, every flight
+ended in the same state bit for bit, its steps and its calls the same, and
+only the stalls' verdicts moved. A press's shorter form is its two counts,
+the words before its colon (the second review: a stall read pressed lost
+#751's head): History says it where the full words would move anything
+else. At 97 characters against a stall's head's 17, a pressed stall that is
+the first false read of its line can still push a later line's reason into
+"(+N more)" on a tight line (a 190-230 character reason after it), where the
+stall's head left room. On every real run line measured (both live runs, 288
+replays laid again in today's words) line 39 was never said. ⚠ The bar is
+read off one counter, one procedure and one run, and the 16th stall stands
+at 0.799.
 
 ## A way home something holds (issue #693's live family)
 

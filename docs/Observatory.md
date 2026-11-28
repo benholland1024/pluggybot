@@ -30,7 +30,8 @@ your legs count it; `step.*` then says what your scans do." (+33)
 walk that stalled judged alone, BEFORE (#751's words, 103 characters, its
 head "your step stalled" History's shorter form): "your step stalled: once it
 was under way, your legs counted under 1 cm along the way you stepped in 1
-s". AFTER (#718's, 128 characters, no shorter form): "your legs counted 6 cm
+s". AFTER (#718's, 128 characters, its shorter form the two counts before
+its colon, 97, as #718's own presses now have too): "your legs counted 6 cm
 along the way you stepped, but your scans of the room put you only 3 cm on:
 something held your body back", and `step.dx`/`step.dy` the scans' move
 (flown: 0.034 and -0.001 where the legs counted 0.055 and -0.016). One of an
@@ -50,12 +51,15 @@ their scans see 0.47-0.80 of the legs' count; untouched walks of a stall's
 length, 0.872 at the least (190), and all 748 untouched walks 0.773 (a 12 cm
 step back).
 
-**History.** A press has no shorter form. On every real run line measured --
-Rowan's two `door_p7` runs of 11-25, and C1's 88 and X5's 200 replays laid
-again in today's words -- it pushes nothing out: line 20's `spot` reason fills
-the line and line 39 is among the "(+N more)". Where a pressed stall is the
-first false read of its line and the line is tight, its 128 characters can
-push a later line's reason into "(+N more)" where the stall's head left room.
+**History.** A press's shorter form is its two counts (97 characters, where a
+stall's head is 17), said where its full words would move anything else. On
+every real run line measured -- Rowan's two `door_p7` runs of 11-25, and C1's
+88 and X5's 200 replays laid again in today's words -- it pushes nothing out:
+line 20's `spot` reason fills the line and line 39 is among the "(+N more)".
+Where a pressed stall is the first false read of its line and the line is
+tight, it can push a later line's reason into "(+N more)" where the stall's
+head left room (a 190-230 character reason after it), or go there itself (one
+of 190-260 before it).
 
 **With #766 (b)'s period** (C11, `loop-words4`, 8412e019): both are in
 `step`'s text, its sentence on a stall's windows ("...reads false and says your

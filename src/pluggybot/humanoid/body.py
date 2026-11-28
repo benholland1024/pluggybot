@@ -1368,8 +1368,9 @@ class HumanoidBody(Body):
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
     "blocked"
     -- its walk got nowhere (then `stuck` says what its legs counted, in which
-    window, #751, and `walk` that walk's own way and where its legs and its
-    scans took it from where it set off, #766), or kept off another robot as
+    window, #751, and `walk` that walk's own way, whether its own windows had
+    it under way, and where its legs and its scans took it from where it set
+    off, #766), or kept off another robot as
     a walk does (`_kept_off`, #670), or kept off a wall or what stands at its knees
     (`_Room`, #717: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
@@ -1440,6 +1441,10 @@ class HumanoidBody(Body):
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
         why, kept, stuck = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
+        if stuck is not None:
+          # ...under way by its own windows, before the step's below: a walk
+          # that got nowhere is never judged pressed (#766's review)
+          walked += (stuck["underWay"],)
         if stuck is not None and len(walks) > 1:
           # ...one of an oblique step's two walks counts its own way alone,
           # never the step's (#751)
@@ -1482,11 +1487,11 @@ class HumanoidBody(Body):
     if why == "blocked" and stuck is not None:
       # ...and the walk that stalled, from where it set off, in the same frames
       # (#766): one of an oblique step's two walks is no step that stepped
-      (wx, wy, _), wb, wa, wl = walked
+      (wx, wy, _), wb, wa, wl, own = walked
       wd = _rz(s0[2]).T @ np.array([x1 - wx, y1 - wy, 0.0])
       wm = _rz(b0[2]).T @ np.array([b1[0] - wb[0], b1[1] - wb[1], 0.0])
-      walked = {"ahead": wa, "left": wl, "dx": float(wd[0]), "dy": float(wd[1]),
-                "mdx": float(wm[0]), "mdy": float(wm[1])}
+      walked = {"ahead": wa, "left": wl, "underWay": own, "dx": float(wd[0]),
+                "dy": float(wd[1]), "mdx": float(wm[0]), "mdy": float(wm[1])}
     # ...and a walk its own legs reckon went nowhere did not walk (#649)
     if why == "stepped" and length >= STEP_LEAST_M:
       if _along((x1, y1), s_mid, ahead, left) < STEP_LEAST_M:

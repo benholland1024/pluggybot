@@ -530,14 +530,19 @@ def test_a_stalls_record_says_where_the_walk_that_stalled_set_off():
   its walk ahead that got nowhere its own."""
   rep = _step(_walker(Walk(wall=0.05)), 0.3)
   assert rep["stuck"]["underWay"] and rep["walk"] == {
-    "ahead": 0.3, "left": 0.0, "dx": rep["dx"], "dy": rep["dy"], "mdx": rep["mdx"],
-    "mdy": rep["mdy"]}
+    "ahead": 0.3, "left": 0.0, "underWay": True, "dx": rep["dx"], "dy": rep["dy"],
+    "mdx": rep["mdx"], "mdy": rep["mdy"]}
   rep = _step(_walker(SideWall(0.05)), 0.03, 0.15)
   walk = rep["walk"]
   assert rep["stuck"]["way"] == "left" and (walk["ahead"], walk["left"]) == (0.0, 0.15)
   assert walk["dy"] == pytest.approx(rep["dy"]) and walk["dx"] < rep["dx"] - 0.01, rep
   # ...its scans from where it set off too (no matcher moves this walk's belief)
   assert (walk["mdx"], walk["mdy"]) == pytest.approx((walk["dx"], walk["dy"])), rep
+  assert walk["underWay"]
+  # ...and a sidestep that got nowhere by its own windows is not under way by
+  # them, the step under way where its walk ahead walked (#766's second review)
+  rep = _step(_walker(SideWall(0.0)), 0.03, 0.15)
+  assert rep["stuck"]["underWay"] and not rep["walk"]["underWay"], rep
   rep = _step(_walker(Walk(shuffle_s=60.0)), 0.03, 0.15)
   assert rep["stuck"]["way"] == "ahead" and (rep["walk"]["ahead"], rep["walk"]["left"]) == (0.03, 0.0)
   # ...and no record but a stall's carries one
@@ -1037,7 +1042,8 @@ def test_a_stall_its_scans_say_was_held_back_reads_pressed():
   had their scans see 0.47-0.80 of the legs' count. A stall once under way
   its scans say went under `STEP_STALL_PRESSED_SHARE` of what its legs count,
   these `STEP_PRESSED_M` or more along its way, reads pressed as #718's step
-  does, saying both, and `step.*` says the scans'; it has no shorter form."""
+  does, saying both, and `step.*` says the scans'; its shorter form is its
+  two counts (#766's review: a stall read pressed lost #751's)."""
   out = st._pressed(LINE_39_STALL, 0.11, 0.0)
   assert out["why"] == "pressed" and out["dx"] == pytest.approx(0.034), out
   assert (out["legsCm"], out["scansCm"]) == pytest.approx((4.9, 3.4))
@@ -1048,7 +1054,8 @@ def test_a_stall_its_scans_say_was_held_back_reads_pressed():
   assert not step["ok"] and step["why"] == "pressed", step
   assert step["reason"] == ("your legs counted 5 cm along the way you stepped, but your scans of "
                             "the room put you only 3 cm on: something held your body back")
-  assert "brief" not in step
+  assert step["brief"] == ("your legs counted 5 cm along the way you stepped, but your scans of "
+                           "the room put you only 3 cm on")
   assert ran["locals"]["d"] == pytest.approx(0.034)
   # ...its two counts never read the same: at the stall's bar whole cm could
   # (#737's rule, `lid.against`)
@@ -1073,6 +1080,14 @@ def test_a_stall_its_scans_say_was_held_back_reads_pressed():
   # its walk got nowhere in its first window: none such was measured, and its
   # words say so
   ({"stuck": {"m": 0.01, "s": 2.0, "underWay": False}}, 0.11, 0.0),
+  # ...nor an oblique step's sidestep that got nowhere by its own windows, the
+  # step under way where its walk ahead walked (#766's second review)
+  ({"dx": 0.10, "dy": 0.05, "mdx": 0.06, "mdy": 0.03,
+    "stuck": {"m": 0.01, "s": 2.0, "underWay": True, "way": "left"},
+    "walk": {"ahead": 0.0, "left": 0.12, "underWay": False, "dx": 0.0, "dy": 0.05, "mdx": 0.0,
+             "mdy": 0.03}}, 0.10, 0.12),
+  # a record whose walk fell is a fall's, whatever it carries
+  ({"why": "fell"}, 0.11, 0.0),
   # an oblique step whose walk ahead was held back and whose sidestep then
   # stalled 0.5 cm on: the walk that stepped is no stall, and the stall went
   # too little to judge (#766's review: judged over both walks, it read pressed)
@@ -1099,6 +1114,25 @@ def test_a_stall_its_scans_keep_up_with_keeps_its_words(change, ahead, left):
   #718 judges a step that stepped."""
   rec = {k: v for k, v in {**LINE_39_STALL, **change}.items() if v is not None}
   assert st._pressed(rec, ahead, left) is rec
+
+
+def test_a_presss_words_give_way_to_their_counts_where_historys_line_has_no_room():
+  """#766's review, on #728's shorter form: a stall read pressed lost #751's
+  head. A press's shorter form is its two counts, before the colon: said
+  where the rest would move anything else, and the line otherwise as before."""
+  from pluggybot import lifecycle as lc
+  body = StubBody(*_bare())
+  body.step_routine = lambda *a, **kw: tick.result(dict(LINE_39_STALL))
+  step = _fly('def a():\n    if not step(0.11):\n        pass\n', body)["steps"][0]
+  head = step["brief"]
+  assert step["reason"] == head + ": something held your body back"
+  walk = {"verb": "drive_to", "line": 4, "ok": False, "tested": True, "reason": "w" * 170}
+  run = {"ok": True, "completed": 9, "total": 9, "steps": [walk, {**step, "line": 10}]}
+  [line] = lc.procedure_outcome("p", run)
+  assert line.endswith(f"line 10, step: {head})"), line
+  walk["reason"] = "w" * 150
+  [line] = lc.procedure_outcome("p", run)
+  assert line.endswith(f"line 10, step: {step['reason']})"), line
 
 
 def test_a_step_that_stepped_is_judged_by_718s_bar_and_never_the_stalls():

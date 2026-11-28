@@ -1580,8 +1580,13 @@ def _step(life, args: dict) -> Routine:
       # live runs with a stall, and a readout onto a line of its own in 5 (#751)
       reason = step_stuck_said(stuck)
       return {"ok": False, **out, "reason": reason, "brief": reason.partition(":")[0]}
+    if rep["why"] == "pressed":
+      # ...its two counts alone, before the colon, where the rest would move
+      # anything else History's line says, as a stall's head (#728's shorter
+      # form; #766's review: a stall read pressed lost #751's)
+      reason = step_pressed_said(rep)
+      return {"ok": False, **out, "reason": reason, "brief": reason.partition(":")[0]}
     reason = (STEP_KEPT_OFF[kept["by"]].format(**kept) if kept
-              else step_pressed_said(rep) if rep["why"] == "pressed"
               else STEP_WHY.get(rep["why"], "your step stopped short"))
     return {"ok": False, **out, "reason": reason}
   return {"ok": True, **out}
@@ -1615,10 +1620,14 @@ def _pressed(rep: dict, ahead: float, left: float) -> dict:
   other walk; #766: a hand pressed on a counter held the body back while its
   legs counted on); one that got nowhere in its walk's first window, or kept
   off something (`keptOff`, never with `stuck`), never."""
+  walk = rep.get("walk") or rep
   if rep.get("why") == "stepped":
     share, walk = STEP_PRESSED_SHARE, rep
-  elif (rep.get("stuck") or {}).get("underWay"):
-    share, walk = STEP_STALL_PRESSED_SHARE, rep.get("walk") or rep
+  elif (rep.get("why") == "blocked"
+        and walk.get("underWay", (rep.get("stuck") or {}).get("underWay"))):
+    # ...the walk under way by its own windows: an oblique step's second walk
+    # is under way as a step where the first walked
+    share = STEP_STALL_PRESSED_SHARE
   else:
     return rep
   ahead, left = float(walk.get("ahead", ahead)), float(walk.get("left", left))

@@ -1573,7 +1573,8 @@ save a filmstrip PNG named after the script.
   back, the scans 0.47-0.80 of the legs' count, free walks of a stall's
   length 0.872 at the least; never a walk that stepped, 58 of 224 of which
   read under it with a hand on the counter, nor one that got nowhere in its
-  first window; its two counts printed against each other (`lid.against`); ⚠ a
+  walk's first window; its two counts printed against each other
+  (`lid.against`), and before the colon its shorter form (#728's); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up), ⚠ and a look's bow goes no deeper than leaves its head's
   front `BOW_CLEAR_M` (5 cm) short of what its LIDAR reads at its head's
