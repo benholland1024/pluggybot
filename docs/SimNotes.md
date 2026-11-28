@@ -12731,6 +12731,54 @@ product's true place and the true stance after each verb. What flying took:
   picked from 0.14 m left, out of reach): 2 of its 14 searches passed. A
   frame tipped on the cart by a descent held back on its top reads from
   nowhere (8 of 8 failed).
+- **Rounds 5-23 (the loop of 2026-11-26 to 11-28, lane B): the reference
+  that meets the bar.** Each round flew its arms on fresh dev draws beside the
+  reference it would replace, on one pod, froze at most one over a line
+  written first, and kept it only where it read more than the kept reference
+  on 64 draws sealed by its frozen commit, with no more falls and the bar's 64
+  no lower; each kept rule and what it was measured on is at the SHELF's
+  comment. Round 23's (64a1c201), beside round 20's kept one (6b6a1bf8) on a
+  Xeon E5-2699 v4: the bar's tour 24 of 32 (21), its check 31 (30); sealed by
+  64a1c20, the tour 25 (22) and the check 29 (29); no fall (one of round
+  20's). The bar's draws were read at every keep since round 9 -- on this CPU
+  type each tour is a fresh draw of their noise, none of round 20's 32
+  replaying its Gold 6140 rows -- and the 0.19 below was read off rows that
+  hold them, so only the 64a1c20 pool is independent; round 20's own held out
+  29 and 26 (its bar's tour 21), round 18's 19 (25), round 22b's 23 (25).
+- **An upper set-down is decided by whether its reach goes at once to the deep
+  bow** (-0.22, 0.8): so set down, 295 of 299 ended on their label; reached
+  standing -- a pre-pose within the stand's reach, a label read past about
+  0.50 m -- 41 of 85, the carry in and the press each then taking another
+  posture with the product at the board (where the press kept the carry's
+  posture, 348 of 367 ended ok; where it took another, 129 of 193). The
+  pre-pose at most 0.35 m ahead (round 22b) sends 80 of 112 deep at once and
+  none standing (round 20's: 63 and 17). Its own cost: the frame's first reach
+  to 0.35 m pushed on something at 174-373 N and the frame fell from the hand,
+  3 of 124 upper frame set-downs (round 20's none).
+- **A lower set-down planned under 0.19 m left is refused** ("no posture you
+  hold puts your left hand there turned as asked"): over the rows of rounds
+  9-22b a candle's first reach 36 of 98 times in checks and 12 of 96 in
+  tours, a frame's at one check's draw, never one of 3,578 planned at 0.19 or
+  more; in a tour the fallback was refused too, 10 times of 12, the run ending
+  with the product held 35 cm over its board. Aimed no nearer than 0.19 (round
+  23), the 4 such refusals on its dev draws were none.
+- **The upper board's lateral window at 0.19** (its sidestep after the
+  squaring) fell twice in 128 dev flights, both in a withdraw after that step,
+  and was not frozen.
+- **The walk's find runs out at the language's 600 s** (`steps.MAX_PATIENCE_S`,
+  which the robots' text states): the shop's address is the mall's, and the
+  viewpoint that sees tag 70 comes 7th to 11th, at 359-603 s; 14 of 352 tours
+  ran out. A second find walks back to the address and begins its lattice
+  again, so none extends the first.
+- **Two CPU types do not replay each other's flights**: on the E5-2699 v4 none
+  of round 22b's 64 dev tours replays its Gold 6140 rows (the find's end
+  stance parts at the first verb), 41 of its 64 checks do; its dev tours read
+  45 there, 52 on the Gold. A round on a new CPU type flies its base beside.
+- **Open:** drops at the upper board (the frame falling during its set-down
+  reach; a press at the deepest bow; a knock in the withdraw), the find's run-
+  outs (about 4% of tours), and an offer of it carries no address or
+  directions: its target, `shop_shelf`, is no area of `home/places.json`, and
+  our walk knows the shop's address itself.
 
 ## A station's fix that moves the belief drops the map (issues #741, #681)
 

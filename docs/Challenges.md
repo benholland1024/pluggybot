@@ -613,17 +613,18 @@ the label's face, set down from in front of the board and let go of, then
 backed out before the arm goes home (never from over an edge, #736's item
 9). Its bar, written before it flew: 24 of 32 draws over the tour, a fall
 failing its try, each draw its own noise, on one pod, then 32 held out
-sealed by the frozen commit. **It is not met.** Round 4's reference (frozen
-at 1e332737: round 3's, 5c74ead7, with a product its look missed at the cart
-sought to its left -- the frame 5 cm, the candle 8 cm -- and nothing else)
-reads, beside round 3's on one pod, 13 of 32 over the tour (round 3's 12)
-and 22 at the check (21); held out, on 32 draws sealed by 1e332737, 21 over
-the tour (15) and 26 at the check (26) -- 82 passes of 128 against 74, no
-fall on either and none lost: it acts only where round 3's missed a look,
-and round 3's failed every such flight. Round 3's own lead over stage 2's
-first (70 passes of 128 against 63) was all on its sealed draws, and round
-2's (66ba56fa) was no gain. SimNotes, "Stocking the shop's shelf", has what
-flying took.
+sealed by the frozen commit. **It is met** by round 23's reference (frozen
+at 64a1c201: round 22b's, with the upper set-down's pre-pose at most 0.35 m
+ahead and a lower set-down aimed no nearer the robot's middle than 0.19 m,
+on the rules of rounds 5-20 the SHELF's comment lists): beside round 20's
+kept reference (6b6a1bf8) on one pod, a Xeon E5-2699 v4, 24 of 32 over the
+tour (its 21) and 31 at the check (30); held out, on 32 draws sealed by
+64a1c20, 25 over the tour (22) and 29 at the check (29) -- 109 passes of 128
+against 102, no fall (one of round 20's). The bar's draws were read at every
+keep since round 9, and the 0.19 was read off rows that hold them, so only
+the sealed draws are independent; round 20's own held out 29 and 26 on two
+earlier pools. Offering it is Ben's call. SimNotes, "Stocking the shop's
+shelf", has what flying took.
 
 **The practice's row: none departs** -- `shelf` is `shown: false`, paying 0,
 as the checks' rows are. No world offers it: the stock is not in the served
