@@ -167,6 +167,44 @@ def test_a_turned_carry_held_short_of_its_place_says_its_place():
   assert r.report["left"]["why"] == "held back" and r.report["left"]["heldBy"] == "place"
 
 
+def test_a_turned_paths_points_go_on_their_place_and_its_end_waits_for_its_turn():
+  """A path's points are left on their place as before, their turns still
+  coming; its end arrives on the tick its command's turn gets there, the
+  last point's, and not before."""
+  r = _bare_reach()
+  h = np.array([0.35, 0.2, 0.9])
+  r.cmd["left"] = HandGoal(h.copy(), np.eye(3), 1.0)
+  r.goal["left"] = HandGoal(h.copy(), np.eye(3), 1.0)
+  r.phase["left"] = "hold"
+  r.grip_now = lambda side: (h.copy(), np.eye(3))
+  r.path_for = lambda side, poses, rot=None, **kw: (0.0, 0.0, 0.0)
+  r.self_model.solve = lambda side, pos, rot=None, iters=40: (np.zeros(len(hm.ARM)), 0.0, 0.0)
+  first, last = _turned(20.0), _turned(-10.0)
+  assert r.carry("left", h, path=[h.copy()], turns=[first, last], verb=True)
+  r._held("left", rc.EVERY_S, h, _following(r))
+  assert r.phase["left"] == "carry" and np.array_equal(r.goal["left"].rot, last), "left on its place"
+  ticks = 1
+  while r.phase["left"] == "carry" and ticks < 400:
+    was = r.cmd["left"].rot.copy()
+    r._held("left", rc.EVERY_S, h, _following(r))
+    ticks += 1
+  assert r.report["left"]["why"] == "arrived" and not np.array_equal(was, last), was
+  assert np.array_equal(r.cmd["left"].rot, last)
+
+
+def test_a_turned_carry_stopped_on_its_way_stops_where_it_is_as_before():
+  """A stop condition met mid-turn (`Reach.halt`) ends it at once, held at
+  the turn its command had got to, as any carry's stop."""
+  r = _bare_reach()
+  asked = _turned(30.0)
+  h = _carrying(r, asked)
+  for _ in range(5):
+    r._held("left", rc.EVERY_S, h, _following(r))
+  partial = r.cmd["left"].rot.copy()
+  assert r.halt("left", "until") and r.report["left"]["why"] == "until"
+  assert np.array_equal(r.cmd["left"].rot, partial) and r.phase["left"] == "hold"
+
+
 @pytest.mark.parametrize("turns, verb", [(False, True), (True, False)])
 def test_a_carry_that_keeps_its_turn_or_the_loops_own_arrives_on_its_place_as_before(turns, verb):
   """A procedure's carry asked no turn, and the loop's own asked one (a

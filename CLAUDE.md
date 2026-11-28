@@ -1392,7 +1392,17 @@ save a filmstrip PNG named after the script.
   (`--practice-attempts`; Ben, 2026-10-19: within a chest the whole
   conversation is the lesson). ⚠ A CARRIED HAND MAY TURN: `move_hand`
   takes `fx..jz` as `reach` does (the reference's first lesson, the hand
-  turning with the lid, had no verb). ⚠ A HAND'S PATH IS ONE MOTION
+  turning with the lid, had no verb). ⚠ AND A PROCEDURE'S CARRY ASKED A
+  TURN ARRIVES ONLY ONCE TURNED (#767; `Reach._held`, `reach.ARRIVE_ROT`;
+  SimNotes, "A turned carry arrives once turned"): its command there once
+  its place AND its turn are -- the held-back clock starts then -- and the
+  hand within the solve's own 0.1 rad (`arms.REACH_ROT_TOL`) of that turn,
+  else "held back", its report saying which (`heldBy`) and its words how far
+  short (`steps.MOVE_TURN_SHORT`): judged on its place alone, a turn on the
+  spot of 7.5 deg read "arrived" 0.11 s in, its command 1.2 deg short, and
+  the next move kept that command's. ⚠ No tighter: a held plate sat 0.03-0.04
+  rad off its turn at rest. The loop's own carries and every carry that keeps
+  its turn are as they were, bit for bit. ⚠ A HAND'S PATH IS ONE MOTION
   (`via` then `move_hand`): separate moves each took a posture of their
   own and carried the reference's own arc on 2 chests of 8. The
   vocabulary is #525's (below). ⚠ THE DOOR IS PRACTICED WITH NO NEW HELP

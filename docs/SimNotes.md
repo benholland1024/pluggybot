@@ -9397,8 +9397,9 @@ lowering counter-turned against the carry's tilt -- which cut that tilt to
 about 3 deg -- 16 times (34 against 40): the drops are the pinch giving, not
 the tilt. Twice a fork's lift after its let-go took the waist to 60 deg, went
 out of reach, and the withdraw after it fell (the pass's lay; once in 16
-single-fork trips, once in 61 places). A `move_hand` that only turns the
-hand reads "arrived" before its turn is done (#767).
+single-fork trips, once in 61 places). A `move_hand` that only turned the
+hand read "arrived" before its turn was done; since #767 it arrives once
+turned ("A turned carry arrives once turned").
 
 **Rounds 2-5** (the loop of 11-26b's A3,
 `~/pluggybot-training/loop-1126b/a3-plate/`, each round's rule sent before it

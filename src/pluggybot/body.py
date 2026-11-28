@@ -801,7 +801,9 @@ class Body(abc.ABC):
     how long, how far the hand went (`moved`, m) and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m). `verb`: a
     procedure's, whose posture the other hand's grip keeps (#719), never
-    the loop's own (a charge's)."""
+    the loop's own (a charge's) -- and a `verb`'s given `turns` arrives once
+    its turn is there too, "held back" saying which held it (`heldBy`:
+    "place" or "turn") and how far its turn was off (`turnRad`, #767)."""
 
   @abc.abstractmethod
   def hand_why(self, side: str) -> str:
