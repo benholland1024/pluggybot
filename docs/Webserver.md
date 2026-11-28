@@ -337,7 +337,11 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **The errand in flight ends**, because it was a generator. Its job stays
   the robot's: a procedure job stays claimed, its watch carried on from the
   readings the save kept (`jobWatches`). A claim held by a robot not in the
-  new world goes back on offer, as does a job this world cannot do.
+  new world goes back on offer, as does a job this world cannot do. And
+  whatever else the day loop was inside ends too, a walk or the explore: the
+  restore begins the loop again at its top, so a world saved mid-walk
+  carries on into another day than the one flown straight through (#780;
+  SimNotes, "A save in the middle of a walk").
 - **An offer sets its prop out.** A hand job's prop goes back to rest on
   the counter, and the table's dishware out where its draw lays it, its
   hidden dynamics drawn afresh, when its job is offered (`_set_out_job`),

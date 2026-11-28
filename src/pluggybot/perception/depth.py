@@ -69,7 +69,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.power import DEPTH_CAMERA_W
-from pluggybot.perception.cull import StaticCull
+from pluggybot.perception.cull import Cull
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.perception.mount import camera_mount
 from pluggybot.robot import FIRST, RobotHandle
@@ -232,6 +232,7 @@ class DepthCamera:
     dirs = np.stack([uu / self.focal_px, -vv / self.focal_px,
                      -np.ones_like(uu)], axis=-1).reshape(n, 3)
     self._axial = 1.0 / np.linalg.norm(dirs, axis=1)   # cos(angle to axis)
+    self._widest = float(self._axial.min())
     self._dirs_cam = dirs * self._axial[:, None]
     self._u = uu.reshape(n)
     # The NOMINAL mount: the camera's pose on the robot's root body, each
@@ -251,8 +252,6 @@ class DepthCamera:
     what it carries or which robots it excludes changes."""
     self.model = model
     self.cam_id = model.camera(self.camera_name).id
-    #: What a cast leaves out past what the gate can pass (`perception.cull`)
-    self._cull = StaticCull(model)
     self._self_geoms = robot_geoms(model, self.handle.root)
     if self._carried is not None:
       self._self_geoms |= robot_geoms(model, self._carried)
@@ -265,6 +264,9 @@ class DepthCamera:
     #: them apart (issue #328). Both stay out of `points`.
     self._mine = np.fromiter(self._self_geoms, dtype=np.int32)
     self._theirs = np.fromiter(self._other_geoms, dtype=np.int32)
+    #: What a cast leaves out past what the gate can pass (`perception.cull`):
+    #: never a robot it filters, which it reads past the gate too (`frame`).
+    self._cull = Cull(model, keep=self._filtered)
 
   def carry(self, body: str | None) -> None:
     """A body riding this robot's fork is its own to the cloud, or None."""
@@ -296,13 +298,21 @@ class DepthCamera:
     pos = np.array(data.cam_xpos[self.cam_id], dtype=np.float64)
     mat = np.array(data.cam_xmat[self.cam_id], dtype=np.float64).reshape(3, 3)
     world_dirs = np.ascontiguousarray((self._dirs_cam @ mat.T).reshape(-1))
-    # ...every static geom left out that lies past what the range gate can
-    # pass at the image's widest angle (#560): its pixel would read beyond
-    # `max_z`, NaN as a pixel that met nothing is; a farther pixel shadows
-    # only farther ones (`_shadow`); and noise is drawn for every pixel --
-    # the same frame, bit for bit (`test_a_cast_leaves_out_nothing_it_could_reach`)
+    # ...every geom left out that lies past what the range gate can pass at
+    # the image's widest angle (#560): its pixel would read beyond `max_z`,
+    # NaN as a pixel that met nothing is; a farther pixel shadows only
+    # farther ones (`_shadow`); and noise is drawn for every pixel. ⚠ But a
+    # robot it filters is read past the gate (`self_fraction`, and whether
+    # the peer stream draws: `theirs.any()`), so a geom that moves is left
+    # out only past the farthest of those in its view, where no ray going on
+    # through it could meet one, nor shadow a pixel that did (#775): the
+    # same frame as before, bit for bit (`test_cull.py`). A welded geom is
+    # left out at the gate's reach alone, as since #560, which parts those
+    # two from an unculled frame where a far wall hides a robot past range
+    # (SimNotes, "The cull for what moves").
+    seen = self._cull.farthest(data, pos, -mat[:, 2], math.acos(self._widest))
     self._cull.multi_ray(data, pos, world_dirs, -1, self._geomid, self._dist, n, self.reach,
-                         self.max_z / float(self._axial.min()))
+                         self.max_z / self._widest, max(self.max_z, seen) / self._widest)
     hit = self._dist >= 0.0
     z = np.where(hit, self._dist * self._axial, np.nan)
     robot = hit & np.isin(self._geomid, self._filtered)

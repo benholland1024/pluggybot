@@ -47,7 +47,7 @@ from typing import NamedTuple
 import mujoco
 import numpy as np
 
-from pluggybot.perception.cull import UNCULLED_GROUPS, StaticCull
+from pluggybot.perception.cull import UNCULLED_GROUPS, Cull
 from pluggybot.perception.imu import seed_for
 from pluggybot.perception.mount import site_mount
 
@@ -203,9 +203,6 @@ class Lidar:
     except KeyError:
       self._housing = -1
     self.max_range = max_range
-    #: What a cast leaves out past its reach (`perception.cull`; `cull=False`
-    #: casts everything, the measure of its being the same frame).
-    self._cull = StaticCull(model) if cull else None
     #: No range or angle noise and no dropouts: the geometry's truth, for a
     #: test or a probe.
     self.noise = noise
@@ -237,6 +234,10 @@ class Lidar:
       self.offset, self.turn = self.mount.pose()
       self._ring_angles = self._ring_in(self.turn)
     self._self_geoms = self._robot_geoms(model, robot_body)
+    #: What a cast leaves out past its reach, its own robot kept
+    #: (`perception.cull`; `cull=False` casts everything, the measure of its
+    #: being the same frame).
+    self._cull = Cull(model, keep=self._self_geoms) if cull else None
     #: OTHER robots' geoms (issue #167), kept OUT OF THE MAP: a return off
     #: another robot is no information about the room, and painted in and
     #: inflated, a robot walking past walled in the one it passed.
@@ -291,11 +292,13 @@ class Lidar:
     centre's distance, and at 8 m every ray that met the house's floor -- its
     centre 19 m off -- read nothing
     (`test_the_floor_is_struck_however_far_its_middle`); one saved no time.
-    ⚠ A STATIC GEOM PAST ITS REACH IS LEFT OUT (`perception.cull`, #560):
-    one whose nearest point is past `max_range` could only return what
-    `_sort` calls far, as a ray that met nothing is, and noise is drawn for
-    the returns alone -- so the frame is the same frame, bit for bit
-    (`test_a_cast_leaves_out_nothing_it_could_reach`)."""
+    ⚠ A GEOM PAST ITS REACH IS LEFT OUT, WHATEVER ITS BODY, BUT ITS OWN
+    ROBOT'S (`perception.cull`, #560, #775): one whose nearest point is past
+    `max_range` could only return what `_sort` calls far, as a ray that met
+    nothing is -- another robot's too -- where a return off its own robot is
+    its own at any range; and noise is drawn for the returns alone -- so the
+    frame is the same frame, bit for bit
+    (`test_a_cast_leaves_out_what_moves_past_reach_and_every_reading_is_as_it_was`)."""
     pos = np.array(data.site_xpos[self.site_id], dtype=np.float64)
     mat = np.array(data.site_xmat[self.site_id], dtype=np.float64).reshape(3, 3)
     world = np.ascontiguousarray((dirs @ mat.T).reshape(-1))

@@ -291,7 +291,7 @@ save a filmstrip PNG named after the script.
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served humanoid pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
 | `scripts/energy_spike.py` | what each errand COSTS, on an oversized pack; `--write` OVERWRITES `economy/energy.json`'s rows it measured, the explore's rate and the charge's watts among them, and its `measuredOn` note (never a kind no robot is offered, a job flown with its area forgotten, or a run in a house the shop's stock was put into), so a re-price is folded by hand, the dearer of two honest rows carried, `--reserve` measures the return-trip margin, `--actions` prices named acts: on the humanoid in `home_humanoid` (#559), its explore, its station's charge and its hand jobs (`open_drawer`, `open_door`, `place_cube`, `open_chest`, `set_table`, each from the station, the area remembered -- the table's dishware set out to be found first, found again where a station's fix dropped it -- its reference flown; `stock_shelf` in a house its stock is put into, #736), `--noise KEY` and `--draw K` a flight's noise and the job's draw. Re-run after anything that changes what an errand does |
 | `scripts/grid_spike.py` | #558: what a robot's map costs as the world grows, at 1-4x today's cells (the bounds grown round the house), each scale its own process, through the humanoid's own code: each scan's, frame's and plan's work, the explore's mask and A*, the matcher's field, the wire's PNG, `world.npz`, memory, on #215's synthetic grid and the house laid by the robot's own senses; `--walks [SIM_S]` the humanoid pair walking #507's routes at each scale; `--scales`, `--repeat`, `--no-table`, `--out` |
-| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair` (`--fall-at`, `--drain-at`); `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345); `--no-economy`, `--sequential`, `--nthreads` |
+| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair` (`--fall-at`, `--drain-at`); `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--in-step` in a step's hooks as the keeper saves (#749), past what a restart ends and saying so (#780); `--no-economy`, `--sequential`, `--nthreads` |
 | `scripts/make_way_spike.py` | #415 on two legs (#559): the humanoid pair in the house on true-floor maps, one robot resting standing in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--drift`/`--drift-walker` a map laid off the world, `--standing S`, `--near-field` |
 | `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--seats` started at 140 seats over what the seat check accepts: plugged in and unplugged or why not; `--lost [--n N]` a fresh robot 2 m out, its belief set 0.4-1 m wrong: the loop's charge path, its lost search and the fix; `--lost --far [--from near,house,street] [--n N] [--explore S]` its belief set 1-5 m and 5-20 deg wrong (#572), 2 m out, in the house's rooms and across the street, explored first or not, and how each charge ended (`--lost-table ROWS` its table again); `--reach` how far its head's camera and its colour imager read the station's tags, out of its face and off its axis, and the head's fit of the pair (#572 stage 3); `--hold [--seconds S]` plugged in: the charger's watts against what it draws, and how far the balancer's pull crept it in and turned it (#703); `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--anatomy` #596's scene, the first robot's plug-in taken apart: each look's fit, the plug in the jaws, how the feet and the belief moved since the look, the hand and the plug at the port (every batch's rows say where each try let the plug go, `letGo`); `--walk-in [--explore 120,240]` explored, walked out to 8 places across the house on its own map, then the loop's own `go_charge`; `--view [plug\|fall\|lost]` in the viewer, looped (MUJOCO_GL unset), `--lost-from P --lost-off X,Y,DEG` the lost scene from elsewhere, the camera over the robot; `--strip [plug\|fall\|lost]` its filmstrip, `station_spike.png` (`_fall`, `_lost`); each trial its own noise by its scene and start (`trial_noise`), `--noise KEY` a draw again |
 | `scripts/solve.py --feature drawer` | ladder A of #264 on the humanoid's hands (#559): a hand job (`--feature drawer\|door\|cube\|chest`: `open_drawer`, `open_door`, `place_cube`, `open_chest`) offered on the storeroom's counter, or `--feature table` (`set_table`) at the restaurant's table (#560) -- or `--feature pass` (`set_table_pass`, never offered: its place laid from the pass, #682's stage C) or `--feature kitchen` (`set_table_shelf`, never offered: laid from the kitchen's shelf) -- or `--feature shelf` (`stock_shelf`, never offered: the shop's shelf stocked from its cart, #736, the stock put into the house by solve's own call) --, its prop drawn (`--draw K`) and set out, claimed, the reference's procedures (`challenge/solutions.py`) run as the robot's, `done`, graded on the seam; a fresh humanoid on a fresh map from the station (`--from station\|store\|pass\|shelf`, or `tour`: flight k from the next of eight places across the house), `--n` draws a process each (`--jobs`, `--into DIR`), or `--held-out N` draws sealed by the frozen commit as the attempt kit seals them, each its own noise by its job, draw and start (`--noise KEY` a draw again), `--walker NPZ` another walking policy, `--view`, `--strip` (`--strip-out PATH`; the pick-ups as well as the place's put-downs for `--feature pass` and `kitchen`); filmstrip `solve.png` |
@@ -1004,12 +1004,22 @@ save a filmstrip PNG named after the script.
   every ray met it. The level ring stays for the instruments and as the
   Navigator's default scan; nothing the humanoid decides reads it since
   #572's stage 3. ⚠ NO CUTOFF ON THE CAST: MuJoCo culls a plane by its
-  centre. ⚠ A STATIC GEOM PAST A SENSOR'S REACH IS LEFT OUT OF ITS CAST
-  (`perception.cull`, #560; the LIDAR's and the depth camera's): every geom
-  costs every ray, reachable or not, and the readings are the same bit for
-  bit (`test_cull.py`) -- judged afresh each cast, as activities move and
-  resize geoms. ⚠ WHAT IS PUT AWAY IS IN NO CAST (`cull.PARKED_GROUP`, 3;
-  the restaurant's dishware between its jobs): every cast leaves the group
+  centre. ⚠ A GEOM PAST A SENSOR'S REACH IS LEFT OUT OF ITS CAST, WELDED
+  TO THE WORLD OR NOT (`perception.cull.Cull`, #560, #775; the LIDAR's and
+  the depth camera's): every geom costs every ray, reachable or not, a body
+  with no bounding-volume tree in full (the place's dishware) -- judged
+  afresh each cast where the cast meets it. ⚠ NEVER THE SENSOR'S OWN ROBOT,
+  NOR A ROBOT THE DEPTH CAMERA FILTERS: it reads them past its range gate
+  (`self_fraction`, and whether its peer stream draws), so a geom that moves
+  leaves a depth frame only past the farthest such robot in its view
+  (`Cull.farthest`). Every reading is as it was before #775, bit for bit,
+  noise streams included (`test_cull.py`); ⚠ but against no cull at all,
+  #560's welded cull parts the pair's depth camera's `self_fraction` and
+  peer draws (never its z or points) where a far wall hides the other robot
+  past the gate, 9 and 7 of 600 pair poses (SimNotes, "The cull for what
+  moves"). ⚠ WHAT IS PUT AWAY
+  IS IN NO CAST (`cull.PARKED_GROUP`, 3; the restaurant's dishware between
+  its jobs): every cast leaves the group
   out, the cull off or on, and MuJoCo's cameras draw groups 0-2 alone. ⚠ AND
   A CAST LOSES NO BODY IT MEETS (#657; `cull.static_inertials`; SimNotes, "A
   ray through a body MuJoCo's cull left out"): MuJoCo 3.10's `mj_multiRay`
@@ -1227,14 +1237,30 @@ save a filmstrip PNG named after the script.
   2.2 m behind the pass's tags), ⚠ the left pre-pose rolls out to 1.2 before
   its elbow bends to 1.9 (the pass's puts the gripper on the board's edge),
   ⚠ the cup is read before its pre-pose and its retries come out from under
-  the board above, ⚠ each thin piece comes back clear of the board's face
-  and is lowered to 0.92 m before the walk (the hand-over's side way rises
-  up to 0.39 m), ⚠ the fork's hand stays at least 0.25 m left of the middle
-  (nearer, its pulls bowed the head onto the board), and ⚠ a put-down waits
-  on its hand reading held (from the hanging arm the reach fell). ⚠ ITS BAR
-  (the pass's) IS NOT MET: 20 of 32 on the bar's draws and 25 of 32 sealed,
-  by 2bf94b77, no fall; a first round of levers came out even and was not
-  frozen.
+  the board above, ⚠ each thin piece is brought back from over the board and
+  lowered to 0.92 m before the walk (the hand-over's side way rises up to
+  0.39 m; ⚠ the fork's head, 0.125 m ahead of its grip, can still stand over
+  the board's edge, and a lowering asking 20 N then turns it in the jaws: 40
+  of 658 dev trips, the fork's largest failure -- ⚠ SO IT ASKS 3 N WHERE THE
+  GRIP READS UNDER `SHELF_FORK_EDGE` (0.425 m) AS ITS MOVE BACK BEGINS, the tip
+  then within 1 cm of the edge, AND ONLY THERE: asked of every stow, 3 N flew
+  almost every fork trip afresh; SimNotes, "Rounds 6-8" and "Round 9"), ⚠ a
+  cup re-set's move that reads false is taken back before the cup is set down
+  (`SHELF_CUP_UNDO`), ⚠ the fork's hand stays at least 0.25 m left of the
+  middle (nearer, its pulls bowed the head onto the board), ⚠ the fork's
+  put-down steps sideways first where its aim reads further left than
+  `SHELF_FORK_PUT` (0.17 m; the pass's 0.18: aimed 0.17-0.18 m and
+  unstepped, 18 of 83 failed, its pull down out of reach or the stance
+  turning under it), and ⚠ a put-down waits on its hand reading held (from
+  the hanging arm the reach fell). ⚠ ITS BAR (the pass's) IS MET ON ITS
+  DRAWS, NOT ON THE SEALED ONES: 24 of 32 over the tour by bd7146f1, no fall,
+  and 20 of 32 on 32 draws sealed by that commit (round 9's reference beside
+  it 22 and 18, where on 2ddbe238's sealed 32 it laid 24: 32 draws are that
+  noisy); offering it is Ben's call (SimNotes has each round; the plate's wall
+  is #771). ⚠ The dev draws
+  4000-4063 flatter it (it was chosen on them; on fresh draws it laid 65 of 128
+  on the served plate): read a lever that flies the fork's trip afresh on fresh
+  draws.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -2151,9 +2177,16 @@ save a filmstrip PNG named after the script.
   nothing (`Body.forgo_owed`). A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
-  restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
-  or mid-move (a humanoid getting up is a policy part-way, one with a hand
-  out is `Body.working`, one stepping aside is a walk no routine holds;
+  restore -- ⚠ FROM A SAVE WITH NOTHING IN FLIGHT (#780): a restore begins
+  the day loop again at its top, so a walk, the explore, a charge trip, an
+  errand or the day's start a save lands in ends there by design (the errand
+  in flight ends, below) and the day after differs; `--in-step` saves past
+  them and says so (`Flight`), and one in the stand-by holds a fresh 5 s, so
+  a branch a later pass takes (a charge) begins at another instant -- a save
+  at the loop's pass keeps its passes' times. ⚠ A signal only ASKS
+  (`Keeper.request_stop`); no save mid stand-up or mid-move (a humanoid
+  getting up is a policy part-way, one with a hand out is `Body.working`, one
+  stepping aside is a walk no routine holds;
   `Keeper.busy`), NEVER on a crash. ⚠ A STOP ASKED WHILE PAUSED ENDS THE
   PAUSE (#594, `HubLifecycle.stopping`): the world stops at that step, and
   the run's end (`Keeper.finish`) saves it -- unless a LIVING body was

@@ -396,10 +396,11 @@ PASS_PLATE_LEAST = 0.05
 #: 25 of 44 put-downs within 2.5 cm past 0.19 m, where nearer 0.11-0.19 m all
 #: 75 were (SimNotes, "The place laid from the pass").
 PASS_CUP_RIGHT, PASS_CUP_MID = 0.20, 0.15
-#: How far left of the stance's middle the fork's put-down goes at the most,
-#: m, and where a step puts it from further: past about 0.18 m its pull down
-#: crouched and swivelled the feet as the cup's did -- 25 of 37 put-downs
-#: within 2.5 cm there, 54 of 57 at 0.11-0.17 m.
+#: How far left of the stance's middle the fork's put-down may be aimed, m,
+#: past which it steps sideways first, and how far left that one step asks
+#: it to go (the step goes about half its way): past about 0.18 m its pull
+#: down crouched and swivelled the feet as the cup's did -- 25 of 37
+#: put-downs within 2.5 cm there, 54 of 57 at 0.11-0.17 m.
 PASS_FORK_LEFT, PASS_FORK_MID = 0.18, 0.14
 #: How far the cup set down may lie from where the card, looked at again with
 #: the cup down and still held, puts its place before it is lifted 1.5 cm,
@@ -728,16 +729,51 @@ SHELF_PLATE_BACK, SHELF_FORK_BACK, SHELF_STOW_Z = 0.20, 0.22, 0.92
 #: deg in 10 of 49 trips -- the head on the work board in 7, one fall -- and
 #: from 0.23 m or more none of 7.
 SHELF_FORK_LEFT = 0.25
+#: Where the fork's grip reads nearer than this as its move back begins, m
+#: ahead, the stow's lowering asks only this, N: the head's tip, 0.125 m past
+#: the grip, then stands within 1 cm of the board's edge or over it (the fork
+#: lies 0.07 m in, `counter.SHELF_SOURCES`; the grip's reading tracks the
+#: tip's place to 0.6 cm), and asking 20 N the lowering pressed it on the
+#: board's top and turned the fork 28-57 deg in the jaws in 14 of 15 trips
+#: from under 0.41 m. At 3 N it stops where the tip meets the board, the fork
+#: turned 4-8 deg; asked of every stow, 3 N slowed almost every one as it
+#: began and flew almost every fork trip afresh (SimNotes, "The place laid
+#: from the kitchen's shelf").
+SHELF_FORK_EDGE, SHELF_FORK_STOW_N = 0.425, 3
+#: How far left of the stance's middle the shelf's fork put-down may be
+#: aimed, m, past which it steps sideways first toward `PASS_FORK_MID` (the
+#: pass's `PASS_FORK_LEFT`, 0.18) -- one step, which goes about half its way,
+#: so from further out its aim may still end past the line: on the shelf's
+#: trips the put-down aimed 0.17-0.18 m left failed 18 of 83, its pull down
+#: out of reach or the stance turning under it, where stepped from 0.18-0.19
+#: 1 of 42 did (SimNotes, "The place laid from the kitchen's shelf").
+SHELF_FORK_PUT = 0.17
 #: Each shelf run's put-down only while its hand still holds the piece, the
 #: run ended otherwise: after the step at the table let the plate go, the
 #: put-down's reach from the hanging arm bowed the robot 1.10 rad and it fell.
 SHELF_HELD = '''  if read("%s.held") < 0.5:
     return
 '''
+#: The cup's re-set (the pass's, `PASS_CUP_AGAIN`) taken back where its move
+#: reads false, the hand sent back to where that move began before the cup
+#: is set down: out of reach, the move swung the hand 5-8 cm to the right,
+#: and where it read false the cup came down 3-7 cm off in 7 of 8, each set
+#: down within 2.5 cm before (SimNotes, "The place laid from the kitchen's
+#: shelf"). Its `go` reads false only where the hand is no longer out or the
+#: robot fell (its distance is the swing's, under `pull`'s 0.6 m).
+SHELF_CUP_UNDO = ('''      if not move_hand("right", read("right.x") + dx, read("right.y") + dy, read("right.z")):
+        pass
+''', '''      rx = read("right.x")
+      ry = read("right.y")
+      rz = read("right.z")
+      if not move_hand("right", rx + dx, ry + dy, rz):
+        go("right", rx, ry, rz, 20, 0)
+''')
 #: What the shelf's runs change in the pass's, each (old, new) once: the
 #: trip's walk, the plate's turn, `near`'s distance, the left pre-pose, the
-#: cup's and the fork's looks, the cup's retries, each thin piece's stow
-#: before the walk, and each put-down's check that its piece is still held.
+#: cup's and the fork's looks, the cup's retries and its re-set's move taken
+#: back, each thin piece's stow before the walk, and each put-down's check
+#: that its piece is still held.
 SHELF_FROM_PASS = {
   "cup": (("  to_pass(-0.10)\n", "  to_shelf(%(cup_s)g)\n"),
           ("  to_place(%(cup_facing)g)\n", "  to_place(%(cup_facing)g)\n" + SHELF_HELD % "right"),
@@ -801,7 +837,8 @@ SHELF_FROM_PASS = {
     if not move_hand("right", %(cup_back)g, read("right.y"), read("right.z")):
       pass
     withdraw("right")
-''')),
+'''),
+          SHELF_CUP_UNDO),
   "plate": (("  to_pass(-0.18)\n  if not step(0, 0, %(plate_turn)g):\n    pass\n",
              "  to_shelf(%(plate_s)g)\n"),
             ("  near(90, 0.50, %(plate_aim)g)\n", "  near(90, %(plate_near)g, %(plate_aim)g)\n"),
@@ -817,14 +854,20 @@ SHELF_FROM_PASS = {
             "  near(92, %(fork_near)g, 0.20)\n"
             "  if not spot(92):\n    if not step(0, 0, %(look_turn)g):\n      pass\n    spot(92)\n"),
            ("  to_place(%(facing)g)\n", "  to_place(%(facing)g)\n" + SHELF_HELD % "left"),
+           ('  if read("spot.y") + %(fork_at_b)s > %(fork_left)g:\n',
+            '  if read("spot.y") + %(fork_at_b)s > %(shelf_fork_put)g:\n'),
            ('  move("left_shoulder_roll", 0.9)\n  move("left_elbow", 1.4)\n',
             '  move("left_shoulder_roll", %(left_roll)g)\n  move("left_elbow", %(left_elbow)g)\n'),
            ('  go("left", %(fork_back)g, read("left.y"), read("left.z"), 20, 0)\n',
+            '  gx = read("left.x")\n'
             '  y = read("left.y")\n  if y < %(shelf_fork_left)g:\n    y = %(shelf_fork_left)g\n'
             '  go("left", %(fork_back)g, y, read("left.z"), 20, 0)\n'
             '  if not move_hand("left", %(shelf_fork_back)g, read("left.y"), read("left.z")):\n    pass\n'
             '  if read("left.z") > %(stow_above)g:\n'
-            '    pull("left", 0, 0, -1, 20, read("left.z") - %(stow_z)g, give=0)\n')),
+            '    if gx < %(fork_edge)g:\n'
+            '      pull("left", 0, 0, -1, %(stow_n)g, read("left.z") - %(stow_z)g, give=0)\n'
+            '    else:\n'
+            '      pull("left", 0, 0, -1, 20, read("left.z") - %(stow_z)g, give=0)\n')),
 }
 
 
@@ -852,6 +895,8 @@ def _shelf_job() -> tuple[tuple[str, ...], tuple[str, ...]]:
                 "fork_near": round(0.44 + SHELF_NEAR_BACK, 4),
                 "shelf_plate_back": SHELF_PLATE_BACK, "shelf_fork_back": SHELF_FORK_BACK,
                 "shelf_fork_left": SHELF_FORK_LEFT,
+                "fork_edge": SHELF_FORK_EDGE, "stow_n": SHELF_FORK_STOW_N,
+                "shelf_fork_put": SHELF_FORK_PUT,
                 "stow_z": SHELF_STOW_Z, "stow_above": round(SHELF_STOW_Z + 0.01, 4)})
   _, place, near, go = PASS_LIBRARY
   return ((SHELF_TO % {"ax": address["x"], "ay": address["y"], "first": SHELF_FIRST,

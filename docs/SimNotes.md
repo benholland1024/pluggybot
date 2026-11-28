@@ -4018,6 +4018,24 @@ the parity tests save on 687. Never saved with a hand out (`Body.working`):
 a hand's move is a routine's. The walker that sees the ground (not served)
 keeps no scan, and starts its ground anew as after a fall.
 
+**A save in the middle of a walk (#780).** The keeper saves inside a step's
+hooks (#749) wherever the day loop is, and a restore begins the loop again at
+its top: what it was inside ends there -- a walk, the explore, a charge trip,
+an errand, the day's start -- and the day after differs from the one flown
+straight through (Webserver.md, the errand in flight). Saved at t = 200.088
+of the scripted day, mid-walk to a frontier 0.68 m off, the world came back
+bit for bit for 36 steps while both walks' commands sat on the turn limit;
+the restored explore had planned another frontier, 9 m off, and the walking
+policy's command parted at its tick at 200.16 (saved at 60.034, the day
+parted at its first sample). `determinism_spike.py --resume-at T --in-step` saves at the first
+owed step with nothing in flight and says what it passed over: from the
+stand-by at 257.488, 270.088, 300.088, 340.088 and 390.088, IDENTICAL to the
+day's end, as from the loop's pass at 257.434 and 302.434. ⚠ Not past the
+stand-by's next branch: a restored stand-by holds a fresh 5 s, and on the
+demo pack a charge called for began at 280.088 where the day flown straight
+through began it at its pass at 282.434; saved at the loop's pass (272.434),
+the day was IDENTICAL through the charge.
+
 **The change of body.** Luca and Rowan keep who they are: a save of the
 quadrupeds' house carries on in the humanoids' as a changed world does --
 the clock, the deaths and the jobs, never the bodies or the maps -- and the
@@ -7235,6 +7253,33 @@ alone would not do: a body yawed in the world turns a horizontal offset (the
 shelves' centres of mass lie off their boxes' middles), so the frame stands
 on the box's middle, where there is no offset to turn.
 
+## The cull for what moves (issue #775)
+
+**What is true now.** A cast leaves out every geom past its sensor's reach,
+welded to the world or not (`perception.cull.Cull`), judged where the cast
+meets it. The LIDAR keeps its own robot and leaves out the rest past 8 m, the
+other robot too: past its reach a return is what `_sort` calls far, whatever
+it hit. The depth camera keeps the robots it filters, because it reads them
+past its range gate (`self_fraction`, and whether its peer stream draws), so
+a geom that moves leaves its cast only past the farthest of them in its view
+(`Cull.farthest`). Every reading is as it was, bit for bit, noise streams
+included (`test_cull.py`; on one pod, the table check's and the drawer's
+set-outs 0-3, three station approaches, the served table job and the pair's
+scripted day flew the same on both trees). What it bought was the place:
+compiled put away (contype and conaffinity 0), the dishware has no
+bounding-volume tree, so `mj_multiRay` tested every ray against its 25 geoms
+in full wherever it stood. At the pair's walks in the house it cost 1.1 ms of
+a LIDAR frame's 11.6 and 1.6 of a depth frame's 15.4, a tenth of each, where
+the counter's 26 props, each body with its tree, cost nothing measurable.
+Compiled with a tree, the place set out costs a far cast nothing too, but
+the served table job's flights part (not built). On one pod the pair's walks
+ran 4.0 % faster with the place set out and both robots in the house, 3.5 %
+with one in the park, the casts 0.87-0.89 of their time; put away, within
+noise. ⚠ Against no cull at all, #560's welded cull already parts the pair's
+depth camera's `self_fraction` and peer draws, never its z or points: a far
+wall left out lets the camera count the other robot behind it past the gate
+(9 and 7 of 600 random pair poses; 7 and 7 of the walks' 706 frames).
+
 ## The table set served (issue #560)
 
 **What is true now.** The restaurant's dining tables are a top on legs and
@@ -9195,8 +9240,25 @@ off the pass's pair (68, 69). Its bar was written before any reference flew:
 the frozen commit. Our reference (`solutions.SHELF`) is the pass's three runs,
 each piece fetched from the shelf and laid as the pass lays it (below).
 Frozen at 2bf94b77, it laid 20 of 32 on its bar's draws and 25 of 32 on the
-32 draws sealed by that commit, no fall, one pod: THE BAR IS NOT MET (its
-misses below; a first round of levers, below, was tried and not frozen).
+32 draws sealed by that commit, no fall, one pod. Eight rounds, below, were
+flown and none frozen; the ninth's two levers were kept, at 2ddbe238 (22 of 32
+on the bar's draws and 24 of 32 on 32 draws sealed by that commit, where the
+reference beside it laid 20 and 20), and the tenth's one, at bd7146f1: 24 of
+32 on the bar's draws and 20 of 32 on 32 draws sealed by that commit, where
+round 9's reference beside it laid 22 and 18 (on its own sealed draws it had
+laid 24: 32 draws are that noisy), no fall either way: THE BAR IS MET ON ITS
+DRAWS, NOT ON THE SEALED ONES (its misses below); offering it is Ben's call.
+Its largest miss on the dev draws and the bar's is the plate let go carried,
+which a rounder wall all but took away (#771). The fork's largest was its stow
+catching the work board, which round 9 takes where the grip's own reading puts
+the head's tip at the board's edge, and then its put-down aimed just inside the
+pass's line, which round 10 steps away from (below). ⚠ The dev draws 4000-4063
+flatter the reference, which was chosen on them. On the served plate, on draws
+nobody tuned on (4300-4363 and 4400-4463), it laid 65 of 128, where on the dev
+draws it laid 42 of 64; on the raised 48-box plate, 45 of 64 on 4300-4363
+against 51.
+So a lever that flies the fork's trip afresh reads worse on the dev draws than
+it is: read one on fresh draws.
 Measured first, before the kind was built, on a scratch
 set-out flying the pass's own pick halves from in front of the shelf (the
 loop of 11-26b's A2; `~/pluggybot-training/loop-1126b/a2-shelftable/`, 38
@@ -9239,7 +9301,9 @@ flights, osmesa, each its own noise):
 
 **The reference** (`solutions.SHELF` over `SHELF_LIBRARY`) is the pass's three
 runs, each piece fetched from the shelf and laid as the pass lays it, byte for
-byte but a check that the piece is still held. What fetching from the shelf
+byte but a check that the piece is still held, the cup's failed re-set taken
+back (round 9, below) and the line past which the fork's put-down steps first
+(round 10). What fetching from the shelf
 took, found on local flights and on dev draws from 4000 up (one pod, Xeon
 E7-8890 v4, osmesa, each its own noise; `~/pluggybot-training/batches/
 a2_shelf/`):
@@ -9270,8 +9334,10 @@ a2_shelf/`):
   pre-posed gripper came between the camera and the cup's lid: the look comes
   first, and again after only where it is seen.
 - **Each thin piece stowed low before the walk** (the next paragraph): brought
-  back clear of the board's face (the plate's grip to 0.20 m ahead, the
-  fork's to 0.22) and lowered to 0.92 m, near the carry pose, so the
+  back from over the board (the plate's grip to 0.20 m ahead, the fork's to
+  0.22, its head still over the board's edge in some trips: "Rounds 6-8",
+  below) and lowered to 0.92 m (the fork asking 3 N where its grip reads
+  under 0.425 m ahead: "Round 9"), near the carry pose, so the
   hand-over's way is short -- the plate by `move_hand`, the fork by a `pull`
   that holds its line and turn (by `move_hand`, two forks of eight turned in
   the jaws, 11 to 65 deg, on the way down and fell out; by the `pull`, none
@@ -9317,9 +9383,11 @@ of 64 on every form tried. What the plate's drop is, read off the frozen
 reference's plate trips: its tilt in its pinch before the walk 6 deg or more
 in 22 of 124, 15 of them let go carried, under 6 deg in 102, 1; the pinch
 gives in every phase (of 10 let go carried, it slipped in the lowering in 4,
-the hand-over in 7, the walk in 8; of 53 kept, 2, 18 and 14), and the
-hand-over adds 6-8 deg more without a slip (its normal tips back and right:
-the live trunk against the statue the carry is solved on). Probes of the
+the hand-over in 7, the walk in 8; of 53 kept, 2, 18 and 14), and in every
+trip the plate turns in its pinch about the jaws' line, its tilt following
+that turn and not the hand's: the kept plates turned a median 3.4 deg before
+the walk, 7.1 more across `find` (the hand-over's own way about 1 of it) and
+3.5 across the walk, tipped 3.5, 9.4 and 12.1 deg (#771). Probes of the
 plate alone from the pass misled: walked in from the south and not lowered it
 was laid 50 times in 64 where the frozen reference's was 42 (+10 -2), on the
 whole place 9 let go carried against 9. On the whole place, squeezed at the
@@ -9332,20 +9400,224 @@ out of reach, and the withdraw after it fell (the pass's lay; once in 16
 single-fork trips, once in 61 places). A `move_hand` that only turns the
 hand reads "arrived" before its turn is done (#767).
 
-**A thin piece's hand-over rises under a board above** (served code since the
-pass's round 10; reported to #682, not fixed). The walk's hand-over takes the
-side way for a thin grip (`reach.CARRY_THIN_M`: the plate's wall, the fork's
-handle), and from a grip at the shelf's edge (the plate's 0.225 m ahead and
-1.07 m up, the fork's 0.33 and 1.08, medians) the hand rose a median 0.21 m
-(the fork's highest 0.36-0.39) and swung forward 0.06 m (fork) and 0.16
-(plate) before it came down. Under the board above, 1.34 m up, the carried
-fork touched the shelf in 46 of 52 hand-overs (up to 80 N; 107 with it pulled
-back further), 8 knocked loose and falling; the plate's far rim came down on
-the work board's edge in 18 of 58 (11-74 N), turning 4.7 deg in its pinch
-where untouched plates turned 1.8, and those tilted further on the long carry
-until 10 fell carried. On the pass nothing is over the counter. Any thin
-piece picked from under a board and walked off with meets it, unless the
-procedure first stows it low.
+**Rounds 2-5** (the loop of 11-26b's A3,
+`~/pluggybot-training/loop-1126b/a3-plate/`, each round's rule sent before it
+flew; NONE FROZEN): on dev draws 4000-4063, beside the frozen reference flown
+again on 6962e982 (42 of 64, 9 plates let go carried, no fall; 2bf94b77's end
+states byte for byte), every lever on the plate traded one failure for
+another, and none aimed at the wall's boxes (#771). Of the reference's 61
+plate trips that reached the lowering to 0.92 m before the walk, a plate it
+left tilted 5 deg or more in its jaws was let go carried in 8 of 12, under 5
+deg in 1 of 49, and the robot sees that tilt in its tag's normal (`spot.nz`; ⚠
+the normal points into the tag's face, so a level plate reads -1) -- but only
+held 12 cm ahead after that lowering, and that move cost more than the look
+and a second grip saved: 30-34 laid (round 2). Without the lowering, 39 laid
+and 13 let go carried; without the lowering or the moves back, 39 and 5, the
+hand-over sweeping the plate onto the board it was lifted from in 54 of 62;
+the reference's moves at half speed, 31 and 18: the pinch creeps with the time
+it is held as well as with motion (round 3). Lifted 11-13 cm and not moved,
+36-39 (40 with round 1's levers): the sweeps fell by a fifth to a third, and
+the board above bounds the lift -- probed at 15 cm on one draw, the walk's own
+carry lift put the forearm on it, and the plate fell (round 4). The fork's
+put-down aimed in the card's own frame, as the cup's is (`atan2(spot.ny,
+spot.nx)`), laid 42 with no place changed, and 44 with round 1's levers (+2 -0
+against the reference): fitted on the heading at the look and the stance's
+turn after it (median +0.7 deg), the fork's offset along the card's line went
+from 0.39 and 0.40 cm a degree to 0.10 and 0.59, and across it from 0.19 and
+0.55 to 0.26 and 0.54 -- the turn after the look, which no aim takes out, is
+most of it (round 5). On a rounder wall -- 48 boxes, raised 1.5 mm off the
+table (`loop-plate-round` a4230cfa, #771, never merged) -- the reference laid
+51 of 64, the fork aimed so 49 and with round 1's levers 48: each loss a fork
+at the tolerance's edge (2.2 cm off in the reference, 2.4-2.8 in the arms) or
+one the open hand caught again as it rose after the let-go.
+
+**Rounds 6-8** (the loop of 11-26b's A5,
+`~/pluggybot-training/loop-1126b/a5-fork/`, each round's rule sent before it
+flew; NONE FROZEN). The levers flew on one pod, a Xeon E5-2698 v4, on which
+the reference replayed A3's rows bit for bit on both walls. The stow-catch
+and cup let-go pools are A3's and C8's dev rows, flown on their own pods.
+
+*The fork's stow catches the work board: the fork's largest failure.* The
+fork lies with its head toward the shelf, its tip 0.125 m ahead of the grip.
+Brought back to 0.22 m, the tip stood -2.5 to +11 cm short of the board's
+front edge (median +3.7), over 658 fork trips in 11 batches of the 64 dev
+draws. Where it stood over the edge (48 trips, 27 distinct draws), the
+lowering pressed it on the board's top and turned the fork 26-54 deg in the
+jaws in 40; where it stood 1 cm or more short, in 4 of 569. Of the 51 forks
+turned 20 deg or more, 40 decided their place, and 2 of those were laid (one
+trajectory, flown in two batches). No move back fixes it. From 0.18-0.20 m
+the arm cannot lower the fork with its grip's turn held: 7 of 9 probe
+lowerings ran out of reach, most of them with the waist turned 0.52 rad and
+the hand swung up. From 0.21 it lowered in 4 of 5, but a catching draw still
+caught (the fork turned 46 deg).
+
+*Capped at 3 N, the lowering stops held fast where the tip meets the board*
+(round 7), the fork turned 4-8 deg in the jaws.
+- On every catching draw of 4300-4363 (round 8; draws nobody tuned on), the
+  fork was laid, though the hand-over begun at the board's edge touched the
+  board above in all 8.
+- On 4400-4463 (round 8) it changed none of the four where the reference's
+  fork stood turned 20 deg or more in the jaws after the stow: one stopped
+  flat was still dropped at the put-down, and one (lab_4451) had turned before
+  the stow. Over every draw so counted, fresh and dev, it gained 11 places and
+  lost none.
+- But a pull's first tenth of a second reads well over 3 N in free air, so
+  the cap changes almost every stow's start, and almost every fork trip is
+  flown afresh. Elsewhere it came out +3 -10 on the dev draws and +11 -14 on
+  fresh ones, counting the few flights that replayed the reference.
+- On dev it laid 41 and 48 against the reference's 42 and 51 (served,
+  raised). On fresh draws (round 8): on 4300-4363 it laid 38 against 31
+  (+11 -4, one-sided p 0.06) and 44 against 45; on 4400-4463 (served) 33
+  against 34. Both fresh sets pooled, on the served plate: 71 against 65
+  (+13 -7, p 0.13).
+
+*A second look at the card, as the cup's (`PASS_CUP_AGAIN`), made the fork
+worse* (round 6): 41 and 46 against 42 and 51. Re-set 33 times, the fork
+ended closer in 6 and further in 17. Three things were found.
+- The place in the card's frame equals the tuned aim only at the heading it
+  was fitted at, so it moved the 11 re-set forks that lay under 1 cm from
+  their place 0.5-1.8 cm to the right.
+- The second set-down drifted the hand 0.1-2.1 cm forward in 32 of the 33
+  (one 1.1 cm back): the lifted fork pitched 4-5 deg, met the table at its
+  tip and lay flat about it.
+- And no look at the card sees the fork's error along the card's line.
+  Between the two looks the card moved 0.11-0.13 cm along it (sd), where the
+  fork's error along it ran 1.1-1.2 cm: that error is the hand's own, its
+  arrival and the put-down's drift.
+
+*The cup's let-go.* In 6 of 812 dev put-downs (4 distinct trajectories of
+190: the cup's trip flies the same in batches that change only later trips)
+the pull up after the let-go took a new posture, and the cup moved in all 6.
+The touch begins while the jaws open: lifted 3 cm instead of 8, it caught the
+cup the same way.
+
+**Round 9** (the loop of 11-26b's A6,
+`~/pluggybot-training/loop-1126b/a6-surgical/`, its rule sent before it flew;
+KEPT at 2ddbe238). Two levers, each acting only where a reading of the robot's
+own says so, so that every other flight is the reference's to the bit -- what
+rounds 6-8's levers could not be. They flew on the pod rounds 6-8 flew on (a
+Xeon E5-2698 v4), against round 8's reference rows on the dev draws 4300-4463
+(served) and 4300-4363 (raised); of the 192 flights, the 165 where neither
+acted were the reference's to the bit, and the 18 where only the fork's acted
+round 8's capped flights.
+
+*The fork's stow, gated on where its grip reads.* No force the stow's pull
+reads tells a catch. Its report's force is the peak of its 0.1 s mean along its
+way, which a stop condition's own readings meet or pass: the 18 stows of 306
+that caught (lab_4451 apart, its fork turned before the stow) peaked at
+5.89-11.58 N, and 19 that did not at 6.4-22.9 N, each a pull whose posture
+turned the waist 0.52-1.05 rad. But the grip's place, read as the move back
+begins, tells the tip's clearance of the board's edge to 0.6 cm (sd; the
+clearance is that reading less 0.413 m). With the grip under 0.41 m ahead, 14
+of 15 trips caught; 0.41-0.425 m, 3 of 13; 0.425-0.43 m, 1 of 22; from 0.43 m,
+none of 256. So where the grip reads under `SHELF_FORK_EDGE` (0.425 m: by the
+fork's drawing the tip within 1 cm of the edge, the rows' zero 0.2 cm nearer),
+the lowering asks 3 N, as round 7's cap did; elsewhere 20 N, as before. On the
+dev draws it acted in 18 flights of 192: served +6 -0, raised +3 -0 (the line
+was set after the catches by grip were seen, from the geometry, so those draws
+are no independent reading of it).
+
+*The cup's re-set taken back where its move reads false.* The cup's second look
+moves it where the card puts its place (`PASS_CUP_AGAIN`), and in 9 of 108
+re-sets on the dev draws that move read false: out of reach in 7, swinging the
+hand 4.8-8.1 cm to the right, and held back in 2. The cup then came down
+3.2-6.8 cm off, where before the re-set it had been set down within 2.5 cm in
+all 8 that can be read (0.8-2.4 cm; in the ninth the pull down after knocked it
+off the table). Taken back to where the move began (`SHELF_CUP_UNDO`), the cup
+was laid in 6 of the 9 where the reference laid 1 -- but each such flight's
+plate and fork fly afresh after the cup, and 4 of them then left a piece off
+that the reference had laid: the place came out +1 -1.
+
+*Both together*, on the dev draws: served 71 of 128 laid against 65 (+7 -1,
+one-sided sign p 0.035), no fall, plates let go carried 24 as before; raised 48
+of 64 against 45 (+3 -0). On fresh draws 4500-4563, nobody's before, the
+reference flown beside it on the same pod (each flight neither lever acted in
+the reference's to the bit, 55 of 64 on each plate): served 35 against 34 (+1
+-0, the cup's), no fall either way, plates let go carried 14 both; raised 52
+against 49 (+3 -0, the fork's: three of its four catches laid), one fall in
+both, the same flight. Of the cup's five acts there, one cup was laid where the
+reference's was off; two were let go within 2.5 cm but came down free at 0.51
+m/s in the pull down after (drops, at the line); two stayed 2.8-3.2 cm off. On
+the bar's draws 0-31 it laid 22 of 32 where the reference beside it laid 20 (+2
+-0, both the fork's), and on the 32 draws sealed by 2ddbe238 24 where the
+reference laid 20 (+4 -0), no fall either way: the bar, 24 of 32 over the tour,
+is not met on the served plate. On #771's raised 48-box plate (never merged) it
+laid 26 of 32 over the tour and 23 of 32 on the sealed draws, no fall, its
+misses mostly the fork's.
+
+**Round 10** (the loop of 11-26b's A7 and A8,
+`~/pluggybot-training/loop-1126b/a7-fork/` and `a8-keep/`, its rule sent before
+it flew; KEPT at bd7146f1). *Where the fork's put-down is aimed.* Read off round
+9's own rows (every flight of its reference, 423 fork put-downs on both plates),
+a fork put-down fails by where its hand is aimed, the further left of the
+stance's middle the worse: aimed 0.17 m or nearer, 17 of 307 failed (6 %),
+stepped first or not; aimed further, 27 of 116 (23 %). All 8 of its pull downs
+that did not end held fast -- out of reach 6, the feet moved 1, the grip lost 1,
+each fork failed -- were aimed 0.170-0.179 m left, and those let go 4-9 cm over
+the table came down at 0.84-1.36 m/s. The pass's line (`PASS_FORK_LEFT`, 0.18 m)
+steps first only past it, and the walker's sideways step goes about half its way
+(a median 0.46-0.52 of what it asks); every put-down stepped from an aim of
+0.18-0.19 m ended aimed at 0.17 or nearer, and 1 of 42 failed, where the 83
+aimed 0.17-0.18 m, unstepped, failed 18. So the shelf's fork steps first past
+its own line, `SHELF_FORK_PUT` (0.17 m), toward `PASS_FORK_MID`; the pass keeps
+0.18. Every reading below flew round 9's reference beside it on the same pod. On
+its dev draws (an AMD EPYC 7B12, which replays the Xeon E5-2698 v4's rows bit
+for bit; served 4300-4363, 4400-4463 and 4500-4563, raised 4300-4363 and
+4500-4563, rounds 6-9's draws and no longer any that nobody tuned on) the 265
+flights it did not act on were the reference's to the bit, and every acted aim
+ended at 0.146-0.161 m, its pull down held fast: served 111 of 192 against 106
+(+5 -0, one-sided sign p 0.031), raised 101 of 128 against 100 (+1 -0, the
+reference's one fall a place laid), no fall -- the line read off these rows, so
+no independent reading of it. On a Xeon E5-2698 v4: on fresh draws nobody's
+before, 4600-4663, it laid 43 of 64 where the reference laid 43 -- an exact tie,
+each of its 8 acts laying what the reference's did -- so, by the rule stated
+before that reading, 64 more fresh draws flew, 4700-4763: 44 against 43 (+1 -0);
+pooled, 87 of 128 against 86 (+1 -0, its 22 acts losing none), no fall either
+way, plates let go carried 20 both: kept. On the bar's draws 0-31 it laid 24 of
+32 where the reference laid 22 (+2 -0, the two forks the pass's line had let go
+over the table), and on the 32 draws sealed by bd7146f1 20 where the reference
+laid 18 (+2 -0; on 2ddbe238's sealed draws it had laid 24: 32 draws are that
+noisy), no fall either way: the bar, 24 of 32 over the tour, is met on its
+draws, not on the sealed ones. On the sealed draws the plate was let go carried
+in 6 (#771), the fork tipped in 3 and let go carried in 3, the plate dropped at
+its put-down in 2, the cup and the fork put down off in 2 each and the plate in
+1, seven flights missing two pieces.
+
+**A thin piece's hand-over rises over the shoulder and sweeps down at the
+robot's side** (#770; not fixed). The walk's hand-over takes the side way for
+a thin grip (`reach.CARRY_THIN_M`), and from a grip over the top the shoulder
+is already rolled past `HOME_ROLL`, which `_side_way` keeps while it folds the
+elbow to the carry pose's: the hand rose a median 0.21 m, to about 1.29 m,
+then swept down in an arc at the robot's side, 0.2 m ahead and 0.36-0.40 m
+left, to 0.89-0.95 m -- nearer than where it began, so `carry_descent`
+counted none of it. On D1's dev draws the carried fork brushed the board
+above (1.34 m up) in 46 of 52 hand-overs at 2-15 N, then came down on the
+work board in 26 at up to 80 N (107 brought back further); 19 fell free in
+the jaws, 18 after the work board, 10 graded drops. The plate's far rim came
+down on the work board's edge in 18 of 58 (5-74 N), 6 falling free. On the
+pass the sweep came down on the pass's top (A1b's census: plates 13 of 63,
+forks 17 of 61). Any thin piece picked from under a board or off a top at
+the hand's height and walked off with meets it, unless the procedure first
+brings it back and low.
+
+Where the plate's hand-over began decided how often #770's sweep met the work
+board (rounds 2-5, above: dev draws 4000-4063, 62 plate trips an arm; each
+touch off the hand-over's own trace, each plate let go carried by the walk's
+own word that its grip read empty). In these arms the plate never met the
+board above (the 15 cm lift, probed on one draw, did: above).
+
+| the plate before the walk | hand-overs that met the work board (the hardest) | let go carried (of them after a touch) |
+|---|---|---|
+| lifted 5 cm, back to 0.2 m ahead, lowered to 0.92 m (the reference) | 17 (36 N) | 9 (3) |
+| the same, not lowered | 3 (36 N) | 13 (1) |
+| lifted 5 cm, not moved | 54 (55 N) | 5 (4) |
+| lifted 11, 12 or 13 cm, not moved | 42, 38, 37 (37-41 N) | 10, 8, 12 (7, 7, 10) |
+| the reference's moves at half speed | 16 (25 N) | 18 (6) |
+
+The reference's fork, brought back and lowered before the walk, met the work
+board in 10 of 61 hand-overs (46 N) and the board above in 3 (8 N); 2 were let
+go carried, 1 after a touch. D1's forks, walked off from over the board, met
+the board above in 46 of 52 (#770's paragraph, above).
 
 ## The arms keep off the other robot (issue #678)
 
