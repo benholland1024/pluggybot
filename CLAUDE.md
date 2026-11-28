@@ -344,8 +344,9 @@ save a filmstrip PNG named after the script.
   CAP WOULD END ON (#769; `SelfModel.solve`; SimNotes, "A solve ended where
   its joints come back"): every flight is the same to the bit, and 10 % of a
   hands check's iterations go, 6 % of the robots' own tries' -- ⚠ NEVER ON A
-  TOLERANCE: ended once no joint moved 1e-9 rad, no verdict changed but 26 of
-  C4's 38 flights parted from their paths. ⚠ A HAND THAT CANNOT GET
+  TOLERANCE: ended once no joint moved 1e-9 rad (#769's option 2), no verdict
+  changed but 26 of the 38 flights it was flown on parted from their paths.
+  ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or the force it reads (below) a push on its way in --
   unstopped, an arm pushed the robot over. ⚠ AND SAYS WHICH RULE STOPPED IT,

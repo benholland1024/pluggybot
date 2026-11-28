@@ -225,8 +225,9 @@ class SelfModel:
     model held), so from there it cycles, and the joints its cap would end on
     are known -- returned, and the model posed there, as the cap would leave
     them. ⚠ NEVER ON A TOLERANCE: ended once no joint moved 1e-9 rad, no
-    verdict changed but every flight with a capped solve parted from its path
-    (C4's measure; SimNotes, "A solve ended where its joints come back")."""
+    verdict changed but 26 of the 38 flights it was flown on parted from their
+    paths (#769's option 2; SimNotes, "A solve ended where its joints come
+    back")."""
     idx = self.arm[side]
     lo, hi = self.ranges[idx, 0] + RANGE_MARGIN, self.ranges[idx, 1] - RANGE_MARGIN
     q = np.clip(self.q[idx], lo, hi)
