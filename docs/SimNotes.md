@@ -11818,28 +11818,38 @@ a step, after the record's turn: the issue's figures were along the ask, and
 these walks turned 10-18 deg as they went. The scans are the believed
 stance's move, which on C20's replays of the run is the code's `mdx`/`mdy`
 to 0.1 cm in every step:
-- the 16 stalls: scans 0.47-0.80 of the legs' count, the soles 0.41-0.79; the
-  legs counted 1.5-3.4 cm past where the soles went;
+- the 16 stalls, every one under way and the step's one walk: scans 0.47-0.80
+  of the legs' count, the soles 0.41-0.79; the legs counted 1.5-3.4 cm past
+  where the soles went;
 - untouched walks that stepped, legs 4 cm or more (C1's 88 replays, X5's 200
   tries): of all 748, 0.773 at the least (a 12 cm step back) and 1 under
   0.8; of the 190 whose legs counted 4-8 cm, a stall's length, 0.872 at the
-  least. Backward walks read lowest (135, least 0.773; ahead 445, 0.872);
+  least. Backward walks read lowest (135, least 0.773; ahead 445, 0.872), but
+  not at a stall's length (12 of 4-8 cm, least 0.999; 25 of 4-12 cm, 0.982):
+  the two lowest went 12 and 20 cm;
 - walks that stepped with a hand on the counter: 58 of 224 under 0.8.
 
-**What is true now** (#766 (a), its option 2): a walk that stalled (got
-nowhere or stalled: `stuck`) whose scans went under 0.8 of what its legs
-count (`STEP_STALL_PRESSED_SHARE`), these 4 cm or more, reads pressed in
-#718's words, `step.*` the scans'. A step kept off something, or one its
-belief jumped across, is never judged so, and a walk that stepped keeps
-#718's half. The step's text says both bars. No motion moves: flown base
-against branch, every flight ended in the same state bit for bit, its steps
-and its calls the same, and only the stalls' verdicts moved. A press has no
-shorter form: where a stall is the first false read of its line and
-History's line is tight, its 128 characters can push a later line's reason
-into "(+N more)" where the stall's head (17) left room. On every real run
-line measured (both live runs, 288 replays laid again in today's words) line
-39 was never said. ⚠ The bar is read off one counter, one procedure and one
-run, and the 16th stall stands at 0.799.
+**What is true now** (#766 (a), its option 2, and its review's first round):
+a walk that stalled once under way (`stuck`) whose scans went under 0.8 of
+what its legs count (`STEP_STALL_PRESSED_SHARE`), these 4 cm or more, reads
+pressed in #718's words, `step.*` the scans'. It is judged on the walk that
+stalled alone (the record's `walk`, its own way and its travel from where it
+set off): judged over both walks, an oblique step whose walk ahead was held
+back read pressed for a sidestep that stalled 0.5 cm on, at the stall's bar
+a walk that stepped. Its words name that walk's way as a stall's do ("to your
+left"), and its two counts are printed against each other (`lid.against`,
+#737's rule): at this bar two whole cm can read alike, "4 cm, but only 4 cm".
+A walk that got nowhere in its first window (none such was measured), a step
+kept off something and one its belief jumped across are never judged so, and
+a walk that stepped keeps #718's half. The step's text says both bars. No
+motion moves: flown base against branch, every flight ended in the same state
+bit for bit, its steps and its calls the same, and only the stalls' verdicts
+moved. A press has no shorter form: where a stall is the first false read of
+its line and History's line is tight, its 128 characters can push a later
+line's reason into "(+N more)" where the stall's head (17) left room. On
+every real run line measured (both live runs, 288 replays laid again in
+today's words) line 39 was never said. ⚠ The bar is read off one counter,
+one procedure and one run, and the 16th stall stands at 0.799.
 
 ## A way home something holds (issue #693's live family)
 

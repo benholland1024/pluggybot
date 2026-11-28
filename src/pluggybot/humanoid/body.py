@@ -159,13 +159,14 @@ STEP_NEAREST = 3
 #: every step whose legs counted 4 cm or more over the truth's travel matched
 #: under half of their count, and no step whose truth went more than half did.
 STEP_PRESSED_M, STEP_PRESSED_SHARE = 0.04, 0.5
-#: ...and a walk that STALLED ("got nowhere", "stalled": `stuck`), under this
-#: share (#766; `steps._pressed`; SimNotes, "A stall judged as a press"): a
-#: hand hanging at the robot's side pressed on a counter at 21-41 N held the
-#: body back, its legs counting 1.5-3.4 cm past where its soles went, and its
-#: scans saw 0.47-0.80 of the legs' count (16 stalls of 4.9-7.8 cm, Rowan's
-#: `door_p7` line 39 replayed). MEASURED on untouched walks that stepped:
-#: 0.872 at the least of 190 whose legs counted 4-8 cm, a stall's length;
+#: ...and a walk that STALLED ONCE UNDER WAY (`stuck`), under this share, the
+#: walk that stalled judged alone (`walk`; #766; `steps._pressed`; SimNotes,
+#: "A stall judged as a press"): a hand hanging at the robot's side pressed on
+#: a counter at 21-41 N held the body back, its legs counting 1.5-3.4 cm past
+#: where its soles went, and its scans saw 0.47-0.80 of the legs' count (16
+#: stalls of 4.9-7.8 cm, every one under way, Rowan's `door_p7` line 39
+#: replayed). MEASURED on untouched walks that stepped: 0.872 at the least of
+#: 190 whose legs counted 4-8 cm, a stall's length (backward, 0.999 of 12);
 #: 0.773 of all 748 (a 12 cm step back). ⚠ ONLY A STALL: walks that stepped
 #: with a hand on the counter saw under this in 58 of 224.
 STEP_STALL_PRESSED_SHARE = 0.8
@@ -1367,8 +1368,9 @@ class HumanoidBody(Body):
     held, the turn `TURN_MISS_RAD` off after its pulses, and no walk taken --
     "blocked"
     -- its walk got nowhere (then `stuck` says what its legs counted, in which
-    window, #751), or kept off another robot as a walk does
-    (`_kept_off`, #670), or kept off a wall or what stands at its knees
+    window, #751, and `walk` that walk's own way and where its legs and its
+    scans took it from where it set off, #766), or kept off another robot as
+    a walk does (`_kept_off`, #670), or kept off a wall or what stands at its knees
     (`_Room`, #717: then `keptOff` says how) -- "fell", "out of time"), in
     how long, and where its stance went, by its own reckoning, in the stance
     frame it stood in before (`dx`, `dy`, m; `turn`, rad) -- and by its scans
@@ -1432,6 +1434,9 @@ class HumanoidBody(Body):
     kept = None
     for k, (a_, l_) in enumerate(walks):
       if why == "stepped":
+        # ...where each walk set off, by its legs and by its scans: a stall is
+        # judged on the walk that stalled alone (#766, `steps._pressed`)
+        walked = (by_legs(self.stance), self.stance, a_, l_)
         # ...each walk reading every scan the step has taken, its hand-over's
         # and its turn's included: standing still, the LIDAR takes none
         why, kept, stuck = yield from self._walk_routine(a_, l_, over, by_legs, since=t0)
@@ -1474,6 +1479,14 @@ class HumanoidBody(Body):
       b1 = b_mid
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
     matched = _rz(b0[2]).T @ np.array([b1[0] - b_mid[0], b1[1] - b_mid[1], 0.0])
+    if why == "blocked" and stuck is not None:
+      # ...and the walk that stalled, from where it set off, in the same frames
+      # (#766): one of an oblique step's two walks is no step that stepped
+      (wx, wy, _), wb, wa, wl = walked
+      wd = _rz(s0[2]).T @ np.array([x1 - wx, y1 - wy, 0.0])
+      wm = _rz(b0[2]).T @ np.array([b1[0] - wb[0], b1[1] - wb[1], 0.0])
+      walked = {"ahead": wa, "left": wl, "dx": float(wd[0]), "dy": float(wd[1]),
+                "mdx": float(wm[0]), "mdy": float(wm[1])}
     # ...and a walk its own legs reckon went nowhere did not walk (#649)
     if why == "stepped" and length >= STEP_LEAST_M:
       if _along((x1, y1), s_mid, ahead, left) < STEP_LEAST_M:
@@ -1482,8 +1495,10 @@ class HumanoidBody(Body):
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi),
             "mdx": float(matched[0]), "mdy": float(matched[1]), "jump": round(self._jump, 4),
             **({"keptOff": self._kept_said(kept)} if why == "blocked" and kept else {}),
-            # ...or how its walk got nowhere (#751)
-            **({"stuck": stuck} if why == "blocked" and stuck is not None else {}),
+            # ...or how its walk got nowhere (#751), and that walk's own way and
+            # travel (#766)
+            **({"stuck": stuck, "walk": walked} if why == "blocked" and stuck is not None
+               else {}),
             # ...and its legs gone back to standing before both its soles had
             # read down, its settle's bound out (#740)
             **({"feetDown": False} if settled is False else {})}

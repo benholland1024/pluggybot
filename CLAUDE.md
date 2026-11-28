@@ -1567,11 +1567,13 @@ save a filmstrip PNG named after the script.
   UNDER HALF OF WHAT ITS LEGS COUNT (4 cm or more) READS `pressed` (#718;
   `steps._pressed`): pressed on a counter, the legs counted 7-9 cm a stride
   where the pelvis went 1-3, and the robot's soles are that count -- ⚠ AND
-  ONE WHOSE WALK STALLED, UNDER 0.8 OF IT (`STEP_STALL_PRESSED_SHARE`, #766;
-  SimNotes, "A stall judged as a press"): a hand at its side pressed on a
-  counter held the body back, the scans 0.47-0.80 of the legs' count, free
-  walks of a stall's length 0.872 at the least; never a walk that stepped,
-  58 of 224 of which read under it with a hand on the counter; ⚠ a
+  ONE WHOSE WALK STALLED ONCE UNDER WAY, THAT WALK ALONE, UNDER 0.8 OF IT
+  (`STEP_STALL_PRESSED_SHARE`, the record's `walk`, #766; SimNotes, "A stall
+  judged as a press"): a hand at its side pressed on a counter held the body
+  back, the scans 0.47-0.80 of the legs' count, free walks of a stall's
+  length 0.872 at the least; never a walk that stepped, 58 of 224 of which
+  read under it with a hand on the counter, nor one that got nowhere in its
+  first window; its two counts printed against each other (`lid.against`); ⚠ a
   humanoid with a hand out keeps its posture to look (a bow carried the
   hand 43 cm up), ⚠ and a look's bow goes no deeper than leaves its head's
   front `BOW_CLEAR_M` (5 cm) short of what its LIDAR reads at its head's

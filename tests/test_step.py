@@ -522,6 +522,28 @@ def test_a_stall_is_the_only_step_record_that_says_how_its_walk_got_nowhere():
   assert fell["why"] == "fell" and "stuck" not in fell, fell
 
 
+def test_a_stalls_record_says_where_the_walk_that_stalled_set_off():
+  """#766 (a)'s review: a stall is judged on the walk that stalled alone
+  (`steps._pressed`). A step walked as one motion records that walk as the
+  step itself, to the bit; an oblique step's walk records its own way and its
+  own travel from where it set off -- its sidestep never its walk ahead's, and
+  its walk ahead that got nowhere its own."""
+  rep = _step(_walker(Walk(wall=0.05)), 0.3)
+  assert rep["stuck"]["underWay"] and rep["walk"] == {
+    "ahead": 0.3, "left": 0.0, "dx": rep["dx"], "dy": rep["dy"], "mdx": rep["mdx"],
+    "mdy": rep["mdy"]}
+  rep = _step(_walker(SideWall(0.05)), 0.03, 0.15)
+  walk = rep["walk"]
+  assert rep["stuck"]["way"] == "left" and (walk["ahead"], walk["left"]) == (0.0, 0.15)
+  assert walk["dy"] == pytest.approx(rep["dy"]) and walk["dx"] < rep["dx"] - 0.01, rep
+  # ...its scans from where it set off too (no matcher moves this walk's belief)
+  assert (walk["mdx"], walk["mdy"]) == pytest.approx((walk["dx"], walk["dy"])), rep
+  rep = _step(_walker(Walk(shuffle_s=60.0)), 0.03, 0.15)
+  assert rep["stuck"]["way"] == "ahead" and (rep["walk"]["ahead"], rep["walk"]["left"]) == (0.03, 0.0)
+  # ...and no record but a stall's carries one
+  assert "walk" not in _step(_walker(Walk(coast_s=hb.STEP_STOP_S)), 0.3)
+
+
 def test_a_stalls_words_say_their_numbers_off_the_constants(monkeypatch):
   """#640's rule: moved, the words move with them -- the distance its legs
   must count, and each window's length, as the walk judged them."""
@@ -976,7 +998,7 @@ def test_a_pressed_step_reads_false_and_says_what_its_scans_do():
   assert rep["jump"] == pytest.approx(0.02, abs=1e-6)
   out = st._pressed(rep, 0.12, 0.0)
   assert out["why"] == "pressed" and out["dx"] == pytest.approx(rep["mdx"])
-  said = st.STEP_PRESSED.format(**out)
+  said = st.step_pressed_said(out)
   assert said == (f"your legs counted {100 * rep['dx']:.0f} cm along the way you stepped, but "
                   f"your scans of the room put you only {100 * rep['mdx']:.0f} cm on: "
                   "something held your body back")
@@ -1012,10 +1034,10 @@ def test_a_stall_its_scans_say_was_held_back_reads_pressed():
   """#766 (a): a hand hanging at the robot's side pressed on a counter held
   its body back, and its step read "stalled" -- #718 judged only a walk that
   stepped. Replayed, Rowan's 16 such stalls whose legs counted 4 cm or more
-  had their scans see 0.47-0.80 of the legs' count. A stall its scans say
-  went under `STEP_STALL_PRESSED_SHARE` of what its legs count, these
-  `STEP_PRESSED_M` or more along its way, reads pressed as #718's step does,
-  saying both, and `step.*` says the scans'; it has no shorter form."""
+  had their scans see 0.47-0.80 of the legs' count. A stall once under way
+  its scans say went under `STEP_STALL_PRESSED_SHARE` of what its legs count,
+  these `STEP_PRESSED_M` or more along its way, reads pressed as #718's step
+  does, saying both, and `step.*` says the scans'; it has no shorter form."""
   out = st._pressed(LINE_39_STALL, 0.11, 0.0)
   assert out["why"] == "pressed" and out["dx"] == pytest.approx(0.034), out
   assert (out["legsCm"], out["scansCm"]) == pytest.approx((4.9, 3.4))
@@ -1028,18 +1050,36 @@ def test_a_stall_its_scans_say_was_held_back_reads_pressed():
                             "the room put you only 3 cm on: something held your body back")
   assert "brief" not in step
   assert ran["locals"]["d"] == pytest.approx(0.034)
-  # ...one that got nowhere in its walk's first window, as the text says
-  nowhere = {**LINE_39_STALL, "stuck": {"m": 0.01, "s": 2.0, "underWay": False}}
-  assert st._pressed(nowhere, 0.11, 0.0)["why"] == "pressed"
-  # ...and an oblique step walked as two, judged along the step's own way:
-  # its walk ahead held back, then its sidestep stalled
-  oblique = {**LINE_39_STALL, "dx": 0.10, "dy": 0.005, "mdx": 0.06, "mdy": 0.0,
-             "stuck": {"m": 0.01, "s": 2.0, "underWay": True, "way": "left"}}
+  # ...its two counts never read the same: at the stall's bar whole cm could
+  # (#737's rule, `lid.against`)
+  close = st._pressed({**LINE_39_STALL, "dx": 0.0446, "mdx": 0.0354}, 0.11, 0.0)
+  assert st.step_pressed_said(close) == (
+    "your legs counted 4 cm along the way you stepped, but your scans of the room put you only "
+    "3.5 cm on: something held your body back")
+  # ...and an oblique step walked as two, judged on the walk that stalled
+  # alone, along its own way, which its words name: here its sidestep
   assert hb._step_walks(0.10, 0.12) == [(0.10, 0.0), (0.0, 0.12)]
-  assert st._pressed(oblique, 0.10, 0.12)["why"] == "pressed"
+  side = {**LINE_39_STALL, "dx": 0.10, "dy": 0.05, "mdx": 0.06, "mdy": 0.03,
+          "stuck": {"m": 0.01, "s": 1.0, "underWay": True, "way": "left"},
+          "walk": {"ahead": 0.0, "left": 0.12, "dx": 0.0, "dy": 0.05, "mdx": 0.0, "mdy": 0.03}}
+  out = st._pressed(side, 0.10, 0.12)
+  assert out["why"] == "pressed" and (out["legsCm"], out["scansCm"]) == pytest.approx((5.0, 3.0))
+  assert st.step_pressed_said(out) == (
+    "your legs counted 5 cm to your left, but your scans of the room put you only 3 cm on: "
+    "something held your body back")
 
 
 @pytest.mark.parametrize("change, ahead, left", [
+  # its walk got nowhere in its first window: none such was measured, and its
+  # words say so
+  ({"stuck": {"m": 0.01, "s": 2.0, "underWay": False}}, 0.11, 0.0),
+  # an oblique step whose walk ahead was held back and whose sidestep then
+  # stalled 0.5 cm on: the walk that stepped is no stall, and the stall went
+  # too little to judge (#766's review: judged over both walks, it read pressed)
+  ({"dx": 0.10, "dy": 0.005, "mdx": 0.06, "mdy": 0.004,
+    "stuck": {"m": 0.01, "s": 1.0, "underWay": True, "way": "left"},
+    "walk": {"ahead": 0.0, "left": 0.12, "dx": 0.0, "dy": 0.005, "mdx": 0.0, "mdy": 0.004}},
+   0.10, 0.12),
   # its scans keeping up with its legs at the stall's bar
   ({"mdx": 0.049 * hb.STEP_STALL_PRESSED_SHARE + 0.0005}, 0.11, 0.0),
   # its legs counting under STEP_PRESSED_M
@@ -1051,7 +1091,7 @@ def test_a_stall_its_scans_say_was_held_back_reads_pressed():
   ({"turn": math.pi / 2}, 0.11, 0.0),
   # a step kept off something says what it kept off, whatever its scans
   ({"stuck": None, "keptOff": {"by": "low", "m": 0.19, "keepM": hb.STEP_LOW_M}}, 0.11, 0.0),
-  # a stall that never walked far enough to be judged: no scans of it
+  # a body whose record says nothing of its scans
   ({"mdx": None}, 0.11, 0.0),
 ])
 def test_a_stall_its_scans_keep_up_with_keeps_its_words(change, ahead, left):
@@ -1085,7 +1125,7 @@ def test_the_steps_text_says_what_it_keeps_off_and_a_pressed_step_off_its_consta
     [hb.STEP_WALL_M, lidar.OVER_Z, hb.STEP_LOW_M, hmis.KNEE_Z], abs=1e-9)
   assert "a walk goes along it but no nearer" in doc
   said = re.search(r"went under ([0-9.]+) of what your legs count, these ([0-9]+) cm or more "
-                   r"-- under ([0-9.]+), where it got nowhere or stalled -- reads false", doc)
+                   r"-- under ([0-9.]+), where it stalled -- reads false", doc)
   assert said and float(said.group(1)) == hb.STEP_PRESSED_SHARE
   assert float(said.group(2)) == pytest.approx(100 * hb.STEP_PRESSED_M)
   # ...and a stall's own (#766 (a))
