@@ -360,7 +360,8 @@ def test_the_pass_plate_is_brought_back_in_two_moves_ending_out_of_the_middle(mo
 
 
 def _put_down(monkeypatch, run: int, spot: dict, env: dict,
-              steps: list | None = None, kind: str = "set_table_pass") -> tuple[float, float]:
+              steps: list | None = None, kind: str = "set_table_pass",
+              gone: float = 1.0, missed: tuple = ()) -> tuple[float, float] | None:
   """Where the pass reference's run `run` (0 the cup, 1 the plate, 2 the
   fork) aims its put-down -- or the kitchen shelf's (`kind`), its hands
   reading held: the first `reach` after its walk to the place,
@@ -368,9 +369,12 @@ def _put_down(monkeypatch, run: int, spot: dict, env: dict,
   from the card's tag read at `spot` (`spot.*`) and the locals of `env`
   (set at the pass), the statements between run as the run sets them --
   an `if` by the language's own truth, every verb it tests doing what it
-  said, a `step` moving the card as the stance moves under it (each step's
-  ahead and left put in `steps`) and a `spot` reading it where it is. A
-  statement this walk does not know fails, never one followed otherwise."""
+  said, a `step` moving the card as the stance moves under it, `gone` of
+  what it asks (each step's ahead and left as asked put in `steps`), and a
+  `spot` reading it where it is -- but the looks counted in `missed` (0 the
+  first after the walk) miss, and a bare look that misses ends the run, None
+  then. A statement this walk does not know fails, never one followed
+  otherwise."""
   from types import SimpleNamespace
   from pluggybot.challenge import solutions
   from pluggybot.lifecycle import HUMANOID_HOME, world_facts
@@ -390,37 +394,43 @@ def _put_down(monkeypatch, run: int, spot: dict, env: dict,
       monkeypatch.setitem(axes.SENSORS, f"{hand}.held", SimpleNamespace(read=lambda life: 1.0))
   env = dict(env)
   taken = [] if steps is None else steps
+  looks = []
 
   def value(expr):
     return lang._eval(expr, env, SimpleNamespace(), facts)
 
   def verb(name, args):
     if name == "reach":
-      return tuple(value(args[a]) for a in ("x", "y"))
+      return tuple(value(args[a]) for a in ("x", "y")), True
     if name == "step":
       ahead, left = value(args["ahead"]), value(args["left"])
       assert "turn" not in args or value(args["turn"]) == 0, "the put-down's step turns"
       taken.append((ahead, left))
-      card["x"], card["y"] = card["x"] - ahead, card["y"] - left
+      card["x"], card["y"] = card["x"] - gone * ahead, card["y"] - gone * left
     elif name == "spot":
+      looks.append(name)
+      if len(looks) - 1 in missed:
+        return None, False
       seen.update(card)
     else:
       raise AssertionError(f"the put-down's walk meets a {name} it does not follow")
-    return None
+    return None, True
 
   def walk(stmts):
     for s in stmts:
       if s[0] == "set":
         env[s[1]] = value(s[2])
       elif s[0] == "verb":
-        aim = verb(s[1], s[2])
+        aim, ok = verb(s[1], s[2])
+        if not ok:
+          return "ended"
         if aim is not None:
           return aim
       elif s[0] == "if":
         for cond, then in s[1]:
           if cond[0] == "try":
-            verb(cond[2][1], cond[2][2])
-            held = not cond[1]  # the verb did what it said
+            _, ok = verb(cond[2][1], cond[2][2])
+            held = (not ok) if cond[1] else ok
           else:
             held = lang._truth(value(cond))
           if held:
@@ -438,7 +448,7 @@ def _put_down(monkeypatch, run: int, spot: dict, env: dict,
   walked = next(i for i, s in enumerate(body) if s[0] == "call" and s[1] == "to_place")
   aim = walk(body[walked + 1:])
   assert aim is not None, "the run puts nothing down after its walk to the place"
-  return aim
+  return None if aim == "ended" else aim
 
 
 def test_the_pass_put_downs_are_aimed_off_the_pass_own_constants(monkeypatch):
@@ -808,12 +818,14 @@ def test_the_shelf_lays_each_piece_as_the_pass_lays_it():
   """Each run of the shelf's, from its walk to the place on, is the pass's
   run byte for byte but its check that the piece is still held, the cup's
   re-set's move taken back where it reads false (`SHELF_CUP_UNDO`), and the
-  line past which the fork's put-down steps first (`SHELF_FORK_PUT`): the
-  shelf changes how a piece is fetched, that one failure's answer, and that
-  one line."""
+  fork's step before its put-down (`SHELF_FORK_STEP`: past the shelf's own
+  line, `SHELF_FORK_PUT`, and held to it again after the step): the shelf
+  changes how a piece is fetched, that one failure's answer, and that one
+  step."""
   from pluggybot.challenge import solutions
   undo_old, undo_new = solutions.SHELF_CUP_UNDO
-  far = f'  if read("spot.y") + {solutions._aim(solutions.PASS_FORK_AT[1])} > %g:\n'
+  terms = solutions._shelf_terms()
+  step_old, step_new = (s % terms for s in solutions.SHELF_FORK_STEP)
   for run, (shelf, pass_, hand) in enumerate(zip(solutions.PROCEDURES["set_table_shelf"],
                                                  solutions.PROCEDURES["set_table_pass"],
                                                  ("right", "left", "left"))):
@@ -824,9 +836,8 @@ def test_the_shelf_lays_each_piece_as_the_pass_lays_it():
       assert lay.count(undo_new) == 1 and pass_.count(undo_old) == 1
       lay = lay.replace(undo_new, undo_old)
     if run == 2:
-      shelf_far, pass_far = far % solutions.SHELF_FORK_PUT, far % solutions.PASS_FORK_LEFT
-      assert lay.count(shelf_far) == 1 and pass_.count(pass_far) == 1, (shelf_far, pass_far)
-      lay = lay.replace(shelf_far, pass_far)
+      assert lay.count(step_new) == 1 and pass_.count(step_old) == 1, (step_new, step_old)
+      lay = lay.replace(step_new, step_old)
     assert lay.replace(solutions.SHELF_HELD % hand, "") == pass_[pass_.index("  to_place("):]
   assert solutions.LIBRARY["set_table_shelf"][1:] == solutions.LIBRARY["set_table_pass"][1:]
 
@@ -1206,6 +1217,204 @@ def test_the_shelf_fork_steps_left_where_its_put_down_goes_past_the_shelf_s_line
     x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": sy, "z": 0.75}, {"oz": 0.07}, steps,
                      kind="set_table_shelf")
     assert not steps and abs(y - (sy + b)) < 1e-9, (sy, steps, y)
+
+
+def test_the_shelf_fork_s_put_down_is_held_to_its_line_after_its_step(monkeypatch):
+  """A step goes about half its way, so from 0.19-0.21 m left one step left
+  26 of 50 of the shelf's fork put-downs still aimed past `SHELF_FORK_PUT`,
+  and 4 of those lost the fork there (A9's reading of round 10's rows;
+  SimNotes, "The place laid from the kitchen's shelf"). The card looked at
+  after the step is held to the line again: still past it, one more step
+  toward `PASS_FORK_MID` and a look; under it, none. Off the reference's own
+  source, run by the language, each step going half of what it asks."""
+  from pluggybot.challenge import solutions
+  a, b = solutions.PASS_FORK_AT
+  mid, line = solutions.PASS_FORK_MID, solutions.SHELF_FORK_PUT
+  for far in (line + 0.04, line + 0.05):
+    steps = []
+    x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, steps,
+                     kind="set_table_shelf", gone=0.5)
+    after = far - 0.5 * (far - mid)
+    assert after > line
+    assert len(steps) == 2 and all(abs(s[0]) < 1e-12 for s in steps), (far, steps)
+    assert abs(steps[0][1] - (far - mid)) < 1e-12 and abs(steps[1][1] - (after - mid)) < 1e-12, (far, steps)
+    assert abs(x - (0.5 - a)) < 1e-9 and abs(y - (after - 0.5 * (after - mid))) < 1e-9, (far, x, y)
+  # ...where the one step leaves the hand inside the line, none more
+  far = 2 * line - mid - 0.004
+  steps = []
+  x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, steps,
+                   kind="set_table_shelf", gone=0.5)
+  assert len(steps) == 1 and abs(y - (far - 0.5 * (far - mid))) < 1e-9, (far, steps, y)
+  # ...and one more at the most: where neither step takes a stride the card stays where it was,
+  # and the fork is put down where the last look reads it (on the flown rows every second step,
+  # 7 of 24 of them "too short" by the legs, left the aim inside the line)
+  far = line + 0.04
+  steps = []
+  x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, steps,
+                   kind="set_table_shelf", gone=0.0)
+  assert len(steps) == 2 and abs(y - far) < 1e-9, (far, steps, y)
+
+
+def test_the_shelf_fork_s_look_after_its_step_is_taken_again_where_it_misses(monkeypatch):
+  """A bare look that misses ends the run, and the shelf's fork put-down
+  looked at the card that way after its step: a miss there would have ended
+  it with the fork still in the hand (A8's review of round 10; in 171
+  stepped put-downs it never missed). Off the reference's own source, run by
+  the language: each look after a step that misses is taken again, once,
+  and the fork is put down where the look that saw the card puts it."""
+  from pluggybot.challenge import solutions
+  a, b = solutions.PASS_FORK_AT
+  mid, line = solutions.PASS_FORK_MID, solutions.SHELF_FORK_PUT
+  far = line + 0.04
+  for gone, missed, ends in ((1.0, (1,), mid), (0.5, (1, 3), None)):
+    steps = []
+    aim = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, steps,
+                    kind="set_table_shelf", gone=gone, missed=missed)
+    assert aim is not None, (gone, missed)
+    after = far - gone * (far - mid)
+    want = after if after <= line else after - gone * (after - mid)
+    assert abs(aim[1] - (want if ends is None else ends)) < 1e-9, (gone, missed, aim)
+  # ...but once: the look and its second try both missing still end the run
+  aim = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, [],
+                  kind="set_table_shelf", missed=(1, 2))
+  assert aim is None
+
+
+def _fork_pick(monkeypatch, first: dict, later: list) -> tuple[dict, list]:
+  """The shelf reference's fork run from its left pre-pose to its reach at
+  the fork, the language's own evaluator working each argument out: the
+  locals the look after `near` set (`first`: px, py, gz, a), each later
+  `spot(92)` reading the next of `later` (that look's spot readings, or None
+  where it misses), every other verb doing what it said. The reach's
+  worked-out arguments, and each call before it, its name and arguments."""
+  from types import SimpleNamespace
+  from pluggybot.challenge import solutions
+  from pluggybot.lifecycle import HUMANOID_HOME, world_facts
+  from pluggybot.procedure import axes, lang
+  from pluggybot.procedure import library as lib
+  facts = world_facts(HUMANOID_HOME)
+  library = lib.Library(facts)
+  for source in (*solutions.LIBRARY["set_table_shelf"], *solutions.PROCEDURES["set_table_shelf"]):
+    library.define(solutions._def_name(source), source)
+  body = library.entries["lay_fork"].procedure.body
+  seen = {}
+  for k in ("x", "y", "z", "ex", "ey"):
+    monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, k=k: seen[k]))
+  env, calls, later = dict(first), [], list(later)
+
+  def value(expr):
+    return lang._eval(expr, env, SimpleNamespace(), facts)
+
+  def args_of(args):
+    return {k: v[1] if isinstance(v, tuple) and v[0] == "str" else value(v) for k, v in args.items()}
+
+  def verb(name, args):
+    calls.append((name, args_of(args)))
+    if name == "spot":
+      look = later.pop(0)
+      if look is None:
+        return False
+      seen.clear()
+      seen.update(look)
+    return True
+
+  def walk(stmts):
+    for st in stmts:
+      if st[0] == "set":
+        env[st[1]] = value(st[2])
+      elif st[0] == "verb":
+        if st[1] == "reach":
+          return args_of(st[2])
+        assert verb(st[1], st[2]), f"a bare {st[1]} that missed ends the run"
+      elif st[0] == "if":
+        for cond, then in st[1]:
+          if cond[0] == "try":
+            ok = verb(cond[2][1], cond[2][2])
+            held = (not ok) if cond[1] else ok
+          else:
+            held = lang._truth(value(cond))
+          if held:
+            got = walk(then)
+            if got is not None:
+              return got
+            break
+        else:
+          got = walk(st[2])
+          if got is not None:
+            return got
+      elif st[0] == "while":
+        while lang._truth(value(st[1])):
+          assert walk(st[2]) is None
+      elif st[0] != "pass":
+        raise AssertionError(f"the fork's pick holds a {st[0]} this walk does not follow")
+    return None
+  pose = next(i for i, st in enumerate(body) if st[0] == "verb" and st[1] == "move")
+  reach = walk(body[pose:])
+  assert reach is not None, "the fork's run never reaches for the fork"
+  return reach, calls
+
+
+def test_the_shelf_fork_s_look_after_its_pre_pose_turns_toward_it_where_it_misses(monkeypatch):
+  """The fork's look after its left pre-pose missed exactly where the fork
+  stood past 32 deg left of the robot (all 18 of 384 trips that missed, at
+  31.7-35.0 deg; every look that saw it, at 32.0 or less): the pre-pose had
+  turned the robot right 3 deg, and the reach, aimed at the look from
+  before that turn, landed the grip 1.8 cm along the fork and 2.6 across it
+  -- 11 of those 18 lost the fork (A9's reading of round 10's rows;
+  SimNotes, "The place laid from the kitchen's shelf"). Off the reference's
+  own source, run by the language: where that look misses, the robot turns
+  `SHELF_LOOK_TURN` toward the fork, takes the pre-pose again, looks again,
+  and reaches where that look reads the fork, its jaws along the fork's
+  edge as that look reads it; where it sees it, it reaches there."""
+  from pluggybot.challenge import solutions
+  first = {"px": 0.44, "py": 0.25, "gz": 0.99, "a": 0.05}
+  t = 0.12
+  again = {"x": 0.47, "y": 0.18, "z": 0.965, "ex": math.cos(t), "ey": math.sin(t)}
+  reach, calls = _fork_pick(monkeypatch, first, [None, again])
+  names = [n for n, _ in calls]
+  missed = names.index("spot")
+  assert calls[missed + 1:missed + 2] == [("step", {"ahead": 0, "left": 0, "turn": solutions.SHELF_LOOK_TURN})], calls
+  assert calls[missed + 2:missed + 6] == [
+    ("move", {"axis": "left_shoulder_roll", "target": solutions.SHELF_LEFT_ROLL}),
+    ("move", {"axis": "left_elbow", "target": solutions.SHELF_LEFT_ELBOW}),
+    ("open_hand", {"hand": "left"}), ("spot", {"tag": 92})], calls
+  assert abs(reach["x"] - again["x"]) < 1e-12 and abs(reach["y"] - again["y"]) < 1e-12, reach
+  assert abs(reach["z"] - (again["z"] + 0.0264 + 0.06)) < 1e-9, reach
+  assert abs(reach["fx"] - 0.5 * math.cos(t)) < 1e-9 and abs(reach["jy"] + math.cos(t)) < 1e-9, reach
+  # ...and where it sees the fork, no turn: the reach there, its jaws as first read
+  seen = {"x": 0.43, "y": 0.26, "z": 0.97, "ex": 1.0, "ey": 0.0}
+  reach, calls = _fork_pick(monkeypatch, first, [seen])
+  assert "step" not in [n for n, _ in calls], calls
+  assert abs(reach["x"] - seen["x"]) < 1e-12 and abs(reach["y"] - seen["y"]) < 1e-12, reach
+  assert abs(reach["z"] - (first["gz"] + 0.06)) < 1e-9, reach
+  assert abs(reach["fx"] - 0.5 * math.cos(first["a"])) < 1e-9, reach
+
+
+def test_the_shelf_fork_s_near_that_misses_turns_further_toward_it_and_steps_as_near_does():
+  """Where all three of `near`'s looks missed the fork -- the robot arrived
+  turned 6-10 deg right of the shelf, its looks' bows turned it further, and
+  `near`'s own turn and step left the fork past the picture's side -- the
+  fork's run ended at `near`'s last look, unpicked (4 of 384 trips; A8's
+  reading of round 10's rows). Off the reference's own source: `near` is the
+  fork's run's test, and where it reads false the robot turns
+  `SHELF_NEAR_TURN` toward the fork, looks, and where it sees it steps as
+  `near`'s own step steps, its distances the run's."""
+  import ast as _ast
+  from pluggybot.challenge import solutions
+  near_src = solutions.LIBRARY["set_table_shelf"][2]
+  fn = _ast.parse(solutions.PROCEDURES["set_table_shelf"][2]).body[0]
+  i = next(j for j, st in enumerate(fn.body) if "near(" in _ast.unparse(st))
+  st = fn.body[i]
+  a = round(0.44 + solutions.SHELF_NEAR_BACK, 4)
+  assert isinstance(st, _ast.If) and _ast.unparse(st.test) == f"not near(92, {a:g}, 0.2)", _ast.unparse(st)
+  assert _ast.unparse(st.body[0]) == f"if not step(0, 0, {solutions.SHELF_NEAR_TURN:g}):\n    pass"
+  seen = st.body[1]
+  assert isinstance(seen, _ast.If) and _ast.unparse(seen.test) == "spot(92)", _ast.unparse(seen)
+  own = [_ast.unparse(s) for s in _ast.parse(near_src).body[0].body[1:]]
+  assert own[0] == "x = read('spot.x') - a" and own[1] == "y = read('spot.y') - b", own
+  want = [s.replace("- a", f"- {a:g}").replace("- b", "- 0.2") for s in own]
+  assert [_ast.unparse(s) for s in seen.body] == want, [_ast.unparse(s) for s in seen.body]
+  assert solutions.SHELF_NEAR_TURN > solutions.SHELF_LOOK_TURN
 
 
 def _shelf_cup_reset(monkeypatch, card: dict, moved: dict, swung: tuple | None) -> list:
