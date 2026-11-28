@@ -33,12 +33,13 @@ heading 1.20 rad".
 stance believes it has in its map, as `step` turns -- the walker's own turn
 to the pelvis's heading, then pulses closed on the stance's own heading, by
 its legs' reckoning (a correction to the believed heading meanwhile is not
-followed; in #765's flights the belief moved at most 0.6 deg while a face ran)
--- and ends with its legs on the standing policy. Before, it turned until its
-believed pelvis heading was within 4 deg and stood the walker still, and its
-feet ended 6-10 deg short of a turn of 10 deg or more, reading ok. A face of
-0.5-4 deg now hands its legs to the walker, and an arm that is out comes
-home first, where it moved nothing. The loop's own turn (a find's, a dock's,
+followed; in the 1,385 faces flown on it the belief moved at most 0.6 deg
+while one ran) -- and ends with its legs on the standing policy. Before, it
+turned until its believed pelvis heading was within 4 deg and stood the
+walker still, and its feet ended 6-10 deg short of a turn of 10 deg or more,
+reading ok. A face of 0.5-4 deg now hands its legs to the walker, and an arm
+that is out comes home first, where it moved nothing (none of the 92 faces
+asked under 4 deg had one out). The loop's own turn (a find's, a dock's,
 the lost search's, the charge's look) is unchanged. Our pass's plate trip still
 turns 0.10 rad left after its walk to the pass: made for the old face's 5.6
 deg, it now over-corrects, but without it the pass laid fewer (53 of 64

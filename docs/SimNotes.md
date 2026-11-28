@@ -13401,14 +13401,14 @@ review; `c18-review/tools/count_765.py`, every face on this verb: the tour
 its legs' own reckoning, as `step`'s is, so a correction to the believed
 heading while it turns -- a scan match, a relocation -- is not followed;
 but in none of those 1,385 faces did the belief's heading move more than
-0.6 deg against the truth while one ran (none in the old verb's 1,388), and
-the 43 whose heading in the map ended 2-4.4 deg off the one asked are the
-turn's own settle, the belief moving under 0.4 deg in each. And a turn of
-0.5-4 deg now hands the legs to the walker, a hand out at work coming home
-first, where the old verb did nothing under its 4 deg: of the 92 faces asked
-under 4 deg, every one began with its legs on the walker or both hands at
-rest (in the tries, both at rest in all 367). `tests/test_face.py` pins
-both as they stand.
+0.6 deg against the truth while one ran (0.61 at most in the old verb's
+1,388), and the 43 whose heading in the map ended 2-4.4 deg off the one
+asked are the turn's own settle, the belief moving under 0.4 deg in each.
+And a turn of 0.5-4 deg now hands the legs to the walker, a hand out at
+work coming home first, where the old verb did nothing under its 4 deg: of
+the 92 faces asked under 4 deg, every one began with its legs on the walker
+or both hands at rest (in the tries, both at rest in all 367).
+`tests/test_face.py` pins both as they stand.
 
 ## Debugging workflow that worked
 
