@@ -625,23 +625,25 @@ the label's face, set down from in front of the board and let go of, then
 backed out before the arm goes home (never from over an edge, #736's item
 9). Its bar, written before it flew: 24 of 32 draws over the tour, a fall
 failing its try, each draw its own noise, on one pod, then 32 held out
-sealed by the frozen commit. **It is met** by round 23's reference (frozen
+sealed by the frozen commit. **The SHELF is round 25's reference** (frozen
+at d4c519c8: round 23's, with a stopped upper set-down reach asked again at
+its own point while the hand holds its product), which **meets it on its
+draws, not on its sealed ones**: beside round 23's reference on one pod, an
+AMD EPYC 7B13, 26 of 32 over the tour on the bar's draws (round 23's 24) and
+23 of 32 over the tour on 32 draws sealed by d4c519c (22) -- over the 128
+draws that commit sealed, its 32 tours and 96 checks, 108 against 106, and
+over the bar's 64, 57 against 55, no fall either way. **Round 23's** (frozen
 at 64a1c201: round 22b's, with the upper set-down's pre-pose at most 0.35 m
 ahead and a lower set-down aimed no nearer the robot's middle than 0.19 m,
-on the rules of rounds 5-20 the SHELF's comment lists): beside round 20's
-kept reference (6b6a1bf8) on one pod, a Xeon E5-2699 v4, 24 of 32 over the
-tour (its 21) and 31 at the check (30); held out, on 32 draws sealed by
-64a1c20, 25 over the tour (22) and 29 at the check (29) -- 109 passes of 128
-against 102, no fall (one of round 20's). The bar's draws were read at every
-keep since round 9, and the 0.19 was read off rows that hold them, so only
-the sealed draws are independent; round 20's own held out 29 and 26 on two
-earlier pools. Offering it is Ben's call. On `loop-736c` the SHELF is round
-25's instead (a stopped upper set-down reach asked again at its own point
-while the hand holds its product), kept beside round 23's on one pod, an AMD
-EPYC 7B13: on 128 draws sealed by d4c519c, 108 against 106 (the tour 23 of
-32, round 23's 22), and on the bar's draws 57 of 64 against 55 (the tour 26,
-round 23's 24), no fall either way; round 23's is `loop-736`'s and
-`loop-736b`'s.
+on the rules of rounds 5-20 the SHELF's comment lists) **met it, both
+halves**: beside round 20's kept reference (6b6a1bf8) on one pod, a Xeon
+E5-2699 v4, 24 of 32 over the tour (its 21) and 31 at the check (30); held
+out, on 32 draws sealed by 64a1c20, 25 over the tour (22) and 29 at the
+check (29) -- 109 passes of 128 against 102, no fall (one of round 20's).
+The bar's draws were read at every keep since round 9, and the 0.19 was read
+off rows that hold them, so only the sealed draws are independent; round
+20's own held out 29 and 26 on two earlier pools. Offering it, and with
+which reference, is Ben's call.
 SimNotes, "Stocking the shop's shelf", has what flying took.
 
 **Where its offer says it is** (#419; drafts for Ben, #736's stage 1 made

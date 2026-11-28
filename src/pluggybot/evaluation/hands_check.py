@@ -601,12 +601,13 @@ TABLE_STANCES = '''def lay_place():
 #: upper board the set-down reach's pre-pose is at most 0.35 m ahead (round
 #: 22b): further out the stand reaches it, and the carry in and the press then
 #: each take another posture (reached at once in the deep bow, 295 of 299 ended
-#: on their label; standing, 41 of 85), its retry still 0.25 m behind the
-#: set-down point; ⚠ on the lower board a set-down is aimed no nearer the
-#: robot's middle than 0.19 m left (round 23): planned nearer, its first reach
-#: was refused, and in a tour its fallback too, the product still in the hand --
-#: never one of 3,578 planned at 0.19 or more (SimNotes, "Stocking the shop's
-#: shelf"). `%(candle)d` and `%(frame)d` are the job's labels (`source`).
+#: on their label; standing, 41 of 85), its retry from behind still 0.25 m
+#: behind the set-down point; ⚠ on the lower board a set-down is aimed no
+#: nearer the robot's middle than 0.19 m left (round 23): planned nearer, its
+#: first reach was refused, and in a tour its fallback too, the product still
+#: in the hand -- never one of 3,578 planned at 0.19 or more (SimNotes,
+#: "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are the job's
+#: labels (`source`).
 SHELF = '''def stock_shelf():
  budget(steps=200,seconds=290)
  one(%(frame)d,0)

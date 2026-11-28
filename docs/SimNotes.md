@@ -12828,8 +12828,10 @@ product's true place and the true stance after each verb. What flying took:
   under 2.5 N, 5-7 cm up or not over the board at all, and the product let go
   there fell. Under 3 N the hand goes 5 cm lower before it lets go.
 - **The upper board's set-down reach can stop short**: the frame carried at
-  the hip came forward but not up, 13-28 cm short of a goal 1.07 m up; it is
-  tried again 8 cm further back and 3 cm higher.
+  the hip came forward but not up, 13-28 cm short of a goal 1.07 m up. While
+  the hand holds its product it is asked again at its own point, and where
+  that stops too, or the hand is empty, it is tried again from 0.25 m behind
+  the set-down point and 3 cm higher (rounds 24-25, below).
 - **Where each board's placements land.** Aimed at the label read, the upper
   board's landed 2.7 cm right on average and the lower board's about 1 cm
   left: the hand is aimed 2.5 cm left of its label on the upper board and 1 cm
@@ -13061,9 +13063,9 @@ product's true place and the true stance after each verb. What flying took:
   picked from 0.14 m left, out of reach): 2 of its 14 searches passed. A
   frame tipped on the cart by a descent held back on its top reads from
   nowhere (8 of 8 failed).
-- **Rounds 5-23 (the loop of 2026-11-26 to 11-28, lane B): the reference
-  that meets the bar.** Each round flew its arms on fresh dev draws beside the
-  reference it would replace, on one pod, froze at most one over a line
+- **Rounds 5-23 (the loop of 2026-11-26 to 11-28, lane B): round 23's
+  reference meets the bar.** Each round flew its arms on fresh dev draws
+  beside the reference it would replace, on one pod, froze at most one over a line
   written first, and kept it only where it read more than the kept reference
   on 64 draws sealed by its frozen commit, with no more falls and the bar's 64
   no lower; each kept rule and what it was measured on is at the SHELF's
@@ -13087,10 +13089,11 @@ product's true place and the true stance after each verb. What flying took:
   3 of 124 upper frame set-downs (round 20's none).
 - **An upper set-down reach that stops is asked again at its own point while
   the hand holds its product** (rounds 24-25, the loop of 2026-11-26 to
-  11-30's B2m and B2n; kept on `loop-736c`). Over round 23's 256 flights the
-  first upper set-down reach stopped in 30 of 216 set-downs (26 out of reach;
-  one that ended in the deep bow turned 15 deg stopped 16 times of 17, the
-  square deep bow 1 of 140), and those flights ended 17 passes and 13 misses.
+  11-30's B2m and B2n; frozen at d4c519c8 and kept, the SHELF since). Over
+  round 23's 256 flights the first upper set-down reach stopped in 30 of 216
+  set-downs (26 out of reach; one that ended in the deep bow turned 15 deg
+  stopped 16 times of 17, the square deep bow 1 of 140), and those flights
+  ended 17 passes and 13 misses.
   Retried from 0.25 m behind the set-down point and 3 cm higher, the retry
   often took a standing posture with the waist turned 30-60 deg and lost the
   product; asked again at its own point, planned afresh from where the hand
@@ -13110,8 +13113,10 @@ product's true place and the true stance after each verb. What flying took:
   whose hand held its product: 5 won, 1 lost. In each win the retry from
   behind went through and the product then came down (dropped, or tipped
   over); in the loss the same point stopped again, and after the retry from
-  behind the frame came down. Its own sealed tour reads 23 of 32 (round 23's
-  reference 22 on those draws, and 25 on the draws its own commit sealed). At
+  behind the frame came down. Its own sealed tour reads 23 of 32, one under
+  the bar's 24 (round 23's reference 22 on those draws, and 25 on the draws
+  its own commit sealed): round 25's reference meets the bar on its draws,
+  not on its sealed ones, where round 23's met both. At
   two spaces a level round 25's procedure is 3,042 characters, past the
   language's 3,000, so the SHELF is written one space a level (whitespace
   alone: its AST and line numbers are the two-space form's).
