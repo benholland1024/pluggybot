@@ -649,11 +649,16 @@ PASS_LIBRARY, PASS = _pass_job()
 #:    withdraw it (from the hover over the cup, the way home rose into the
 #:    board above and was held there);
 #:  - the cup's and the fork's look after `near` that misses turns
-#:    `SHELF_LOOK_TURN` toward the piece and looks again;
+#:    `SHELF_LOOK_TURN` toward the piece and looks again, and so does the
+#:    fork's after its left pre-pose, the pre-pose taken again; where all
+#:    three of `near`'s looks at the fork miss, it turns `SHELF_NEAR_TURN`;
 #:  - each thin piece brought back clear of the board and lowered to
 #:    `SHELF_STOW_Z` before the walk, the fork by a `pull` that holds its
 #:    line and turn, its hand at least `SHELF_FORK_LEFT` left of the middle;
 #:  - each piece put down only while its hand still holds it (`SHELF_HELD`);
+#:  - the fork's put-down stepped toward the middle first past the shelf's own
+#:    line, `SHELF_FORK_PUT`, and held to it again after its step
+#:    (`SHELF_FORK_STEP`);
 #:  - no plate turn after the walk (`PASS_PLATE_TURN`'s reason is the pass's
 #:    `face`, which stopped short turning the other way).
 SHELF_TO = '''def to_shelf(s):
@@ -713,7 +718,10 @@ SHELF_LOOK_TURN = 0.15
 #: before it looks again, rad: arrived turned 6-10 deg right of the shelf and
 #: turned further by the looks' bows, the robot still had the fork past the
 #: picture's side after `near`'s own 0.20 rad turn and step (4 of 384 trips,
-#: the fork's run ended unpicked).
+#: the fork's run ended unpicked). Read as a test, `near` reads false only
+#: where that last look misses: its other verbs are tests already, its reads
+#: follow a look that saw the tag, and a fall or a limit ends the run either
+#: way.
 SHELF_NEAR_TURN = 0.35
 #: How far each walk to the shelf stands to the left of the pass's middle, m:
 #: where the trip's piece -- its row 0.5 m left of the pass's middle plus its

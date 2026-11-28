@@ -1242,6 +1242,14 @@ def test_the_shelf_fork_s_put_down_is_held_to_its_line_after_its_step(monkeypatc
   x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, steps,
                    kind="set_table_shelf", gone=0.5)
   assert len(steps) == 1 and abs(y - (far - 0.5 * (far - mid))) < 1e-9, (far, steps, y)
+  # ...and one more at the most: where neither step takes a stride the card stays where it was,
+  # and the fork is put down where the last look reads it (on the flown rows every second step,
+  # 7 of 24 of them "too short" by the legs, left the aim inside the line)
+  far = line + 0.04
+  steps = []
+  x, y = _put_down(monkeypatch, 2, {"x": 0.5, "y": far - b, "z": 0.75}, {"oz": 0.07}, steps,
+                   kind="set_table_shelf", gone=0.0)
+  assert len(steps) == 2 and abs(y - far) < 1e-9, (far, steps, y)
 
 
 def test_the_shelf_fork_s_look_after_its_step_is_taken_again_where_it_misses(monkeypatch):

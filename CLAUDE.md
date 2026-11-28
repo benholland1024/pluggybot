@@ -1267,12 +1267,10 @@ save a filmstrip PNG named after the script.
   step, with one more (a step goes about half its way: `SHELF_FORK_STEP`),
   and ⚠ a put-down waits on its hand reading held (from the hanging arm the
   reach fell). ⚠ ITS BAR (the pass's) IS MET, BOTH HALVES: 24 of 32 over the
-  tour and 27 of 32 on 32 draws sealed by bd98064e, no fall -- round 10's
-  reference beside it laid the same 24 and 27 (on the bar's draws its own
-  flights, replayed; the sealed draws kind, one plate let go carried), so
-  round 11's own gain is read on fresh draws: 172 of 256 against 164, +8 -0,
-  no fall where it fell once; offering it is Ben's call (SimNotes has each
-  round; the plate's wall is #771). ⚠ The dev draws
+  tour and 27 of 32 on 32 draws sealed by bd98064e, no fall -- the bar's 24
+  round 10's own flights replayed, the sealed 27 round 10's too on a kind
+  pool, its own gain +8 -0 over 256 fresh draws (SimNotes has each round);
+  offering it is Ben's call (the plate's wall is #771). ⚠ The dev draws
   4000-4063 flatter it (it was chosen on them; on fresh draws it laid 65 of 128
   on the served plate): read a lever that flies the fork's trip afresh on fresh
   draws.
