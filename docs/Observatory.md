@@ -10,6 +10,36 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A turned carry arrives once turned (#767, C19, `loop-767`) — opens when this PR is deployed
+
+**What the robots read moves by one sentence, a draft for Ben**: a
+`move_hand` asked a turn and held back by it, its hand at its place, says in
+its step and History "your left hand got there, but turned 7 deg short of
+the turn asked" (its number its hand's reading) where it said "your left hand
+was held back short of it: what it holds or pushes on stopped it"; held back
+by its place, it reads as before. The prompt `3f8b2dc7…` (72,160 characters,
+17 sections) and the session host's hello `9dcf6202` are byte for byte as
+they were.
+
+**The change** (`Reach._held`, `reach.ARRIVE_ROT`; SimNotes, "A turned carry
+arrives once turned"). A procedure's carry asked a turn (`fx..jz`, or a
+`via` point's) read "arrived" once its place was there, its command and its
+hand still turning, and the next move kept the half-made turn. It now
+arrives once its command's turn is there too and its hand within 0.1 rad of
+it.
+
+**What it does.** Only a procedure whose `move_hand` asks a turn moves: its
+turned moves take as long as their command's turn (1 rad/s), held back an
+extra second where the hand stays off it. None of our references and none of
+X5's 200 live tries asks one; two of 592 live sources did over 11-14 to 11-25
+(Rowan's door procedures; one ran once). A run that asks one ends its turn
+before its next verb, which keeps the whole of it.
+
+**To read.** Each wake's `procedures.jsonl`: the sources whose `move_hand`
+asks a turn (an ast scan, `c19-turn/c/scan_live.py`), their runs, and each
+such move's end -- "arrived", or the new sentence -- off the run's steps and
+History.
+
 ### A solve ends where its joints come back (#769, C18, `loop-769`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` (72,160

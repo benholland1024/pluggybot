@@ -13396,6 +13396,70 @@ too). The arm against its own trunk in a carry's posture is #726's, which
 judges a reach's plan alone (the checkout's carry met its own gripper with
 its head at 21-116 N).
 
+## A turned carry arrives once turned (issue #767)
+
+A procedure's `move_hand` given a new turn (`fx..jz`) with little or no move
+of its place read "arrived" once its place was within `ARRIVE_M`, while its
+hand was still turning -- and its COMMAND too: `_line` walks a command's turn
+at `HAND_TURN` (1 rad/s), and the held-back clock and the arrival read the
+command's place alone. #767's flight on the bare floor (the robot at its
+keyframe, `tests/test_turned_carry.py`'s): a turn on the spot of 7.5 deg read
+"arrived" 0.11 s in, its command 1.2 deg short of the turn asked and its
+fingers 4.8 deg into the 7.3 their way turns; the next move, keeping its turn
+(a carry keeps the turn its command was asked, never the hand's: #493), kept
+that command's and ended 1.21 deg off the way asked. Holding the table's plate
+at the kitchen's shelf (A2's probe, the plate's trip from the pass at draw
+4160 with its pre-tilt), the turn read "arrived" 0.03 s in, its command 0.101
+rad short and the fingers turned 0.13 deg, and the walk's hand-over carried
+the command's turn: the pre-tilt never applied.
+
+**The rule** (`Reach._held`). Only a procedure's carry asked a turn (a
+`verb`'s given `turns`) changes. Its command is there once its place AND its
+turn are, and the held-back clock starts then: from its place's, a turn longer
+than `HELD_BACK_S` takes at `HAND_TURN` (57 deg) would be held back while its
+command still turned. It reads "arrived" once the hand is within `ARRIVE_M`
+and within `ARRIVE_ROT` of its goal's turn, else "held back" `HELD_BACK_S`
+on, its report saying which held it (`heldBy`) and how far its turn was off
+(`turnRad`); held back by its turn, the verb says how far short
+(`steps.MOVE_TURN_SHORT`), never why: a load or a press holds a hand off its
+turn, and so does an arm whose solve cannot take it from the posture it holds
+(`HOLD_ROT_TOL` lets a carry go on to 0.2 rad: #493's lid arc at the wrist's
+end missed 7-14 deg).
+
+**The tolerance is the solve's own**, `arms.REACH_ROT_TOL` (0.1 rad), as
+`ARRIVE_M` is its place's (1 cm, `REACH_POS_TOL`), and the evidence keeps it
+no tighter: holding the plate, the hand sat 0.029 and 0.035 rad off its kept
+turn as two plain carries arrived, steady at 0.03-0.04 over their last
+seconds -- its sag, which a tolerance under about 0.05 would read as held
+back -- and the solve stops refining a turn once within `IK_ROT_TOL` (0.02).
+In free air the hand follows a turning command 0.01-0.03 rad behind and
+settles to 0.002-0.009 rad 0.1-0.2 s after its command stops.
+
+**What it does.** #767's flight: the turn arrives at 0.14 s, the tick its
+command's turn gets there, its fingers 1.79 deg off the way asked (the arm's
+own lag behind a command that no longer has one), and the next move, keeping
+its turn, ends 0.30 deg off it (1.21 before). A2's probe: the pre-tilt arrived
+at 0.15 s, its command whole, the hand 0.028 rad off it, the fingers turned
+6.0 deg (0.13 before); the plate was laid as before (0.7 cm off, 0.4 before).
+What it lets through: a hand within 0.1 rad of its turn and still closing on
+it reads "arrived" -- the arm's lag, 1.8 deg there -- and the next move
+finishes it, keeping the whole turn.
+
+**Bit for bit, by construction and flown:** the loop's own carries (a
+charge's plug carried to the port turns; `evaluation.opener`'s lid arc), and
+every carry that keeps its turn. None of our references asks a turn (an ast
+scan of `solutions.PROCEDURES`, its `LIBRARY` and `hands_check`'s procedures),
+and the lid's and the table's checks at set-outs 0-2 ended in the same state on both trees, end hashes equal. The robots' own: none of X5's 200 live tries asks one; of 592
+distinct sources in five live exports (11-14 to 11-25), two did, Rowan's door
+procedures of 11-15 (it ran once, and fell at its 38th step) and 11-25
+(refused, nested too deep).
+
+Measured on the dev box (an Intel i5-9600KF, osmesa),
+`~/pluggybot-training/loop-1126b/c19-turn/`: `c/turnrec.py` records every
+carry passively (end states equal with it and without), `c/turn_c19.py` and
+`c/back_c19.py` fly #767's flight, `c/run_a2.sh` A2's probe, and
+`c/chain_sample.sh` the sample on both trees.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
