@@ -1381,6 +1381,9 @@ MOVE_KEPT = ("your {hand} hand could reach no further that way from the posture 
 MOVE_LOADED = ("your {hand} hand could reach no further that way from the posture you are in: "
                f"it holds nothing and read a push of more than "
                f"{CARRY_PRESSED_SHARE * PRESSED_ASK_N:.0f} N, so your body keeps it")
+#: ...and one asked a turn whose hand got to its place but not to that turn
+#: (#767: `reach.ARRIVE_ROT`), how far short as its hand read it.
+MOVE_TURN_SHORT = "your {hand} hand got there, but turned {deg:.0f} deg short of the turn asked"
 
 
 def _hand_report(life, hand: str, rep: dict) -> dict:
@@ -1449,6 +1452,10 @@ def _move_hand(life, args: dict) -> Routine:
     # it saw (#763)
     return {"ok": False, **out, **said, "reason": MOVE_HEAD.format(
       hand=hand, part=TRUNK_PARTS.get(rep["trunk"].get("part"), "head"))}
+  if rep.get("why") == "held back" and rep.get("heldBy") == "turn":
+    # ...or it got to its place, never to the turn asked (#767)
+    return {"ok": False, **out, **said, "reason": MOVE_TURN_SHORT.format(
+      hand=hand, deg=math.degrees(float(rep["turnRad"])))}
   return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 

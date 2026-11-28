@@ -200,6 +200,15 @@ JOINT_END_RAD = 0.005
 #: command arrived and which is still short of it this long after, s, is
 #: held back by something (`carry`'s report says how far short).
 ARRIVE_M, HELD_BACK_S = 0.01, 1.0
+#: ...and a procedure's carry asked a turn once its command's turn is there
+#: too and the hand's within this of it, rad (#767): the solve's own, as
+#: `ARRIVE_M` is its place's. ⚠ Judged on the place alone, a turn on the
+#: spot of 7.5 deg read "arrived" in 0.03-0.11 s, its fingers 0.1-4.8 deg
+#: into it and its command still turning, and the next move kept that
+#: command's. ⚠ No tighter: holding the table's plate the hand sat 0.03-0.04
+#: rad off its turn at rest, and the solve stops refining a turn under
+#: `arms.IK_ROT_TOL`.
+ARRIVE_ROT = REACH_ROT_TOL
 #: A carried hand's solve that misses its command by this, m, has
 #: diverged and is never commanded; and a move is given this long, s, to
 #: begin before a miss can end it.
@@ -2492,7 +2501,8 @@ class Reach:
     in (or where it has got to); on its way, none until it reads light; and
     one coming is given up where it reads a load, the body backing off until
     it reads none. How it ends is its `report` -- a `verb`'s that began on a
-    held grip ends "let go" where that grip is lost (`_held`)."""
+    held grip ends "let go" where that grip is lost (`_held`), and a `verb`'s
+    given `turns` arrives only once its hand is turned too (`ARRIVE_ROT`)."""
     kept = self.keep(side, verb)
     if not self.out(side):
       return False
@@ -2553,6 +2563,8 @@ class Reach:
                         **({"recheck": True} if loaded and fixed else {}),
                         # ...a `verb`'s, a grip it began with: lost, it ends there (`_held`)
                         **({"gripped": True} if verb and not open_ else {}),
+                        # ...a `verb`'s asked a turn: it arrives once turned too (`_held`, #767)
+                        **({"turned": True} if verb and turns is not None else {}),
                         # ...a `verb`'s, its replans on its way judge its trunk (#763)
                         **({"verb": True} if verb else {})}
     if moved_posture:
@@ -3526,6 +3538,9 @@ class Reach:
       # into the counter (935 N)
       self.hold_posture(*self.posture_now())
     short = float(np.linalg.norm(self.goal[side].pos - h))
+    # ...and, a procedure's asked a turn, how far its hand's turn is off the
+    # goal's (#767)
+    turn_short = self._turn_short(side, r) if st.get("turned") else None
     if not at_goal:
       # where the hand IS, at the turn it was ASKED (`carry`): held at the
       # turn it sagged to, a pull at a time crept the drop handle round
@@ -3536,6 +3551,11 @@ class Reach:
     rep = {"why": why, "seconds": round(st["t"], 3), "moved": round(float(np.linalg.norm(disp)), 4),
            "shortM": round(short, 4), "dx": round(float(disp[0]), 4),
            "dy": round(float(disp[1]), 4), "dz": round(float(disp[2]), 4)}
+    if turn_short is not None:
+      rep["turnRad"] = round(turn_short, 4)
+      if why == "held back":
+        # ...and which held it back: its place, or its place there and its turn not
+        rep["heldBy"] = "place" if short > ARRIVE_M else "turn"
     if st.get("loaded"):
       # ...a procedure's carry whose hand, holding nothing, read a load (#699)
       rep["loaded"] = True
@@ -3678,15 +3698,26 @@ class Reach:
       self.goal[side].pos, self.goal[side].rot = st["ways"].pop(0)
       return c.stiffness
     if there and self.phase[side] == "carry":
+      # ...a procedure's asked a turn: its command there once its turn is too
+      # (`_line` sets it to the goal's within a step of it), the hand turned
+      # within `ARRIVE_ROT` (#767)
+      turned = st.get("turned", False)
+      if turned and not np.array_equal(c.rot, self.goal[side].rot):
+        return c.stiffness
       # arrived once the HAND is there, never its command alone: on a soft
       # arm a lid held the hand 5 cm back while every command arrived (#493)
       short = float(np.linalg.norm(self.goal[side].pos - h))
       st["there"] = st.get("there", 0.0) + dt
-      if short <= ARRIVE_M:
+      if short <= ARRIVE_M and (not turned or self._turn_short(side, r) <= ARRIVE_ROT):
         self._end(side, "arrived", h, r, at_goal=True)
       elif st["there"] >= HELD_BACK_S:
         self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
+
+  def _turn_short(self, side: str, r: np.ndarray) -> float:
+    """How far a carried hand's grip, turned `r` by its senses, is off its
+    goal's turn, rad."""
+    return float(np.linalg.norm(_rot_error(self.goal[side].rot, r)))
 
   def _pulled(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> float:
     """One command of a PULL (`pull`), `h` and `r` where its grip IS by its
