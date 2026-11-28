@@ -559,7 +559,8 @@ TABLE_STANCES = '''def lay_place():
 #: middle (held at its centre of mass it turned over in the swing to the carry
 #: pose); ⚠ a pick held back on a product's top tried again from a fresh look
 #: (the frame is 75 mm in the jaws' 90); ⚠ a set-down reach stopped short
-#: tried again 8 cm further back and 3 cm higher; ⚠ a press that read under 3
+#: tried again from 0.25 m behind the set-down point (8 cm behind the pre-pose
+#: but for round 22b's clamp) and 3 cm higher; ⚠ a press that read under 3
 #: N never landed: the hand goes 5 cm lower before the let-go; ⚠ on the upper
 #: board the hand is aimed 2.5 cm left of its label, on the lower 1 cm right
 #: (where each board's placements landed); ⚠ a frame gripped never turned
@@ -593,18 +594,13 @@ TABLE_STANCES = '''def lay_place():
 #: left of their labels, and every one off its label landed left of it; ⚠ on the
 #: upper board the set-down reach's pre-pose is at most 0.35 m ahead (round
 #: 22b): further out the stand reaches it, and the carry in and the press then
-#: each take another posture with the product at the board -- set down so on the
-#: dev rows, 41 of 85 upper products ended on their label, and 295 of 299 whose
-#: reach went at once to the deep bow, which reaches the set-down point and the
-#: press as well; the retry of a reach stopped short is unchanged, 8 cm behind
-#: the unclamped pre-pose and 3 cm higher; ⚠ on the lower board a set-down is
-#: aimed no nearer the robot's middle than 0.19 m left (round 23): planned
-#: nearer, on the rows since round 9 a candle's first reach was refused 36 of 98
-#: times in checks and 12 of 96 in tours, and a frame's at one check's draw on
-#: every arm -- never one of 3,578 planned at 0.19 or more -- and in a tour the
-#: fallback was refused too, 10 times of 12, the product still in the hand
-#: (SimNotes, "Stocking the shop's shelf"). `%(candle)d` and `%(frame)d` are the
-#: job's labels (`source`).
+#: each take another posture (reached at once in the deep bow, 295 of 299 ended
+#: on their label; standing, 41 of 85), its retry still 0.25 m behind the
+#: set-down point; ⚠ on the lower board a set-down is aimed no nearer the
+#: robot's middle than 0.19 m left (round 23): planned nearer, its first reach
+#: was refused, and in a tour its fallback too, the product still in the hand --
+#: never one of 3,578 planned at 0.19 or more (SimNotes, "Stocking the shop's
+#: shelf"). `%(candle)d` and `%(frame)d` are the job's labels (`source`).
 SHELF = '''def stock_shelf():
   budget(steps=200,seconds=290)
   one(%(frame)d,0)

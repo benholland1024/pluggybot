@@ -1447,9 +1447,9 @@ def test_the_candle_is_gripped_above_its_middle():
 
 def test_a_set_down_reach_stopped_short_reaches_again_from_further_back_and_higher():
   """⚠ THE UPPER BOARD'S SET-DOWN REACH STOPPED SHORT (#736 stage 2): the frame carried at the hip
-  came forward but not up, 13-28 cm short of a goal 1.07 m up; tried again 8 cm further back and
-  3 cm higher, then carried in -- from behind the set-down point as before the upper board's pre-pose was clamped
-  (round 22b)."""
+  came forward but not up, 13-28 cm short of a goal 1.07 m up; tried again from 0.25 m behind the set-down point
+  (8 cm behind an unclamped pre-pose) and 3 cm higher, then carried in -- as before the upper board's pre-pose was
+  clamped (round 22b)."""
   body, ran, log, _, _ = _shelf_flown(short=1)
   assert ran["ok"], ran
   held = [(j, a) for j, (v, a, pose) in enumerate(log) if v == "reach" and pose[3]]
