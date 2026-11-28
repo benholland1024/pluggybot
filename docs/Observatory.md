@@ -10,6 +10,38 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The clear after a charge stays by the station it charged at (#781, B2p, `loop-781`) — opens when this PR is deployed
+
+**What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
+characters, 17 sections) and the session host's hello `9dcf6202` are byte for
+byte as they were, and so is every word the clear says. Its status line, which
+the other robot is shown as what this one is doing ("standing by: clearing the
+charging station for the others -- back to (x, y)"), names the place it walks
+to: a spot round the station where it named the start pose. Its two History
+lines are as they were.
+
+**The change** (`HubLifecycle._clear_rack_routine`, `HOME_CLEAR_M`; SimNotes,
+"Two robots at one rack"). After a charge, a robot of the pair still within 2
+m of the station walked to its start pose in the house before its next
+decision: from the research center's lobby 20-25 m, from the mall's 30-33 m.
+The start pose is the clear now only within 10 m of the station it charged at,
+the house's (its starts lie 3.1 and 7.6 m from it); elsewhere the clear is the
+nearest spot 2.5 m round that station that the robot can plan to, then the
+others, and the start pose only where there is none.
+
+**What it does.** At the house's station nothing moves: the clear is the same
+walk, step for step, and the pair's recorded day (both its clears there) flew
+identical. At the lobby's and the mall's the robot decides where it charged:
+#781 counted 8 walks home from the lobby over the wakes of 11-18 to 11-28
+(11-28: 2, 11-22: 1, 11-18: 5), and on 11-28 the chest taken after one failed
+on a find that ran out of its time on the way back, and the cube's find walked
+67 s from the house. Our hands checks, the tour and the robots' own tries
+never reach the clear: none of them runs the day's loop.
+
+**To read.** Each `standing by: clearing the charging station` line after a
+charge at the lobby's or the mall's station names a place within 3 m of it,
+and the first job taken after one begins its walk there.
+
 ### A solve ends where its joints come back (#769, C18, `loop-769`) — opens when this PR is deployed
 
 **What the robots read does not move**: the prompt `3f8b2dc7…` (72,160
