@@ -562,11 +562,11 @@ tour, a fall failing its try, then 32 draws sealed by the frozen commit
 (`scripts/solve.py --feature kitchen`; SimNotes, "The place laid from the
 kitchen's shelf"): frozen at 2bf94b77, our reference laid 20 of 32 on the
 bar's draws and 25 of 32 sealed, no fall -- not met. With round 9's two levers
-and round 10's (the fork's put-down stepped first past 0.17 m), at bd7146f it
-laid 24 of 32 on the bar's draws and 20 of 32 on 32 draws sealed by that
-commit, no fall, where round 9's reference beside it laid 22 and 18 (on its own
-sealed draws 24: 32 draws are that noisy): the bar is met on its draws, not on
-the sealed ones. Offering it is Ben's call. Offered, like the pass's
+and round 10's (the fork's put-down stepped first past 0.17 m), at bd7146f1
+it laid 24 of 32 on the bar's draws and 20 of 32 on 32 draws sealed by that
+commit, no fall, where round 9's reference beside it laid 22 and 18 (on its
+own sealed draws 24: 32 draws are that noisy): the bar is met on its draws,
+not on the sealed ones. Offering it is Ben's call. Offered, like the pass's
 it moves the place's directions, which every kind's offer at the table
 carries: they say an offer sets the pieces out on the table near the card.
 

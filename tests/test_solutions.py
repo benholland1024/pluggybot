@@ -381,8 +381,10 @@ def _put_down(monkeypatch, run: int, spot: dict, env: dict,
   card, seen = dict(spot), dict(spot)
   for k in card:
     monkeypatch.setitem(axes.SENSORS, f"spot.{k}", SimpleNamespace(read=lambda life, k=k: seen[k]))
-  for hand in ("left", "right"):
-    monkeypatch.setitem(axes.SENSORS, f"{hand}.held", SimpleNamespace(read=lambda life: 1.0))
+  if kind == "set_table_shelf":
+    # the shelf's put-downs go on only while the hand reads held (`SHELF_HELD`)
+    for hand in ("left", "right"):
+      monkeypatch.setitem(axes.SENSORS, f"{hand}.held", SimpleNamespace(read=lambda life: 1.0))
   env = dict(env)
   taken = [] if steps is None else steps
 
@@ -1180,7 +1182,7 @@ def test_the_shelf_fork_steps_left_where_its_put_down_goes_past_the_shelf_s_line
   """On the shelf's trips the fork's put-down aimed 0.17-0.18 m left of the
   stance's middle failed 18 of 83 -- its pull down out of reach, or the
   stance turning under it -- where those stepped from 0.18-0.19 m, a step
-  going about half its way, failed 1 of 42 (A7's reading of A6's rows;
+  going about half its way, failed 1 of 42 (read off round 9's own rows;
   SimNotes, "The place laid from the kitchen's shelf"). A card that puts the
   fork's hand further left than `SHELF_FORK_PUT` is stepped toward, sideways,
   so that the hand goes `PASS_FORK_MID` left, and looked at again; one that

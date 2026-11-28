@@ -9556,31 +9556,32 @@ that did not end held fast -- out of reach 6, the feet moved 1, the grip lost 1,
 each fork failed -- were aimed 0.170-0.179 m left, and those let go 4-9 cm over
 the table came down at 0.84-1.36 m/s. The pass's line (`PASS_FORK_LEFT`, 0.18 m)
 steps first only past it, and the walker's sideways step goes about half its way
-(0.31 of it at the least), so every put-down stepped from an aim of 0.18-0.19 m
-ended aimed at 0.17 or nearer and 1 of 42 failed, where the 83 aimed 0.17-0.18
-m, unstepped, failed 18. So the shelf's fork steps first past its own line,
-`SHELF_FORK_PUT` (0.17 m), toward `PASS_FORK_MID`; the pass keeps 0.18. Every
-reading below flew round 9's reference beside it on the same pod. On the dev
-draws (an AMD EPYC 7B12, which replays the Xeon E5-2698 v4's rows bit for bit;
-served 4300-4463 and 4500-4563, raised 4300-4363 and 4500-4563) the 265 flights
-it did not act on were the reference's to the bit, and every acted aim ended at
-0.146-0.161 m, its pull down held fast: served 111 of 192 against 106 (+5 -0,
-one-sided sign p 0.031), raised 101 of 128 against 100 (+1 -0, the reference's
-one fall a place laid), no fall -- the line read off these rows, so no
-independent reading of it. On a Xeon E5-2698 v4: on fresh draws nobody's before,
-4600-4663, it laid 43 of 64 where the reference laid 43 -- an exact tie, each of
-its 8 acts laying what the reference's did -- so, by the rule stated before that
-reading, 64 more fresh draws flew, 4700-4763: 44 against 43 (+1 -0); pooled, 87
-of 128 against 86 (+1 -0, its 22 acts losing none), no fall either way, plates
-let go carried 20 both: kept. On the bar's draws 0-31 it laid 24 of 32 where the
-reference laid 22 (+2 -0, the two forks the pass's line had let go over the
-table), and on the 32 draws sealed by bd7146f1 20 where the reference laid 18
-(+2 -0; on 2ddbe238's sealed draws it had laid 24: 32 draws are that noisy), no
-fall either way: the bar, 24 of 32 over the tour, is met on its draws, not on
-the sealed ones. On the sealed draws the plate was let go carried in 6 (#771),
-the fork tipped in 3 and let go carried in 3, the plate dropped at its put-down
-in 2, the cup and the fork put down off in 2 each and the plate in 1, seven
-flights missing two pieces.
+(a median 0.46-0.52 of what it asks); every put-down stepped from an aim of
+0.18-0.19 m ended aimed at 0.17 or nearer, and 1 of 42 failed, where the 83
+aimed 0.17-0.18 m, unstepped, failed 18. So the shelf's fork steps first past
+its own line, `SHELF_FORK_PUT` (0.17 m), toward `PASS_FORK_MID`; the pass keeps
+0.18. Every reading below flew round 9's reference beside it on the same pod. On
+its dev draws (an AMD EPYC 7B12, which replays the Xeon E5-2698 v4's rows bit
+for bit; served 4300-4363, 4400-4463 and 4500-4563, raised 4300-4363 and
+4500-4563, rounds 6-9's draws and no longer any that nobody tuned on) the 265
+flights it did not act on were the reference's to the bit, and every acted aim
+ended at 0.146-0.161 m, its pull down held fast: served 111 of 192 against 106
+(+5 -0, one-sided sign p 0.031), raised 101 of 128 against 100 (+1 -0, the
+reference's one fall a place laid), no fall -- the line read off these rows, so
+no independent reading of it. On a Xeon E5-2698 v4: on fresh draws nobody's
+before, 4600-4663, it laid 43 of 64 where the reference laid 43 -- an exact tie,
+each of its 8 acts laying what the reference's did -- so, by the rule stated
+before that reading, 64 more fresh draws flew, 4700-4763: 44 against 43 (+1 -0);
+pooled, 87 of 128 against 86 (+1 -0, its 22 acts losing none), no fall either
+way, plates let go carried 20 both: kept. On the bar's draws 0-31 it laid 24 of
+32 where the reference laid 22 (+2 -0, the two forks the pass's line had let go
+over the table), and on the 32 draws sealed by bd7146f1 20 where the reference
+laid 18 (+2 -0; on 2ddbe238's sealed draws it had laid 24: 32 draws are that
+noisy), no fall either way: the bar, 24 of 32 over the tour, is met on its
+draws, not on the sealed ones. On the sealed draws the plate was let go carried
+in 6 (#771), the fork tipped in 3 and let go carried in 3, the plate dropped at
+its put-down in 2, the cup and the fork put down off in 2 each and the plate in
+1, seven flights missing two pieces.
 
 **A thin piece's hand-over rises over the shoulder and sweeps down at the
 robot's side** (#770; not fixed). The walk's hand-over takes the side way for
