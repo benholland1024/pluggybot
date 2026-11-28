@@ -368,11 +368,19 @@ WAIT_FOR_WORK_S = 5.0
 #: measured on the pair fixture, the second robot finished a stow and stood
 #: by at the bay standoff for six minutes, and the first robot's next pick
 #: failed 0.4 m from it. Standing by begins by clearing this radius of the
-#: rack prior -- and of the built-tool rail's centre beside it, since #277
-#: (`HubLifecycle.rack_distance`) -- back to the robot's own start pose.
+#: station (`HubLifecycle.rack_distance`): back to the robot's own start
+#: pose where that is near it (`HOME_CLEAR_M`), else to a spot round it.
 #: The bay standoff is ~1.2 m and `OTHER_NEAR_M` (what a planner routes
 #: round) is 1.2 m.
 RACK_CLEAR_M = 2.0
+#: ...THE START POSE ONLY WITHIN THIS OF THE STATION IT CHARGED AT (#781):
+#: the house's, the one the clear was written for (#346), whose starts lie
+#: 3.1 and 7.6 m from it. From the research center's lobby (20-25 m) or the
+#: mall's (30-33 m) the walk home came before the next decision, and the job
+#: taken then began 20 m further off (on 11-28 the chest's find ran out of
+#: time on its way back). There the clear is the nearest spot round that
+#: station (`_clear_spots`), and the start pose only where none is reachable.
+HOME_CLEAR_M = 10.0
 #: ...and DONE AT THE RACK MEANS GONE (issue #346): a clear that did not
 #: arrive is read, and the robot tries these many other spots before it
 #: says out loud that it could not get away. Each drive is short -- the
@@ -2288,9 +2296,12 @@ class HubLifecycle:
     return (who.robot_name or who.root), near
 
   def _clear_rack_routine(self) -> Routine:
-    """Stand by away from the racks: within `RACK_CLEAR_M` of either, drive
-    back to the start pose; anywhere else, stay put. True if the robot ends
-    clear of the rack, or has no business being clear of it (plugged in).
+    """Stand by away from the station: within `RACK_CLEAR_M` of it, walk
+    back to the start pose where that lies within `HOME_CLEAR_M` of it,
+    else to the nearest spot round it (`_clear_spots`, #781) -- the start
+    pose only where none is reachable; anywhere else, stay put. True if the
+    robot ends clear of the station, or has no business being clear of it
+    (plugged in).
 
     ⚠ DONE AT THE RACK MEANS GONE (issue #346), so the drive's answer is
     READ. It used to be thrown away: Rowan narrated "clearing the rack"
@@ -2315,11 +2326,18 @@ class HubLifecycle:
     if self.home_pose is None or self.rack_distance(px, py) >= RACK_CLEAR_M:
       return True
     hx, hy = self.home_pose[0], self.home_pose[1]
+    spots = self._clear_spots() if self.rack_distance(hx, hy) > HOME_CLEAR_M else []
+    gx, gy = spots[0] if spots else (hx, hy)
     self._say(f"standing by: clearing the charging station for the others -- "
-              f"back to ({hx:.1f}, {hy:.1f})", doing=True)
-    yield from self.body.go_to_routine(hx, hy)
-    tried = [(hx, hy)]
-    for spot in self._clear_spots()[:CLEAR_SPOTS]:
+              f"back to ({gx:.1f}, {gy:.1f})", doing=True)
+    if spots:
+      yield from self.body.go_to_routine(gx, gy, timeout=CLEAR_DRIVE_S)
+      spots = spots[1:]
+    else:
+      yield from self.body.go_to_routine(hx, hy)
+      spots = self._clear_spots()
+    tried = [(gx, gy)]
+    for spot in spots[:CLEAR_SPOTS]:
       px, py, _ = self.body.pose
       if self.rack_distance(px, py) >= RACK_CLEAR_M:
         break

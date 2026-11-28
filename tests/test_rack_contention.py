@@ -120,6 +120,85 @@ def test_a_clear_that_did_not_arrive_tries_elsewhere_and_says_so():
   assert "clear of the charging station" not in life.thoughts.read("History.md")
 
 
+def _far_life():
+  """`_life` charged at the research center lobby's station (#560), 20 m
+  from its start pose in the house, the other robot about, and undocked
+  0.3 m straight out from the station."""
+  from pluggybot.humanoid.world import stations
+  cfg = lc.world_config("home_humanoid")
+  x, y, yaw = stations()["station_facility"][0]
+  life = stub_life(body=StubBody(rack=RackPose(x, y, yaw + math.pi),
+                                 grid_bounds=cfg["grid_bounds"]))
+  life.home_pose = tuple(float(v) for v in cfg["start"])
+  peer = _peer(x - 9.0, y + 9.0)
+  life.peers = [peer]
+  _reported(life, peer.body.pose_xy)
+  _at(life, *life.body.rack_prior.to_world(0.3, 0.0))
+  assert not life.body.charging()
+  return life
+
+
+def test_the_start_pose_is_a_clear_only_at_the_house_station():
+  """`HOME_CLEAR_M` lies between the house's station, whose starts are 3.1
+  and 7.6 m from it (the clear was written there, #346), and #560's two,
+  20-33 m from either."""
+  from pluggybot.humanoid.world import stations
+  cfg = lc.world_config("home_humanoid")
+  for name, ((x, y, _), _tags) in stations().items():
+    for start in (cfg["start"], cfg["start2"]):
+      near = math.hypot(start[0] - x, start[1] - y) <= lc.HOME_CLEAR_M
+      assert near is (name == "station"), (name, start)
+
+
+def test_a_clear_far_from_home_stays_by_the_station_it_charged_at():
+  """#781: after a charge at the research center's lobby the clear walked
+  Luca 20 m back to its start pose in the house before its next decision,
+  and the chest it took then began with a find that ran out of time on its
+  way back. Away from the house's station the clear is the nearest spot
+  round the station it charged at (`_clear_spots`), as patient as the
+  spots' walks (`CLEAR_DRIVE_S`), and the status line says that place."""
+  life = _far_life()
+  r = life.body.rack_prior
+  assert life.rack_distance(*life.home_pose[:2]) > 19.0
+  drives = []
+
+  def goes(x, y, timeout=90.0, stop=None):
+    drives.append(((x, y), timeout))
+    _at(life, x, y)
+    return tick.result(True)
+
+  life.body.go_to_routine = goes
+  life.body.run(life._leave_rack_routine())
+  [((gx, gy), timeout)] = drives
+  assert (gx, gy) == pytest.approx(r.to_world(lc.RACK_CLEAR_M + 0.5, 0.0)), \
+    "the nearest spot round the station: straight out from it"
+  assert timeout == lc.CLEAR_DRIVE_S
+  assert life.status == ("standing by: clearing the charging station for the others "
+                         f"-- back to ({gx:.1f}, {gy:.1f})")
+  assert "charging station" not in life.thoughts.read("History.md"), "one walk, nothing to tell"
+
+
+def test_a_far_clear_goes_home_only_with_no_spot_and_a_blocked_one_tries_the_others():
+  """...the start pose only where no spot round the station is reachable
+  (the map does not reach one yet), as before #781; and a spot that did not
+  get it away is followed by the next ones round the station, then History
+  says where it ended, as at the house's (#346)."""
+  life = _far_life()
+  life.body.reachable = lambda points: [False] * len(points)
+  drives = []
+  life.body.go_to_routine = lambda *a, **kw: (drives.append(a[:2]), tick.result(False))[1]
+  assert life.body.run(life._clear_rack_routine()) is False
+  assert drives == [life.home_pose[:2]], drives
+
+  life = _far_life()
+  drives = []
+  life.body.go_to_routine = lambda *a, **kw: (drives.append(a[:2]), tick.result(False))[1]
+  assert life.body.run(life._clear_rack_routine()) is False
+  assert len(set(drives)) == len(drives) == 1 + lc.CLEAR_SPOTS, drives
+  assert all(lc.RACK_CLEAR_M <= life.rack_distance(*d) < 3.0 for d in drives), drives
+  assert "could not get clear of the charging station" in life.thoughts.read("History.md")
+
+
 def test_the_loop_leaves_the_rack_before_it_thinks_but_only_for_somebody():
   """A charge, or one that failed, ends at the station, and the next thing
   the loop does with a mind is ASK -- standing in the other robot's lane
