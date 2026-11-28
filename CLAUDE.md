@@ -1254,16 +1254,23 @@ save a filmstrip PNG named after the script.
   cup re-set's move that reads false is taken back before the cup is set down
   (`SHELF_CUP_UNDO`), ⚠ the fork's hand stays at least 0.25 m left of the
   middle (nearer, its pulls bowed the head onto the board), ⚠ the fork's
-  put-down steps sideways first where its aim reads further left than
-  `SHELF_FORK_PUT` (0.17 m; the pass's 0.18: aimed 0.17-0.18 m and
-  unstepped, 18 of 83 failed, its pull down out of reach or the stance
-  turning under it), and ⚠ a put-down waits on its hand reading held (from
-  the hanging arm the reach fell). ⚠ ITS BAR (the pass's) IS MET ON ITS
-  DRAWS, NOT ON THE SEALED ONES: 24 of 32 over the tour by bd7146f1, no fall,
-  and 20 of 32 on 32 draws sealed by that commit (round 9's reference beside
-  it 22 and 18, where on 2ddbe238's sealed 32 it laid 24: 32 draws are that
-  noisy); offering it is Ben's call (SimNotes has each round; the plate's wall
-  is #771). ⚠ The dev draws
+  look after its left pre-pose that misses (the fork past 32 deg left, the
+  pre-pose having turned the robot right about 3 deg) turns `SHELF_LOOK_TURN`
+  toward it, takes the pre-pose again and looks again (aimed at the look from
+  before the turn, the grip landed 1.8 cm along the fork and 2.6 across, and
+  11 of 18 such forks were lost; nothing the robot reads says the pre-pose's
+  turn), and `near`'s three missed looks turn `SHELF_NEAR_TURN` toward it and
+  look again, ⚠ the fork's put-down steps sideways first where its aim reads
+  further left than `SHELF_FORK_PUT` (0.17 m; the pass's 0.18: aimed
+  0.17-0.18 m and unstepped, 18 of 83 failed, its pull down out of reach or
+  the stance turning under it), and is held to that line again after its
+  step, with one more (a step goes about half its way: `SHELF_FORK_STEP`),
+  and ⚠ a put-down waits on its hand reading held (from the hanging arm the
+  reach fell). ⚠ ITS BAR (the pass's) IS MET, BOTH HALVES: 24 of 32 over the
+  tour and 27 of 32 on 32 draws sealed by bd98064e, no fall -- the bar's 24
+  round 10's own flights replayed, the sealed 27 round 10's too on a kind
+  pool, its own gain +8 -0 over 256 fresh draws (SimNotes has each round);
+  offering it is Ben's call (the plate's wall is #771). ⚠ The dev draws
   4000-4063 flatter it (it was chosen on them; on fresh draws it laid 65 of 128
   on the served plate): read a lever that flies the fork's trip afresh on fresh
   draws.

@@ -9246,13 +9246,21 @@ on the bar's draws and 24 of 32 on 32 draws sealed by that commit, where the
 reference beside it laid 20 and 20), and the tenth's one, at bd7146f1: 24 of
 32 on the bar's draws and 20 of 32 on 32 draws sealed by that commit, where
 round 9's reference beside it laid 22 and 18 (on its own sealed draws it had
-laid 24: 32 draws are that noisy), no fall either way: THE BAR IS MET ON ITS
-DRAWS, NOT ON THE SEALED ONES (its misses below); offering it is Ben's call.
+laid 24: 32 draws are that noisy), no fall either way, the bar met on its
+draws and not on the sealed ones; and the eleventh's three, at bd98064e: 24 of
+32 on the bar's draws and 27 of 32 on 32 draws sealed by that commit, no fall,
+where round 10's reference beside it laid the same 24 and 27 (on the bar's
+draws its flights were the reference's to the bit, and the sealed draws were
+kind, one plate let go carried): THE BAR IS MET, BOTH HALVES (its misses
+below), round 11's own gain read on fresh draws, 172 of 256 against 164 (+8
+-0); offering it is Ben's call.
 Its largest miss on the dev draws and the bar's is the plate let go carried,
 which a rounder wall all but took away (#771). The fork's largest was its stow
 catching the work board, which round 9 takes where the grip's own reading puts
-the head's tip at the board's edge, and then its put-down aimed just inside the
-pass's line, which round 10 steps away from (below). ⚠ The dev draws 4000-4063
+the head's tip at the board's edge, then its put-down aimed just inside the
+pass's line, which round 10 steps away from, and then its grip taken off a look
+from before the left pre-pose turned the robot, which round 11 takes again
+(below). ⚠ The dev draws 4000-4063
 flatter the reference, which was chosen on them. On the served plate, on draws
 nobody tuned on (4300-4363 and 4400-4463), it laid 65 of 128, where on the dev
 draws it laid 42 of 64; on the raised 48-box plate, 45 of 64 on 4300-4363
@@ -9303,7 +9311,8 @@ flights, osmesa, each its own noise):
 runs, each piece fetched from the shelf and laid as the pass lays it, byte for
 byte but a check that the piece is still held, the cup's failed re-set taken
 back (round 9, below) and the line past which the fork's put-down steps first
-(round 10). What fetching from the shelf
+(round 10), and to which it is held again after its step (round 11). What
+fetching from the shelf
 took, found on local flights and on dev draws from 4000 up (one pod, Xeon
 E7-8890 v4, osmesa, each its own noise; `~/pluggybot-training/batches/
 a2_shelf/`):
@@ -9582,6 +9591,55 @@ draws, not on the sealed ones. On the sealed draws the plate was let go carried
 in 6 (#771), the fork tipped in 3 and let go carried in 3, the plate dropped at
 its put-down in 2, the cup and the fork put down off in 2 each and the plate in
 1, seven flights missing two pieces.
+
+**Round 11** (the loop of 11-26b's A9,
+`~/pluggybot-training/loop-1126b/a9-halves/`, its rule sent before it flew; KEPT
+at bd98064e). *Where the fork's grip lands along its length.* Read off round
+10's own rows (P's 384 served flights: its dev draws, the keep's 128 fresh, the
+bar's 32 and its sealed 32), a fork's put-down lands where its grip took the
+fork along its length: the true offset of the grip from the fork along the
+stance's x as the jaws shut correlates 0.85 with where the fork was let go
+toward the diner (slope 1.23), and which of the pick's looks saw tag 92 decides
+the grip. The look after the left pre-pose missed in 18 trips of 384 -- exactly
+those whose fork stood past 32 deg left of the robot (31.7-35.0 deg; every look
+that saw it, 32.0 or less), the picture's side: the pre-pose had turned the
+robot right (-3.1 deg in those trips, sd 0.7), and the reach, aimed at the look
+from before it, landed the grip 1.8 cm along the fork and 2.6 across (sd 0.9 and
+0.7); 11 of those 18 lost the fork (5 put down off, 2 the jaws shutting on
+nothing twice, 2 let go carried, 1 dropped, 1 with the plate dropped). No
+reading tells the robot the pre-pose's own turn -- only `reach` and `withdraw`
+record the feet -- so where that look misses the robot turns `SHELF_LOOK_TURN`
+toward the fork, takes the pre-pose again and looks again, the reach taking that
+look's place, height and edge. Two more, each acting only where its predicate
+holds: the card looked at after the put-down's step is held to `SHELF_FORK_PUT`
+again, with one more step (a step goes about half its way: from 0.19-0.21 m left
+one step left 26 of 50 past the line, 4 of them lost there), each look after a
+step taken again once where it misses; and where all three of `near`'s looks
+miss (4 of 384, the fork's run ending unpicked), a turn of `SHELF_NEAR_TURN`
+toward the fork, a look, and `near`'s own step. The sealed draws' three forks
+"tipped" were no fork's fault: in each the plate lay 7-20 cm left of its place,
+on the fork's, and the fork came down on it. On fresh draws nobody had flown,
+4800-4991, on a Xeon E5-2698 v4 with round 10's reference beside it: of the 192
+flights, the 162 it did not act on were the reference's to the bit, and it laid
+134 where the reference laid 127 (+7 -0, one-sided sign p 0.008), no fall where
+the reference fell once (on its fork's way home), plates let go carried 28 both.
+The look turned toward the fork acted in 10 (+4), the put-down's second step in
+18 (+2, one where the reference fell), `near`'s turn in 4 (+1), a look after a
+step missing in none; every acted flight it did not lay was lost on its plate,
+the reference's own, and its fork failed in 20 flights where the reference's
+failed in 31. These draws are fresh, but the levers were designed off round 10's
+rows; the keep's are independent. Kept, by the rule stated before it flew: on
+fresh 4992-5055 it laid 38 where the reference laid 37 (+1 -0, `near`'s turn),
+no fall either way, plates let go carried 15 both; on the bar's draws 0-31 it
+acted on none, its flights the reference's to the bit, 24 of 32 both; and on the
+32 draws sealed by bd98064e it laid 27 where the reference laid 27 (its 3 acts
+laid both), no fall either way: THE BAR IS MET, BOTH HALVES. What each half
+flatters: the bar's 24 is the reference's own flights replayed, on draws where
+its fork failed once in 32 (14 % of flights elsewhere); the sealed 27 is the
+reference's 27 too, on a kind pool, one plate let go carried where about five in
+32 are elsewhere. Round 11's own gain is read on the fresh draws: 172 of 256
+against 164, +8 -0, no fall. The sealed draws' misses: the plate let go carried
+once, the fork put down off twice, the cup and the plate put down off once each.
 
 **A thin piece's hand-over rises over the shoulder and sweeps down at the
 robot's side** (#770; not fixed). The walk's hand-over takes the side way for
